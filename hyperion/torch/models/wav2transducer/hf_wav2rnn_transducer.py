@@ -12,12 +12,12 @@ import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils import remove_silence
 from ..transducer import RNNTransducer, RNNTransducerOutput
 
 
-class HFWav2RNNTransducer(TorchModel):
+class HFWav2RNNTransducer(HyperTorchModel):
     """Abstract Base class for RNN-T transducer models that use a Hugging Face Model as feature extractor.
 
     Attributes:
@@ -31,8 +31,8 @@ class HFWav2RNNTransducer(TorchModel):
 
     def __init__(
         self,
-        hf_feats: TorchModel,
-        transducer: Union[Dict, TorchModel],
+        hf_feats: HyperTorchModel,
+        transducer: Union[Dict, HyperTorchModel],
         feat_fusion_start: int = 0,
         feat_fusion_method: str = "weighted-avg",
     ):

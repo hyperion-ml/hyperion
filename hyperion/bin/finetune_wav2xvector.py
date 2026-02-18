@@ -22,7 +22,7 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger, set_float_cpu
 
 # from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch import TorchModel
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
@@ -97,9 +97,9 @@ def init_xvector(
     num_classes: int,
     in_model_file: PathLike,
     rank: int,
-    xvec_class: Type[TorchModel],
+    xvec_class: Type[HyperTorchModel],
     **kwargs: Any,
-) -> TorchModel:
+) -> HyperTorchModel:
     """Load and reconfigure x-vector model checkpoint for fine-tuning.
 
     Args:
@@ -113,7 +113,7 @@ def init_xvector(
     if rank == 0:
         logging.info("xvector network ft args={}".format(xvec_args))
     xvec_args["xvector"]["num_classes"] = num_classes
-    model = TorchModel.auto_load(in_model_file)
+    model = HyperTorchModel.auto_load(in_model_file)
     model.change_config(**xvec_args)
     if rank == 0:
         logging.info("x-vector-model={}".format(model))
@@ -193,7 +193,7 @@ def train_xvec(gpu_id: int, args: Any) -> None:
     ddp.ddp_cleanup()
 
 
-def make_parser(xvec_class: Type[TorchModel]) -> ArgumentParser:
+def make_parser(xvec_class: Type[HyperTorchModel]) -> ArgumentParser:
     """Build parser for a specific x-vector model subcommand.
 
     Args:

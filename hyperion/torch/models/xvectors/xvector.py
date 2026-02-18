@@ -17,7 +17,7 @@ from ....utils.misc import filter_func_args
 from ...layer_blocks import TDNNBlock
 from ...layers import GlobalPool1dFactory as PF
 from ...narchs import ClassifHead, DINOHead, ProjHead, TorchNALoader
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils import eval_nnet_by_chunks, scale_seq_lengths
 
 
@@ -40,7 +40,7 @@ class XVectorOutput(HyperDataClass):
     h_feats: Optional[List[torch.Tensor]] = None
 
 
-class XVector(TorchModel):
+class XVector(HyperTorchModel):
     """x-Vector base class"""
 
     def __init__(

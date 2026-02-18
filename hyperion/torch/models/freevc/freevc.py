@@ -20,7 +20,7 @@ from ...narchs.audio_feats_mvn import AudioFeatsMVN
 from ...narchs.hifi_generator import HiFiGenerator
 from ...narchs.nvp_flow import WaveNetNVPFlow as NVPFlow
 from ...narchs.wavenet_posterior_encoder import WaveNetPosteriorEncoder
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils.masking import seq_lengths_to_mask
 from ...utils.misc import slice_segments
 
@@ -63,14 +63,14 @@ class FreeVCOutput(HyperDataClass):
     kldiv_loss: Optional[torch.Tensor] = None
 
 
-class FreeVC(TorchModel):
+class FreeVC(HyperTorchModel):
     """
     FreeVC model for voice conversion.
     """
 
     def __init__(
         self,
-        hf_feats: TorchModel,
+        hf_feats: HyperTorchModel,
         audio_feats: Union[Dict[str, Any], AudioFeatsMVN],
         prior_encoder: Union[Dict[str, Any], WaveNetPosteriorEncoder],
         prior_flow: Union[Dict[str, Any], NVPFlow],

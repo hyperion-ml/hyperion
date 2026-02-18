@@ -10,7 +10,7 @@ from jsonargparse import ActionParser, ArgumentParser
 import torch
 import torch.nn as nn
 
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils import remove_silence
 
 # import torch.nn.functional as nnf
@@ -18,7 +18,7 @@ from ...utils import remove_silence
 # from ..wav2xvectors.hf_wav2xvector import HFWav2XVector
 
 
-class HFWav2Transducer(TorchModel):
+class HFWav2Transducer(HyperTorchModel):
     """Abstract Base class for x-vector models that use a Hugging Face Model as feature extractor.
 
     Attributes:

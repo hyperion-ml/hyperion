@@ -1,5 +1,7 @@
-numpy>=1.18.1
-sphinx_rtd_theme
-sphinx==4.2.0
-sphinx-click==3.0.1
-sphinx-autodoc-typehints==1.12.0
+sphinx>=7,<9
+sphinx_rtd_theme>=2,<4
+numpy>=1.26,<2.0
+pandas>=2.1,<2.3
+scipy>=1.11,<1.13
+h5py>=3.11,<4.0
+jsonargparse>=3.5.0

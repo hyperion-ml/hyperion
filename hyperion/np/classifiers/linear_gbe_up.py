@@ -16,7 +16,7 @@ from ...utils.math_funcs import (
     logdet_pdmat,
     softmax,
 )
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 from .linear_gbe import LinearGBE
 
 

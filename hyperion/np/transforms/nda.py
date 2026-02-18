@@ -8,11 +8,11 @@ import numpy as np
 import scipy.linalg as la
 
 from ...hyp_defs import float_cpu
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 from .sb_sw import NSbSw
 
 
-class NDA(NPModel):
+class NDA(HyperNPModel):
     """Class to do nearest-neighbors discriminant analysis
 
     Attributes:

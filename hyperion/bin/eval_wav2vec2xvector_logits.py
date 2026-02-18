@@ -25,7 +25,7 @@ from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
 from hyperion.np.preprocessing import ResamplerToTargetFreq
-from hyperion.torch import TorchModel
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.utils import open_device
 from hyperion.utils import HyperDataset, Utt2Info
 
@@ -39,10 +39,10 @@ def init_device(use_gpu: bool) -> torch.device:
     return device
 
 
-def load_model(model_path: str, device: torch.device) -> TorchModel:
+def load_model(model_path: str, device: torch.device) -> HyperTorchModel:
     """Load the wav2vec/xvector model and move it to ``device``."""
     logging.info("loading model %s", model_path)
-    model = TorchModel.auto_load(model_path)
+    model = HyperTorchModel.auto_load(model_path)
     logging.info(f"xvector-model={model}")
     model.to(device)
     model.eval()

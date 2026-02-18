@@ -26,7 +26,7 @@ from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.np.augment import SpeechAugment
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.models.wav2transducer.beam_search import beam_search, greedy_search
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
@@ -46,7 +46,7 @@ def init_device(use_gpu: bool) -> torch.device:
 def load_model(model_path: PathLike, device: torch.device) -> nn.Module:
     """Load transducer model checkpoint and move it to the target device."""
     logging.info("loading model {}".format(model_path))
-    model = TML.load(model_path)
+    model = HyperTorchModel.auto_load(model_path)
     logging.info("transducer-model={}".format(model))
     model.to(device)
     model.eval()

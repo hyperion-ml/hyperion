@@ -23,7 +23,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch import TorchModel
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.models.audio_discrimitator import AudioMultiDiscriminator
@@ -87,8 +87,8 @@ def init_data(
 
 
 def init_dac_model(
-    rank: int, model_class: Type[TorchModel], model_args: Dict[str, Any]
-) -> TorchModel:
+    rank: int, model_class: Type[HyperTorchModel], model_args: Dict[str, Any]
+) -> HyperTorchModel:
     """Initialize DAC model from configuration.
 
     Args:
@@ -182,7 +182,7 @@ def train_model(gpu_id: int, args: Any) -> None:
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class: Type[TorchModel]) -> ArgumentParser:
+def make_parser(model_class: Type[HyperTorchModel]) -> ArgumentParser:
     """Create parser for one DAC model subcommand.
 
     Args:

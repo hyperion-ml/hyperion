@@ -20,7 +20,7 @@ import pickle
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
-from hyperion.np import NPModel
+from hyperion.np import HyperNPModel
 from hyperion.np.pdfs import PLDAFactory, PLDALLRNvsMMethod
 from hyperion.np.score_norm import AdaptSNorm
 from hyperion.np.transforms import LNorm, TransformList
@@ -264,7 +264,7 @@ def eval_backend(
         x_t = apply_preprocessors(x_t, test_segments, preprocessors, test_map)
 
     logging.info("Loading PLDA model")
-    plda_model = NPModel.auto_load(plda_file)
+    plda_model = HyperNPModel.auto_load(plda_file)
     logging.info("computing score")
     if is_Nvs1:
         scores = plda_model.llr_Nvs1(x_e, x_t, ids1=enroll_ids, method=llr_method)

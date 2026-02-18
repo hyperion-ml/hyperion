@@ -24,7 +24,7 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.feats import MeanVarianceNorm as MVN
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
 
@@ -48,7 +48,7 @@ def init_mvn(device, **kwargs):
 
 def load_model(model_path, device):
     logging.info("loading model {}".format(model_path))
-    model = TML.load(model_path)
+    model = HyperTorchModel.auto_load(model_path)
     logging.info("vae-model={}".format(model))
     model.to(device)
     model.eval()
@@ -118,7 +118,7 @@ def eval_vae(
     # logging.info('initializing devices num_gpus={}'.format(num_gpus))
     # device = open_device(num_gpus=num_gpus)
     # logging.info('loading model {}'.format(model_path))
-    # model = TML.load(model_path)
+    # model = HyperTorchModel.auto_load(model_path)
     # model.to(device)
     # model.eval()
 

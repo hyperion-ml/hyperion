@@ -9,11 +9,11 @@ import time
 import torch
 import torch.nn as nn
 
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils.misc import get_selfsim_tarnon, l2_norm
 
 
-class PLDABase(TorchModel):
+class PLDABase(HyperTorchModel):
     def __init__(
         self,
         x_dim=None,

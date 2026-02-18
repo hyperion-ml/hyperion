@@ -20,7 +20,7 @@ from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
 from hyperion.np.preprocessing import ResamplerToTargetFreq
-from hyperion.torch import TorchModel
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.utils import open_device
 from hyperion.utils import HyperDataset
 
@@ -41,18 +41,18 @@ def init_device(use_gpu: bool) -> torch.device:
     return device
 
 
-def load_model(model_path: str, device: torch.device) -> TorchModel:
-    """Load a serialized TorchModel and move it to ``device``.
+def load_model(model_path: str, device: torch.device) -> HyperTorchModel:
+    """Load a serialized HyperTorchModel and move it to ``device``.
 
     Args:
         model_path: File path containing the serialized model.
         device: Destination device where the model will be placed.
 
     Returns:
-        TorchModel: Loaded model ready for inference.
+        HyperTorchModel: Loaded model ready for inference.
     """
     logging.info("loading model %s", model_path)
-    model = TorchModel.auto_load(model_path)
+    model = HyperTorchModel.auto_load(model_path)
     logging.info("qvector-model=%s", model)
     model.to(device)
     model.eval()

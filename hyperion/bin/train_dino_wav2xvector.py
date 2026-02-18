@@ -18,7 +18,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch import TorchModel
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.data import DINOAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.losses import CosineDINOLoss, DINOLoss
@@ -88,8 +88,8 @@ def init_data(
 
 
 def init_student_xvector(
-    num_classes: int, rank: int, xvec_class: Type[TorchModel], **kwargs: Any
-) -> TorchModel:
+    num_classes: int, rank: int, xvec_class: Type[HyperTorchModel], **kwargs: Any
+) -> HyperTorchModel:
     """Initialize student x-vector model.
 
     Args:
@@ -109,8 +109,8 @@ def init_student_xvector(
 
 
 def init_teacher_xvector(
-    student_model: TorchModel, rank: int, xvec_class: Type[TorchModel], **kwargs: Any
-) -> TorchModel:
+    student_model: HyperTorchModel, rank: int, xvec_class: Type[HyperTorchModel], **kwargs: Any
+) -> HyperTorchModel:
     """Initialize teacher x-vector model.
 
     Args:
@@ -127,7 +127,7 @@ def init_teacher_xvector(
         model = student_model.clone()
         model.change_config(**xvec_args)
     else:
-        model = TorchModel.auto_load(kwargs["in_teacher_model_file"])
+        model = HyperTorchModel.auto_load(kwargs["in_teacher_model_file"])
 
     if rank == 0:
         logging.info(f"teacher-model={model}")
@@ -220,7 +220,7 @@ def train_xvec(gpu_id: int, args: Any) -> None:
     ddp.ddp_cleanup()
 
 
-def make_parser(xvec_class: Type[TorchModel]) -> ArgumentParser:
+def make_parser(xvec_class: Type[HyperTorchModel]) -> ArgumentParser:
     """Create parser for one x-vector model subcommand.
 
     Args:

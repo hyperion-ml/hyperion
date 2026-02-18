@@ -12,11 +12,11 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from ...hyp_defs import float_cpu, float_save
 from ...utils.math_funcs import softmax
 from ..metrics import dcf
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 from .binary_logistic_regression import BinaryLogisticRegression as BLR
 
 
-class GreedyFusionBinaryLR(NPModel):
+class GreedyFusionBinaryLR(HyperNPModel):
     """Greedy score fusion based on binary logistic regression.
 
     It computes ``max_systmes`` fusions. The best system, the best fusion of two,

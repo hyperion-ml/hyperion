@@ -12,11 +12,11 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import AudioFeatsMVN
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils import collate_seqs_1d, collate_seqs_2d, remove_silence
 
 
-class Wav2XVector(TorchModel):
+class Wav2XVector(HyperTorchModel):
     """Base class for models that integrate the acoustic feature extractor and and x-vector model that takes acoustic features as input.
 
     Attributes:

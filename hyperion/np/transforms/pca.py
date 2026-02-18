@@ -8,10 +8,10 @@ import scipy.linalg as la
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from numpy.linalg import matrix_rank
 
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class PCA(NPModel):
+class PCA(HyperNPModel):
     """Class to do principal component analysis
 
     Attributes:

@@ -11,10 +11,10 @@ import scipy.linalg as la
 from scipy.special import erfinv
 
 from ...hyp_defs import float_cpu
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class Gaussianizer(NPModel):
+class Gaussianizer(HyperNPModel):
     """Class to make i-vector distribution standard Normal.
 
     Args:

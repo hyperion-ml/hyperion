@@ -12,11 +12,11 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import FeatFuserMVN
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils import collate_seqs_1d, collate_seqs_2d, remove_silence
 
 
-class HFWav2XVector(TorchModel):
+class HFWav2XVector(HyperTorchModel):
     """Abstract Base class for x-vector models that use a Hugging Face Model as feature extractor.
 
     Attributes:

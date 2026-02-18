@@ -26,7 +26,7 @@ from ...narchs import (
     QFormerV2,
     QProjHead,
 )
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 
 
 @dataclass
@@ -238,7 +238,7 @@ class QVectorTrainMode(str, Enum):
         return [o.value for o in QVectorTrainMode]
 
 
-class QVector(TorchModel):
+class QVector(HyperTorchModel):
     """Core implementation of the q-vector encoder/classifier.
 
     Attributes:
@@ -504,7 +504,7 @@ class QVector(TorchModel):
         """
         self.update_loss_margin(global_step)
 
-    def init_from_xvector(self, xvector_model: TorchModel):
+    def init_from_xvector(self, xvector_model: HyperTorchModel):
         """Initialize q-vector model backbone parameters from a pre-trained x-vector model.
 
         Args:

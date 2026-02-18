@@ -56,7 +56,7 @@ from ..loggers import CSVLogger, LoggerList, ProgLogger, TensorBoardLogger, WAnd
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..optim import OptimizerFactory as OF
-from ..torch_model import TorchModel
+from ..hyper_torch_model import HyperTorchModel
 from ..utils import MetricAcc, TorchDDP
 from ..utils.grad_tracker import GradNormTracker
 from ..wd_schedulers import WDScheduler as WDS
@@ -372,7 +372,7 @@ class TorchTrainerBase:
 
     def _prepare_model_for_training(
         self,
-        model: TorchModel,
+        model: HyperTorchModel,
         optim: Union[torch.optim.Optimizer, Dict[str, Any]],
         lrsched: Union[LRS, Dict[str, Any], None],
         wdsched: Union[WDS, Dict[str, Any], None],
@@ -402,7 +402,7 @@ class TorchTrainerBase:
         initializes a Stochastic Weight Averaging (SWA) model.
 
         Args:
-            model (TorchModel): The model to train.
+            model (HyperTorchModel): The model to train.
             optim (torch.optim.Optimizer): Optimizer or dict of optimizer config.
             lrsched (LRS | Dict | None): Learning rate scheduler or config.
             wdsched (WDS | Dict | None): Weight decay scheduler or config.
@@ -880,11 +880,11 @@ class TorchTrainerBase:
 
     # def checkpoint(
     #     self,
-    #     model: TorchModel,
+    #     model: HyperTorchModel,
     #     optimizer: Optional[torch.optim.Optimizer] = None,
     #     lr_scheduler: Optional[LRS] = None,
     #     wd_scheduler: Optional[WDS] = None,
-    #     swa_model: Optional[TorchModel] = None,
+    #     swa_model: Optional[HyperTorchModel] = None,
     #     swa_scheduler: Optional[SWALR] = None,
     #     logs: Optional[Dict[str, Any]] = None,
     # ):
@@ -1415,7 +1415,7 @@ class TorchTrainerBase:
     def _make_optimizer(
         self,
         optim: Union[torch.optim.Optimizer, Dict[str, Any]],
-        model: TorchModel,
+        model: HyperTorchModel,
     ) -> torch.optim.Optimizer:
         """
         Creates an optimizer instance for the given model.
@@ -1639,7 +1639,7 @@ class TorchTrainerBase:
 
     def model_checkpoint(
         self,
-        model: TorchModel,
+        model: HyperTorchModel,
         optimizer: torch.optim.Optimizer,
         lr_scheduler: Optional[LRS] = None,
         wd_scheduler: Optional[WDS] = None,
@@ -1652,11 +1652,11 @@ class TorchTrainerBase:
         schedulers, RNG state, and optionally SWA components and logs.
 
         Args:
-            model (TorchModel): The model being trained.
+            model (HyperTorchModel): The model being trained.
             optimizer (torch.optim.Optimizer): The optimizer instance.
             lr_scheduler (Optional[LRS]): Learning rate scheduler, if used.
             wd_scheduler (Optional[WDS]): Weight decay scheduler, if used.
-            swa_model (Optional[TorchModel]): SWA-averaged model, if using SWA.
+            swa_model (Optional[HyperTorchModel]): SWA-averaged model, if using SWA.
             swa_scheduler (Optional[SWALR]): SWA learning rate scheduler.
             logs (Optional[Dict[str, Any]]): Additional logs to store in checkpoint.
 
@@ -1844,7 +1844,7 @@ class TorchTrainerBase:
     def _load_model_state_dicts_from_checkpoint(
         self,
         checkpoint: Dict[str, Any],
-        model: TorchModel,
+        model: HyperTorchModel,
         optimizer: Optional[torch.optim.Optimizer],
         lr_scheduler: Optional[LRS] = None,
         wd_scheduler: Optional[WDS] = None,
@@ -1856,11 +1856,11 @@ class TorchTrainerBase:
 
         Args:
             checkpoint (Dict[str, Any]): The checkpoint dictionary.
-            model (TorchModel): The model instance to load state into.
+            model (HyperTorchModel): The model instance to load state into.
             optimizer (torch.optim.Optimizer): The optimizer to load state into.
             lr_scheduler (Optional[LRS]): Learning rate scheduler to load state into.
             wd_scheduler (Optional[WDS]): Weight decay scheduler to load state into.
-            swa_model (Optional[TorchModel]): SWA model instance, if applicable.
+            swa_model (Optional[HyperTorchModel]): SWA model instance, if applicable.
             swa_scheduler (Optional[SWALR]): SWA scheduler instance, if applicable.
         """
         if not self.ddp:

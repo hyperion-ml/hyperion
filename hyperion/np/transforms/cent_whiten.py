@@ -7,11 +7,10 @@ import numpy as np
 import scipy.linalg as la
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ..np_model import NPModel
-from ..pdfs import Normal
+from ..hyper_np_model import HyperNPModel
 
 
-class CentWhiten(NPModel):
+class CentWhiten(HyperNPModel):
     """Class to do centering and whitening of i-vectors.
 
     Attributes:
@@ -79,6 +78,9 @@ class CentWhiten(NPModel):
         """
         if x is not None:
             if x.shape[0] > x.shape[1]:
+                # Lazy import to avoid transform<->pdf package import cycles.
+                from ..pdfs.core import Normal
+
                 gauss = Normal(x_dim=x.shape[1])
                 gauss.fit(x=x, sample_weight=sample_weight)
                 mu = gauss.mu

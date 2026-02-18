@@ -8,11 +8,11 @@ import numpy as np
 import scipy.linalg as la
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 from .sb_sw import SbSw
 
 
-class LDA(NPModel):
+class LDA(HyperNPModel):
     """Class to do linear discriminant analysis.
 
     Attributes:

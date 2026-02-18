@@ -1,73 +1,72 @@
-Utils
-=====
+Utility Layer
+=============
 
-The ``hyperion.utils`` module contains several utility classes and functions.
+Overview
+--------
 
-Trial Management Classes
-------------------------
+``hyperion.utils`` contains table abstractions, dataset manifests, trial data
+structures, and Kaldi-style helper classes.
 
-These are a series of utils to handle Trial Indices, Keys and Scores. These are based on the MATLAB implementations in the BOSARIS Toolkit.
+Dataset and table abstractions
+------------------------------
 
-.. autoclass:: hyperion.utils.trial_key.TrialKey
+.. autoclass:: hyperion.utils.InfoTable
 
-.. autoclass:: hyperion.utils.trial_ndx.TrialNdx
+.. autoclass:: hyperion.utils.HyperDataset
 
-.. autoclass:: hyperion.utils.trial_scores.TrialScores
+Domain-specific table sets built on top of ``InfoTable``:
 
-.. autoclass:: hyperion.utils.trial_stats.TrialStats
+.. autoclass:: hyperion.utils.SegmentSet
 
-.. autoclass:: hyperion.utils.sparse_trial_key.SparseTrialKey
+.. autoclass:: hyperion.utils.RecordingSet
 
-.. autoclass:: hyperion.utils.sparse_trial_scores.SparseTrialScores
+.. autoclass:: hyperion.utils.FeatureSet
 
-Kaldi Data Directory Manipulaton Classes
-----------------------------------------
+.. autoclass:: hyperion.utils.VADSet
 
-Thise are classes to manipulate Kaldi data directory files like ``wav.scp``, ``utt2spk``, ``segments``, ``rttm``.
+.. autoclass:: hyperion.utils.ImageSet
 
-.. autoclass:: hyperion.utils.scp_list.SCPList
+.. autoclass:: hyperion.utils.VideoSet
 
-.. autoclass:: hyperion.utils.utt2info.Utt2Info
+.. autoclass:: hyperion.utils.DiarizationSet
 
-.. autoclass:: hyperion.utils.segment_list.SegmentList
+Trial/key/score structures
+--------------------------
 
-.. autoclass:: hyperion.utils.rttm.RTTM
-	       
+.. autoclass:: hyperion.utils.TrialNdx
 
-Kaldi Matrix Read/Write Classes
--------------------------------
+.. autoclass:: hyperion.utils.TrialKey
 
-These are classes to read/write text and binary matrices from ARK files.  They support the compression methods in Kaldi ARK files.
+.. autoclass:: hyperion.utils.TrialScores
 
-.. autoclass:: hyperion.utils.kaldi_matrix.KaldiMatrix
-	       
-.. autoclass:: hyperion.utils.kaldi_matrix.KaldiCompressedMatrix
+.. autoclass:: hyperion.utils.SparseTrialKey
 
-Kaldi I/O Functions
--------------------------------
+.. autoclass:: hyperion.utils.SparseTrialScores
 
-Utils to read/write binary ARK files
+Enrollment and class metadata
+-----------------------------
 
-.. automodule:: hyperion.utils.kaldi_io_funcs
+.. autoclass:: hyperion.utils.EnrollmentMap
 
-VAD Utils
----------------
+.. autoclass:: hyperion.utils.ClassInfo
 
-Functions to manipulate VAD output, convert from binary to timestamps, intersect VADs, etc.
+Kaldi-style helper structures
+-----------------------------
 
-.. automodule:: hyperion.utils.vad_utils
+.. autoclass:: hyperion.utils.SCPList
 
-Math Functions
---------------
+.. autoclass:: hyperion.utils.Utt2Info
 
-.. automodule:: hyperion.utils.math
+.. autoclass:: hyperion.utils.SegmentList
 
-Miscellaneous Functions
+.. autoclass:: hyperion.utils.RTTM
+
+.. autoclass:: hyperion.utils.KaldiMatrix
+
+.. autoclass:: hyperion.utils.KaldiCompressedMatrix
+
+Miscellaneous utilities
 -----------------------
 
 .. automodule:: hyperion.utils.misc
-
-
-
-		
-	       
+   :members:

@@ -19,7 +19,7 @@ import torch
 from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
 from ...narchs import RNNTransducerDecoder
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 
 
 @dataclass
@@ -30,7 +30,7 @@ class RNNTransducerOutput(HyperDataClass):
     h_feats: Optional[List[torch.Tensor]] = None
 
 
-class RNNTransducer(TorchModel):
+class RNNTransducer(HyperTorchModel):
     """Base-class for RNN-T in
     "Sequence Transduction with Recurrent Neural Networks"
     https://arxiv.org/pdf/1211.3711.pdf
@@ -42,14 +42,14 @@ class RNNTransducer(TorchModel):
 
     def __init__(
         self,
-        encoder: Union[TorchModel, None],
+        encoder: Union[HyperTorchModel, None],
         rnnt_decoder: Union[Dict, RNNTransducerDecoder],
         rnnt_weight: float = 1.0,
         ctc_weight: float = 0.0,
     ):
         super().__init__()
         if encoder is not None:
-            assert isinstance(encoder, TorchModel)
+            assert isinstance(encoder, HyperTorchModel)
         if isinstance(rnnt_decoder, dict):
             if encoder is not None:
                 rnnt_decoder["in_feats"] = encoder.out_shape()[-1]

@@ -24,7 +24,7 @@ from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.models import ResNetQVector as RQVec
 from hyperion.torch.models import Wav2ResNetXVector as RXVec
 from hyperion.torch.narchs import HydraHeadType
-from hyperion.torch.torch_model import TorchModel
+from hyperion.torch.hyper_torch_model import HyperTorchModel
 from hyperion.torch.trainers import QVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
 
@@ -83,8 +83,8 @@ def init_data(
 
 
 def init_qvector(
-    num_classes: int, rank: int, qvec_class: Type[TorchModel], **kwargs: Any
-) -> TorchModel:
+    num_classes: int, rank: int, qvec_class: Type[HyperTorchModel], **kwargs: Any
+) -> HyperTorchModel:
     """Initialize q-vector model.
 
     Args:
@@ -133,7 +133,7 @@ def train_qvector(gpu_id: int, args: Any) -> None:
         if rank == 0:
             logging.info(f"Initializing q-vector model from x-vector model {xvec_path}")
 
-        xvector_model = TorchModel.auto_load(xvec_path)
+        xvector_model = HyperTorchModel.auto_load(xvec_path)
         model.init_from_xvector(xvector_model)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
@@ -152,7 +152,7 @@ def train_qvector(gpu_id: int, args: Any) -> None:
     ddp.ddp_cleanup()
 
 
-def make_parser(qvec_class: Type[TorchModel]) -> ArgumentParser:
+def make_parser(qvec_class: Type[HyperTorchModel]) -> ArgumentParser:
     """Create parser for one q-vector model subcommand.
 
     Args:

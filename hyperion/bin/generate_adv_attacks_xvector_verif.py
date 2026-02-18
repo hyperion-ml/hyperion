@@ -28,7 +28,7 @@ from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.classifiers import BinaryLogisticRegression as LR
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.adv_attacks import RandomAttackFactory
 from hyperion.torch.layers import LinBinCalibrator as Calibrator
 from hyperion.torch.narchs import AudioFeatsMVN as AF
@@ -154,7 +154,7 @@ def init_model(
     logging.info("feat-extractor={}".format(feat_extractor))
 
     logging.info("loading model {}".format(model_path))
-    xvector_model = TML.load(model_path)
+    xvector_model = HyperTorchModel.auto_load(model_path)
     xvector_model.freeze()
     logging.info("xvector-model={}".format(xvector_model))
 

@@ -23,13 +23,13 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch import TorchModel
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.models.audio_discrimitator import AudioMultiDiscriminator
 from hyperion.torch.models.freevc import HFWavLMFreeVC
 from hyperion.torch.narchs import AudioFeatsMVN
-from hyperion.torch.trainers.vianonymizer_trainer import VIAnonymizerTrainer as Trainer
+from hyperion.torch.trainers.vi_anonymizer_trainer import VIAnonymizerTrainer as Trainer
 from hyperion.torch.utils import ddp
 from hyperion.utils.misc import PathLike
 
@@ -89,8 +89,8 @@ def init_data(
 
 
 def init_vc_model(
-    rank: int, model_class: Type[TorchModel], model_args: Dict[str, Any]
-) -> TorchModel:
+    rank: int, model_class: Type[HyperTorchModel], model_args: Dict[str, Any]
+) -> HyperTorchModel:
     """Initialize the VC model instance.
 
     Args:
@@ -107,7 +107,9 @@ def init_vc_model(
     return model
 
 
-def init_discrim_model(rank: int, model_args: Dict[str, Any]) -> AudioMultiDiscriminator:
+def init_discrim_model(
+    rank: int, model_args: Dict[str, Any]
+) -> AudioMultiDiscriminator:
     """Initialize discriminator model.
 
     Args:
@@ -139,7 +141,7 @@ def init_audio_feats(rank: int, model_args: Dict[str, Any]) -> AudioFeatsMVN:
     return model
 
 
-def init_xvector(model_file: PathLike, rank: int) -> TorchModel:
+def init_xvector(model_file: PathLike, rank: int) -> HyperTorchModel:
     """Load x-vector model checkpoint.
 
     Args:
@@ -148,7 +150,7 @@ def init_xvector(model_file: PathLike, rank: int) -> TorchModel:
     """
     if rank == 0:
         logging.info("loading xvector_model: %s", model_file)
-    model = TorchModel.auto_load(model_file)
+    model = HyperTorchModel.auto_load(model_file)
     if rank == 0:
         logging.info("x-vector_model={}".format(model))
     return model
@@ -199,7 +201,7 @@ def train_model(gpu_id: int, args: Any) -> None:
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class: Type[TorchModel]) -> ArgumentParser:
+def make_parser(model_class: Type[HyperTorchModel]) -> ArgumentParser:
     """Build parser for a specific anonymizer model subcommand.
 
     Args:

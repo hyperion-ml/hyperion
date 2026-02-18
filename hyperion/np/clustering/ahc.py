@@ -11,10 +11,10 @@ from scipy.cluster.hierarchy import linkage
 from sklearn.metrics import completeness_score, homogeneity_score
 
 from ...hyp_defs import float_cpu
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class AHC(NPModel):
+class AHC(HyperNPModel):
     """Agglomerative Hierarchical Clustering class.
 
     Attributes:

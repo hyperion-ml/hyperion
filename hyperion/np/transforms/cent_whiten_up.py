@@ -7,8 +7,7 @@ import h5py
 import numpy as np
 import scipy.linalg as la
 
-from ..np_model import NPModel
-from ..pdfs import Normal
+from ..hyper_np_model import HyperNPModel
 from .cent_whiten import CentWhiten
 
 

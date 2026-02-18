@@ -37,7 +37,7 @@ from ..models.audio_discrimitator.audio_multi_discriminator import (
 from ..models.freevc.freevc import FreeVCFwdMode, FreeVCTrainMode
 from ..narchs.audio_feats_mvn import AudioFeatsMVN
 from ..optim import OptimizerFactory as OF
-from ..torch_model import TorchModel
+from ..hyper_torch_model import HyperTorchModel
 from ..utils.misc import rand_slice_audio_segments, slice_segments
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
@@ -114,9 +114,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
 
     def __init__(
         self,
-        vc_model: TorchModel,
-        discrim_model: TorchModel,
-        xvector_model: TorchModel,
+        vc_model: HyperTorchModel,
+        discrim_model: HyperTorchModel,
+        xvector_model: HyperTorchModel,
         audio_feats: Union[AudioFeatsMVN, Dict[str, Any]],
         mrfb_loss: Union[MultiResolutionFilterBankLoss, Dict[str, Any]],
         speaker_contrastive_loss: Dict[str, Any],

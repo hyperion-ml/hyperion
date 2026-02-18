@@ -10,7 +10,7 @@ import numpy as np
 from numpy.random import Generator
 
 from ....hyp_defs import float_cpu
-from ...transforms import LNorm
+from ...transforms.lnorm import LNorm
 from ..core.pdf import PDF
 
 

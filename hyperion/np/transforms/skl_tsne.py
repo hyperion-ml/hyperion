@@ -6,10 +6,10 @@ import numpy as np
 from jsonargparse import ActionParser, ArgumentParser
 from sklearn.manifold import TSNE
 
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class SklTSNE(NPModel):
+class SklTSNE(HyperNPModel):
     """Wrapper class for sklearn TSNE manifold learner
 
     Attributes:

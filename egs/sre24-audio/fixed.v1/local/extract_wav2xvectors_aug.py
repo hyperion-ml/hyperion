@@ -28,7 +28,7 @@ from hyperion.np.augment import SpeechAugment
 from hyperion.np.preprocessing import ResamplerToTargetFreq
 
 # from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch import TorchModel
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
 
@@ -43,7 +43,7 @@ def init_device(use_gpu):
 
 def load_model(model_path, device):
     logging.info("loading model %s", model_path)
-    model = TorchModel.auto_load(model_path)
+    model = HyperTorchModel.auto_load(model_path)
     logging.info(f"xvector-model={model}")
     model.to(device)
     model.eval()

@@ -7,10 +7,10 @@ import numpy as np
 
 import torch.nn as nn
 
-from ..torch_model import TorchModel
+from ..hyper_torch_model import HyperTorchModel
 
 
-class NetArch(TorchModel):
+class NetArch(HyperTorchModel):
     def in_context(self):
         return 0
 

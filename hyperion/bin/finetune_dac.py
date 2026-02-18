@@ -24,7 +24,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch import TorchModel
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.models.audio_discrimitator import AudioMultiDiscriminator
@@ -92,7 +92,7 @@ def init_dac_model(
     in_model_file: PathLike,
     rank: int,
     model_args: Dict[str, Any],
-) -> TorchModel:
+) -> HyperTorchModel:
     """Load and configure the DAC model for fine-tuning.
 
     Args:
@@ -104,7 +104,7 @@ def init_dac_model(
         logging.info("load dac_model from %s", in_model_file)
         # logging.info(f"dac_model network args={model_args}")
 
-    model = TorchModel.auto_load(in_model_file)
+    model = HyperTorchModel.auto_load(in_model_file)
     model_args = model.filter_finetune_args(**model_args)
     model.change_config(**model_args)
 
@@ -133,7 +133,7 @@ def init_dac_model(
 
 def init_discrim_model(
     in_model_file: PathLike, rank: int, model_args: Optional[Dict[str, Any]]
-) -> TorchModel:
+) -> HyperTorchModel:
     """Load discriminator model checkpoint.
 
     Args:
@@ -144,7 +144,7 @@ def init_discrim_model(
     if rank == 0:
         logging.info("load discriminator from %s", in_model_file)
 
-    model = TorchModel.auto_load(in_model_file)
+    model = HyperTorchModel.auto_load(in_model_file)
     if rank == 0:
         logging.info("discrim_model={}".format(model))
     return model
@@ -195,7 +195,7 @@ def train_model(gpu_id: int, args: Any) -> None:
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class: Type[TorchModel]) -> ArgumentParser:
+def make_parser(model_class: Type[HyperTorchModel]) -> ArgumentParser:
     """Build parser for a specific DAC model subcommand.
 
     Args:

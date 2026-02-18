@@ -9,10 +9,10 @@ import torch
 import torch.nn as nn
 
 from ...narchs import TorchNALoader
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 
 
-class AE(TorchModel):
+class AE(HyperTorchModel):
     """Basic Autoencoder class
 
     Attributes:

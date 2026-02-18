@@ -16,11 +16,11 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import AudioFeatsMVN
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils import remove_silence
 
 
-class Wav2RNNTransducer(TorchModel):
+class Wav2RNNTransducer(HyperTorchModel):
     """Base class for models that integrate the acoustic feature extractor and and
     RNN-T Transducer that takes acoustic features as input
 

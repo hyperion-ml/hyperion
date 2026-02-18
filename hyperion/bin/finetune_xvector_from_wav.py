@@ -20,7 +20,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
@@ -123,7 +123,7 @@ def init_xvector(
     if rank == 0:
         logging.info("xvector network ft args={}".format(xvec_args))
     xvec_args["num_classes"] = num_classes
-    model = TML.load(in_model_file)
+    model = HyperTorchModel.auto_load(in_model_file)
     model.change_config(**xvec_args)
     if rank == 0:
         logging.info("x-vector-model={}".format(model))

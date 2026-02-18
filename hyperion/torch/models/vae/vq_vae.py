@@ -12,10 +12,10 @@ import torch.nn as nn
 from ...layers import tensor2pdf as t2pdf
 from ...layers import vq
 from ...narchs import TorchNALoader
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 
 
-class VQVAE(TorchModel):
+class VQVAE(HyperTorchModel):
     """Vector Quantized Variational Autoencoder class
           From: https://arxiv.org/abs/1711.00937
 

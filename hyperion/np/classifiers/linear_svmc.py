@@ -11,10 +11,10 @@ from sklearn.svm import LinearSVC as SVC
 
 from ...hyp_defs import float_cpu
 from ...utils.math_funcs import softmax
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class LinearSVMC(NPModel):
+class LinearSVMC(HyperNPModel):
     """Linear Support Vector Machine for Classification.
 
     Attributes:

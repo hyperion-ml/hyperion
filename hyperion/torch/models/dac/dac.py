@@ -23,7 +23,7 @@ from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
 from ...layers import LoudnessNorm, ResidualVectorQuantizer, VectorQuantizerOutput
 from ...narchs import DACDecoder, DACEncoder
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils.masking import scale_seq_lengths, seq_lengths_to_mask
 from ...utils.timers import CUDATimer
 
@@ -329,7 +329,7 @@ class DACOutput(HyperDataClass):
     vq: Optional[VectorQuantizerOutput] = None
 
 
-class DAC(TorchModel):
+class DAC(HyperTorchModel):
     """Descript Audio Codec (DAC) top-level model.
 
     This composes:

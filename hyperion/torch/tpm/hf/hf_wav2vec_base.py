@@ -15,12 +15,12 @@ from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Processor
 
 from ....utils.misc import filter_func_args
 from ...layers import LoRAFactory
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils import scale_seq_lengths, seq_lengths_to_mask
 from ...utils.ddp import ddp_get_rank, ddp_wait_for_all_procs
 
 
-class HFWav2VecBase(TorchModel):
+class HFWav2VecBase(HyperTorchModel):
     """Base class for Wav2Vec style models (Wav2Vec2, Hubert, WavLM, ...) in HuggingFace.
 
     This class includes the proprocessing steps, common to all models.

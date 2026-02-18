@@ -14,10 +14,10 @@ from sklearn.svm import SVC
 from ...hyp_defs import float_cpu
 from ...utils.math_funcs import softmax
 from ...utils.misc import filter_func_args
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class SVMC(NPModel):
+class SVMC(HyperNPModel):
     """Gaussian Support Vector Machine for Classification."""
 
     def __init__(

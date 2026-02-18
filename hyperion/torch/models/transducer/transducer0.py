@@ -33,14 +33,14 @@ import torch
 import torch.nn as nn
 from hyperion.utils.text import add_sos
 
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 # from .conformer import Conformer
 from .decoder import Decoder
 from .encoder_interface import EncoderInterface
 from .joiner import Joiner
 
 
-class Transducer(TorchModel):
+class Transducer(HyperTorchModel):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
     "Sequence Transduction with Recurrent Neural Networks"
     """

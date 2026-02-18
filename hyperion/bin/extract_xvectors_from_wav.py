@@ -25,7 +25,7 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
@@ -70,7 +70,7 @@ def load_model(model_path: PathLike, device: torch.device) -> torch.nn.Module:
         device: Torch device where inference runs.
     """
     logging.info("loading model {}".format(model_path))
-    model = TML.load(model_path)
+    model = HyperTorchModel.auto_load(model_path)
     logging.info("xvector-model={}".format(model))
     model.to(device)
     model.eval()

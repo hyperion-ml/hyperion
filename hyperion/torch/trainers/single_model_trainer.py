@@ -16,7 +16,7 @@ from ..loggers import LoggerList
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..optim import OptimizerFactory as OF
-from ..torch_model import TorchModel
+from ..hyper_torch_model import HyperTorchModel
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
 from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
@@ -26,7 +26,7 @@ class SingleModelTrainer(TorchTrainerBase):
     """Trainer for a single neural network model with optional SWA and logging.
 
     Attributes (includes inherited members):
-        model (TorchModel): Model instance to optimize.
+        model (HyperTorchModel): Model instance to optimize.
         optim (torch.optim.Optimizer | Dict[str, Any]): Optimizer or optimizer config.
         lrsched (Optional[LRS]): Learning-rate scheduler object or configuration dict.
         wdsched (Optional[WDS]): Weight-decay scheduler object or configuration dict.
@@ -71,7 +71,7 @@ class SingleModelTrainer(TorchTrainerBase):
 
     def __init__(
         self,
-        model: TorchModel,
+        model: HyperTorchModel,
         optim: torch.optim.Optimizer,
         lrsched: Optional[LRS] = None,
         wdsched: Optional[WDS] = None,
@@ -114,7 +114,7 @@ class SingleModelTrainer(TorchTrainerBase):
         Initializes the single-model trainer and prepares the model for training.
 
         Args:
-            model (TorchModel): Model instance to optimize.
+            model (HyperTorchModel): Model instance to optimize.
             optim (torch.optim.Optimizer): Optimizer already constructed for the model.
             lrsched (Optional[LRS]): Learning-rate scheduler or configuration dict.
             wdsched (Optional[WDS]): Weight-decay scheduler or configuration dict.

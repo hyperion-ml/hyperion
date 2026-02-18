@@ -17,7 +17,7 @@ from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
 import torch
 import torch.nn as nn
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.adv_attacks import AttackFactory
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
@@ -87,7 +87,7 @@ def init_xvector(num_classes, in_model_path, rank, train_mode, **kwargs):
     if rank == 0:
         logging.info("xvector network ft args={}".format(xvec_args))
     xvec_args["num_classes"] = num_classes
-    model = TML.load(in_model_path)
+    model = HyperTorchModel.auto_load(in_model_path)
     model.rebuild_output_layer(**xvec_args)
     if train_mode == "ft-embed-affine":
         model.freeze_preembed_layers()

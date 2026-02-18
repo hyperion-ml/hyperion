@@ -22,7 +22,7 @@ from sklearn.preprocessing import normalize
 
 from ...hyp_defs import float_cpu
 from ...utils import PathLike
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 from .kmeans import KMeans, KMeansInitMethod
 
 
@@ -56,7 +56,7 @@ class SpectralClusteringNumClassCriterion(str, Enum):
         ]
 
 
-class SpectralClustering(NPModel):
+class SpectralClustering(HyperNPModel):
     """Spectral Clustering class"""
 
     def __init__(

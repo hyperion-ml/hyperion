@@ -13,10 +13,10 @@ from jsonargparse import ActionParser, ArgumentParser
 from ...layers import pdf_storage
 from ...layers import tensor2pdf as t2pdf
 from ...narchs import TorchNALoader
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 
 
-class VAE(TorchModel):
+class VAE(HyperTorchModel):
     """Variational Autoencoder class
          From: https://arxiv.org/abs/1312.6114
 

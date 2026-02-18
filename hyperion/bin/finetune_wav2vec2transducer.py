@@ -24,7 +24,7 @@ from jsonargparse import (
 from torch.nn.utils.rnn import pad_sequence
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
@@ -103,8 +103,8 @@ def init_data(
 
 
 def init_model(
-    in_model_file: PathLike, rank: int, model_class: Type[TorchModel], **kwargs: Any
-) -> TorchModel:
+    in_model_file: PathLike, rank: int, model_class: Type[HyperTorchModel], **kwargs: Any
+) -> HyperTorchModel:
     """Load and reconfigure model checkpoint for fine-tuning.
 
     Args:
@@ -117,7 +117,7 @@ def init_model(
     # model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network ft args={}".format(model_args))
-    model = TML.load(in_model_file)
+    model = HyperTorchModel.auto_load(in_model_file)
     model.change_config(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
@@ -170,7 +170,7 @@ def train_model(gpu_id: int, args: Any) -> None:
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class: Type[TorchModel]) -> ArgumentParser:
+def make_parser(model_class: Type[HyperTorchModel]) -> ArgumentParser:
     """Build parser for a specific transducer model subcommand.
 
     Args:

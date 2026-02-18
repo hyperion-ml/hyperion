@@ -12,7 +12,7 @@ import h5py
 import numpy as np
 
 from ...hyp_defs import float_cpu
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
 class KMeansInitMethod(str, Enum):
@@ -24,7 +24,7 @@ class KMeansInitMethod(str, Enum):
         return [KMeansInitMethod.max_dist, KMeansInitMethod.random]
 
 
-class KMeans(NPModel):
+class KMeans(HyperNPModel):
     """K-Means clustering class.
 
     Attributes:

@@ -28,10 +28,10 @@ from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
 from hyperion.np.preprocessing import ResamplerToTargetFreq
-from hyperion.np import NPModel
+from hyperion.np import HyperNPModel
 
 # from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch import TorchModel
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info, SegmentSet
 from hyperion.np.diarization import DiarAHCPLDA
@@ -49,7 +49,7 @@ def init_device(use_gpu):
 
 def load_model(model_path, device):
     logging.info("loading model %s", model_path)
-    model = TorchModel.auto_load(model_path)
+    model = HyperTorchModel.auto_load(model_path)
     logging.info(f"xvector-model={model}")
     model.to(device)
     model.eval()
@@ -122,7 +122,7 @@ def extract_xvectors(
 
     if plda_file is not None:
         logging.info("Loading PLDA model")
-        plda_model = NPModel.auto_load(plda_file)
+        plda_model = HyperNPModel.auto_load(plda_file)
     else:
         plda_model = None
 

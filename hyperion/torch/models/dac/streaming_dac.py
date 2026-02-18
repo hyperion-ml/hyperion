@@ -24,7 +24,7 @@ from ...narchs import (
     StreamingDACEncoder,
     StreamingDACEncoderState,
 )
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 from ...utils.masking import scale_seq_lengths, seq_lengths_to_mask
 from .dac import DACOutput, DACTrainMode
 
@@ -42,7 +42,7 @@ class StreamingDACState(HyperDataClass):
     decoder_state: StreamingDACDecoderState
 
 
-class StreamingDAC(TorchModel):
+class StreamingDAC(HyperTorchModel):
     """Streaming version of Descript Audio Codec (DAC) top-level model.
 
     This composes:

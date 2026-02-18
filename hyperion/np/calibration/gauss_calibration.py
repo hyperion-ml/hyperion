@@ -4,10 +4,10 @@
 """
 import numpy as np
 
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class GaussCalibration(NPModel):
+class GaussCalibration(HyperNPModel):
     """Class for supervised Gaussian calibration.
        The model assumes that targer and non-target score distributions are Gaussians
        with shared covariance.

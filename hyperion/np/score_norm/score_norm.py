@@ -5,10 +5,10 @@
 
 import numpy as np
 
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class ScoreNorm(NPModel):
+class ScoreNorm(HyperNPModel):
     """Base class for score normalization
 
     Attributes:

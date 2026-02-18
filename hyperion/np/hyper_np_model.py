@@ -13,7 +13,7 @@ from ..hyp_defs import float_cpu, float_save
 from ..utils.misc import PathLike
 
 
-class NPModel(object):
+class HyperNPModel(object):
     """Base class for machine learning models based on numpy.
 
     Attributes:
@@ -24,7 +24,7 @@ class NPModel(object):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        NPModel.registry[cls.__name__] = cls
+        HyperNPModel.registry[cls.__name__] = cls
 
     def __init__(self, name=None, **kwargs):
         if name is None:
@@ -237,12 +237,18 @@ class NPModel(object):
 
     @staticmethod
     def auto_load(file_path: PathLike, extra_objs: dict = {}):
-        class_name = NPModel.load_config(file_path)["class_name"]
-        if class_name in NPModel.registry:
-            class_obj = NPModel.registry[class_name]
+        class_name = HyperNPModel.load_config(file_path)["class_name"]
+        if class_name in HyperNPModel.registry:
+            class_obj = HyperNPModel.registry[class_name]
         elif class_name in extra_objs:
             class_obj = extra_objs[class_name]
         else:
             raise Exception("unknown object with class_name=%s" % (class_name))
 
         return class_obj.load(file_path)
+
+
+class NPModel(HyperNPModel):
+    """Backward-compatible alias for HyperNPModel."""
+
+    pass

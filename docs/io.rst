@@ -1,83 +1,79 @@
-Input/Output Utilities
-======================
+IO Utilities
+============
 
-The ``hyperion.io`` module contains several classes to read/write audio-files and features
+Overview
+--------
 
+``hyperion.io`` provides unified readers/writers for features, audio, VAD, and
+packed data formats used across scripts and recipes.
 
-Audio Read/Write Classes
+Factories and specifiers
 ------------------------
 
-Audio Reader Classes
-~~~~~~~~~~~~~~~~~~~~
-
-These are classes to read audio files.
-
-.. automodule:: hyperion.io.audio_reader
-
-Audio Writer Classes
-~~~~~~~~~~~~~~~~~~~~
-
-These are classes to write audio files.
-
-.. automodule:: hyperion.io.audio_writer
-
-Features Read/Write Classes
----------------------------
-
-These are classes to read feature files in ARK or HDF5 format.
-
-Feature Reader/Writer Factory Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-These are Factory Classes that generate Data Reader or Writer objects
+Reader/writer creation is centralized through factories and Kaldi-style
+specifier parsing.
 
 .. automodule:: hyperion.io.data_rw_factory
+   :members:
 
 .. automodule:: hyperion.io.rw_specifiers
+   :members:
 
-Feature Reader Classes
-~~~~~~~~~~~~~~~~~~~~~~
+Feature readers and writers
+---------------------------
 
-ARK Feature Reader Classes
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+ARK and HDF5 readers/writers:
 
 .. automodule:: hyperion.io.ark_data_reader
-
-HDF5 Feature Reader Classes
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. automodule:: hyperion.io.h5_data_reader
-
-Feature Writer Classes
-~~~~~~~~~~~~~~~~~~~~~~
-
-ARK Feature Reader Classes
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+   :members:
 
 .. automodule:: hyperion.io.ark_data_writer
+   :members:
 
-HDF5 Feature Reader Classes
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: hyperion.io.h5_data_reader
+   :members:
 
 .. automodule:: hyperion.io.h5_data_writer
+   :members:
 
+Audio IO
+--------
 
-VAD Read/Write Classes
-----------------------
+.. automodule:: hyperion.io.audio_reader
+   :members:
 
-VAD Reader Factory Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: hyperion.io.audio_writer
+   :members:
 
-These are Factory Classes that generate VAD Reader objects.
+Packed audio IO
+---------------
+
+.. automodule:: hyperion.io.packed_audio_reader
+   :members:
+
+.. automodule:: hyperion.io.packed_audio_writer
+   :members:
+
+VAD IO
+------
 
 .. automodule:: hyperion.io.vad_rw_factory
-
-VAD Reader Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   :members:
 
 .. automodule:: hyperion.io.bin_vad_reader
+   :members:
 
 .. automodule:: hyperion.io.segment_vad_reader
-		
+   :members:
 
+.. automodule:: hyperion.io.table_vad_reader
+   :members:
 
+Legacy compatibility classes
+----------------------------
+
+Some legacy compatibility classes remain available:
+
+.. autoclass:: hyperion.io.HypDataReader
+
+.. autoclass:: hyperion.io.HypDataWriter

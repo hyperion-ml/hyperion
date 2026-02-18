@@ -8,7 +8,7 @@ import logging
 import h5py
 import numpy as np
 
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 from .cent_whiten import CentWhiten
 from .cent_whiten_up import CentWhitenUP
 from .gaussianizer import Gaussianizer
@@ -21,7 +21,7 @@ from .nda import NDA
 from .pca import PCA
 
 
-class TransformList(NPModel):
+class TransformList(HyperNPModel):
     """Class to perform a sequence of transformations
 
     Attributes:

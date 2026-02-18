@@ -23,7 +23,7 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger
 
 # from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch import TorchModel
+from hyperion.torch import HyperTorchModel
 
 # from hyperion.torch.models import SpineNetXVector as SpineXVec
 # from hyperion.torch.models import TDNNXVector as TDXVec
@@ -51,14 +51,14 @@ def init_feats(feats: Dict[str, Any]) -> AF:
     return feat_extractor
 
 
-def load_model(model_path: PathLike) -> TorchModel:
+def load_model(model_path: PathLike) -> HyperTorchModel:
     """Load a pre-trained x-vector model.
 
     Args:
         model_path: Path to the x-vector model checkpoint.
     """
     logging.info("loading model %s", model_path)
-    model = TorchModel.auto_load(model_path)
+    model = HyperTorchModel.auto_load(model_path)
     logging.info(f"xvector-model={model}")
     return model
 

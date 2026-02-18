@@ -1,105 +1,192 @@
-Getting Started with Hyperion
-=============================
+Getting Started
+===============
 
-Hyperion is a Speaker Recognition Toolkit based on PyTorch and numpy. It provides:
- * x-Vector architectures: ResNet, Res2Net, Spine2Net, ECAPA-TDNN, EfficientNet, Transformers and others.
- * Embedding preprocessing tools: PCA, LDA, NAP, Centering/Whitening, Length Normalization, CORAL
- * Several flavours of PLDA back-ends: Full-rank PLDA, Simplified PLDA, PLDA
- * Calibration and Fusion tools
- * Recipes for popular datasets: VoxCeleb, NIST-SRE, VOiCES
+Requirements
+------------
 
-Installation Instructions
--------------------------
+* Python ``>=3.10`` (Python ``3.11`` is the recommended default).
+* Linux/macOS environment (project is primarily validated on Linux).
+* CUDA-enabled PyTorch if you plan to train larger models on GPU.
 
-Prerequisites
-~~~~~~~~~~~~~
+Conda environment example
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    We use anaconda or miniconda, though you should be able to make it work in other python distributions
-    To start, you should create a new enviroment and install PyTorch>=1.6, we recommend PyTorch 1.8.0 (newer versions give trouble with some training scripts) e.g.::
-      conda create --name ${your_env} python=3.8
-      conda activate ${your_env}
-      conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=10.2 -c pytorch
+From ``README.md``:
 
-Installing Hyperion
+.. code-block:: bash
 
- * First, clone the repo::
-      git clone https://github.com/hyperion-ml/hyperion.git
+   conda create --name ${your_env} python=3.11
+   conda activate ${your_env}
 
-   
- * You can choose to install hyperion in the environment::
-     cd hyperion
-     pip install -e .
+Install
+-------
 
+Clone and install in editable mode:
 
- * Or add the hyperion toolkit to the PYTHONPATH envirnoment variable
-   This option will allow you to share the same environment if you are working with several hyperion branches
-   at the same time, while installing it requires to have an enviroment per branch.
-   For this, you need to install the requirements::
-     cd hyperion
-     pip install -r requirements.txt
+.. code-block:: bash
 
- * Then add these lines to your ``~/.bashrc`` or to each script that uses hyperion::
-     HYP_ROOT= #substitute this by your hyperion location
-     export PYTHONPATH=${HYP_ROOT}:$PYTHONPATH
-     export PATH=${HYP_ROOT}/bin:$PATH
+   git clone https://github.com/hyperion-ml/hyperion.git
+   cd hyperion
+   pip install -e .
 
+PyTorch extras
+~~~~~~~~~~~~~~
+
+The project defines optional extras to pin specific
+``torch``/``torchaudio``/``torchvision`` combinations:
+
+.. code-block:: bash
+
+   pip install -e .[torch29]
+
+Other available extras are ``torch24``, ``torch25``, ``torch26``, ``torch27``,
+``torch28``, ``torch29``.
+
+CUDA wheel examples (from README)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Valid install commands by CUDA/PyTorch combo include:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://download.pytorch.org/whl/cu130 -e .[torch29]
+   pip install --extra-index-url https://download.pytorch.org/whl/cu128 -e .[torch29]
+   pip install --extra-index-url https://download.pytorch.org/whl/cu126 -e .[torch29]
+   pip install --extra-index-url https://download.pytorch.org/whl/cu129 -e .[torch28]
+   pip install --extra-index-url https://download.pytorch.org/whl/cu128 -e .[torch28]
+   pip install --extra-index-url https://download.pytorch.org/whl/cu126 -e .[torch28]
+   pip install --extra-index-url https://download.pytorch.org/whl/cu128 -e .[torch27]
+   pip install --extra-index-url https://download.pytorch.org/whl/cu126 -e .[torch27]
+   pip install --extra-index-url https://download.pytorch.org/whl/cu124 -e .[torch26]
+   pip install --extra-index-url https://download.pytorch.org/whl/cu121 -e .[torch25]
+   pip install --extra-index-url https://download.pytorch.org/whl/cu121 -e .[torch24]
+
+VoxProfile extra
+~~~~~~~~~~~~~~~~
+
+To use VoxProfile wrappers under ``hyperion.torch.tpm.usc``, install with the
+``voxprofile`` extra:
+
+.. code-block:: bash
+
+   pip install -e .[voxprofile]
+
+You can combine extras:
+
+.. code-block:: bash
+
+   pip install -e .[torch29,voxprofile]
+
+Known issues
+------------
+
+Older Linux systems (glibc ``<= 2.17``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+From ``README.md``:
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://download.pytorch.org/whl/cu121 \
+     -e .[torch25,gcc217] --only-binary=:all: --no-binary=intervaltree,fairscale
+
+MKL threading error during training
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you hit:
+
+.. code-block:: text
+
+   Error: mkl-service + Intel(R) MKL: MKL_THREADING_LAYER=INTEL is incompatible with libgomp.so.1 library.
+
+The README workaround is to reinstall NumPy:
+
+.. code-block:: bash
+
+   pip uninstall numpy
+   pip install numpy=={same-version-you-uninstalled}
+
+Packaging and entry points
+--------------------------
+
+``pyproject.toml`` is generated by ``generate_pyproject.py`` from
+``proto_pyproject.toml``.
+
+The generator:
+
+* reads version from ``hyperion/__init__.py``
+* reads dependencies from ``requirements.txt``
+* scans ``hyperion/bin/*.py`` and creates ``[project.scripts]`` entry points
+
+Regenerate when CLI scripts or dependencies change:
+
+.. code-block:: bash
+
+   python generate_pyproject.py
+
+Quick sanity checks
+-------------------
+
+After installation, verify import and command registration:
+
+.. code-block:: bash
+
+   python -c "import hyperion; print(hyperion.__version__)"
+   hyperion-train-qvector --help
+   hyperion-eval-verification-metrics --help
 
 Recipes
 -------
 
-There are recipes for several tasks in the ``./egs`` directory.
+There are recipes for several tasks under ``egs/``.
 
-Prerequistes to run the recipes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Recipe prerequisites
+~~~~~~~~~~~~~~~~~~~~
 
-These recipes require some extra tools (e.g. sph2pipe), which need to be installed first::
-  ./install_egs_requirements.sh 
+Install extra tools required by recipes:
 
+.. code-block:: bash
 
-Most recipes do not require Kaldi, only the older ones using Kaldi x-vectors,
-so we do not install it by default. If you are going to need it install it 
-yourself. Then make a link in ``./tools`` to your kaldi installation::
-  cd tools
-  ln -s ${your_kaldi_path} kaldi
-  cd -
+   ./install_egs_requirements.sh
 
+Most recipes do not require Kaldi (only some older Kaldi x-vector paths). If
+needed, link your Kaldi installation in ``tools``:
 
-Finally configure the python and environment name that you intend to use to run the recipes.
-For that run::
-  ./prepare_egs_paths.sh
+.. code-block:: bash
 
-This script will ask for the path to your anaconda installation and enviromentment name.
-It will also detect if hyperion is already installed in the environment,
-otherwise it will add hyperion to your python path.
-This will create the file::
-   tools/path.sh
+   cd tools
+   ln -s ${your_kaldi_path} kaldi
+   cd -
 
-which sets all the enviroment variables required to run the recipes.
-This has been tested only on JHU computer grids, so you may need to 
-modify this file manually to adapt it to your grid.
+Prepare recipe paths/environment:
 
-Recipes structure
-~~~~~~~~~~~~~~~~~
+.. code-block:: bash
 
-The structure of the recipes is very similar to Kaldi, so if should be
-familiar for most people.
-Data preparation is also similar to Kaldi. Each dataset has
-a directory with files like::
+   ./prepare_egs_paths.sh
+
+This script creates ``tools/path.sh`` with environment variables used by recipe
+scripts.
+
+Recipe structure
+~~~~~~~~~~~~~~~~
+
+Recipes are Kaldi-like in structure, with data directories containing files
+such as:
+
+.. code-block:: text
+
    wav.scp
    utt2spk
    spk2utt
    ...
 
+Running recipe stages
+~~~~~~~~~~~~~~~~~~~~~
 
-Running the recipes
-~~~~~~~~~~~~~~~~~~~
+Recipes are usually split into numbered scripts, for example:
 
-Contrary to other toolkits, the recipes do not contain a single ``run.sh`` script 
-to run all the steps of the recipe.
-Since some recipes have many steps and most times you don't want to run all of then
-from the beginning, we have split the recipe in several run scripts.
-The scripts have a number indicating the order in the sequence.
-For example::
+.. code-block:: bash
+
    run_001_prepare_data.sh
    run_002_compute_vad.sh
    run_010_prepare_audios_to_train_xvector.sh
@@ -107,52 +194,16 @@ For example::
    run_030_extract_xvectors.sh
    run_040_evaluate_plda_backend.sh
 
-will evaluate the recipe with the default configuration.
-The default configuration is in the file ``default_config.sh``
+Alternative configs can be passed with ``--config-file``, for example:
 
-We also include extra configurations, which may change 
-the hyperparamters of the recipe. For example:
- * Acoustic features
- * Type of the x-vector neural netwok
- * Hyper-parameters of the models
- * etc.
+.. code-block:: bash
 
-Extra configs are in the ``global_conf`` directory of the recipe.
-Then you can run the recipe with the alternate config as::
    run_001_prepare_data.sh --config-file global_conf/alternative_conf.sh
-   run_002_compute_vad.sh --config-file global_conf/alternative_conf.sh
-   run_010_prepare_audios_to_train_xvector.sh --config-file global_conf/alternative_conf.sh
    run_011_train_xvector.sh --config-file global_conf/alternative_conf.sh
-   run_030_extract_xvectors.sh --config-file global_conf/alternative_conf.sh
    run_040_evaluate_plda_backend.sh --config-file global_conf/alternative_conf.sh
 
-Note that many alternative configus share hyperparameters with the default configs.
-That means that you may not need to rerun all the steps to evaluate a new configuration.
-It mast cases you just need to re-run the steps from the neural network training to the end.
+See Also
+--------
 
-
-Citing
-------
-
-Each recipe README.md file contains the bibtex to the works that should be cited if you 
-use that recipe in your research
-     
-Directory structure
--------------------
-
- * The directory structure of the repo looks like this::
-     hyperion
-     hyperion/egs
-     hyperion/hyperion
-     hyperion/resources
-     hyperion/tests
-     hyperion/tools
-
- * Directories:
-    - hyperion: python classes with utilities for speaker and language recognition
-    - egs: recipes for sevaral tasks: VoxCeleb, SRE18/19/20, voices, ...
-    - tools: contains external repos and tools like kaldi, python, cudnn, etc.
-    - tests: unit tests for the classes in hyperion
-    - resources: data files required by unittest or recipes
-
-
+* :doc:`architecture`
+* :doc:`cli`

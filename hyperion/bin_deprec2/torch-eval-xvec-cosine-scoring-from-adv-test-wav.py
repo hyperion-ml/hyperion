@@ -21,7 +21,7 @@ from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.classifiers import BinaryLogisticRegression as LR
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.adv_attacks import AttackFactory
 from hyperion.torch.layers import LinBinCalibrator as Calibrator
 from hyperion.torch.narchs import AudioFeatsMVN as AF
@@ -91,7 +91,7 @@ def init_feats(**kwargs):
 
 def load_model(model_path):
     logging.info("loading model {}".format(model_path))
-    model = TML.load(model_path)
+    model = HyperTorchModel.auto_load(model_path)
     logging.info("xvector-model={}".format(model))
     model.eval()
     return model

@@ -11,10 +11,10 @@ from scipy.special import gammaln
 
 from ...hyp_defs import float_cpu
 from ...utils.math_funcs import int2onehot, invert_pdmat, logdet_pdmat, softmax
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class LinearGBE(NPModel):
+class LinearGBE(HyperNPModel):
     """Linear Gaussian Back-end.
 
     Attributes:

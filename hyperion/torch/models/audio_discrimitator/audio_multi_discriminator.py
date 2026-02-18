@@ -14,7 +14,7 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ....utils import HyperDataClass
 from ...layers import ActivationFactory as AF
-from ...torch_model import TorchModel
+from ...hyper_torch_model import HyperTorchModel
 
 
 class AudioDiscriminatorTrainMode(str, Enum):
@@ -69,7 +69,7 @@ class _NormConv1d(nn.Module):
         return self.activation(self.conv(x))
 
 
-class AudioPeriodDiscriminator(TorchModel):
+class AudioPeriodDiscriminator(HyperTorchModel):
     """
     A discriminator designed to capture periodic structures in audio waveforms,
     such as pitch harmonics, by reshaping the waveform into 2D blocks of a given period.
@@ -169,7 +169,7 @@ class AudioPeriodDiscriminator(TorchModel):
         )
 
 
-class AudioScaleDiscriminator(TorchModel):
+class AudioScaleDiscriminator(HyperTorchModel):
     """
     A 1D convolutional discriminator that operates at different input scales
     (e.g., full, 2×, 4× downsampled audio) to capture multi-resolution time-domain patterns.
@@ -301,7 +301,7 @@ class AudioScaleDiscriminator(TorchModel):
         return x, fmaps
 
 
-class AudioSpectrogramDiscriminator(TorchModel):
+class AudioSpectrogramDiscriminator(HyperTorchModel):
     """
     A spectral discriminator that analyzes audio in multiple frequency bands of the STFT,
     applying a stack of 2D convolutions to each band individually. Designed to capture
@@ -477,7 +477,7 @@ class AudioSpectrogramDiscriminator(TorchModel):
         )
 
 
-class AudioMultiDiscriminator(TorchModel):
+class AudioMultiDiscriminator(HyperTorchModel):
     """
     A composite adversarial discriminator composed of multiple sub-discriminators:
     - Multi-Scale (MSD): Analyzes waveform at different temporal scales.

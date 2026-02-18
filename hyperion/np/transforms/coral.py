@@ -7,10 +7,10 @@ import h5py
 import numpy as np
 import scipy.linalg as la
 
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class CORAL(NPModel):
+class CORAL(HyperNPModel):
     """Class to do CORAL.
 
     https://arxiv.org/abs/1612.01939

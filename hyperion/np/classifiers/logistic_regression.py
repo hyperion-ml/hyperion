@@ -11,10 +11,10 @@ from sklearn.linear_model import LogisticRegression as LR
 
 from ...hyp_defs import float_cpu
 from ...utils.math_funcs import softmax
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class LogisticRegression(NPModel):
+class LogisticRegression(HyperNPModel):
     """Multi-class logistic regression.
 
     This is a wrapper that add functionalities to sklearn logistic regression.

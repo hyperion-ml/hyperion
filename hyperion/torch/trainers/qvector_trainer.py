@@ -16,7 +16,7 @@ from ..lr_schedulers import LRScheduler as LRS
 from ..metrics import CategoricalAccuracy
 from ..models.qvectors import QVectorTrainMode
 from ..narchs.hydra_heads import HydraClassifHeadOutput
-from ..torch_model import TorchModel
+from ..hyper_torch_model import HyperTorchModel
 from ..wd_schedulers import WDScheduler as WDS
 from .single_model_trainer import SingleModelTrainer
 from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
@@ -28,7 +28,7 @@ class QVectorTrainer(SingleModelTrainer):
     """Trainer specialized for Q-vector models with categorical accuracy tracking.
 
     Attributes (includes inherited members):
-        model (TorchModel): Model instance to optimize.
+        model (HyperTorchModel): Model instance to optimize.
         optim (torch.optim.Optimizer | Dict[str, Any]): Optimizer or optimizer config.
         lrsched (Optional[LRS]): Learning-rate scheduler or configuration dict.
         wdsched (Optional[WDS]): Weight-decay scheduler or configuration dict.
@@ -74,7 +74,7 @@ class QVectorTrainer(SingleModelTrainer):
 
     def __init__(
         self,
-        model: TorchModel,
+        model: HyperTorchModel,
         optim: torch.optim.Optimizer,
         lrsched: Optional[LRS] = None,
         wdsched: Optional[WDS] = None,
@@ -118,7 +118,7 @@ class QVectorTrainer(SingleModelTrainer):
         attaching a categorical-accuracy metric.
 
         Args:
-            model (TorchModel): Model instance to optimize.
+            model (HyperTorchModel): Model instance to optimize.
             optim (torch.optim.Optimizer): Optimizer already configured for the model.
             lrsched (Optional[LRS]): Learning-rate scheduler or config dict.
             wdsched (Optional[WDS]): Weight-decay scheduler or config dict.

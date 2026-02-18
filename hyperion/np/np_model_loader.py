@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .np_model import NPModel
+from .hyper_np_model import HyperNPModel
 from .pdfs import *
 from .transforms import *
 
@@ -32,6 +32,6 @@ class NPModelLoader(object):
 
     @staticmethod
     def load(file_path):
-        class_name = NPModel.load_config(file_path)["class_name"]
+        class_name = HyperNPModel.load_config(file_path)["class_name"]
         class_obj = NPModelLoader.get_object()[class_name]
         return class_obj.load(file_path)

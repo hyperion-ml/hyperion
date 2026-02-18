@@ -20,7 +20,7 @@ from jsonargparse import (
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
-from hyperion.np import NPModel
+from hyperion.np import HyperNPModel
 from hyperion.np.classifiers import LinearGBE as GBE
 from hyperion.np.metrics import (
     compute_accuracy,

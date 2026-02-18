@@ -15,14 +15,14 @@ import torch.nn as nn
 from ..utils.misc import PathLike
 
 
-class TorchModel(nn.Module):
+class HyperTorchModel(nn.Module):
     """Base class for all Pytorch Models and NNet architectures"""
 
     registry = {}
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        TorchModel.registry[cls.__name__] = cls
+        HyperTorchModel.registry[cls.__name__] = cls
 
     def __init__(self, bias_weight_decay: Optional[float] = None):
         super().__init__()
@@ -218,7 +218,9 @@ class TorchModel(nn.Module):
 
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
-        cfg, state_dict = TorchModel._load_cfg_state_dict(file_path, cfg, state_dict)
+        cfg, state_dict = HyperTorchModel._load_cfg_state_dict(
+            file_path, cfg, state_dict
+        )
 
         model = cls(**cfg)
         if state_dict is not None:
@@ -299,17 +301,17 @@ class TorchModel(nn.Module):
           Fixed configuration dictionary.
         """
         # for compatibility with older x-vector models
-        XVector = TorchModel.registry["XVector"]
+        XVector = HyperTorchModel.registry["XVector"]
         if issubclass(class_obj, XVector):
-            cfg = TorchModel._fix_xvector_cfg(cfg)
+            cfg = HyperTorchModel._fix_xvector_cfg(cfg)
 
         # switch old feature fuser to new feature fuser in w2v x-vectors
-        HFWav2XVector = TorchModel.registry["HFWav2XVector"]
+        HFWav2XVector = HyperTorchModel.registry["HFWav2XVector"]
         if issubclass(class_obj, HFWav2XVector):
-            cfg, state_dict = TorchModel._fix_hf_wav2xvector(cfg, state_dict)
+            cfg, state_dict = HyperTorchModel._fix_hf_wav2xvector(cfg, state_dict)
 
         # switch audio_feats params to buffers
-        Wav2XVector = TorchModel.registry["Wav2XVector"]
+        Wav2XVector = HyperTorchModel.registry["Wav2XVector"]
         if issubclass(class_obj, Wav2XVector):
             # Remove _window if it was saved as a parameter
             for key in list(state_dict.keys()):
@@ -323,9 +325,9 @@ class TorchModel(nn.Module):
                     state_dict[key] = tensor
 
         # Remove QVector bugs in first implementation
-        ResNetQVector = TorchModel.registry["ResNetQVector"]
+        ResNetQVector = HyperTorchModel.registry["ResNetQVector"]
         if issubclass(class_obj, ResNetQVector):
-            cfg = TorchModel._fix_resnet_qvector_cfg(cfg)
+            cfg = HyperTorchModel._fix_resnet_qvector_cfg(cfg)
 
         return cfg, state_dict
 
@@ -354,20 +356,20 @@ class TorchModel(nn.Module):
         if str(file_path)[:3] == "hf:":
             # hf: prefix indicates to download from hub
             file_path = Path(str(file_path)[3:])
-            assert TorchModel._is_hf_path(
+            assert HyperTorchModel._is_hf_path(
                 file_path
             ), f"{file_path} is not a valid HF path"
-            file_path = TorchModel._get_from_hf(
+            file_path = HyperTorchModel._get_from_hf(
                 file_path, cache_dir=cache_dir, local_dir=local_dir
             )
             return Path(file_path)
         elif not file_path.is_file():
             # if no prefix but file not in local dir try to get it from hub
-            if not TorchModel._is_hf_path(file_path):
+            if not HyperTorchModel._is_hf_path(file_path):
                 return file_path
 
             try:
-                file_path = TorchModel._get_from_hf(file_path)
+                file_path = HyperTorchModel._get_from_hf(file_path)
                 return Path(file_path)
             except:
                 return file_path
@@ -393,11 +395,11 @@ class TorchModel(nn.Module):
         local_dir: PathLike = None,
     ):
         file_path = Path(file_path)
-        file_path = TorchModel._try_to_get_from_hf(
+        file_path = HyperTorchModel._try_to_get_from_hf(
             file_path, cache_dir=cache_dir, local_dir=local_dir
         )
 
-        assert file_path.is_file(), f"TorchModel file: {file_path} not found"
+        assert file_path.is_file(), f"HyperTorchModel file: {file_path} not found"
 
         if map_location is None:
             map_location = torch.device("cpu")
@@ -413,8 +415,8 @@ class TorchModel(nn.Module):
 
         class_name = cfg["class_name"]
         del cfg["class_name"]
-        if class_name in TorchModel.registry:
-            class_obj = TorchModel.registry[class_name]
+        if class_name in HyperTorchModel.registry:
+            class_obj = HyperTorchModel.registry[class_name]
         elif class_name in extra_objs:
             class_obj = extra_objs[class_name]
         else:
@@ -427,8 +429,8 @@ class TorchModel(nn.Module):
         if "n_averaged" in state_dict:
             del state_dict["n_averaged"]
 
-        state_dict = TorchModel._remove_module_prefix(state_dict)
-        cfg, state_dict = TorchModel._fix_model_compatibility(
+        state_dict = HyperTorchModel._remove_module_prefix(state_dict)
+        cfg, state_dict = HyperTorchModel._fix_model_compatibility(
             class_obj, cfg, state_dict
         )
 
@@ -444,3 +446,9 @@ class TorchModel(nn.Module):
         #             raise err
         #         # remove module prefix when is trained with dataparallel
         #         state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())
+
+
+class TorchModel(HyperTorchModel):
+    """Backward-compatible alias for HyperTorchModel."""
+
+    pass

@@ -26,7 +26,7 @@ from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.adv_attacks import RandomAttackFactory
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
@@ -135,7 +135,7 @@ def init_model(model_path: PathLike, **kwargs: Any) -> MyModel:
     #     mvn = MVN(**mvn_args)
 
     logging.info("loading model {}".format(model_path))
-    xvector_model = TML.load(model_path)
+    xvector_model = HyperTorchModel.auto_load(model_path)
     xvector_model.freeze()
     logging.info("xvector-model={}".format(xvector_model))
 

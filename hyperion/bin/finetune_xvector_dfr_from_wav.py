@@ -22,7 +22,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import HyperTorchModel
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.metrics import CategoricalAccuracy
@@ -127,10 +127,10 @@ def init_xvector(
     if rank == 0:
         logging.info("xvector network ft args={}".format(xvec_args))
     xvec_args["num_classes"] = num_classes
-    model = TML.load(in_model_path)
+    model = HyperTorchModel.auto_load(in_model_path)
     model.rebuild_output_layer(**xvec_args)
     if prior_model_path:
-        prior_model = TML.load(prior_model_path)
+        prior_model = HyperTorchModel.auto_load(prior_model_path)
     else:
         prior_model = model.copy()
     prior_model.freeze()
@@ -243,10 +243,10 @@ def train_xvec(gpu_id: int, args: Any) -> None:
 #         val_data, batch_sampler = val_sampler, **largs)
 
 #     xvec_args['num_classes'] = train_data.num_classes
-#     model = TML.load(in_model_path)
+#     model = HyperTorchModel.auto_load(in_model_path)
 #     model.rebuild_output_layer(**xvec_args)
 #     if prior_model_path:
-#         prior_model = TML.load(prior_model_path)
+#         prior_model = HyperTorchModel.auto_load(prior_model_path)
 #     else:
 #         prior_model = model.copy()
 #     prior_model.freeze()

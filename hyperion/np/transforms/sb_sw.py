@@ -8,10 +8,10 @@ import scipy.linalg as la
 from sklearn.neighbors import BallTree
 
 from ...hyp_defs import float_cpu
-from ..np_model import NPModel
+from ..hyper_np_model import HyperNPModel
 
 
-class SbSw(NPModel):
+class SbSw(HyperNPModel):
     """Class to compute between and within class covariance matrices.
 
     Args:

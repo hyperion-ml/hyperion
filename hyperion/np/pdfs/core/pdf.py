@@ -7,10 +7,10 @@ from typing import Any, Dict
 
 import numpy as np
 
-from ...np_model import NPModel
+from ...hyper_np_model import HyperNPModel
 
 
-class PDF(NPModel):
+class PDF(HyperNPModel):
     """Base class for probability density functions.
 
     Attributes:
@@ -22,7 +22,7 @@ class PDF(NPModel):
 
         Args:
             x_dim: Number of dimensions for each data point.
-            **kwargs: Extra keyword arguments propagated to `NPModel`.
+            **kwargs: Extra keyword arguments propagated to `HyperNPModel`.
         """
         super().__init__(**kwargs)
         self.x_dim: int = x_dim
