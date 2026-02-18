@@ -11,7 +11,7 @@ import os
 import time
 from html import parser
 from pathlib import Path
-from typing import Any, Dict, Type
+from typing import Any, Dict, Optional, Type
 
 import numpy as np
 import torch
@@ -32,6 +32,7 @@ from hyperion.torch.models.dac import DAC, StreamingDAC
 from hyperion.torch.narchs import AudioFeatsMVN
 from hyperion.torch.trainers.dac_trainer import DACTrainer as Trainer
 from hyperion.torch.utils import ddp
+from hyperion.utils.misc import PathLike
 
 model_dict = {
     "dac": DAC,
@@ -39,7 +40,17 @@ model_dict = {
 }
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def init_data(
+    partition: str, rank: int, num_gpus: int, **kwargs: Any
+) -> torch.utils.data.DataLoader:
+    """Initialize dataset, sampler, and dataloader for a partition.
+
+    Args:
+        partition: Dataset split name, e.g. ``"train"`` or ``"val"``.
+        rank: Distributed rank of the current process.
+        num_gpus: Number of GPUs used by the process group.
+        **kwargs: Parsed configuration dictionary containing ``data`` settings.
+    """
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -78,10 +89,17 @@ def init_data(partition, rank, num_gpus, **kwargs):
 
 
 def init_dac_model(
-    in_model_file: str,
+    in_model_file: PathLike,
     rank: int,
     model_args: Dict[str, Any],
-):
+) -> TorchModel:
+    """Load and configure the DAC model for fine-tuning.
+
+    Args:
+        in_model_file: Input checkpoint path for the DAC model.
+        rank: Distributed rank of the current process.
+        model_args: Fine-tuning configuration dictionary for the DAC model.
+    """
     if rank == 0:
         logging.info("load dac_model from %s", in_model_file)
         # logging.info(f"dac_model network args={model_args}")
@@ -113,7 +131,16 @@ def init_dac_model(
     return model
 
 
-def init_discrim_model(in_model_file: str, rank: int, model_args: Dict[str, Any]):
+def init_discrim_model(
+    in_model_file: PathLike, rank: int, model_args: Optional[Dict[str, Any]]
+) -> TorchModel:
+    """Load discriminator model checkpoint.
+
+    Args:
+        in_model_file: Input checkpoint path for the discriminator.
+        rank: Distributed rank of the current process.
+        model_args: Unused discriminator override arguments.
+    """
     if rank == 0:
         logging.info("load discriminator from %s", in_model_file)
 
@@ -123,7 +150,13 @@ def init_discrim_model(in_model_file: str, rank: int, model_args: Dict[str, Any]
     return model
 
 
-def train_model(gpu_id, args):
+def train_model(gpu_id: int, args: Any) -> None:
+    """Run distributed DAC fine-tuning for one process/GPU.
+
+    Args:
+        gpu_id: Local GPU index used by this process.
+        args: Parsed model-specific command-line namespace.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -162,10 +195,15 @@ def train_model(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class):
+def make_parser(model_class: Type[TorchModel]) -> ArgumentParser:
+    """Build parser for a specific DAC model subcommand.
+
+    Args:
+        model_class: DAC model class used to register fine-tuning arguments.
+    """
     parser = ArgumentParser()
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
 
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset")
@@ -174,7 +212,7 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="number of worker processes for the training dataloader",
     )
 
     val_parser = ArgumentParser(prog="")
@@ -184,15 +222,33 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="number of worker processes for the validation dataloader",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-    data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-    parser.add_argument("--data", action=ActionParser(parser=data_parser))
+    data_parser.add_argument(
+        "--train",
+        action=ActionParser(parser=train_parser),
+        help="training data configuration block",
+    )
+    data_parser.add_argument(
+        "--val",
+        action=ActionParser(parser=val_parser),
+        help="validation data configuration block",
+    )
+    parser.add_argument(
+        "--data", action=ActionParser(parser=data_parser), help="data configuration"
+    )
     model_class.add_finetune_args(parser, prefix="dac_model")
-    parser.add_argument("--in-dac-file", required=True)
-    parser.add_argument("--in-discrim-file", required=True)
+    parser.add_argument(
+        "--in-dac-file",
+        required=True,
+        help="input DAC checkpoint path used as fine-tuning starting point",
+    )
+    parser.add_argument(
+        "--in-discrim-file",
+        required=True,
+        help="input discriminator checkpoint path",
+    )
     # AudioMultiDiscriminator.add_class_args(parser, prefix="discrim_model")
     Trainer.add_class_args(
         parser,
@@ -201,15 +257,26 @@ def make_parser(model_class):
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
     )
 
     return parser
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and start DAC fine-tuning.
+
+    Args:
+        None.
+    """
     parser = ArgumentParser(description="Train DAC model")
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
 
     subcommands = parser.add_subcommands()
 

@@ -8,6 +8,7 @@ import math
 import os
 import sys
 import time
+from typing import Any, List, Optional
 
 import numpy as np
 from jsonargparse import (
@@ -21,10 +22,16 @@ from hyperion.hyp_defs import config_logger
 from hyperion.io import AudioWriter as Writer
 from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
-from hyperion.utils import Utt2Info
+from hyperion.utils import PathLike, Utt2Info
 
 
-def make_noise(xs, max_value):
+def make_noise(xs: List[np.ndarray], max_value: float) -> np.ndarray:
+    """Create a babble-noise signal by summing mean-centered waveforms.
+
+    Args:
+        xs: List of 1D waveform arrays.
+        max_value: Maximum absolute amplitude allowed in the output waveform.
+    """
     lens = np.array([x.shape[0] for x in xs])
     max_len = np.max(lens)
     num_tiles = np.ceil(max_len / lens)
@@ -43,16 +50,29 @@ def make_noise(xs, max_value):
 
 
 def make_babble_noise_audio_files(
-    recordings_file,
-    output_path,
-    output_recordings_file,
-    write_time_durs,
-    min_spks=3,
-    max_spks=7,
-    num_reuses=5,
-    random_seed=112358,
-    **kwargs,
-):
+    recordings_file: PathLike,
+    output_path: PathLike,
+    output_recordings_file: PathLike,
+    write_time_durs: Optional[PathLike],
+    min_spks: int = 3,
+    max_spks: int = 7,
+    num_reuses: int = 5,
+    random_seed: int = 112358,
+    **kwargs: Any,
+) -> None:
+    """Generate babble-noise recordings by mixing random speech utterances.
+
+    Args:
+        recordings_file: Input recordings file (SCP/list supported by audio reader).
+        output_path: Output directory for generated babble audio files.
+        output_recordings_file: Output recordings manifest file.
+        write_time_durs: Optional file to store utterance durations in seconds.
+        min_spks: Minimum number of utterances mixed per babble example.
+        max_spks: Maximum number of utterances mixed per babble example.
+        num_reuses: Number of shuffled passes over the input recordings.
+        random_seed: Random seed for permutation reproducibility.
+        **kwargs: Extra reader/writer options parsed from CLI.
+    """
     input_args = AR.filter_args(**kwargs)
     output_args = Writer.filter_args(**kwargs)
     logging.info(f"input_args={input_args}")
@@ -61,8 +81,8 @@ def make_babble_noise_audio_files(
     rng = np.random.default_rng(seed=random_seed)
 
     if write_time_durs is not None:
-        okeys = []
-        info = []
+        okeys: List[str] = []
+        info: List[float] = []
 
     count = 0
     t1 = time.time()
@@ -104,22 +124,63 @@ def make_babble_noise_audio_files(
     logging.info("finished making babble files, elapsed-time=%f", time.time() - t1)
 
 
-def main():
+def main() -> None:
+    """Parse command-line arguments and create babble-noise audio files."""
     parser = ArgumentParser(description="Creates babble noise by adding speech files")
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--recordings-file", required=True)
-    parser.add_argument("--output-path", required=True)
-    parser.add_argument("--output-recordings-file", required=True)
-    parser.add_argument("--write-time-durs", default=None)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
+    parser.add_argument(
+        "--recordings-file",
+        required=True,
+        help="Input recordings file used as source utterances.",
+    )
+    parser.add_argument(
+        "--output-path",
+        required=True,
+        help="Output directory for generated babble audio files.",
+    )
+    parser.add_argument(
+        "--output-recordings-file",
+        required=True,
+        help="Output recordings manifest for generated babble files.",
+    )
+    parser.add_argument(
+        "--write-time-durs",
+        default=None,
+        help="Optional output file to store generated utterance durations.",
+    )
 
     AR.add_class_args(parser)
     Writer.add_class_args(parser)
 
-    parser.add_argument("--min-spks", default=3, type=int)
-    parser.add_argument("--max-spks", default=10, type=int)
-    parser.add_argument("--num-reuses", default=5, type=int)
-    parser.add_argument("--random-seed", default=112358, type=int)
+    parser.add_argument(
+        "--min-spks",
+        default=3,
+        type=int,
+        help="Minimum number of source utterances mixed per babble file.",
+    )
+    parser.add_argument(
+        "--max-spks",
+        default=10,
+        type=int,
+        help="Maximum number of source utterances mixed per babble file.",
+    )
+    parser.add_argument(
+        "--num-reuses",
+        default=5,
+        type=int,
+        help="Number of shuffled passes over the input recordings.",
+    )
+    parser.add_argument(
+        "--random-seed",
+        default=112358,
+        type=int,
+        help="Random seed for reproducible shuffling.",
+    )
     parser.add_argument(
         "-v",
         "--verbose",
@@ -127,7 +188,7 @@ def main():
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
-        help="Verbose level",
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
     args = parser.parse_args()
     config_logger(args.verbose)

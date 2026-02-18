@@ -10,6 +10,7 @@ import multiprocessing
 import os
 import time
 from pathlib import Path
+from typing import Any, Type
 
 import numpy as np
 import torch
@@ -46,7 +47,17 @@ model_dict = {
 }
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def init_data(
+    partition: str, rank: int, num_gpus: int, **kwargs: Any
+) -> torch.utils.data.DataLoader:
+    """Initialize dataset, sampler, and dataloader for one partition.
+
+    Args:
+        partition: Dataset split name (``"train"`` or ``"val"``).
+        rank: Process rank in distributed training.
+        num_gpus: Number of GPUs available to this job.
+        **kwargs: Parsed configuration dictionary containing data settings.
+    """
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -85,7 +96,17 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-def init_model(num_classes, rank, model_class, **kwargs):
+def init_model(
+    num_classes: int, rank: int, model_class: Type[torch.nn.Module], **kwargs: Any
+) -> torch.nn.Module:
+    """Initialize x-vector model with dataset-dependent class count.
+
+    Args:
+        num_classes: Number of output classes.
+        rank: Process rank in distributed training.
+        model_class: Model class to instantiate.
+        **kwargs: Parsed configuration dictionary containing model settings.
+    """
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
@@ -96,7 +117,13 @@ def init_model(num_classes, rank, model_class, **kwargs):
     return model
 
 
-def train_model(gpu_id, args):
+def train_model(gpu_id: int, args: Any) -> None:
+    """Run distributed training for wav2vec2/hubert/wavlm x-vector models.
+
+    Args:
+        gpu_id: Local GPU id used by this process.
+        args: Parsed subcommand arguments.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -130,10 +157,19 @@ def train_model(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class):
+def make_parser(model_class: Type[torch.nn.Module]) -> ArgumentParser:
+    """Create parser for one x-vector model subcommand.
+
+    Args:
+        model_class: Model class whose args should be exposed.
+    """
     parser = ArgumentParser()
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
 
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset")
@@ -142,7 +178,7 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of workers for the training dataloader.",
     )
 
     val_parser = ArgumentParser(prog="")
@@ -152,12 +188,24 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of workers for the validation dataloader.",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-    data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-    parser.add_argument("--data", action=ActionParser(parser=data_parser))
+    data_parser.add_argument(
+        "--train",
+        action=ActionParser(parser=train_parser),
+        help="Training data configuration block.",
+    )
+    data_parser.add_argument(
+        "--val",
+        action=ActionParser(parser=val_parser),
+        help="Validation data configuration block.",
+    )
+    parser.add_argument(
+        "--data",
+        action=ActionParser(parser=data_parser),
+        help="Data configuration block containing train/val settings.",
+    )
 
     parser.link_arguments(
         "data.train.dataset.class_files", "data.val.dataset.class_files"
@@ -173,15 +221,26 @@ def make_parser(model_class):
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
     return parser
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and launch wav2vec2 x-vector training."""
     parser = ArgumentParser(description="Train Wav2Vec2XVector model from audio files")
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
 
     subcommands = parser.add_subcommands()
 

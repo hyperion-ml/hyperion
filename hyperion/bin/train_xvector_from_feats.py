@@ -9,6 +9,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Dict, Type
 
 import numpy as np
 import torch
@@ -34,7 +35,7 @@ from hyperion.torch.models import TransformerXVectorV1 as TFXVec
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
 
-xvec_dict = {
+xvec_dict: Dict[str, Type[nn.Module]] = {
     "resnet": RXVec,
     "resnet1d": R1dXVec,
     "efficientnet": EXVec,
@@ -45,7 +46,20 @@ xvec_dict = {
 }
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def init_data(
+    partition: str, rank: int, num_gpus: int, **kwargs: Any
+) -> torch.utils.data.DataLoader:
+    """Initializes a dataloader for a feature dataset partition.
+
+    Args:
+        partition: Dataset partition name (`"train"` or `"val"`).
+        rank: Distributed rank used for logging.
+        num_gpus: Number of GPUs used for distributed training.
+        **kwargs: Parsed configuration dictionary that includes data settings.
+
+    Returns:
+        Data loader for the requested partition.
+    """
     kwargs = kwargs["data"][partition]
     sd_args = SD.filter_args(**kwargs["dataset"])
     sampler_args = Sampler.filter_args(**kwargs["sampler"])
@@ -74,7 +88,20 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-def init_xvector(num_classes, rank, xvec_class, **kwargs):
+def init_xvector(
+    num_classes: int, rank: int, xvec_class: Type[nn.Module], **kwargs: Any
+) -> nn.Module:
+    """Initializes the x-vector model.
+
+    Args:
+        num_classes: Number of output classes for classification.
+        rank: Distributed rank used for logging.
+        xvec_class: Model class to instantiate.
+        **kwargs: Parsed configuration dictionary that includes model settings.
+
+    Returns:
+        Instantiated x-vector model.
+    """
     xvec_args = xvec_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("xvector network args={}".format(xvec_args))
@@ -85,7 +112,13 @@ def init_xvector(num_classes, rank, xvec_class, **kwargs):
     return model
 
 
-def train_xvec(gpu_id, args):
+def train_xvec(gpu_id: int, args: Any) -> None:
+    """Runs distributed training for a selected x-vector model.
+
+    Args:
+        gpu_id: Local GPU identifier used by the process.
+        args: Parsed subcommand arguments for training.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -119,10 +152,22 @@ def train_xvec(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(xvec_class):
+def make_parser(xvec_class: Type[nn.Module]) -> ArgumentParser:
+    """Builds the argument parser for a specific x-vector architecture.
+
+    Args:
+        xvec_class: X-vector model class used to register model-specific args.
+
+    Returns:
+        Configured argument parser for the selected model family.
+    """
     parser = ArgumentParser()
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a YAML/JSON configuration file.",
+    )
 
     train_parser = ArgumentParser(prog="")
 
@@ -132,7 +177,7 @@ def make_parser(xvec_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of worker processes for the training data loader.",
     )
 
     val_parser = ArgumentParser(prog="")
@@ -142,12 +187,24 @@ def make_parser(xvec_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of worker processes for the validation data loader.",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-    data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-    parser.add_argument("--data", action=ActionParser(parser=data_parser))
+    data_parser.add_argument(
+        "--train",
+        action=ActionParser(parser=train_parser),
+        help="Training dataset, sampler, and data loader configuration.",
+    )
+    data_parser.add_argument(
+        "--val",
+        action=ActionParser(parser=val_parser),
+        help="Validation dataset, sampler, and data loader configuration.",
+    )
+    parser.add_argument(
+        "--data",
+        action=ActionParser(parser=data_parser),
+        help="Top-level training and validation data configuration.",
+    )
     parser.link_arguments(
         "data.train.dataset.class_file", "data.val.dataset.class_file"
     )
@@ -163,16 +220,31 @@ def make_parser(xvec_class):
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Logging verbosity: 0=ERROR, 1=WARNING, 2=INFO, 3=DEBUG.",
     )
 
     return parser
 
 
-def main():
+def main() -> None:
+    """Parses CLI arguments and launches x-vector training.
+
+    Args:
+        None.
+    """
     parser = ArgumentParser(description="Train XVector from audio files")
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a YAML/JSON configuration file.",
+    )
 
     subcommands = parser.add_subcommands()
 

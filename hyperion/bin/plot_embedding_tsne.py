@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, List, Optional
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -24,7 +25,7 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.np.transforms import PCA, LNorm, SklTSNE
-from hyperion.utils import SegmentSet
+from hyperion.utils import PathLike, SegmentSet
 
 matplotlib.use("Agg")
 colors = ["b", "g", "r", "c", "m", "y", "k"]
@@ -34,18 +35,33 @@ color_marker = [(c, m) for m in markers for c in colors]
 
 
 def plot_embedding_tsne(
-    train_v_file,
-    train_list,
-    pca_var_r,
-    prob_plot,
-    lnorm,
-    title,
-    max_classes,
-    unlabeled,
-    plot_class_names,
-    output_dir,
-    **kwargs,
-):
+    train_v_file: PathLike,
+    train_list: PathLike,
+    pca_var_r: float,
+    prob_plot: float,
+    lnorm: bool,
+    title: str,
+    max_classes: Optional[int],
+    unlabeled: bool,
+    plot_class_names: List[str],
+    output_dir: PathLike,
+    **kwargs: Any,
+) -> None:
+    """Project embeddings with t-SNE and save labeled/unlabeled scatter plots.
+
+    Args:
+        train_v_file: Input embeddings rspecifier/file.
+        train_list: Segment list file with sample ids and class labels.
+        pca_var_r: Target explained-variance ratio for PCA (skip if ``>=1``).
+        prob_plot: Probability of keeping each point for plotting.
+        lnorm: If ``True``, apply length normalization to embeddings.
+        title: Plot title used in generated figures.
+        max_classes: Optional maximum number of classes to display.
+        unlabeled: If ``True``, draw a single plot without class labels.
+        plot_class_names: Segment columns used as class labels for plotting.
+        output_dir: Output directory for generated plot files.
+        **kwargs: Extra parsed arguments, including ``tsne`` configuration.
+    """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     logging.info("loading data")
@@ -131,31 +147,77 @@ def plot_embedding_tsne(
     # plt.clf()
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and generate t-SNE embedding plots."""
     parser = ArgumentParser(description="Projects embeddings using TSNE")
 
-    parser.add_argument("--train-v-file", required=True)
-    parser.add_argument("--train-list", required=True)
+    parser.add_argument(
+        "--train-v-file",
+        required=True,
+        help="Input embeddings rspecifier/file.",
+    )
+    parser.add_argument(
+        "--train-list",
+        required=True,
+        help="Segments file with ids and class labels.",
+    )
 
-    parser.add_argument("--pca-var-r", default=0.95, type=float)
-    parser.add_argument("--prob-plot", default=0.1, type=float)
-    parser.add_argument("--lnorm", default=False, action=ActionYesNo)
-    parser.add_argument("--unlabeled", default=False, action=ActionYesNo)
+    parser.add_argument(
+        "--pca-var-r",
+        default=0.95,
+        type=float,
+        help="PCA explained-variance ratio; set >=1 to disable PCA.",
+    )
+    parser.add_argument(
+        "--prob-plot",
+        default=0.1,
+        type=float,
+        help="Probability of plotting each sample point.",
+    )
+    parser.add_argument(
+        "--lnorm",
+        default=False,
+        action=ActionYesNo,
+        help="Apply length normalization before PCA/t-SNE.",
+    )
+    parser.add_argument(
+        "--unlabeled",
+        default=False,
+        action=ActionYesNo,
+        help="Ignore class labels and plot a single unlabeled cloud.",
+    )
     parser.add_argument(
         "--plot-class-names",
         default=["class_id"],
         nargs="+",
-        help="names of the class columns we plot",
+        help="Names of class-label columns to plot.",
     )
-    parser.add_argument("--title", default="")
+    parser.add_argument(
+        "--title",
+        default="",
+        help="Optional title text used in generated plots.",
+    )
     SklTSNE.add_class_args(parser, prefix="tsne")
 
     parser.add_argument(
-        "--max-classes", default=None, type=int, help="max number of clases to plot"
+        "--max-classes",
+        default=None,
+        type=int,
+        help="Maximum number of classes to plot.",
     )
-    parser.add_argument("--output-dir", required=True)
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "--output-dir",
+        required=True,
+        help="Output directory for generated t-SNE plot files.",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
     args = parser.parse_args()

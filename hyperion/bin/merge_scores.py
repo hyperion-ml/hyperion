@@ -5,6 +5,7 @@
 """
 import logging
 from pathlib import Path
+from typing import List, Optional
 
 from jsonargparse import (
     ActionConfigFile,
@@ -14,10 +15,26 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger
-from hyperion.utils import TrialScores
+from hyperion.utils import PathLike, TrialScores
 
 
-def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, base_idx):
+def merge_scores(
+    input_files: Optional[List[PathLike]],
+    output_file: PathLike,
+    num_enroll_parts: int,
+    num_test_parts: int,
+    base_idx: int,
+) -> None:
+    """Merge split verification score files into a single file.
+
+    Args:
+        input_files: Explicit list of input score files. If ``None``, file names are
+            inferred from ``output_file`` and split indices.
+        output_file: Destination score file path.
+        num_enroll_parts: Number of enrollment partitions used to produce splits.
+        num_test_parts: Number of test partitions used to produce splits.
+        base_idx: Starting index for split numbering (typically 0 or 1).
+    """
     output_file = Path(output_file)
     output_file.parent.mkdir(exist_ok=True, parents=True)
 
@@ -39,7 +56,11 @@ def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, bas
                 input_file_i = input_file_base.with_suffix(f".{idx_i}.{idx_j}{ext}")
                 input_files.append(input_file_i)
     else:
-        logging.info("merging %s -> %s", " + ".join(input_files), output_file)
+        logging.info(
+            "merging %s -> %s",
+            " + ".join(str(p) for p in input_files),
+            output_file,
+        )
 
     if ext == ".h5":
         # if files are h5 we need to load everything in RAM
@@ -63,9 +84,14 @@ def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, bas
                         write_header = False
 
 
-def main():
-    parser = ArgumentParser(description="Tool to merge speaker verfication scores")
-    parser.add_argument("--cfg", action=ActionConfigFile)
+def main() -> None:
+    """Parse command-line arguments and merge score files."""
+    parser = ArgumentParser(description="Tool to merge speaker verification scores")
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
     parser.add_argument(
         "--input-files", default=None, nargs="+", help="optional list of input files"
     )
@@ -100,6 +126,7 @@ def main():
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
     args = parser.parse_args()

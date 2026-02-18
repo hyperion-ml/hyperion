@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 import time
+from typing import Any, Optional
 
 import numpy as np
 from jsonargparse import (
@@ -22,11 +23,27 @@ from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.io import compression_methods
 from hyperion.np.feats import MFCC
+from hyperion.utils.misc import PathLike
 
 
 def compute_mfcc_feats(
-    input_path, output_path, compress, compression_method, write_num_frames, **kwargs
-):
+    input_path: PathLike,
+    output_path: PathLike,
+    compress: bool,
+    compression_method: str,
+    write_num_frames: Optional[PathLike],
+    **kwargs: Any,
+) -> None:
+    """Compute MFCC features from audio/waveform input and write them.
+
+    Args:
+        input_path: Input recordings/path specifier.
+        output_path: Output feature wspecifier/path.
+        compress: If ``True``, apply Kaldi-style feature compression.
+        compression_method: Compression method used when ``compress`` is enabled.
+        write_num_frames: Optional output file to store frame counts per utterance.
+        **kwargs: Additional reader/MFCC configuration parsed from CLI.
+    """
     mfcc_args = MFCC.filter_args(**kwargs)
     mfcc = MFCC(**mfcc_args)
 
@@ -74,13 +91,28 @@ def compute_mfcc_feats(
         f_num_frames.close()
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run MFCC feature extraction."""
     parser = ArgumentParser(description="Compute MFCC features")
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--input", dest="input_path", required=True)
-    parser.add_argument("--output", dest="output_path", required=True)
-    parser.add_argument("--write-num-frames", default=None)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
+    parser.add_argument(
+        "--input",
+        dest="input_path",
+        required=True,
+        help="input recordings rspecifier/path",
+    )
+    parser.add_argument(
+        "--output",
+        dest="output_path",
+        required=True,
+        help="output MFCC wspecifier/path",
+    )
+    parser.add_argument(
+        "--write-num-frames",
+        default=None,
+        help="optional output file to write number of frames per utterance",
+    )
 
     AR.add_class_args(parser)
     DRF.add_class_args(parser)
@@ -90,14 +122,14 @@ def main():
         dest="compress",
         default=False,
         action="store_true",
-        help="Compress the features",
+        help="compress output features",
     )
     parser.add_argument(
         "--compression-method",
         dest="compression_method",
         default="auto",
         choices=compression_methods,
-        help="Compression method",
+        help="compression method (used when --compress is set)",
     )
     parser.add_argument(
         "-v",
@@ -106,7 +138,7 @@ def main():
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
-        help="Verbose level",
+        help="verbosity level (0=error, 1=warning, 2=info, 3=debug)",
     )
     args = parser.parse_args()
     config_logger(args.verbose)

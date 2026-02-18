@@ -7,6 +7,7 @@
 import logging
 import time
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -28,9 +29,13 @@ from hyperion.np.metrics import (
 )
 from hyperion.np.transforms import TransformList
 from hyperion.utils import SegmentSet
+from hyperion.utils.misc import PathLike
 
 
-def load_data(segments_file, feats_file, class_name):
+def load_data(
+    segments_file: PathLike, feats_file: PathLike, class_name: str
+) -> Tuple[SegmentSet, np.ndarray, Optional[pd.Series]]:
+    """Load segment metadata, embeddings, and optional class labels."""
     logging.info("loading data")
     segments = SegmentSet.load(segments_file)
     reader = DRF.create(feats_file)
@@ -43,7 +48,8 @@ def load_data(segments_file, feats_file, class_name):
     return segments, x, y
 
 
-def compute_metrics(y_true, y_pred, labels):
+def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, labels: List[str]) -> None:
+    """Compute and log classification accuracy and confusion matrices."""
 
     acc = compute_accuracy(y_true, y_pred)
     logging.info("test acc: %.2f %%", acc * 100)
@@ -56,14 +62,15 @@ def compute_metrics(y_true, y_pred, labels):
 
 
 def eval_lgbe(
-    segments_file,
-    feats_file,
-    class_name,
-    lgbe,
-    lgbe_file,
-    preproc_file,
-    score_file,
-):
+    segments_file: PathLike,
+    feats_file: PathLike,
+    class_name: str,
+    lgbe: Dict[str, Any],
+    lgbe_file: PathLike,
+    preproc_file: Optional[PathLike],
+    score_file: PathLike,
+) -> None:
+    """Evaluate a Linear GBE model and write class-score table."""
 
     logging.info("loading data")
     segments, x, class_ids = load_data(segments_file, feats_file, class_name)
@@ -99,21 +106,46 @@ def eval_lgbe(
     score_table.to_csv(score_file, sep=sep, index=False)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run Linear GBE evaluation."""
 
     parser = ArgumentParser(
         description="Evals linear Gaussian back-end",
     )
 
-    parser.add_argument("--feats-file", required=True)
-    parser.add_argument("--segments-file", required=True)
-    GBE.add_eval_args(parser, prefix="lgbe")
-    parser.add_argument("--class-name", default="language")
-    parser.add_argument("--preproc-file", default=None)
-    parser.add_argument("--lgbe-file", required=True)
-    parser.add_argument("--score-file", required=True)
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "--feats-file", required=True, help="input embedding/feature file"
+    )
+    parser.add_argument(
+        "--segments-file",
+        required=True,
+        help="SegmentSet file with sample ids and optional labels",
+    )
+    GBE.add_eval_args(parser, prefix="lgbe")
+    parser.add_argument(
+        "--class-name",
+        default="language",
+        help="segments-file column containing ground-truth class labels",
+    )
+    parser.add_argument(
+        "--preproc-file",
+        default=None,
+        help="optional preprocessing transform list applied before scoring",
+    )
+    parser.add_argument("--lgbe-file", required=True, help="path to trained GBE model")
+    parser.add_argument(
+        "--score-file",
+        required=True,
+        help="output score table path (.csv or .tsv)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=error, 1=warning, 2=info, 3=debug)",
     )
 
     args = parser.parse_args()

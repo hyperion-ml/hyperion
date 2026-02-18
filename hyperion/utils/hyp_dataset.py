@@ -2908,6 +2908,407 @@ class HyperDataset:
         for key, vad in self.vads(keep_loaded=True):
             vad["id"] = vad["id"].apply(lambda x: x + seg_suffix)
 
+    def cat_segments(
+        self,
+        group_by: Union[str, List[str]],
+        max_duration: Optional[float] = None,
+        inplace: bool = False,
+    ):
+        """Concatenate segments within groups and rebuild recordings with a sox pipe.
+
+        Args:
+            group_by: Column name or list of columns to define concatenation groups.
+            max_duration: Maximum duration in seconds for each concatenated segment.
+                When exceeded, a new concatenated segment is started.
+            inplace: If True, modify the dataset in place; otherwise return a clone.
+
+        Returns:
+            HyperDataset: Dataset with concatenated segments and recordings.
+        """
+        # Normalize group_by to a list for uniform processing.
+        if isinstance(group_by, str):
+            group_by = [group_by]
+
+        # Require at least one grouping column.
+        if not group_by:
+            raise ValueError("cat_segments requires at least one grouping column")
+
+        # Validate max_duration when provided.
+        if max_duration is not None and max_duration <= 0:
+            raise ValueError("max_duration must be positive when provided")
+
+        # Load segments into memory to perform concatenation.
+        segments = self.segments(keep_loaded=True)
+        # Ensure requested grouping columns exist.
+        missing_cols = [col for col in group_by if col not in segments]
+        if missing_cols:
+            raise ValueError(
+                f"group_by columns not found in segments: {', '.join(missing_cols)}"
+            )
+
+        # Disallow concatenation when segments have non-zero or missing starts.
+        if "start" in segments:
+            start_vals = segments["start"]
+            if start_vals.isna().any() or (np.abs(start_vals) > 1e-9).any():
+                raise ValueError(
+                    "cat_segments requires start==0 for all segments (no offsets allowed)"
+                )
+
+        # Require recordings to build concatenated storage paths.
+        if not self.has_recordings:
+            raise ValueError("cat_segments requires a recordings table")
+
+        # Load recordings and ensure none are already pipes.
+        recordings = self.recordings(keep_loaded=True)
+        storage_paths = recordings["storage_path"].astype(str).str.strip()
+        if storage_paths.str.endswith("|").any():
+            raise ValueError(
+                "cat_segments does not allow recordings with pipe storage_path entries"
+            )
+        if "sample_freq" not in recordings:
+            raise ValueError("cat_segments requires recordings to have sample_freq")
+
+        # Resolve per-segment durations (from segments or recordings).
+        if "duration" in segments:
+            seg_durations = segments["duration"].astype(float)
+        else:
+            if "duration" not in recordings:
+                raise ValueError(
+                    "cat_segments requires segment durations or recordings durations"
+                )
+            rec_ids = segments.recording()
+            seg_durations = recordings.loc[rec_ids, "duration"].astype(float)
+        # Ensure we have valid durations everywhere.
+        if seg_durations.isna().any():
+            raise ValueError("cat_segments requires non-missing durations")
+
+        # Work on a copy of the segments DataFrame to avoid side-effects.
+        seg_df = segments.df.copy()
+        # Cache duration and recording id for concatenation logic.
+        seg_df["_cat_duration"] = seg_durations.values
+        seg_df["_cat_rec_id"] = segments.recording().values
+
+        # Aggregate per-column values for concatenated segments.
+        def _agg_value(series: pd.Series, dtype):
+            if pd.api.types.is_bool_dtype(series):
+                return series.iloc[0] if series.nunique(dropna=False) == 1 else pd.NA
+            if pd.api.types.is_numeric_dtype(series):
+                mean_val = series.astype(float).mean()
+                if pd.isna(mean_val):
+                    return pd.NA
+                if pd.api.types.is_integer_dtype(dtype):
+                    return int(round(mean_val))
+                return mean_val
+            return series.iloc[0] if series.nunique(dropna=False) == 1 else pd.NA
+
+        # Ensure fields like sample_freq are constant within a concatenation group.
+        def _unique_or_error(series: pd.Series, name: str):
+            values = series.dropna().unique()
+            if len(values) == 0:
+                return np.nan
+            if len(values) == 1:
+                return values[0]
+            raise ValueError(
+                f"cat_segments requires a single {name} within each concatenation group"
+            )
+
+        # Columns that are handled explicitly during concatenation.
+        skip_seg_cols = {
+            "id",
+            "recording",
+            "start",
+            "duration",
+            "_cat_duration",
+            "_cat_rec_id",
+        }
+        # Columns to aggregate over when building new segment rows.
+        seg_cols = [col for col in seg_df.columns if col not in skip_seg_cols]
+        seg_col_dtypes = {col: seg_df[col].dtype for col in seg_cols}
+
+        # Track whether these columns exist to preserve schema.
+        has_recording_col = "recording" in segments
+        has_start_col = "start" in segments
+
+        # Accumulate new segments and recordings rows.
+        new_segments_rows = []
+        new_recordings_rows = []
+
+        # Validate that all segment recording ids exist in the recordings table.
+        rec_df = recordings.df
+        rec_col_dtypes = {col: rec_df[col].dtype for col in rec_df.columns}
+        missing_rec_ids = np.setdiff1d(seg_df["_cat_rec_id"].unique(), rec_df.index)
+        if len(missing_rec_ids) > 0:
+            raise ValueError(
+                "cat_segments found segments with missing recordings: "
+                + ", ".join(map(str, missing_rec_ids[:10]))
+            )
+
+        # Build concatenated segments for each group.
+        for group_key, group in seg_df.groupby(group_by, sort=False, dropna=False):
+            # Preserve the original order as encountered.
+            group = group.sort_index()
+            # Build the base name from the group-by values.
+            if len(group_by) == 1:
+                if isinstance(group_key, tuple) and len(group_key) == 1:
+                    base_name = str(group_key[0])
+                else:
+                    base_name = str(group_key)
+            else:
+                base_name = "-".join(str(value) for value in group_key)
+            # Track which rows are in the current concatenation chunk.
+            chunk_indices = []
+            # Track the duration in the current chunk.
+            chunk_duration = 0.0
+            # Number chunks per group starting at 1.
+            chunk_idx = 0
+
+            # Iterate over segments in the group, building chunks.
+            for row_idx, row in group.iterrows():
+                row_dur = row["_cat_duration"]
+                # If adding this segment exceeds max_duration, finalize the chunk.
+                if (
+                    max_duration is not None
+                    and chunk_indices
+                    and chunk_duration + row_dur > max_duration
+                ):
+                    # Increment chunk index and slice chunk data.
+                    chunk_idx += 1
+                    chunk = seg_df.loc[chunk_indices]
+                    # Create a new segment id with the group base name and chunk index.
+                    new_id = f"{base_name}-{chunk_idx:04d}"
+
+                    # Build the new segment row with summed duration.
+                    seg_row = {"id": new_id, "duration": chunk["_cat_duration"].sum()}
+                    if has_start_col:
+                        seg_row["start"] = 0.0
+                    if has_recording_col:
+                        seg_row["recording"] = new_id
+
+                    # Aggregate remaining segment columns.
+                    for col in seg_cols:
+                        if col == "transcript":
+                            transcripts = chunk[col].dropna().astype(str).tolist()
+                            if transcripts:
+                                merged = transcripts[0]
+                                for part in transcripts[1:]:
+                                    if merged.rstrip().endswith("."):
+                                        merged = f"{merged} {part}"
+                                    else:
+                                        merged = f"{merged}. {part}"
+                                seg_row[col] = merged
+                            else:
+                                seg_row[col] = pd.NA
+                        else:
+                            seg_row[col] = _agg_value(chunk[col], seg_col_dtypes[col])
+
+                    # Store the new segment row.
+                    new_segments_rows.append(seg_row)
+
+                    # Build the new recording row, using a pipe only when concatenating.
+                    rec_chunk = rec_df.loc[chunk["_cat_rec_id"].values]
+                    use_pipe = len(rec_chunk) > 1
+                    rec_row = {
+                        "id": new_id,
+                        "storage_path": (
+                            "sox "
+                            + " ".join(rec_chunk["storage_path"].astype(str))
+                            + " -t wav - |"
+                            if use_pipe
+                            else str(rec_chunk["storage_path"].iloc[0])
+                        ),
+                    }
+                    # Sum or fallback duration for recordings.
+                    if "duration" in rec_chunk:
+                        rec_row["duration"] = rec_chunk["duration"].sum()
+                    else:
+                        rec_row["duration"] = seg_row["duration"]
+
+                    # Preserve sample_freq when consistent.
+                    if "sample_freq" in rec_chunk:
+                        rec_row["sample_freq"] = _unique_or_error(
+                            rec_chunk["sample_freq"], "sample_freq"
+                        )
+
+                    # Aggregate other recording columns.
+                    skip_rec_cols = {"id", "storage_path", "duration", "sample_freq"}
+                    for col in rec_chunk.columns:
+                        if col in skip_rec_cols:
+                            continue
+                        rec_row[col] = _agg_value(rec_chunk[col], rec_col_dtypes[col])
+
+                    # Store the new recording row.
+                    new_recordings_rows.append(rec_row)
+
+                    # Reset chunk accumulators.
+                    chunk_indices = []
+                    chunk_duration = 0.0
+
+                # Add current segment to the chunk.
+                chunk_indices.append(row_idx)
+                chunk_duration += row_dur
+
+            # Finalize the last chunk in the group.
+            if chunk_indices:
+                chunk_idx += 1
+                chunk = seg_df.loc[chunk_indices]
+                new_id = f"{base_name}-{chunk_idx:04d}"
+
+                # Build the new segment row with summed duration.
+                seg_row = {"id": new_id, "duration": chunk["_cat_duration"].sum()}
+                if has_start_col:
+                    seg_row["start"] = 0.0
+                if has_recording_col:
+                    seg_row["recording"] = new_id
+
+                # Aggregate remaining segment columns.
+                for col in seg_cols:
+                    if col == "transcript":
+                        transcripts = chunk[col].dropna().astype(str).tolist()
+                        if transcripts:
+                            merged = transcripts[0]
+                            for part in transcripts[1:]:
+                                if merged.rstrip().endswith("."):
+                                    merged = f"{merged} {part}"
+                                else:
+                                    merged = f"{merged}. {part}"
+                            seg_row[col] = merged
+                        else:
+                            seg_row[col] = pd.NA
+                    else:
+                        seg_row[col] = _agg_value(chunk[col], seg_col_dtypes[col])
+
+                # Store the new segment row.
+                new_segments_rows.append(seg_row)
+
+                # Build the new recording row, using a pipe only when concatenating.
+                rec_chunk = rec_df.loc[chunk["_cat_rec_id"].values]
+                use_pipe = len(rec_chunk) > 1
+                rec_row = {
+                    "id": new_id,
+                    "storage_path": (
+                        "sox "
+                        + " ".join(rec_chunk["storage_path"].astype(str))
+                        + " -t wav - |"
+                        if use_pipe
+                        else str(rec_chunk["storage_path"].iloc[0])
+                    ),
+                }
+                # Sum or fallback duration for recordings.
+                if "duration" in rec_chunk:
+                    rec_row["duration"] = rec_chunk["duration"].sum()
+                else:
+                    rec_row["duration"] = seg_row["duration"]
+
+                # Preserve sample_freq when consistent.
+                if "sample_freq" in rec_chunk:
+                    rec_row["sample_freq"] = _unique_or_error(
+                        rec_chunk["sample_freq"], "sample_freq"
+                    )
+
+                # Aggregate other recording columns.
+                skip_rec_cols = {"id", "storage_path", "duration", "sample_freq"}
+                for col in rec_chunk.columns:
+                    if col in skip_rec_cols:
+                        continue
+                    rec_row[col] = _agg_value(rec_chunk[col], rec_col_dtypes[col])
+
+                # Store the new recording row.
+                new_recordings_rows.append(rec_row)
+
+        # Build dataframes from the accumulated rows.
+        new_segments_df = pd.DataFrame(new_segments_rows)
+        new_recordings_df = pd.DataFrame(new_recordings_rows)
+
+        # Track required segment columns for column-pruning.
+        required_seg_cols = {"id", "duration"}
+        if has_start_col:
+            required_seg_cols.add("start")
+        if has_recording_col:
+            required_seg_cols.add("recording")
+
+        # Drop segment columns that are entirely NA after aggregation.
+        drop_seg_cols = [
+            col
+            for col in new_segments_df.columns
+            if col not in required_seg_cols and new_segments_df[col].isna().all()
+        ]
+        if drop_seg_cols:
+            new_segments_df.drop(columns=drop_seg_cols, inplace=True)
+
+        # Drop recording columns that are entirely NA after aggregation.
+        drop_rec_cols = [
+            col
+            for col in new_recordings_df.columns
+            if col not in {"id", "storage_path"} and new_recordings_df[col].isna().all()
+        ]
+        if drop_rec_cols:
+            new_recordings_df.drop(columns=drop_rec_cols, inplace=True)
+
+        # Preserve original column order where possible.
+        seg_order = [col for col in segments.df.columns if col in new_segments_df.columns]
+        for col in new_segments_df.columns:
+            if col not in seg_order:
+                seg_order.append(col)
+        new_segments_df = new_segments_df[seg_order]
+
+        # Wrap in SegmentSet/RecordingSet and fix segment dtypes.
+        new_segments = SegmentSet(new_segments_df)
+        self._fix_segments_dtypes(new_segments)
+        new_recordings = RecordingSet(new_recordings_df)
+
+        # Decide whether to mutate the dataset in place.
+        dataset = self if inplace else self.clone()
+        # Swap in new manifests and clear file-backed paths.
+        dataset._segments = new_segments
+        dataset._segments_path = None
+        dataset._recordings = new_recordings
+        dataset._recordings_path = None
+
+        # Remove any feature sets since ids no longer align.
+        for key in list(dataset.features_keys()):
+            dataset.remove_features(key)
+
+        # Remove any VADs since ids no longer align.
+        for key in list(dataset.vads_keys()):
+            dataset.remove_vads(key)
+
+        # Remove any diarizations since ids no longer align.
+        for key in list(dataset.diarizations_keys()):
+            dataset.remove_diarizations(key)
+
+        # Remove enrollments because segment ids changed.
+        enrollment_keys = []
+        if dataset._enrollments is not None:
+            enrollment_keys = list(dataset._enrollments.keys())
+        elif dataset._enrollments_paths is not None:
+            enrollment_keys = list(dataset._enrollments_paths.keys())
+        for key in enrollment_keys:
+            dataset.remove_enrollments(key)
+
+        # Remove trials because segment ids changed.
+        trial_keys = []
+        if dataset._trials is not None:
+            trial_keys = list(dataset._trials.keys())
+        elif dataset._trials_paths is not None:
+            trial_keys = list(dataset._trials_paths.keys())
+        for key in trial_keys:
+            dataset.remove_trials(key)
+
+        # Remove class tables if their corresponding segment columns disappeared.
+        removed_class_cols = set(drop_seg_cols)
+        class_keys = []
+        if dataset._classes is not None:
+            class_keys = list(dataset._classes.keys())
+        elif dataset._classes_paths is not None:
+            class_keys = list(dataset._classes_paths.keys())
+        for key in class_keys:
+            if key in removed_class_cols:
+                dataset.remove_classes(key)
+
+        # Re-run consistency cleanup for remaining manifests.
+        dataset.clean()
+        return dataset
+
     def sample_random_subsegments(
         self,
         subsegments_per_segment: int = 1,

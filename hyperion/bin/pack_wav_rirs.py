@@ -8,6 +8,7 @@ import math
 import os
 import sys
 import time
+from typing import Any
 
 import numpy as np
 from jsonargparse import (
@@ -20,9 +21,17 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
+from hyperion.utils import PathLike
 
 
-def pack_wav_rirs(input_path, output_spec, **kwargs):
+def pack_wav_rirs(input_path: PathLike, output_spec: PathLike, **kwargs: Any) -> None:
+    """Pack RIR waveforms into feature archives after normalization and trimming.
+
+    Args:
+        input_path: Input recordings list/specifier for RIR wave files.
+        output_spec: Output writer specifier (for example, ``ark,scp`` or ``h5``).
+        **kwargs: Additional parsed CLI arguments.
+    """
     writer = DWF.create(output_spec, compress=False)
     t1 = time.time()
     with AR(recordings=input_path, wav_scale=1) as reader:
@@ -47,12 +56,27 @@ def pack_wav_rirs(input_path, output_spec, **kwargs):
     logging.info("Packed RIRS elapsed-time=%.f", time.time() - t1)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and pack RIR waveforms into archive format."""
     parser = ArgumentParser(description="Packs RIRs in wave format to h5/ark files")
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--input", dest="input_path", required=True)
-    parser.add_argument("--output", dest="output_spec", required=True)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
+    parser.add_argument(
+        "--input",
+        dest="input_path",
+        required=True,
+        help="Input recordings list/specifier with RIR wave files.",
+    )
+    parser.add_argument(
+        "--output",
+        dest="output_spec",
+        required=True,
+        help="Output data writer specifier (for example, ark/scp or h5 path).",
+    )
     parser.add_argument(
         "-v",
         "--verbose",
@@ -60,7 +84,7 @@ def main():
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
-        help="Verbose level",
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
     args = parser.parse_args()
     config_logger(args.verbose)

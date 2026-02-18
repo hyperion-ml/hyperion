@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,14 +29,28 @@ from hyperion.np.pdfs import SPLDA, DiagGMM, PLDAFactory
 from hyperion.np.transforms import PCA, LNorm
 from hyperion.utils import SegmentSet
 from hyperion.utils.math_funcs import cosine_scoring
+from hyperion.utils.misc import PathLike
 
-subcommand_list = ["cos_ahc", "spectral_clustering", "cos_ahc_plda_ahc"]
+subcommand_list: List[str] = ["cos_ahc", "spectral_clustering", "cos_ahc_plda_ahc"]
 
 
-def add_common_args(parser):
-    parser.add_argument("--feats-file", required=True)
-    parser.add_argument("--segments-file", required=True)
-    parser.add_argument("--output-file", required=True)
+def add_common_args(parser: ArgumentParser) -> None:
+    """Add CLI arguments shared by all clustering subcommands."""
+    parser.add_argument(
+        "--feats-file",
+        required=True,
+        help="input embedding rspecifier/path",
+    )
+    parser.add_argument(
+        "--segments-file",
+        required=True,
+        help="input SegmentSet file containing embedding ids",
+    )
+    parser.add_argument(
+        "--output-file",
+        required=True,
+        help="output SegmentSet file with assigned cluster ids",
+    )
     parser.add_argument(
         "--filter-by-gmm-post",
         default=0,
@@ -50,10 +65,12 @@ def add_common_args(parser):
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
+        help="verbosity level (0=error, 1=warning, 2=info, 3=debug)",
     )
 
 
-def load_data(segments_file, feats_file):
+def load_data(segments_file: PathLike, feats_file: PathLike) -> Tuple[SegmentSet, np.ndarray]:
+    """Load segments metadata and corresponding embeddings."""
     logging.info("loading data")
     segments = SegmentSet.load(segments_file)
     reader = DRF.create(feats_file)
@@ -61,7 +78,8 @@ def load_data(segments_file, feats_file):
     return segments, x
 
 
-def do_pca(x, pca_args):
+def do_pca(x: np.ndarray, pca_args: Dict[str, Any]) -> np.ndarray:
+    """Apply PCA dimensionality reduction if requested by variance ratio."""
     pca_var_r = pca_args["pca_var_r"]
     logging.info("computing pca pca_var_r=%f", pca_var_r)
     if pca_var_r < 1:
@@ -73,7 +91,15 @@ def do_pca(x, pca_args):
     return x
 
 
-def do_kmeans(x, samples_per_cluster, epochs, rtol, init_method, num_workers):
+def do_kmeans(
+    x: np.ndarray,
+    samples_per_cluster: int,
+    epochs: int,
+    rtol: float,
+    init_method: str,
+    num_workers: int,
+) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+    """Optionally run pre-clustering K-means to reduce AHC/SC cost."""
     if samples_per_cluster > 1:
         km_clusters = x.shape[0] // samples_per_cluster
         logging.info("kmeans with num_clusters=%d", km_clusters)
@@ -95,7 +121,8 @@ def do_kmeans(x, samples_per_cluster, epochs, rtol, init_method, num_workers):
     return x_km, idx_km
 
 
-def change_precision(x, precision=None):
+def change_precision(x: np.ndarray, precision: Optional[str] = None) -> np.ndarray:
+    """Cast score/embedding arrays to requested floating-point precision."""
     if precision == "single":
         return x.astype(np.float32)
     elif precision == "half":
@@ -104,13 +131,21 @@ def change_precision(x, precision=None):
         return x
 
 
-def do_cosine_scoring(x, precision=None):
+def do_cosine_scoring(x: np.ndarray, precision: Optional[str] = None) -> np.ndarray:
+    """Compute pairwise cosine scores."""
     logging.info("compute cosine affinity matrix")
     x = change_precision(x)
     return cosine_scoring(x, x)
 
 
-def train_plda(x, y, plda, min_samples_per_cluster, max_samples_per_cluster=None):
+def train_plda(
+    x: np.ndarray,
+    y: np.ndarray,
+    plda: Dict[str, Any],
+    min_samples_per_cluster: int,
+    max_samples_per_cluster: Optional[int] = None,
+) -> Tuple[LNorm, Any]:
+    """Train length-normalization transform and PLDA model from pseudo-labels."""
     logging.info("Train Centering/Whitening + PLDA")
     _, cluster_idx, counts = np.unique(y, return_inverse=True, return_counts=True)
     max_samples_per_cluster = (
@@ -134,7 +169,14 @@ def train_plda(x, y, plda, min_samples_per_cluster, max_samples_per_cluster=None
     return transforms, plda_model
 
 
-def do_ahc(scores, linkage_method, stop_criterion, threshold, num_clusters):
+def do_ahc(
+    scores: np.ndarray,
+    linkage_method: str,
+    stop_criterion: str,
+    threshold: float,
+    num_clusters: Optional[int],
+) -> np.ndarray:
+    """Run agglomerative hierarchical clustering and return flat cluster labels."""
     logging.info(
         f"running AHC stop_criterion: {stop_criterion} thr: {threshold} num_clusters: {num_clusters}",
     )
@@ -148,7 +190,8 @@ def do_ahc(scores, linkage_method, stop_criterion, threshold, num_clusters):
     return y
 
 
-def get_gmm_post(x, y):
+def get_gmm_post(x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Estimate posterior confidence for assigned and second-best clusters."""
     logging.info("computing cluster posteriors with gmm")
     num_comp = np.max(y) + 1
     gmm = DiagGMM(num_comp=num_comp, x_dim=x.shape[1], min_N=1)
@@ -173,7 +216,8 @@ def get_gmm_post(x, y):
     return p_max, p_2nd
 
 
-def plot_score_hist(scores, fig_file):
+def plot_score_hist(scores: np.ndarray, fig_file: PathLike) -> None:
+    """Plot histogram of pairwise scores and save to disk."""
     mask = np.triu(np.ones_like(scores, dtype=bool))
     fig = plt.figure()
     scores = scores[mask]
@@ -195,7 +239,8 @@ def plot_score_hist(scores, fig_file):
     fig.savefig(fig_file)
 
 
-def plot_cluster_size_hist(y, fig_file):
+def plot_cluster_size_hist(y: np.ndarray, fig_file: PathLike) -> None:
+    """Plot cluster-size histogram and save to disk."""
     _, counts = np.unique(y, return_counts=True)
     fig = plt.figure()
     bins = np.arange(1, np.max(counts) + 1)
@@ -204,20 +249,21 @@ def plot_cluster_size_hist(y, fig_file):
 
 
 def cos_ahc(
-    segments_file,
-    feats_file,
-    output_file,
-    lnorm,
-    pca,
-    linkage_method,
-    stop_criterion,
-    num_clusters,
-    threshold,
-    ahc_precision,
-    pre_kmeans,
-    num_workers,
-    filter_by_gmm_post,
-):
+    segments_file: PathLike,
+    feats_file: PathLike,
+    output_file: PathLike,
+    lnorm: bool,
+    pca: Dict[str, Any],
+    linkage_method: str,
+    stop_criterion: str,
+    num_clusters: Optional[int],
+    threshold: float,
+    ahc_precision: str,
+    pre_kmeans: Dict[str, Any],
+    num_workers: int,
+    filter_by_gmm_post: float,
+) -> None:
+    """Cluster embeddings using cosine scoring followed by AHC."""
     Path(output_file).parent.mkdir(exist_ok=True, parents=True)
     segments, x = load_data(segments_file, feats_file)
     if lnorm:
@@ -246,11 +292,14 @@ def cos_ahc(
     plot_cluster_size_hist(segments["cluster"], fig_file)
 
 
-def make_cos_ahc_parser():
+def make_cos_ahc_parser() -> ArgumentParser:
+    """Build CLI parser for cosine+AHC clustering."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
     add_common_args(parser)
-    parser.add_argument("--lnorm", default=False, action=ActionYesNo)
+    parser.add_argument(
+        "--lnorm", default=False, action=ActionYesNo, help="apply length normalization"
+    )
     PCA.add_class_args(parser, prefix="pca")
     parser.add_argument(
         "--linkage-method",
@@ -267,47 +316,66 @@ def make_cos_ahc_parser():
     parser.add_argument(
         "--num-clusters", default=None, type=int, help="number of AHC clusters"
     )
-    parser.add_argument("--threshold", default=0, type=float, help="stopping threshold")
     parser.add_argument(
-        "--ahc-precision", default="single", choices=["half", "single", "double"]
+        "--threshold",
+        default=0,
+        type=float,
+        help="AHC stopping threshold when --stop-criterion=threshold",
+    )
+    parser.add_argument(
+        "--ahc-precision",
+        default="single",
+        choices=["half", "single", "double"],
+        help="precision used to compute the AHC score matrix",
     )
     parser.add_argument(
         "--pre_kmeans.samples-per-cluster",
         default=1,
         type=int,
-        help="first k-means is done to recuce the computing cost of AHC",
+        help="run pre-kmeans with roughly this many samples per cluster",
     )
     parser.add_argument(
         "--pre_kmeans.init_method",
         default=KMeansInitMethod.max_dist,
         choices=KMeansInitMethod.choices(),
+        help="initialization method for pre-kmeans",
     )
-    parser.add_argument("--pre_kmeans.epochs", default=100, type=int)
-    parser.add_argument("--pre_kmeans.rtol", default=0.001, type=float)
-    parser.add_argument("--num-workers", default=1, type=int)
+    parser.add_argument(
+        "--pre_kmeans.epochs", default=100, type=int, help="maximum pre-kmeans epochs"
+    )
+    parser.add_argument(
+        "--pre_kmeans.rtol",
+        default=0.001,
+        type=float,
+        help="relative convergence tolerance for pre-kmeans",
+    )
+    parser.add_argument(
+        "--num-workers", default=1, type=int, help="number of workers for pre-kmeans"
+    )
     return parser
 
 
 def cos_ahc_plda_ahc(
-    segments_file,
-    feats_file,
-    output_file,
-    lnorm,
-    pca,
-    linkage_method,
-    stop_criterion,
-    num_clusters_stage_1,
-    threshold_stage_1,
-    num_clusters_stage_2,
-    threshold_stage_2,
-    min_samples_per_cluster,
-    max_samples_per_cluster,
-    plda,
-    ahc_precision,
-    pre_kmeans,
-    num_workers,
-    filter_by_gmm_post,
-):
+    segments_file: PathLike,
+    feats_file: PathLike,
+    output_file: PathLike,
+    lnorm: bool,
+    pca: Dict[str, Any],
+    linkage_method: str,
+    stop_criterion: str,
+    num_clusters_stage_1: Optional[int],
+    threshold_stage_1: float,
+    num_clusters_stage_2: Optional[int],
+    threshold_stage_2: float,
+    min_samples_per_cluster: int,
+    max_samples_per_cluster: Optional[int],
+    plda: Dict[str, Any],
+    ahc_precision: str,
+    pre_kmeans: Dict[str, Any],
+    num_workers: int,
+    filter_by_gmm_post: float,
+) -> None:
+    """Cluster embeddings with cosine-AHC, then PLDA scoring and a second AHC pass."""
     Path(output_file).parent.mkdir(exist_ok=True, parents=True)
     segments, x = load_data(segments_file, feats_file)
     if lnorm:
@@ -364,11 +432,14 @@ def cos_ahc_plda_ahc(
     plot_cluster_size_hist(segments["cluster"], fig_file)
 
 
-def make_cos_ahc_plda_ahc_parser():
+def make_cos_ahc_plda_ahc_parser() -> ArgumentParser:
+    """Build CLI parser for two-stage cosine/PLDA AHC clustering."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
     add_common_args(parser)
-    parser.add_argument("--lnorm", default=False, action=ActionYesNo)
+    parser.add_argument(
+        "--lnorm", default=False, action=ActionYesNo, help="apply length normalization"
+    )
     PCA.add_class_args(parser, prefix="pca")
     parser.add_argument(
         "--linkage-method",
@@ -398,16 +469,19 @@ def make_cos_ahc_plda_ahc_parser():
         "--num-clusters-stage-2",
         default=None,
         type=int,
-        help="number of AHC clusters for first stage",
+        help="number of AHC clusters for second stage",
     )
     parser.add_argument(
         "--threshold-stage-2",
         default=0,
         type=float,
-        help="stopping threshold for first stage",
+        help="stopping threshold for second stage",
     )
     parser.add_argument(
-        "--ahc-precision", default="single", choices=["half", "single", "double"]
+        "--ahc-precision",
+        default="single",
+        choices=["half", "single", "double"],
+        help="precision used to compute AHC score matrices",
     )
     parser.add_argument(
         "--min-samples-per-cluster",
@@ -426,20 +500,37 @@ def make_cos_ahc_plda_ahc_parser():
         "--pre_kmeans.samples-per-cluster",
         default=1,
         type=int,
-        help="first k-means is done to recuce the computing cost of AHC",
+        help="run pre-kmeans with roughly this many samples per cluster",
     )
     parser.add_argument(
         "--pre_kmeans.init_method",
         default=KMeansInitMethod.max_dist,
         choices=KMeansInitMethod.choices(),
+        help="initialization method for pre-kmeans",
     )
-    parser.add_argument("--pre_kmeans.epochs", default=100, type=int)
-    parser.add_argument("--pre_kmeans.rtol", default=0.001, type=float)
-    parser.add_argument("--num-workers", default=1, type=int)
+    parser.add_argument(
+        "--pre_kmeans.epochs", default=100, type=int, help="maximum pre-kmeans epochs"
+    )
+    parser.add_argument(
+        "--pre_kmeans.rtol",
+        default=0.001,
+        type=float,
+        help="relative convergence tolerance for pre-kmeans",
+    )
+    parser.add_argument(
+        "--num-workers", default=1, type=int, help="number of workers for pre-kmeans"
+    )
     return parser
 
 
-def compute_sc_affinity(x, aff_func, gauss_sigma, aff_thr, precision):
+def compute_sc_affinity(
+    x: np.ndarray,
+    aff_func: str,
+    gauss_sigma: float,
+    aff_thr: float,
+    precision: str,
+) -> Union[np.ndarray, sparse.csr_matrix]:
+    """Compute and sparsify the affinity matrix used by spectral clustering."""
     if precision == "single":
         x = x.astype(np.float32)
     elif precision == "half":
@@ -465,16 +556,17 @@ def compute_sc_affinity(x, aff_func, gauss_sigma, aff_thr, precision):
 
 
 def spectral_clustering(
-    segments_file,
-    feats_file,
-    output_file,
-    lnorm,
-    pca,
-    pre_kmeans,
-    affinity,
-    spectral_clustering,
-    filter_by_gmm_post,
-):
+    segments_file: PathLike,
+    feats_file: PathLike,
+    output_file: PathLike,
+    lnorm: bool,
+    pca: Dict[str, Any],
+    pre_kmeans: Dict[str, Any],
+    affinity: Dict[str, Any],
+    spectral_clustering: Dict[str, Any],
+    filter_by_gmm_post: float,
+) -> None:
+    """Cluster embeddings using spectral clustering over a cosine-based affinity."""
     Path(output_file).parent.mkdir(exist_ok=True, parents=True)
     segments, x = load_data(segments_file, feats_file)
     if lnorm:
@@ -515,28 +607,47 @@ def spectral_clustering(
     df_eig.to_csv(eig_file, index=False)
 
 
-def make_spectral_clustering_parser():
+def make_spectral_clustering_parser() -> ArgumentParser:
+    """Build CLI parser for spectral clustering."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
     add_common_args(parser)
-    parser.add_argument("--lnorm", default=False, action=ActionYesNo)
+    parser.add_argument(
+        "--lnorm", default=False, action=ActionYesNo, help="apply length normalization"
+    )
     PCA.add_class_args(parser, prefix="pca")
     parser.add_argument(
         "--pre_kmeans.samples-per-cluster",
         default=1,
         type=int,
-        help="first k-means is done to recuce the computing cost of AHC",
+        help="run pre-kmeans with roughly this many samples per cluster",
     )
     parser.add_argument(
         "--pre_kmeans.init_method",
         default=KMeansInitMethod.max_dist,
         choices=KMeansInitMethod.choices(),
+        help="initialization method for pre-kmeans",
     )
-    parser.add_argument("--pre_kmeans.epochs", default=100, type=int)
-    parser.add_argument("--pre_kmeans.rtol", default=0.001, type=float)
-    parser.add_argument("--pre_kmeans.num_workers", default=1, type=int)
     parser.add_argument(
-        "--affinity.aff_func", default="cos", choices=["cos", "gauss_cos"]
+        "--pre_kmeans.epochs", default=100, type=int, help="maximum pre-kmeans epochs"
+    )
+    parser.add_argument(
+        "--pre_kmeans.rtol",
+        default=0.001,
+        type=float,
+        help="relative convergence tolerance for pre-kmeans",
+    )
+    parser.add_argument(
+        "--pre_kmeans.num_workers",
+        default=1,
+        type=int,
+        help="number of workers for pre-kmeans",
+    )
+    parser.add_argument(
+        "--affinity.aff_func",
+        default="cos",
+        choices=["cos", "gauss_cos"],
+        help="affinity function used to build graph edges",
     )
     parser.add_argument(
         "--affinity.gauss-sigma",
@@ -548,21 +659,25 @@ def make_spectral_clustering_parser():
         "--affinity.aff-thr",
         default=0,
         type=float,
-        help="values under this are set to 0",
+        help="affinity values below this threshold are set to 0",
     )
     parser.add_argument(
-        "--affinity.precision", default="single", choices=["half", "single", "double"]
+        "--affinity.precision",
+        default="single",
+        choices=["half", "single", "double"],
+        help="precision used to compute the affinity matrix",
     )
     SpectralClustering.add_class_args(parser, prefix="spectral_clustering")
 
     return parser
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run the selected clustering pipeline."""
     parser = ArgumentParser(
         description="Cluster embeddings into classes, usually speakers"
     )
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
 
     subcommands = parser.add_subcommands()
     for subcommand in subcommand_list:

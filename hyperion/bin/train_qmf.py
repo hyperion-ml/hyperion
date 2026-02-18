@@ -11,6 +11,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import List, Optional, Sequence
 
 import numpy as np
 from jsonargparse import (
@@ -27,7 +28,13 @@ from hyperion.utils.trial_key import TrialKey
 from hyperion.utils.trial_scores import TrialScores
 
 
-def print_q_stats(scr, q_names):
+def print_q_stats(scr: TrialScores, q_names: Sequence[str]) -> None:
+    """Log summary statistics for selected quality-measure vectors.
+
+    Args:
+        scr: Trial scores object containing quality measures.
+        q_names: Names of quality-measure entries to summarize.
+    """
     for k in q_names:
         q_vec = scr.q_measures[k][scr.score_mask]
         s = f"{k} stats mean={np.mean(q_vec)} min={np.min(q_vec)} max={np.max(q_vec)} median={np.median(q_vec)}"
@@ -35,8 +42,25 @@ def print_q_stats(scr, q_names):
 
 
 def train_qmf(
-    score_file, key_file, model_file, prior, lambda_reg, quality_measures, verbose
-):
+    score_file: str,
+    key_file: str,
+    model_file: str,
+    prior: float,
+    lambda_reg: float,
+    quality_measures: Optional[List[str]],
+    verbose: int,
+) -> None:
+    """Train and apply a QMF calibration model.
+
+    Args:
+        score_file: Input score file with quality measures.
+        key_file: Trial key file with target/non-target labels.
+        model_file: Output path for trained logistic-regression model.
+        prior: Target prior probability used for DCF and calibration.
+        lambda_reg: L2 regularization for logistic regression.
+        quality_measures: Optional list of quality-measure names to use.
+        verbose: Verbosity level forwarded to logistic-regression solver.
+    """
     logging.info("load key: %s", key_file)
     key = TrialKey.load(key_file)
     logging.info("load scores: %s", score_file)
@@ -110,22 +134,52 @@ def train_qmf(
     scr_out.save(output_file)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and train a QMF calibration model."""
     parser = ArgumentParser(description="Trains QMF calibration")
 
-    parser.add_argument("--score-file", required=True)
-    parser.add_argument("--key-file", required=True)
-    parser.add_argument("--model-file", required=True)
-    parser.add_argument("--prior", type=float, default=0.01)
-    parser.add_argument("--lambda-reg", type=float, default=1e-5)
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "--score-file",
+        required=True,
+        help="Input score file containing scores and quality measures.",
+    )
+    parser.add_argument(
+        "--key-file",
+        required=True,
+        help="Trial key file with target/non-target labels.",
+    )
+    parser.add_argument(
+        "--model-file",
+        required=True,
+        help="Output path for trained QMF calibration model.",
+    )
+    parser.add_argument(
+        "--prior",
+        type=float,
+        default=0.01,
+        help="Target prior probability used in calibration and DCF reporting.",
+    )
+    parser.add_argument(
+        "--lambda-reg",
+        type=float,
+        default=1e-5,
+        help="L2 regularization coefficient for logistic regression.",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
     parser.add_argument(
         "--quality-measures",
         default=None,
         nargs="+",
         choices=["snorm-mu/s", "snorm-mu", "speech_duration", "num_speech_frames"],
+        help="Optional subset of quality measures used by QMF calibration.",
     )
 
     args = parser.parse_args()

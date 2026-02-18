@@ -296,10 +296,7 @@ class FRPLDA(PLDABase):
         N, M, S, _, y_acc, Ry, Cy, Py = stats
         ybar = y_acc / M
         if self.update_mu:
-            if self.prior is None:
-                self.mu = ybar
-            else:
-                self.mu = self._adapt_mu(M, ybar)
+            self.mu = ybar
 
         if self.update_B:
             if self.update_mu:
@@ -322,6 +319,9 @@ class FRPLDA(PLDABase):
                 self.W = invert_pdmat(iW, return_inv=True)[-1]
             else:
                 self.W = np.diag(1 / np.diag(iW))
+
+        if self.update_mu and self.prior is not None:
+            self.mu = self._adapt_mu(M, ybar)
 
     def MstepMD(self, stats: Tuple[Any, ...]) -> None:
         """Minimum Divergence step."""

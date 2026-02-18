@@ -5,6 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from jsonargparse import (
@@ -17,30 +18,31 @@ from jsonargparse import (
 
 from hyperion.hyp_defs import config_logger
 from hyperion.metrics import VerificationAnonymizationEvaluator as VE
+from hyperion.utils.misc import PathLike
 
 
 def eval_verification_anonymization_metrics(
-    key_files,
-    ref_key_file,
-    score_orig_orig_files,
-    score_orig_anon_files,
-    score_anon_anon_files,
-    score_ref_anon_files,
-    enroll_map_files,
-    anon_enroll_segments_files,
-    anon_test_segments_files,
-    key_names,
-    score_names,
-    p_tar,
-    c_miss,
-    c_fa,
-    calibrate_on_orig,
-    sparse,
-    class_column,
-    anon_class_column,
-    output_file,
-    output_fig_path,
-):
+    key_files: List[PathLike],
+    ref_key_file: Optional[PathLike],
+    score_orig_orig_files: List[PathLike],
+    score_orig_anon_files: List[PathLike],
+    score_anon_anon_files: List[PathLike],
+    score_ref_anon_files: Optional[List[PathLike]],
+    enroll_map_files: Optional[List[PathLike]],
+    anon_enroll_segments_files: Optional[List[PathLike]],
+    anon_test_segments_files: Optional[List[PathLike]],
+    key_names: List[str],
+    score_names: List[str],
+    p_tar: List[float],
+    c_miss: Optional[List[float]],
+    c_fa: Optional[List[float]],
+    calibrate_on_orig: bool,
+    sparse: bool,
+    class_column: str,
+    anon_class_column: str,
+    output_file: PathLike,
+    output_fig_path: Optional[PathLike],
+) -> None:
     """Compute verification/anonymization metrics for multiple score sets.
 
     Args:
@@ -115,7 +117,7 @@ def eval_verification_anonymization_metrics(
         anon_enroll_segments_files = [None] * len(key_names)
         anon_test_segments_files = [None] * len(key_names)
 
-    dfs = []
+    dfs: List[pd.DataFrame] = []
     for (
         score_orig_orig_file,
         score_orig_anon_file,
@@ -184,7 +186,7 @@ def eval_verification_anonymization_metrics(
     print(df.to_string(), flush=True)
 
 
-def main():
+def main() -> None:
     """Parse CLI arguments and launch the evaluation pipeline."""
     parser = ArgumentParser(
         description="Evaluate speaker verification metrics for anonymization"
@@ -263,13 +265,21 @@ def main():
         default=[0.05, 0.01],
         nargs="+",
         type=float,
-        help="target priors",
+        help="target prior(s) used in DCF computation",
     )
     parser.add_argument(
-        "--c-miss", default=None, nargs="+", type=float, help="cost of miss"
+        "--c-miss",
+        default=None,
+        nargs="+",
+        type=float,
+        help="miss cost(s) used in DCF computation",
     )
     parser.add_argument(
-        "--c-fa", default=None, nargs="+", type=float, help="cost of false alarm"
+        "--c-fa",
+        default=None,
+        nargs="+",
+        type=float,
+        help="false-alarm cost(s) used in DCF computation",
     )
     parser.add_argument(
         "--sparse",
@@ -310,11 +320,11 @@ def main():
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
-        help="Verbosity level: 0=errors, 1=info, 2=debug, 3=trace.",
+        help="Verbosity level: 0=warning, 1=info, 2=debug, 3=trace.",
     )
 
     args = parser.parse_args()
-    kwargs = namespace_to_dict(args)
+    kwargs: Dict[str, Any] = namespace_to_dict(args)
     config_logger(kwargs["verbose"])
     del kwargs["verbose"]
     del kwargs["cfg"]

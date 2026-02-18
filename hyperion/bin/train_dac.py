@@ -38,7 +38,17 @@ model_dict = {
 }
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def init_data(
+    partition: str, rank: int, num_gpus: int, **kwargs: Any
+) -> torch.utils.data.DataLoader:
+    """Initialize dataset, sampler, and dataloader for one partition.
+
+    Args:
+        partition: Dataset split name (``"train"`` or ``"val"``).
+        rank: Process rank in distributed training.
+        num_gpus: Number of GPUs available to this job.
+        **kwargs: Parsed configuration dictionary containing data settings.
+    """
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -78,7 +88,14 @@ def init_data(partition, rank, num_gpus, **kwargs):
 
 def init_dac_model(
     rank: int, model_class: Type[TorchModel], model_args: Dict[str, Any]
-):
+) -> TorchModel:
+    """Initialize DAC model from configuration.
+
+    Args:
+        rank: Process rank in distributed training.
+        model_class: DAC model class to instantiate.
+        model_args: DAC model initialization arguments.
+    """
     if rank == 0:
         logging.info(f"dac_model network args={model_args}")
 
@@ -106,7 +123,15 @@ def init_dac_model(
     return model
 
 
-def init_discrim_model(rank: int, model_args: Dict[str, Any]):
+def init_discrim_model(
+    rank: int, model_args: Dict[str, Any]
+) -> AudioMultiDiscriminator:
+    """Initialize audio discriminator model.
+
+    Args:
+        rank: Process rank in distributed training.
+        model_args: Discriminator model initialization arguments.
+    """
     if rank == 0:
         logging.info("discrim_model network args={}".format(model_args))
 
@@ -116,7 +141,13 @@ def init_discrim_model(rank: int, model_args: Dict[str, Any]):
     return model
 
 
-def train_model(gpu_id, args):
+def train_model(gpu_id: int, args: Any) -> None:
+    """Run distributed training for a DAC model.
+
+    Args:
+        gpu_id: Local GPU id used by this process.
+        args: Parsed subcommand arguments.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -151,10 +182,19 @@ def train_model(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class):
+def make_parser(model_class: Type[TorchModel]) -> ArgumentParser:
+    """Create parser for one DAC model subcommand.
+
+    Args:
+        model_class: DAC model class whose args should be exposed.
+    """
     parser = ArgumentParser()
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
 
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset")
@@ -163,7 +203,7 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of workers for the training dataloader.",
     )
 
     val_parser = ArgumentParser(prog="")
@@ -173,12 +213,24 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of workers for the validation dataloader.",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-    data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-    parser.add_argument("--data", action=ActionParser(parser=data_parser))
+    data_parser.add_argument(
+        "--train",
+        action=ActionParser(parser=train_parser),
+        help="Training data configuration block.",
+    )
+    data_parser.add_argument(
+        "--val",
+        action=ActionParser(parser=val_parser),
+        help="Validation data configuration block.",
+    )
+    parser.add_argument(
+        "--data",
+        action=ActionParser(parser=data_parser),
+        help="Data configuration block containing train/val settings.",
+    )
     model_class.add_class_args(parser, prefix="dac_model")
     AudioMultiDiscriminator.add_class_args(parser, prefix="discrim_model")
     Trainer.add_class_args(
@@ -188,15 +240,26 @@ def make_parser(model_class):
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
     return parser
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and launch DAC training."""
     parser = ArgumentParser(description="Train DAC model")
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
 
     subcommands = parser.add_subcommands()
 

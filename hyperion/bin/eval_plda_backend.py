@@ -7,6 +7,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 import time
 from pathlib import Path
+from typing import Optional, Tuple
 
 import numpy as np
 from jsonargparse import (
@@ -24,18 +25,20 @@ from hyperion.np.score_norm import AdaptSNorm
 from hyperion.np.transforms import LNorm, TransformList
 from hyperion.utils import EnrollmentMap, SegmentSet, TrialKey, TrialNdx, TrialScores
 from hyperion.utils.math_funcs import cosine_scoring
+from hyperion.utils.misc import PathLike
 
 
 def load_trial_data(
-    enroll_map_file,
-    ndx_file,
-    enroll_feats_file,
-    feats_file,
-    enroll_part_idx,
-    num_enroll_parts,
-    test_part_idx,
-    num_test_parts,
-):
+    enroll_map_file: PathLike,
+    ndx_file: PathLike,
+    enroll_feats_file: Optional[PathLike],
+    feats_file: PathLike,
+    enroll_part_idx: int,
+    num_enroll_parts: int,
+    test_part_idx: int,
+    num_test_parts: int,
+) -> Tuple[EnrollmentMap, TrialNdx, np.ndarray, np.ndarray]:
+    """Load trial metadata and enrollment/test embeddings for PLDA scoring."""
     test_feats_reader = DRF.create(feats_file)
     if enroll_feats_file is not None and enroll_feats_file != feats_file:
         enroll_feats_reader = DRF.create(enroll_feats_file)
@@ -59,7 +62,10 @@ def load_trial_data(
     return enroll_map, ndx, x_e, x_t
 
 
-def load_cohort_data(segments_file, feats_file):
+def load_cohort_data(
+    segments_file: PathLike, feats_file: PathLike
+) -> Tuple[SegmentSet, np.ndarray]:
+    """Load cohort metadata and embeddings used for adaptive S-Norm."""
     segments = SegmentSet.load(segments_file)
     feats_reader = DRF.create(feats_file)
     x = feats_reader.read(segments["id"], squeeze=True)
@@ -67,23 +73,24 @@ def load_cohort_data(segments_file, feats_file):
 
 
 def eval_backend(
-    enroll_map_file,
-    ndx_file,
-    enroll_feats_file,
-    feats_file,
-    preproc_file,
-    plda_file,
-    llr_method,
-    score_file,
-    enroll_part_idx,
-    num_enroll_parts,
-    test_part_idx,
-    num_test_parts,
-    cohort_segments_file,
-    cohort_feats_file,
-    cohort_nbest,
-    avg_cohort_by,
-):
+    enroll_map_file: PathLike,
+    ndx_file: PathLike,
+    enroll_feats_file: Optional[PathLike],
+    feats_file: PathLike,
+    preproc_file: Optional[PathLike],
+    plda_file: PathLike,
+    llr_method: str,
+    score_file: PathLike,
+    enroll_part_idx: int,
+    num_enroll_parts: int,
+    test_part_idx: int,
+    num_test_parts: int,
+    cohort_segments_file: Optional[PathLike],
+    cohort_feats_file: Optional[PathLike],
+    cohort_nbest: int,
+    avg_cohort_by: Optional[str],
+) -> None:
+    """Evaluate PLDA backend with optional adaptive S-Norm."""
     logging.info("loading data")
     enroll_map, ndx, x_e, x_t = load_trial_data(
         enroll_map_file,
@@ -172,29 +179,60 @@ def eval_backend(
     scores.save(score_file)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run PLDA backend evaluation."""
     parser = ArgumentParser(description="Eval PLDA LLR with optional AS-Norm")
 
-    parser.add_argument("--enroll-feats-file", default=None)
-    parser.add_argument("--feats-file", required=True)
-    parser.add_argument("--ndx-file", required=True)
-    parser.add_argument("--enroll-map-file", required=True)
-    parser.add_argument("--preproc-file", default=None)
-    parser.add_argument("--plda-file", required=True)
+    parser.add_argument(
+        "--enroll-feats-file",
+        default=None,
+        help="optional enrollment embedding file (defaults to --feats-file)",
+    )
+    parser.add_argument("--feats-file", required=True, help="test embedding file")
+    parser.add_argument("--ndx-file", required=True, help="trial index/key file")
+    parser.add_argument(
+        "--enroll-map-file",
+        required=True,
+        help="enrollment map relating models to enrollment segments",
+    )
+    parser.add_argument(
+        "--preproc-file",
+        default=None,
+        help="optional preprocessing transform list applied before scoring",
+    )
+    parser.add_argument("--plda-file", required=True, help="path to trained PLDA model")
     parser.add_argument(
         "--llr-method",
         default=PLDALLRNvsMMethod.vavg,
         choices=PLDALLRNvsMMethod.choices(),
+        help="PLDA LLR computation method for N-vs-M scoring",
     )
-    parser.add_argument("--cohort-segments-file", default=None)
-    parser.add_argument("--cohort-feats-file", default=None)
-    parser.add_argument("--cohort-nbest", type=int, default=1000)
+    parser.add_argument(
+        "--cohort-segments-file",
+        default=None,
+        help="cohort SegmentSet file for AS-Norm",
+    )
+    parser.add_argument(
+        "--cohort-feats-file",
+        default=None,
+        help="cohort embedding file for AS-Norm",
+    )
+    parser.add_argument(
+        "--cohort-nbest",
+        type=int,
+        default=1000,
+        help="number of closest cohort samples used by adaptive S-Norm",
+    )
     parser.add_argument(
         "--avg-cohort-by",
         default=None,
-        help="segments file column to average vectors from same class class",
+        help="cohort SegmentSet column used to average cohort vectors by class",
     )
-    parser.add_argument("--score-file", required=True)
+    parser.add_argument(
+        "--score-file",
+        required=True,
+        help="output score file (split suffixes are auto-appended when needed)",
+    )
     parser.add_argument(
         "--enroll-part-idx", default=1, type=int, help="enroll part index"
     )
@@ -215,7 +253,13 @@ def main():
     )
 
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=error, 1=warning, 2=info, 3=debug)",
     )
 
     args = parser.parse_args()

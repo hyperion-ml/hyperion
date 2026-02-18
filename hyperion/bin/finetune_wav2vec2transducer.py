@@ -9,6 +9,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Type
 
 import k2
 import numpy as np
@@ -30,13 +31,21 @@ from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import HFWav2Vec2Transducer
 from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.utils import ddp
+from hyperion.utils.misc import PathLike
 
 model_dict = {
     "hf_wav2vec2transducer": HFWav2Vec2Transducer,
 }
 
 
-def transducer_collate(batch):
+def transducer_collate(
+    batch: Any,
+) -> tuple[torch.Tensor, torch.Tensor, k2.RaggedTensor]:
+    """Collate audio/target samples into transducer training tensors.
+
+    Args:
+        batch: Batch of dataset samples ``(waveform, token_ids, ...)``.
+    """
     audio = []
     audio_length = []
     target = []
@@ -51,7 +60,17 @@ def transducer_collate(batch):
     return torch.transpose(audio, 0, 1), audio_length, target
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def init_data(
+    partition: str, rank: int, num_gpus: int, **kwargs: Any
+) -> torch.utils.data.DataLoader:
+    """Initialize dataset, sampler, and dataloader for a partition.
+
+    Args:
+        partition: Dataset split name, e.g. ``"train"`` or ``"val"``.
+        rank: Distributed rank of the current process.
+        num_gpus: Number of GPUs used by the process group.
+        **kwargs: Parsed configuration dictionary containing ``data`` settings.
+    """
     data_kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**data_kwargs["dataset"])
     sampler_args = data_kwargs["sampler"]
@@ -83,7 +102,17 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-def init_model(in_model_file, rank, model_class, **kwargs):
+def init_model(
+    in_model_file: PathLike, rank: int, model_class: Type[TorchModel], **kwargs: Any
+) -> TorchModel:
+    """Load and reconfigure model checkpoint for fine-tuning.
+
+    Args:
+        in_model_file: Input model checkpoint path.
+        rank: Distributed rank of the current process.
+        model_class: Model class used to filter fine-tune arguments.
+        **kwargs: Parsed configuration dictionary containing ``model`` settings.
+    """
     model_args = model_class.filter_finetune_args(**kwargs["model"])
     # model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
@@ -95,7 +124,13 @@ def init_model(in_model_file, rank, model_class, **kwargs):
     return model
 
 
-def train_model(gpu_id, args):
+def train_model(gpu_id: int, args: Any) -> None:
+    """Run distributed transducer fine-tuning for one process/GPU.
+
+    Args:
+        gpu_id: Local GPU index used by this process.
+        args: Parsed model-specific command-line namespace.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -135,10 +170,15 @@ def train_model(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class):
+def make_parser(model_class: Type[TorchModel]) -> ArgumentParser:
+    """Build parser for a specific transducer model subcommand.
+
+    Args:
+        model_class: Model class used to register model-specific arguments.
+    """
     parser = ArgumentParser()
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset", skip={})
     SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
@@ -146,7 +186,7 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="number of worker processes for the training dataloader",
     )
 
     val_parser = ArgumentParser(prog="")
@@ -156,23 +196,39 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="number of worker processes for the validation dataloader",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-    data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-    parser.add_argument("--data", action=ActionParser(parser=data_parser))
+    data_parser.add_argument(
+        "--train",
+        action=ActionParser(parser=train_parser),
+        help="training data configuration block",
+    )
+    data_parser.add_argument(
+        "--val",
+        action=ActionParser(parser=val_parser),
+        help="validation data configuration block",
+    )
+    parser.add_argument(
+        "--data", action=ActionParser(parser=data_parser), help="data configuration"
+    )
 
     parser.add_argument(
         "--data.train.dataset.text_file",
         type=str,
+        help="transcription file for training dataset",
     )
 
-    parser.add_argument("--data.val.dataset.text_file", type=str)
+    parser.add_argument(
+        "--data.val.dataset.text_file",
+        type=str,
+        help="transcription file for validation dataset",
+    )
 
     parser.add_argument(
         "--data.train.dataset.bpe_model",
         type=str,
+        help="BPE model path used for tokenization",
     )
 
     parser.link_arguments(
@@ -181,7 +237,11 @@ def make_parser(model_class):
 
     parser.link_arguments("data.train.dataset.bpe_model", "data.val.dataset.bpe_model")
 
-    parser.add_argument("--in-model-file", required=True)
+    parser.add_argument(
+        "--in-model-file",
+        required=True,
+        help="input model checkpoint path used as fine-tuning starting point",
+    )
     model_class.add_finetune_args(parser, prefix="model")
     # model_class.add_class_args(parser, prefix="model")
     Trainer.add_class_args(
@@ -190,17 +250,28 @@ def make_parser(model_class):
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
     )
 
     return parser
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and start transducer fine-tuning.
+
+    Args:
+        None.
+    """
     parser = ArgumentParser(
         description="Fine-tune  Wav2Vec2Transducer model from audio files"
     )
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
 
     subcommands = parser.add_subcommands()
 

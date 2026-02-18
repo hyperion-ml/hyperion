@@ -7,6 +7,7 @@ import logging
 import multiprocessing
 import os
 from pathlib import Path
+from typing import Any, Dict, Optional, Type
 
 import torch
 from jsonargparse import (
@@ -45,7 +46,17 @@ xvec_dict = {
 }
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def init_data(
+    partition: str, rank: int, num_gpus: int, **kwargs: Any
+) -> torch.utils.data.DataLoader:
+    """Initialize dataset, sampler, and dataloader for one partition.
+
+    Args:
+        partition: Dataset split name (``"train"`` or ``"val"``).
+        rank: Process rank in distributed training.
+        num_gpus: Number of GPUs available to this job.
+        **kwargs: Parsed configuration dictionary containing data settings.
+    """
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -76,7 +87,17 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-def init_student_xvector(num_classes, rank, xvec_class, **kwargs):
+def init_student_xvector(
+    num_classes: int, rank: int, xvec_class: Type[TorchModel], **kwargs: Any
+) -> TorchModel:
+    """Initialize student x-vector model.
+
+    Args:
+        num_classes: Number of classes for student output layer.
+        rank: Process rank in distributed training.
+        xvec_class: X-vector model class to instantiate.
+        **kwargs: Parsed configuration dictionary.
+    """
     xvec_args = xvec_class.filter_args(**kwargs["student_model"])
     if rank == 0:
         logging.info(f"student xvector network args={xvec_args}")
@@ -87,7 +108,17 @@ def init_student_xvector(num_classes, rank, xvec_class, **kwargs):
     return model
 
 
-def init_teacher_xvector(student_model, rank, xvec_class, **kwargs):
+def init_teacher_xvector(
+    student_model: TorchModel, rank: int, xvec_class: Type[TorchModel], **kwargs: Any
+) -> TorchModel:
+    """Initialize teacher x-vector model.
+
+    Args:
+        student_model: Student model used to initialize teacher when no checkpoint is provided.
+        rank: Process rank in distributed training.
+        xvec_class: X-vector model class used for argument filtering.
+        **kwargs: Parsed configuration dictionary.
+    """
     xvec_args = xvec_class.filter_args(**kwargs["teacher_model"])
     if rank == 0:
         logging.info(f"teacher xvector network args={xvec_args}")
@@ -103,7 +134,13 @@ def init_teacher_xvector(student_model, rank, xvec_class, **kwargs):
     return model
 
 
-def init_dino_loss(rank, **kwargs):
+def init_dino_loss(rank: int, **kwargs: Any) -> DINOLoss:
+    """Initialize DINO loss.
+
+    Args:
+        rank: Process rank in distributed training.
+        **kwargs: Parsed configuration dictionary.
+    """
     loss_args = kwargs["dino_loss"]
     if rank == 0:
         logging.info(f"dino loss args={loss_args}")
@@ -114,7 +151,13 @@ def init_dino_loss(rank, **kwargs):
     return loss
 
 
-def init_cosine_loss(rank, **kwargs):
+def init_cosine_loss(rank: int, **kwargs: Any) -> Optional[CosineDINOLoss]:
+    """Initialize cosine DINO loss.
+
+    Args:
+        rank: Process rank in distributed training.
+        **kwargs: Parsed configuration dictionary.
+    """
     loss_args = kwargs["cosine_loss"]
     if rank == 0:
         logging.info(f"cosine loss args={loss_args}")
@@ -129,7 +172,13 @@ def init_cosine_loss(rank, **kwargs):
     return loss
 
 
-def train_xvec(gpu_id, args):
+def train_xvec(gpu_id: int, args: Any) -> None:
+    """Run distributed DINO x-vector training.
+
+    Args:
+        gpu_id: Local GPU id used by this process.
+        args: Parsed subcommand arguments.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -171,10 +220,19 @@ def train_xvec(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(xvec_class):
+def make_parser(xvec_class: Type[TorchModel]) -> ArgumentParser:
+    """Create parser for one x-vector model subcommand.
+
+    Args:
+        xvec_class: X-vector model class whose args should be exposed.
+    """
     parser = ArgumentParser()
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
 
     train_parser = ArgumentParser(prog="")
 
@@ -184,7 +242,7 @@ def make_parser(xvec_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of workers for the training dataloader.",
     )
 
     val_parser = ArgumentParser(prog="")
@@ -194,19 +252,35 @@ def make_parser(xvec_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of workers for the validation dataloader.",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-    data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-    parser.add_argument("--data", action=ActionParser(parser=data_parser))
+    data_parser.add_argument(
+        "--train",
+        action=ActionParser(parser=train_parser),
+        help="Training data configuration block.",
+    )
+    data_parser.add_argument(
+        "--val",
+        action=ActionParser(parser=val_parser),
+        help="Validation data configuration block.",
+    )
+    parser.add_argument(
+        "--data",
+        action=ActionParser(parser=data_parser),
+        help="Data configuration block containing train/val settings.",
+    )
     parser.link_arguments(
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
     )
 
     xvec_class.add_class_args(parser, prefix="student_model")
     xvec_class.add_dino_teacher_args(parser, prefix="teacher_model")
-    parser.add_argument("--in-teacher-model-file", default=None)
+    parser.add_argument(
+        "--in-teacher-model-file",
+        default=None,
+        help="Optional teacher model checkpoint used instead of cloning student model.",
+    )
     DINOLoss.add_class_args(parser, prefix="dino_loss")
     CosineDINOLoss.add_class_args(parser, prefix="cosine_loss")
     Trainer.add_class_args(
@@ -215,15 +289,26 @@ def make_parser(xvec_class):
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
     return parser
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and launch DINO x-vector training."""
     parser = ArgumentParser(description="Train Wav2XVector from audio files")
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
 
     subcommands = parser.add_subcommands()
     for k, v in xvec_dict.items():

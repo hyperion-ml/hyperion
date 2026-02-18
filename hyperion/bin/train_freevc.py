@@ -32,13 +32,24 @@ from hyperion.torch.narchs import AudioFeatsMVN
 from hyperion.torch.trainers import FreeVCTrainer as Trainer
 from hyperion.torch.trainers.freevc_trainer import FreeVCTrainer as Trainer
 from hyperion.torch.utils import ddp
+from hyperion.utils import PathLike
 
 model_dict = {
     "hf_wavlm_freevc": HFWavLMFreeVC,
 }
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def init_data(
+    partition: str, rank: int, num_gpus: int, **kwargs: Any
+) -> torch.utils.data.DataLoader:
+    """Initialize dataset, sampler, and dataloader for one partition.
+
+    Args:
+        partition: Dataset split name (``"train"`` or ``"val"``).
+        rank: Process rank in distributed training.
+        num_gpus: Number of GPUs available to this job.
+        **kwargs: Parsed configuration dictionary containing data settings.
+    """
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -78,7 +89,16 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-def init_vc_model(rank: int, model_class: Type[TorchModel], model_args: Dict[str, Any]):
+def init_vc_model(
+    rank: int, model_class: Type[TorchModel], model_args: Dict[str, Any]
+) -> TorchModel:
+    """Initialize voice-conversion model.
+
+    Args:
+        rank: Process rank in distributed training.
+        model_class: VC model class to instantiate.
+        model_args: VC model initialization arguments.
+    """
     if rank == 0:
         logging.info("vc_model network args={}".format(model_args))
 
@@ -88,7 +108,15 @@ def init_vc_model(rank: int, model_class: Type[TorchModel], model_args: Dict[str
     return model
 
 
-def init_discrim_model(rank: int, model_args: Dict[str, Any]):
+def init_discrim_model(
+    rank: int, model_args: Dict[str, Any]
+) -> AudioMultiDiscriminator:
+    """Initialize audio discriminator model.
+
+    Args:
+        rank: Process rank in distributed training.
+        model_args: Discriminator model initialization arguments.
+    """
     if rank == 0:
         logging.info("discrim_model network args={}".format(model_args))
 
@@ -98,7 +126,13 @@ def init_discrim_model(rank: int, model_args: Dict[str, Any]):
     return model
 
 
-def init_audio_feats(rank: int, model_args: Dict[str, Any]):
+def init_audio_feats(rank: int, model_args: Dict[str, Any]) -> AudioFeatsMVN:
+    """Initialize audio feature extractor used for loss computation.
+
+    Args:
+        rank: Process rank in distributed training.
+        model_args: Audio feature extractor initialization arguments.
+    """
     if rank == 0:
         logging.info("audio_feats network args={}".format(model_args))
 
@@ -108,7 +142,13 @@ def init_audio_feats(rank: int, model_args: Dict[str, Any]):
     return model
 
 
-def init_xvector(model_file, rank: int):
+def init_xvector(model_file: PathLike, rank: int) -> TorchModel:
+    """Load pretrained x-vector model used by FreeVC losses.
+
+    Args:
+        model_file: Path to x-vector model checkpoint.
+        rank: Process rank in distributed training.
+    """
     if rank == 0:
         logging.info("loading xvector_model: %s", model_file)
     model = TorchModel.auto_load(model_file)
@@ -117,7 +157,13 @@ def init_xvector(model_file, rank: int):
     return model
 
 
-def train_model(gpu_id, args):
+def train_model(gpu_id: int, args: Any) -> None:
+    """Run distributed training for a FreeVC model.
+
+    Args:
+        gpu_id: Local GPU id used by this process.
+        args: Parsed subcommand arguments.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -156,10 +202,19 @@ def train_model(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class):
+def make_parser(model_class: Type[TorchModel]) -> ArgumentParser:
+    """Create parser for one FreeVC model subcommand.
+
+    Args:
+        model_class: FreeVC model class whose args should be exposed.
+    """
     parser = ArgumentParser()
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
 
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset")
@@ -168,7 +223,7 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of workers for the training dataloader.",
     )
 
     val_parser = ArgumentParser(prog="")
@@ -178,16 +233,33 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of workers for the validation dataloader.",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-    data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-    parser.add_argument("--data", action=ActionParser(parser=data_parser))
+    data_parser.add_argument(
+        "--train",
+        action=ActionParser(parser=train_parser),
+        help="Training data configuration block.",
+    )
+    data_parser.add_argument(
+        "--val",
+        action=ActionParser(parser=val_parser),
+        help="Validation data configuration block.",
+    )
+    parser.add_argument(
+        "--data",
+        action=ActionParser(parser=data_parser),
+        help="Data configuration block containing train/val settings.",
+    )
     model_class.add_class_args(parser, prefix="vc_model")
     AudioMultiDiscriminator.add_class_args(parser, prefix="discrim_model")
     AudioFeatsMVN.add_class_args(parser, prefix="loss_audio_feats")
-    parser.add_argument("--xvector-model-file", type=str, required=True)
+    parser.add_argument(
+        "--xvector-model-file",
+        type=str,
+        required=True,
+        help="Path to pretrained x-vector model checkpoint.",
+    )
     Trainer.add_class_args(
         parser,
         prefix="trainer",
@@ -195,15 +267,26 @@ def make_parser(model_class):
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
     return parser
 
 
-def main():
-    parser = ArgumentParser(description="Train Wav2Vec2XVector model from audio files")
-    parser.add_argument("--cfg", action=ActionConfigFile)
+def main() -> None:
+    """Parse CLI arguments and launch FreeVC training."""
+    parser = ArgumentParser(description="Train FreeVC model from audio files")
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
 
     subcommands = parser.add_subcommands()
 

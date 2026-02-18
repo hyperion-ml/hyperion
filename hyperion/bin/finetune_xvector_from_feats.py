@@ -9,6 +9,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
@@ -27,9 +28,29 @@ from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import XVector as XVec
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp, open_device
+from hyperion.utils.misc import PathLike
 
 
-def init_data(data_rspec, train_list, val_list, num_workers, num_gpus, rank, **kwargs):
+def init_data(
+    data_rspec: PathLike,
+    train_list: PathLike,
+    val_list: PathLike,
+    num_workers: int,
+    num_gpus: int,
+    rank: int,
+    **kwargs: Any,
+) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
+    """Initialize training and validation dataloaders.
+
+    Args:
+        data_rspec: Input feature specifier/archive.
+        train_list: Training utterance/class list path.
+        val_list: Validation utterance/class list path.
+        num_workers: Total number of dataloader worker processes.
+        num_gpus: Number of GPUs used by the process group.
+        rank: Distributed rank of the current process.
+        **kwargs: Additional parsed args for dataset and sampler configuration.
+    """
     sd_args = SD.filter_args(**kwargs)
     sampler_args = Sampler.filter_args(**kwargs)
     if rank == 0:
@@ -60,7 +81,22 @@ def init_data(data_rspec, train_list, val_list, num_workers, num_gpus, rank, **k
     return train_loader, test_loader
 
 
-def init_xvector(num_classes, in_model_path, rank, train_mode, **kwargs):
+def init_xvector(
+    num_classes: int,
+    in_model_path: PathLike,
+    rank: int,
+    train_mode: str,
+    **kwargs: Any,
+) -> torch.nn.Module:
+    """Load and reconfigure x-vector model checkpoint for fine-tuning.
+
+    Args:
+        num_classes: Number of target classes in current training data.
+        in_model_path: Input model checkpoint path used as fine-tuning start.
+        rank: Distributed rank of the current process.
+        train_mode: Fine-tuning mode.
+        **kwargs: Additional parsed args containing model configuration.
+    """
     xvec_args = XVec.filter_finetune_args(**kwargs)
     if rank == 0:
         logging.info("xvector network ft args={}".format(xvec_args))
@@ -74,7 +110,13 @@ def init_xvector(num_classes, in_model_path, rank, train_mode, **kwargs):
     return model
 
 
-def train_xvec(gpu_id, args):
+def train_xvec(gpu_id: int, args: Any) -> None:
+    """Run distributed x-vector fine-tuning from features.
+
+    Args:
+        gpu_id: Local GPU index used by this process.
+        args: Parsed command-line namespace.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -166,29 +208,45 @@ def train_xvec(gpu_id, args):
 #     trainer.fit(train_loader, test_loader)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and start x-vector fine-tuning from features.
+
+    Args:
+        None.
+    """
     parser = ArgumentParser(description="Fine-tune x-vector model")
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--data-rspec", required=True)
-    parser.add_argument("--train-list", required=True)
-    parser.add_argument("--val-list", required=True)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
+    parser.add_argument(
+        "--data-rspec", required=True, help="input feature archive/specifier"
+    )
+    parser.add_argument(
+        "--train-list", required=True, help="training utterance/class list"
+    )
+    parser.add_argument(
+        "--val-list", required=True, help="validation utterance/class list"
+    )
 
     SD.add_argparse_args(parser)
     Sampler.add_argparse_args(parser)
     parser.add_argument(
-        "--num-workers", type=int, default=5, help="num_workers of data loader"
+        "--num-workers",
+        type=int,
+        default=5,
+        help="number of dataloader worker processes",
     )
-    parser.add_argument("--in-model-path", required=True)
+    parser.add_argument(
+        "--in-model-path",
+        required=True,
+        help="input model checkpoint path used as fine-tuning starting point",
+    )
     XVec.add_finetune_args(parser)
     Trainer.add_class_args(parser)
     ddp.add_ddp_args(parser)
 
     # parser.add_argument('--num-gpus', type=int, default=1,
     #                     help='number of gpus, if 0 it uses cpu')
-    parser.add_argument(
-        "--seed", type=int, default=1123581321, help="random seed (default: 1)"
-    )
+    parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
         "--resume",
         action="store_true",
@@ -200,15 +258,26 @@ def main():
         default="ft-embed-affine",
         choices=["ft-full", "ft-embed-affine"],
         help=(
-            "ft-full: adapt full x-vector network"
+            "ft-full: adapt full x-vector network; "
             "ft-embed-affine: adapt affine transform before embedding"
         ),
     )
 
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
     )
-    parser.add_argument("--local_rank", default=0, type=int)
+    parser.add_argument(
+        "--local_rank",
+        default=0,
+        type=int,
+        help="local rank assigned by distributed launcher",
+    )
 
     args = parser.parse_args()
     gpu_id = args.local_rank

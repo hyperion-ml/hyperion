@@ -10,6 +10,7 @@ import logging
 import os
 import sys
 import time
+from typing import List, Optional
 
 import numpy as np
 from jsonargparse import ActionYesNo, ArgumentParser, namespace_to_dict
@@ -22,18 +23,33 @@ from hyperion.utils.trial_scores import TrialScores
 
 
 def train_verification_greedy_fusion(
-    score_files,
-    system_names,
-    key_files,
-    model_file,
-    prior,
-    prior_eval,
-    lambda_reg,
-    solver,
-    max_systems,
-    force_weighted_avg,
-    verbose,
-):
+    score_files: List[str],
+    system_names: List[str],
+    key_files: List[str],
+    model_file: str,
+    prior: float,
+    prior_eval: Optional[List[float]],
+    lambda_reg: float,
+    solver: str,
+    max_systems: int,
+    force_weighted_avg: bool,
+    verbose: int,
+) -> None:
+    """Train greedy logistic-regression fusion for verification systems.
+
+    Args:
+        score_files: Score files from all systems/conditions.
+        system_names: System names corresponding to fused systems.
+        key_files: Trial key files.
+        model_file: Output path for trained fusion model.
+        prior: Target prior probability for training.
+        prior_eval: Optional list of priors used for evaluation reporting.
+        lambda_reg: L2 regularization coefficient.
+        solver: Optimization solver name.
+        max_systems: Maximum number of systems selected by greedy fusion.
+        force_weighted_avg: If ``True``, constrain to weighted-average fusion.
+        verbose: Verbosity level forwarded to fusion optimizer.
+    """
     num_keys = len(key_files)
     num_scores = len(score_files)
     num_systems = num_scores // num_keys
@@ -125,30 +141,79 @@ def train_verification_greedy_fusion(
         logging.info("Best-%d %s" % (i + 1, info_str))
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and train greedy verification fusion."""
     parser = ArgumentParser(
         description="Trains greedy binary logistic regression fusion"
     )
 
-    parser.add_argument("--score-files", nargs="+", required=True)
-    parser.add_argument("--system-names", nargs="+", required=True)
-    parser.add_argument("--key-files", nargs="+", required=True)
-    parser.add_argument("--model-file", required=True)
-    parser.add_argument("--prior", type=float, default=0.01)
-    parser.add_argument("--prior-eval", type=float, nargs="+", default=None)
-    parser.add_argument("-v", "--verbose", default=1, choices=[0, 1, 2, 3], type=int)
-    parser.add_argument("--lambda-reg", type=float, default=1e-5)
+    parser.add_argument(
+        "--score-files",
+        nargs="+",
+        required=True,
+        help="Input score files from all systems.",
+    )
+    parser.add_argument(
+        "--system-names",
+        nargs="+",
+        required=True,
+        help="System names corresponding to fused systems.",
+    )
+    parser.add_argument(
+        "--key-files",
+        nargs="+",
+        required=True,
+        help="Trial key files aligned with evaluation conditions.",
+    )
+    parser.add_argument(
+        "--model-file",
+        required=True,
+        help="Output path for trained fusion model.",
+    )
+    parser.add_argument(
+        "--prior",
+        type=float,
+        default=0.01,
+        help="Target prior probability for fusion training.",
+    )
+    parser.add_argument(
+        "--prior-eval",
+        type=float,
+        nargs="+",
+        default=None,
+        help="Optional priors used to report fusion performance.",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
+    )
+    parser.add_argument(
+        "--lambda-reg",
+        type=float,
+        default=1e-5,
+        help="L2 regularization coefficient.",
+    )
     parser.add_argument(
         "--solver",
         choices=["liblinear", "newton-cg", "lbfgs", "sag", "saga"],
         default="liblinear",
+        help="Optimization solver for logistic-regression fusion.",
     )
-    parser.add_argument("--max-systems", type=int, default=10)
+    parser.add_argument(
+        "--max-systems",
+        type=int,
+        default=10,
+        help="Maximum number of systems selected by greedy search.",
+    )
     parser.add_argument(
         "--force-weighted-avg",
         default=False,
         action=ActionYesNo,
-        help="it doens't do calibration, just a weighted average that sums up to one.",
+        help="Disable calibration and train only a weighted-average fusion.",
     )
 
     args = parser.parse_args()

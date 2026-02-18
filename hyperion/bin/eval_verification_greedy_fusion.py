@@ -9,18 +9,21 @@ import logging
 import os
 import sys
 import time
+from typing import List
 
 import numpy as np
 from jsonargparse import ActionYesNo, ArgumentParser, namespace_to_dict
 
 from hyperion.hyp_defs import config_logger, float_cpu
 from hyperion.np.classifiers import GreedyFusionBinaryLR as GF
+from hyperion.utils.misc import PathLike
 from hyperion.utils.trial_key import TrialKey
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 
 
-def sanity_check(scores):
+def sanity_check(scores: np.ndarray) -> None:
+    """Log the normalized correlation matrix across system scores."""
     R = np.dot(scores.T, scores) / scores.shape[0]
     norms = 1 / np.sqrt(np.diag(R))
     R = R * norms
@@ -29,13 +32,14 @@ def sanity_check(scores):
 
 
 def eval_verification_greedy_fusion(
-    in_score_files,
-    ndx_file,
-    model_file,
-    out_score_file,
-    fus_idx,
-    check_sanity,
-):
+    in_score_files: List[PathLike],
+    ndx_file: PathLike,
+    model_file: PathLike,
+    out_score_file: PathLike,
+    fus_idx: int,
+    check_sanity: bool,
+) -> None:
+    """Fuse verification scores using a trained greedy-fusion LR model."""
 
     logging.info("load ndx: %s", ndx_file)
     try:
@@ -65,18 +69,53 @@ def eval_verification_greedy_fusion(
     scr.save(out_score_file)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run greedy score fusion."""
     parser = ArgumentParser(
         description="Evals linear fusion from greedy fusion trainer"
     )
 
-    parser.add_argument("--in-score-files", required=True, nargs="+")
-    parser.add_argument("--out-score-file", required=True)
-    parser.add_argument("--ndx-file", required=True)
-    parser.add_argument("--model-file", required=True)
-    parser.add_argument("--fus-idx", required=True, type=int)
-    parser.add_argument("-v", "--verbose", default=1, choices=[0, 1, 2, 3], type=int)
-    parser.add_argument("--check-sanity", default=False, action=ActionYesNo)
+    parser.add_argument(
+        "--in-score-files",
+        required=True,
+        nargs="+",
+        help="input trial score files to fuse",
+    )
+    parser.add_argument(
+        "--out-score-file",
+        required=True,
+        help="output fused trial score file",
+    )
+    parser.add_argument(
+        "--ndx-file",
+        required=True,
+        help="trial index/key file used to align scores",
+    )
+    parser.add_argument(
+        "--model-file",
+        required=True,
+        help="trained greedy-fusion logistic-regression model",
+    )
+    parser.add_argument(
+        "--fus-idx",
+        required=True,
+        type=int,
+        help="fusion stage index to apply from the greedy-fusion model",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
+    )
+    parser.add_argument(
+        "--check-sanity",
+        default=False,
+        action=ActionYesNo,
+        help="log score correlation matrix before fusion",
+    )
 
     args = parser.parse_args()
     config_logger(args.verbose)

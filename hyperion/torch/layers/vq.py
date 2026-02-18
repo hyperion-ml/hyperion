@@ -101,7 +101,7 @@ class VectorQuantizerBase(nn.Module):
         init_cluster_size: float = 1.0,
         is_ema: bool = False,
         temp_init: float = 1.0,
-        temp_min: Optional[float] = 0.05,
+        temp_min: Optional[float] = 0.5,
         temp_anneal_rate: float = 1e-5,
         temp_anneal_steps: Optional[int] = None,
         commitment_anneal_steps: int = 0,
@@ -190,7 +190,7 @@ class VectorQuantizerBase(nn.Module):
         ema_usage_threshold: float = 1.0,
         init_cluster_size: float = 1.0,
         temp_init: float = 1.0,
-        temp_min: Optional[float] = 0.05,
+        temp_min: Optional[float] = 0.5,
         temp_anneal_rate: float = 1e-5,
         temp_anneal_steps: Optional[int] = None,
         commitment_anneal_steps: int = 0,
@@ -276,6 +276,137 @@ class VectorQuantizerBase(nn.Module):
             "losses_reduction": self.losses_reduction,
         }
         return cfg
+
+    @classmethod
+    def from_vq(
+        cls,
+        vq: "VectorQuantizerBase",
+        **kwargs,
+    ) -> "VectorQuantizerBase":
+        """Instantiate ``cls`` from another vector quantizer instance.
+
+        Args:
+            vq: Source vector quantizer. It can belong to any VQ class in this file.
+            **kwargs: Optional overrides for constructor arguments of ``cls``.
+
+        Returns:
+            A new ``cls`` instance initialized from ``vq``.
+        """
+        if not isinstance(vq, VectorQuantizerBase):
+            raise TypeError(
+                f"`vq` must be a VectorQuantizerBase, got {type(vq).__name__}"
+            )
+
+        cfg = dict(vq.get_config())
+        cfg.update(kwargs)
+        if "distance_metric" in cfg and isinstance(cfg["distance_metric"], str):
+            cfg["distance_metric"] = VQDistanceType(cfg["distance_metric"])
+
+        init_kwargs = filter_func_args(cls.__init__, dict(cfg))
+        new_vq = cls(**init_kwargs)
+        new_vq = new_vq.to(device=vq.codebook.device)
+        new_vq.init_from_vq(vq)
+        return new_vq
+
+    @torch.no_grad()
+    def init_from_vq(self, vq: "VectorQuantizerBase") -> "VectorQuantizerBase":
+        """Initialize this VQ from another VQ instance in-place.
+
+        This copies codebook/state tensors when compatible. The target VQ
+        instance (``self``) must already be constructed.
+
+        Args:
+            vq: Source vector quantizer. It can belong to any VQ class in this file.
+
+        Returns:
+            self, initialized from ``vq``.
+        """
+        if not isinstance(vq, VectorQuantizerBase):
+            raise TypeError(
+                f"`vq` must be a VectorQuantizerBase, got {type(vq).__name__}"
+            )
+
+        if self.in_feats != vq.in_feats:
+            raise ValueError(
+                "Cannot init_from_vq with different in_feats: "
+                f"target={self.in_feats}, source={vq.in_feats}"
+            )
+
+        if self.codebook_size != vq.codebook_size:
+            raise ValueError(
+                "Cannot init_from_vq with different codebook_size: "
+                f"target={self.codebook_size}, source={vq.codebook_size}"
+            )
+
+        if self.codebook_dim != vq.codebook_dim:
+            raise ValueError(
+                "Cannot init_from_vq with different codebook_dim: "
+                f"target={self.codebook_dim}, source={vq.codebook_dim}"
+            )
+
+        self.train(vq.training)
+
+        for proj_name in ("in_proj", "out_proj"):
+            self_proj = getattr(self, proj_name, None)
+            src_proj = getattr(vq, proj_name, None)
+            if (self_proj is None) != (src_proj is None):
+                raise ValueError(
+                    f"Cannot init_from_vq with mismatched `{proj_name}` presence: "
+                    f"target_is_none={self_proj is None}, source_is_none={src_proj is None}"
+                )
+
+        src_state = vq.state_dict()
+        tgt_state = self.state_dict()
+        merged_state = {}
+        for key, tgt_tensor in tgt_state.items():
+            src_tensor = src_state.get(key)
+            if src_tensor is None or src_tensor.shape != tgt_tensor.shape:
+                continue
+            merged_state[key] = src_tensor.detach().to(
+                device=tgt_tensor.device, dtype=tgt_tensor.dtype
+            )
+
+        self.load_state_dict(merged_state, strict=False)
+
+        # Explicit projection copy to guarantee transfer of in/out projections.
+        for proj_name in ("in_proj", "out_proj"):
+            self_proj = getattr(self, proj_name, None)
+            src_proj = getattr(vq, proj_name, None)
+            if self_proj is None:
+                continue
+
+            src_proj_state = src_proj.state_dict()
+            tgt_proj_state = self_proj.state_dict()
+            merged_proj_state = {}
+            for key, tgt_tensor in tgt_proj_state.items():
+                src_tensor = src_proj_state.get(key)
+                if src_tensor is None or src_tensor.shape != tgt_tensor.shape:
+                    continue
+                merged_proj_state[key] = src_tensor.detach().to(
+                    device=tgt_tensor.device, dtype=tgt_tensor.dtype
+                )
+            self_proj.load_state_dict(merged_proj_state, strict=False)
+
+        if hasattr(self, "ema_embed_acc") and (
+            "ema_embed_acc" not in src_state
+            or src_state["ema_embed_acc"].shape != self.ema_embed_acc.shape
+        ):
+            ema_cluster_size = self.ema_cluster_size.to(torch.float32).unsqueeze(-1)
+            self.ema_embed_acc.copy_(self.codebook.to(torch.float32) * ema_cluster_size)
+
+        if hasattr(self, "ema_embed2_acc") and (
+            "ema_embed2_acc" not in src_state
+            or src_state["ema_embed2_acc"].shape != self.ema_embed2_acc.shape
+        ):
+            ema_cluster_size = self.ema_cluster_size.to(torch.float32).unsqueeze(-1)
+            if hasattr(self, "codebook_precs"):
+                embed2_mean = self.codebook_precs.to(torch.float32).reciprocal()
+                embed2_mean = embed2_mean + self.codebook.to(torch.float32) ** 2
+            else:
+                embed2_mean = self.codebook.to(torch.float32) ** 2
+            self.ema_embed2_acc.copy_(embed2_mean * ema_cluster_size)
+
+        return self
 
     def __repr__(self):
         return self.__str__()
@@ -1350,7 +1481,7 @@ class GumbelVectorQuantizer(_GumbelSoftSamplingMixin, _GDVectorQuantizer):
         return_probs: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
-        Encode latents to soft Gumbel-Softmax assignments.
+        Encode latents to deterministic posteriors (train) or hard assignments (eval).
 
         Args:
             latents (Tensor): Input of shape (B, T, D).
@@ -1969,12 +2100,12 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
 
         Args:
             latents (Tensor): Input of shape (B, T, D).
-            temp (float): Gumbel-Softmax temperature.
-            hard (bool or None): If set, overrides the scheduled sampling mode.
+            temp (float): Temperature used for deterministic softmax in training.
+            hard (bool or None): Unused in this class; inference is always hard.
 
         Returns:
             Tensor | Tuple[Tensor, Tensor]:
-                Either the sampled codes ``(B, T)`` or a tuple ``(codes, soft_one_hot)``
+                Either the sampled codes ``(B, T)`` or a tuple ``(codes, posterior)``
                 with the accompanying soft responsibilities ``(B*T, K)`` if
                 ``return_probs`` is True.
         """
@@ -2001,17 +2132,17 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
         return_probs: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
-        Quantize latents using Gumbel-Softmax assignments.
+        Quantize latents using deterministic posteriors (train) or hard assignments (eval).
 
         Args:
             latents (Tensor): Input of shape (B, T, D).
-            temp (float): Gumbel-Softmax temperature.
-            hard (bool or None): When provided overrides the scheduled sampling mode.
+            temp (float): Temperature used for deterministic softmax in training.
+            hard (bool or None): Unused in this class; inference is always hard.
 
         Returns:
             Tuple[Tensor, Tensor, Optional[Tensor]]:
                 Quantized output ``(B, T, D)``, sampled codes ``(B, T)``, and
-                optionally the soft Gumbel assignments ``(B*T, K)`` when
+                optionally the posterior assignments ``(B*T, K)`` when
                 ``return_probs`` is requested.
         """
         encodings = self.encode_latents(latents, temp, hard, return_probs=True)
@@ -2168,6 +2299,462 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
         return filter_func_args(EMAGumbelVectorQuantizer.__init__, kwargs)
 
 
+class AdaptiveRateDistortionEMVectorQuantizer(VectorQuantizerBase):
+    """
+    Diagonal-GMM vector quantizer with EMA updates and adaptive usage control.
+
+    This quantizer is designed to balance reconstruction quality and codebook
+    usage by combining:
+    1. Deterministic posterior assignments during training:
+       ``q(z=k|x) = softmax(logits / temp)``.
+    2. Hard decisions during inference:
+       ``k = argmax(logits)``.
+    3. EMA-based M-step updates for means, diagonal variances, and mixture
+       weights from posterior sufficient statistics.
+    4. A closed-loop usage controller (`usage_lambda`) that adjusts the strength
+       of a prior-like term in logits to push perplexity toward a target ratio.
+
+    Logits combine distortion and prior terms:
+    ``logits = -0.5 * mahalanobis + 0.5 * log|precision| + (1-usage_lambda)*log(weight)``.
+
+    Compared with hard-EM VQ, this class keeps responsibilities smooth during
+    training while still producing hard code decisions at evaluation time.
+
+    Attributes:
+        in_feats (int): Input feature dimension.
+        codebook_size (int): Number of codebook entries.
+        codebook_dim (int): Embedding dimension used internally.
+        use_weight_norm (bool): Whether input/output projections use weight norm.
+        channels_last (bool): Input layout control for non-sequential tensors.
+        decay (float): EMA decay for sufficient statistics.
+        eps (float): Numerical stability constant.
+        var_floor (float): Minimum allowed diagonal variance.
+        usage_target_ppl_ratio (float): Target perplexity ratio in (0, 1],
+            where target perplexity is ``ratio * codebook_size``.
+        usage_lambda (Tensor): Adaptive scalar controlling how strongly mixture
+            log-weights influence assignments.
+        usage_lambda_lr (float): Step size for adapting ``usage_lambda``.
+        usage_lambda_max (float): Upper bound for ``usage_lambda``.
+        dirichlet_alpha (float): Optional pseudocount for smoothing mixture
+            weights in the M-step.
+        reset_unused (bool): Whether dead codes are re-seeded.
+        ema_usage_threshold (float): Minimum EMA count before a code is
+            considered unused.
+        init_cluster_size (float): Initial EMA cluster size per code.
+        temp (Tensor): Current softmax temperature for training assignments.
+        temp_min (Tensor): Lower bound for temperature annealing.
+        temp_anneal_rate (float): Exponential temperature decay rate.
+        commitment_weight (Tensor): Current weight for commitment loss.
+        commitment_anneal_steps (int): Ramp length for commitment weight.
+        codebook (Tensor): Mean vectors of mixture components.
+        codebook_precs (Tensor): Diagonal precisions per component.
+        codebook_weights (Tensor): Mixture weights normalized to sum to 1.
+        ema_cluster_size (Tensor): EMA component counts.
+        ema_embed_acc (Tensor): EMA first-order statistics.
+        ema_embed2_acc (Tensor): EMA second-order statistics.
+        _cur_step (Tensor): Current global step seen by the module.
+        compute_diversity_loss (bool): Whether diversity regularizer is computed.
+        compute_orthogonality_loss (bool): Whether orthogonality penalty is computed.
+        losses_reduction (str): Reduction for returned loss tensors.
+    """
+
+    def __init__(
+        self,
+        in_feats: int,
+        codebook_size: int,
+        codebook_dim: Optional[int] = None,
+        use_weight_norm: bool = False,
+        channels_last: bool = False,
+        decay: float = 0.99,
+        eps: float = 1e-5,
+        var_floor: float = 1e-5,
+        usage_target_ppl_ratio: float = 0.5,
+        usage_lambda_init: float = 0.0,
+        usage_lambda_lr: float = 1e-3,
+        usage_lambda_max: float = 0.95,
+        dirichlet_alpha: float = 0.0,
+        reset_unused: bool = False,
+        ema_usage_threshold: float = 1.0,
+        init_cluster_size: float = 1.0,
+        temp_init: float = 1.0,
+        temp_min: float = 0.5,
+        temp_anneal_rate: float = 1e-5,
+        commitment_anneal_steps: int = 0,
+        compute_diversity_loss: bool = False,
+        compute_orthogonality_loss: bool = False,
+        losses_reduction: str = "mean",
+    ):
+        super().__init__(
+            in_feats,
+            codebook_size,
+            codebook_dim,
+            VQDistanceType.L2,
+            use_weight_norm,
+            channels_last,
+            decay=decay,
+            eps=eps,
+            reset_unused=reset_unused,
+            ema_usage_threshold=ema_usage_threshold,
+            init_cluster_size=init_cluster_size,
+            is_ema=True,
+            temp_init=temp_init,
+            temp_min=temp_min,
+            temp_anneal_rate=temp_anneal_rate,
+            commitment_anneal_steps=commitment_anneal_steps,
+            compute_diversity_loss=compute_diversity_loss,
+            compute_orthogonality_loss=compute_orthogonality_loss,
+            losses_reduction=losses_reduction,
+        )
+        self.var_floor = float(var_floor)
+        if self.var_floor <= 0.0:
+            raise ValueError(f"var_floor must be > 0, got {self.var_floor}")
+
+        self.usage_target_ppl_ratio = float(usage_target_ppl_ratio)
+        if not (0.0 < self.usage_target_ppl_ratio <= 1.0):
+            raise ValueError(
+                "usage_target_ppl_ratio must be in (0, 1], "
+                f"got {self.usage_target_ppl_ratio}"
+            )
+        self.usage_lambda_lr = float(usage_lambda_lr)
+        if self.usage_lambda_lr < 0.0:
+            raise ValueError(f"usage_lambda_lr must be >= 0, got {self.usage_lambda_lr}")
+        self.usage_lambda_max = float(usage_lambda_max)
+        if self.usage_lambda_max < 0.0:
+            raise ValueError(
+                f"usage_lambda_max must be >= 0, got {self.usage_lambda_max}"
+            )
+        self.dirichlet_alpha = float(dirichlet_alpha)
+        if self.dirichlet_alpha < 0.0:
+            raise ValueError(
+                f"dirichlet_alpha must be >= 0, got {self.dirichlet_alpha}"
+            )
+
+        self.register_buffer("_cur_step", torch.zeros(1, dtype=torch.long))
+        self.register_buffer(
+            "usage_lambda",
+            torch.tensor(
+                max(0.0, min(float(usage_lambda_init), self.usage_lambda_max)),
+                dtype=torch.float32,
+            ),
+        )
+
+        precs = torch.ones(codebook_size, self.codebook_dim)
+        self.register_buffer("codebook_precs", precs)
+        weights = torch.full((codebook_size,), 1.0 / codebook_size)
+        self.register_buffer("codebook_weights", weights)
+        ema_cluster_size = self.ema_cluster_size.unsqueeze(-1)
+        self.register_buffer(
+            "ema_embed_acc",
+            self.codebook.data.clone().to(torch.float32) * ema_cluster_size,
+        )
+        embed2_mean = self.codebook_precs.data.clone().reciprocal().to(
+            torch.float32
+        ) + (self.codebook.data.clone().to(torch.float32) ** 2)
+        self.register_buffer("ema_embed2_acc", embed2_mean * ema_cluster_size)
+
+    def __str__(self):
+        return (
+            f"{self.__class__.__name__}(in_feats={self.in_feats}, codebook_size={self.codebook_size}, "
+            f"codebook_dim={self.codebook_dim}, use_weight_norm={self.use_weight_norm}, "
+            f"channels_last={self.channels_last}, decay={self.decay}, eps={self.eps}, "
+            f"var_floor={self.var_floor}, usage_target_ppl_ratio={self.usage_target_ppl_ratio}, "
+            f"usage_lambda={self.usage_lambda.item():.4f}, usage_lambda_lr={self.usage_lambda_lr}, "
+            f"usage_lambda_max={self.usage_lambda_max}, dirichlet_alpha={self.dirichlet_alpha}, "
+            f"reset_unused={self.reset_unused}, ema_usage_threshold={self.ema_usage_threshold}, "
+            f"init_cluster_size={self.init_cluster_size}, temp={self.temp.item():.4f}, "
+            f"temp_min={self.temp_min.item():.4f}, temp_anneal_rate={self.temp_anneal_rate}, "
+            f"commitment_weight={self.commitment_weight.item():.4f}, "
+            f"commitment_anneal_steps={self.commitment_anneal_steps}, "
+            f"compute_diversity_loss={self._compute_diversity_loss}, "
+            f"compute_orthogonality_loss={self._compute_orthogonality_loss}, "
+            f"losses_reduction='{self.losses_reduction}')"
+        )
+
+    def get_config(self):
+        cfg = super().get_config()
+        del cfg["distance_metric"]
+        cfg.update(
+            {
+                "var_floor": self.var_floor,
+                "usage_target_ppl_ratio": self.usage_target_ppl_ratio,
+                "usage_lambda_init": float(self.usage_lambda.item()),
+                "usage_lambda_lr": self.usage_lambda_lr,
+                "usage_lambda_max": self.usage_lambda_max,
+                "dirichlet_alpha": self.dirichlet_alpha,
+            }
+        )
+        return cfg
+
+    @torch.no_grad()
+    def update_sampling_mode(self, global_step: int) -> None:
+        VectorQuantizerBase.update_sampling_mode(self, global_step)
+        self._cur_step.fill_(int(global_step))
+
+    @torch.no_grad()
+    def codebook_perplexity_from_ema(self) -> torch.Tensor:
+        probs = self.codebook_weights
+        entropy = -(probs * (probs + self.eps).log()).sum()
+        return entropy.exp()
+
+    def _compute_weights_from_counts(self, counts: torch.Tensor) -> torch.Tensor:
+        counts = counts.to(torch.float32) + self.eps
+        if self.dirichlet_alpha > 0.0:
+            alpha = self.dirichlet_alpha
+            weights = (counts + alpha) / (
+                counts.sum() + alpha * self.codebook_size + self.eps
+            )
+        else:
+            weights = counts / counts.sum()
+        weights = weights.clamp_min(self.eps)
+        weights = weights / weights.sum()
+        return weights
+
+    @torch.no_grad()
+    def _update_usage_lambda(self) -> None:
+        if self.usage_lambda_lr <= 0.0:
+            return
+        target_ppl = max(1.0, self.usage_target_ppl_ratio * self.codebook_size)
+        ppl = float(self.codebook_perplexity_from_ema().item())
+        err = (target_ppl - ppl) / target_ppl
+        new_lambda = float(self.usage_lambda.item()) + self.usage_lambda_lr * err
+        new_lambda = max(0.0, min(self.usage_lambda_max, new_lambda))
+        if not math.isclose(new_lambda, float(self.usage_lambda.item())):
+            self.usage_lambda.fill_(new_lambda)
+            if int(self._cur_step.item()) % 1000 == 0:
+                logging.info(
+                    "%s usage_lambda updated to %.6f at step %d (target_ppl=%.2f, ppl=%.2f)",
+                    self.__class__.__name__,
+                    new_lambda,
+                    int(self._cur_step.item()),
+                    target_ppl,
+                    ppl,
+                )
+
+    @torch.no_grad()
+    def _ema_update(
+        self,
+        flat_z: torch.Tensor,
+        flat_probs: torch.Tensor,
+        mask_1d: torch.Tensor | None,
+    ) -> None:
+        if mask_1d is not None:
+            mask_1d = mask_1d.to(torch.float32)
+            flat_probs = flat_probs * mask_1d.unsqueeze(-1)
+
+        batch_cluster_size = flat_probs.sum(dim=0)
+        flat_z = flat_z.to(torch.float32)
+        batch_embed_sum = flat_probs.T @ flat_z
+        batch_embed2_sum = flat_probs.T @ (flat_z**2)
+
+        self._maybe_allreduce_tensor(batch_cluster_size)
+        self._maybe_allreduce_tensor(batch_embed_sum)
+        self._maybe_allreduce_tensor(batch_embed2_sum)
+
+        self.ema_cluster_size.mul_(self.decay).add_(
+            (1.0 - self.decay) * batch_cluster_size
+        )
+        self.ema_embed_acc.mul_(self.decay).add_((1.0 - self.decay) * batch_embed_sum)
+        self.ema_embed2_acc.mul_(self.decay).add_((1.0 - self.decay) * batch_embed2_sum)
+
+        n = self.ema_cluster_size + self.eps
+        weights = self._compute_weights_from_counts(self.ema_cluster_size)
+        new_mean = self.ema_embed_acc / n.unsqueeze(-1)
+        new_var = self.ema_embed2_acc / n.unsqueeze(-1) - new_mean**2
+        new_var = new_var.clamp_min(self.var_floor)
+        new_prec = 1.0 / new_var
+
+        self.codebook_weights.copy_(weights.to(self.codebook_weights.dtype))
+        self.codebook_precs.data.copy_(new_prec.to(self.codebook_precs.dtype))
+        self.codebook.data.copy_(new_mean.to(self.codebook.dtype))
+        self._update_usage_lambda()
+
+    @torch.no_grad()
+    def _reset_unused_codes(
+        self, flat_z: torch.Tensor, mask_1d: Optional[torch.Tensor]
+    ) -> None:
+        if not self.reset_unused:
+            return
+
+        unused = self.ema_cluster_size < self.ema_usage_threshold
+        if not unused.any():
+            return
+
+        VectorQuantizerBase._reset_unused_codes(self, flat_z, mask_1d)
+
+        active = ~unused
+        if active.any():
+            avg_prec = self.codebook_precs[active].mean(dim=0)
+        else:
+            avg_prec = torch.full(
+                (self.codebook_dim,),
+                1.0 / self.var_floor,
+                device=self.codebook.device,
+                dtype=self.codebook_precs.dtype,
+            )
+
+        avg_prec = avg_prec.clamp_max(1.0 / self.var_floor)
+        self.codebook_precs.data[unused] = avg_prec
+        embed2_mean = self.codebook_precs[unused].reciprocal() + (
+            self.codebook[unused].to(torch.float32) ** 2
+        )
+        self.ema_embed2_acc.data[unused] = (
+            embed2_mean * self.ema_cluster_size[unused].unsqueeze(-1)
+        )
+        self.codebook_weights.copy_(
+            self._compute_weights_from_counts(self.ema_cluster_size).to(
+                self.codebook_weights.dtype
+            )
+        )
+
+    def compute_codebook_distance(self, encodings: torch.Tensor) -> torch.Tensor:
+        codebook = self.codebook
+        precs = self.codebook_precs
+        enc_sq = encodings**2
+        x2_prec = torch.matmul(enc_sq, precs.t())
+        mu2_prec = torch.sum(codebook**2 * precs, dim=1)
+        x_mu_prec = torch.matmul(encodings, (codebook * precs).t())
+        return x2_prec + mu2_prec.unsqueeze(0) - 2 * x_mu_prec
+
+    def compute_cluster_logits(self, encodings: torch.Tensor) -> torch.Tensor:
+        distance = self.compute_codebook_distance(encodings)
+        log_weights = torch.log(self.codebook_weights.unsqueeze(0) + self.eps)
+        log_norm = 0.5 * torch.log(self.codebook_precs).sum(dim=1).unsqueeze(0)
+        return (
+            -0.5 * distance
+            + log_norm
+            + (1.0 - float(self.usage_lambda.item())) * log_weights
+        )
+
+    def encode_latents(
+        self,
+        latents: torch.Tensor,
+        temp: float,
+        hard: Optional[bool] = None,
+        return_probs: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        latents_shape = latents.shape
+        latents = latents.view(-1, latents.shape[-1])
+        logits = self.compute_cluster_logits(latents)
+
+        if self.training:
+            tau = max(float(temp), 1e-6)
+            probs = F.softmax(logits / tau, dim=-1)
+            codes = probs.argmax(dim=1)
+        else:
+            codes = logits.argmax(dim=1)
+            probs = F.one_hot(codes, num_classes=self.codebook_size).to(logits.dtype)
+
+        codes = codes.view(latents_shape[0], -1)
+        if return_probs:
+            return codes, probs
+        return codes
+
+    def quantize_latents(
+        self,
+        latents: torch.Tensor,
+        temp: float,
+        hard: Optional[bool] = None,
+        return_probs: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+        encodings = self.encode_latents(latents, temp, hard, return_probs=True)
+        assert isinstance(encodings, tuple)
+        codes, probs = encodings
+        z_q = torch.matmul(probs, self.codebook).view(latents.shape)
+        if return_probs:
+            return z_q, codes, probs
+        return z_q, codes, None
+
+    def forward(
+        self,
+        z: torch.Tensor,
+        z_lengths: torch.Tensor | None = None,
+        z_mask: torch.Tensor | None = None,
+        temp: float = None,
+        hard: Optional[bool] = None,
+        return_codes: bool = False,
+    ) -> VectorQuantizerOutput:
+        z, orig_shape = self.reshape_input(z)
+        if self.in_proj is not None:
+            z = self.in_proj(z)
+
+        if temp is None:
+            temp = self.temp.item()
+
+        z_q, codes, probs = self.quantize_latents(z, temp, hard, return_probs=True)
+
+        if z_mask is not None:
+            z_mask_2d = z_mask.view(orig_shape[0], -1)
+        elif z_lengths is not None:
+            z_mask_2d = seq_lengths_to_mask(
+                z_lengths, z.size(1), time_dim=1, dtype=z.dtype
+            )
+        else:
+            z_mask_2d = None
+
+        if z_mask_2d is not None:
+            m = z_mask_2d.unsqueeze(-1)
+            z = z * m
+            z_q = z_q * m
+            den = z_mask_2d.mean(dim=1).clamp_min(1e-8)
+        else:
+            den = torch.ones(z.shape[0], device=z.device, dtype=z.dtype)
+
+        commitment_loss = (
+            F.mse_loss(z, z_q.detach(), reduction="none").mean([1, 2]) / den
+        )
+        codebook_loss = commitment_loss.detach()
+        commitment_loss = commitment_loss * self.commitment_weight
+
+        if self._compute_diversity_loss:
+            diversity_loss = self.compute_diversity_loss(probs, z_mask_2d)
+        else:
+            diversity_loss = None
+
+        if self._compute_orthogonality_loss:
+            orth_loss = self.compute_orthogonal_loss()
+        else:
+            orth_loss = None
+
+        if self.training:
+            with torch.no_grad():
+                flat_z = z.view(-1, z.shape[-1])
+                flat_probs = probs.view(-1, probs.shape[-1])
+                flat_mask = z_mask_2d.view(-1) if z_mask_2d is not None else None
+                self._ema_update(flat_z, flat_probs, flat_mask)
+
+        ppl = self.codebook_perplexity_from_ema()
+
+        if self.training:
+            with torch.no_grad():
+                flat_z = z.view(-1, z.shape[-1])
+                flat_mask = z_mask_2d.view(-1) if z_mask_2d is not None else None
+                self._reset_unused_codes(flat_z, flat_mask)
+
+        if self.out_proj is not None:
+            z_q = self.out_proj(z_q)
+
+        codes = codes if return_codes else None
+        commitment_loss = self._reduce_loss(commitment_loss)
+        codebook_loss = self._reduce_loss(codebook_loss)
+        z_q, codes = self.reshape_output(z_q, codes, orig_shape)
+
+        return VectorQuantizerOutput(
+            z_q=z_q,
+            codebook_loss=codebook_loss,
+            commitment_loss=commitment_loss,
+            diversity_loss=diversity_loss,
+            orthogonality_loss=orth_loss,
+            perplexity=ppl,
+            codes=codes,
+            z_mask=z_mask,
+            z_lengths=z_lengths,
+        )
+
+    @staticmethod
+    def filter_args(**kwargs):
+        return filter_func_args(AdaptiveRateDistortionEMVectorQuantizer.__init__, kwargs)
+
+
 class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantizerBase):
     """
     GMM-based vector quantizer that grows the codebook via binary splitting.
@@ -2193,7 +2780,12 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
         split_start_steps (int): Base step offset; first split happens at
             ``split_start_steps + split_steps``.
         split_steps (int): Number of training steps between split events.
+        split_std_scale (float): Scale factor for the standard deviation used
+            to offset split means along the maximum-variance dimension. Must be
+            in the open interval (0, 1) to keep split variances positive.
         max_weight_ratio (float): Maximum weight ratio before resetting unused codes.
+        reset_cooldown_steps (int): Minimum number of steps between resets for a
+            given codebook entry.
         var_floor (float): Minimum variance for precision updates.
         reset_unused (bool): If True, reinitializes codes whose EMA usage drops
             below ``ema_usage_threshold`` from random encoder samples.
@@ -2221,13 +2813,15 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
         eps: float = 1e-5,
         split_start_steps: int = 0,
         split_steps: int = 1000,
+        split_std_scale: float = 0.75,
         max_weight_ratio: float = 2.0,
+        reset_cooldown_steps: int = 1000,
         var_floor: float = 1e-5,
         reset_unused: bool = False,
         ema_usage_threshold: float = 1.0,
         init_cluster_size: float = 1.0,
         temp_init: float = 1.0,
-        temp_min: float = 0.5,
+        temp_min: float = 1.0,
         temp_anneal_rate: float = 1e-5,
         soft_sampling_steps: int = 0,
         commitment_anneal_steps: int = 0,
@@ -2262,7 +2856,13 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
         ).is_integer(), "codebook_size must be a power of 2"
         self.split_start_steps = split_start_steps
         self.split_steps = split_steps
+        self.split_std_scale = float(split_std_scale)
+        if self.split_std_scale <= 0.0 or self.split_std_scale >= 1.0:
+            raise ValueError(
+                "split_std_scale must be in (0, 1), " f"got {self.split_std_scale}"
+            )
         self.max_weight_ratio = max_weight_ratio
+        self.reset_cooldown_steps = max(0, int(reset_cooldown_steps))
         self.var_floor = float(var_floor)
         if self.var_floor <= 0.0:
             raise ValueError(f"var_floor must be > 0, got {self.var_floor}")
@@ -2273,20 +2873,33 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
         )
         self.register_buffer("_cur_num_clusters", torch.ones(1, dtype=torch.long))
         self.register_buffer("_is_splitting_complete", torch.zeros(1, dtype=torch.bool))
+        self.register_buffer(
+            "_soft_sampling_start_step", torch.full((1,), -1, dtype=torch.long)
+        )
+        self.register_buffer(
+            "_last_reset_step",
+            torch.full((codebook_size,), -(10**9), dtype=torch.long),
+        )
 
         # codebook precisions
         precs = torch.ones(codebook_size, self.codebook_dim)
         self.register_buffer("codebook_precs", precs)
-        weights = torch.ones(codebook_size)
+        weights = torch.zeros(codebook_size)
+        weights[0] = 1.0
         self.register_buffer("codebook_weights", weights)
         # EMA buffers
+        self.ema_cluster_size.data[1:] = 0.0
+        ema_cluster_size = self.ema_cluster_size.unsqueeze(-1)
         self.register_buffer(
             "ema_embed_acc",
-            self.codebook.data.clone().to(torch.float32) * self.init_cluster_size,
+            self.codebook.data.clone().to(torch.float32) * ema_cluster_size,
         )
+        embed2_mean = self.codebook_precs.data.clone().reciprocal().to(
+            torch.float32
+        ) + (self.codebook.data.clone().to(torch.float32) ** 2)
         self.register_buffer(
             "ema_embed2_acc",
-            self.codebook_precs.data.clone().to(torch.float32) * self.init_cluster_size,
+            embed2_mean * ema_cluster_size,
         )
 
     def __str__(self):
@@ -2299,7 +2912,9 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
             f"init_cluster_size={self.init_cluster_size}, "
             f"split_start_steps={self.split_start_steps}, "
             f"split_steps={self.split_steps}, "
+            f"split_std_scale={self.split_std_scale}, "
             f"max_weight_ratio={self.max_weight_ratio}, "
+            f"reset_cooldown_steps={self.reset_cooldown_steps}, "
             f"var_floor={self.var_floor}, "
             f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, "
             f"temp_anneal_rate={self.temp_anneal_rate}, "
@@ -2319,7 +2934,9 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
             {
                 "split_start_steps": self.split_start_steps,
                 "split_steps": self.split_steps,
+                "split_std_scale": self.split_std_scale,
                 "max_weight_ratio": self.max_weight_ratio,
+                "reset_cooldown_steps": self.reset_cooldown_steps,
                 "var_floor": self.var_floor,
             }
         )
@@ -2364,8 +2981,33 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
 
     @torch.no_grad()
     def update_sampling_mode(self, global_step: int) -> None:
-        super().update_sampling_mode(global_step)
+        VectorQuantizerBase.update_sampling_mode(self, global_step)
         self._cur_step.fill_(int(global_step))
+        if not hasattr(self, "soft_sampling_steps"):
+            return
+
+        if not self.is_splitting_complete():
+            target_hard = False
+            self._soft_sampling_start_step.fill_(-1)
+        else:
+            if self._soft_sampling_start_step.item() < 0:
+                self._soft_sampling_start_step.fill_(int(global_step))
+            elapsed = int(global_step) - int(self._soft_sampling_start_step.item())
+            if self.soft_sampling_steps <= 0:
+                target_hard = True
+            else:
+                target_hard = elapsed >= self.soft_sampling_steps
+
+        current_hard = bool(self.use_hard_sampling.item())
+        if current_hard != target_hard:
+            mode = "hard" if target_hard else "soft"
+            logging.info(
+                "%s switching to %s Gumbel sampling at step %d",
+                self.__class__.__name__,
+                mode,
+                int(global_step),
+            )
+        self.use_hard_sampling.fill_(target_hard)
 
     @torch.no_grad()
     def codebook_perplexity_from_ema(self) -> torch.Tensor:
@@ -2378,7 +3020,9 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
 
     def is_split_due(self) -> bool:
         """Check if its time to split clusters."""
-        return self._cur_step.item() >= self._next_split_step.item()
+        return (
+            not self.is_splitting_complete()
+        ) and self._cur_step.item() >= self._next_split_step.item()
 
     def total_split_steps(self) -> int:
         """Return the global step when the final split should complete."""
@@ -2456,6 +3100,7 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
         dist.broadcast(self._cur_num_clusters, src=src)
         dist.broadcast(self._next_split_step, src=src)
         dist.broadcast(self._is_splitting_complete, src=src)
+        dist.broadcast(self._last_reset_step, src=src)
         dist.broadcast(self.ema_cluster_size, src=src)
         dist.broadcast(self.ema_embed_acc, src=src)
         dist.broadcast(self.ema_embed2_acc, src=src)
@@ -2469,10 +3114,20 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
         codebook = self.codebook[:K]
         precs = self.codebook_precs[:K]
         std = (1 / precs).sqrt()
-        new_codebook_1 = codebook + std
-        new_codebook_2 = codebook - std
+        max_dim = std.argmax(dim=1)
+        delta = torch.zeros_like(std)
+        delta[torch.arange(K, device=std.device), max_dim] = (
+            std[torch.arange(K, device=std.device), max_dim] * self.split_std_scale
+        )
+        new_codebook_1 = codebook + delta
+        new_codebook_2 = codebook - delta
         new_weights = weights / 2.0
-        new_precs = 2 * precs
+        new_precs = precs.clone()
+        denom = 1.0 - (self.split_std_scale**2)
+        new_precs[torch.arange(K, device=std.device), max_dim] = (
+            precs[torch.arange(K, device=std.device), max_dim] / denom
+        )
+        new_precs.clamp_max_(1.0 / self.var_floor)
         self.codebook.data[:K].copy_(new_codebook_1.to(self.codebook.dtype))
         self.codebook.data[K : 2 * K].copy_(new_codebook_2.to(self.codebook.dtype))
         self.codebook_weights.data[:K].copy_(
@@ -2505,6 +3160,13 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
         else:
             self._is_splitting_complete.fill_(True)
 
+        print(
+            "Split",
+            self.codebook_weights.detach().cpu().tolist(),
+            self.is_splitting_complete(),
+            flush=True,
+        )
+
     @torch.no_grad()
     def split_clusters(self) -> None:
         """Public entry point for scheduled cluster splitting."""
@@ -2536,7 +3198,7 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
             reset_flag = torch.zeros(1, device=device, dtype=torch.int32)
             if dist.get_rank() == 0:
                 k_max, k_min, ratio = self._select_reset_indices()
-                if ratio >= self.max_weight_ratio:
+                if k_max >= 0 and ratio >= self.max_weight_ratio:
                     reset_flag.fill_(1)
                     self._apply_reset(k_max, k_min)
             dist.broadcast(reset_flag, src=0)
@@ -2545,14 +3207,110 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
             return
 
         k_max, k_min, ratio = self._select_reset_indices()
-        if ratio < self.max_weight_ratio:
+        if k_max < 0 or ratio < self.max_weight_ratio:
             return
         self._apply_reset(k_max, k_min)
 
+    @torch.no_grad()
+    def _reset_unused_codes_from_batch(
+        self,
+        flat_z: torch.Tensor,
+        mask_1d: torch.Tensor | None = None,
+    ) -> None:
+        """
+        Alternative reset using a high-error sample from the minibatch.
+
+        This keeps the existing reset_unused_codes logic intact and provides an
+        opt-in path for data-seeded resets.
+        """
+        if not self.is_splitting_complete():
+            return
+        if not self.reset_unused:
+            return
+
+        k_max, k_min, ratio = self._select_reset_indices()
+        if k_max < 0 or ratio < self.max_weight_ratio:
+            return
+
+        if mask_1d is not None:
+            mask_1d = mask_1d.to(torch.bool)
+            if not torch.any(mask_1d):
+                return
+            flat_z = flat_z[mask_1d]
+
+        if flat_z.numel() == 0:
+            return
+
+        # Pick a high-error sample within the dominant cluster.
+        distances = self.compute_codebook_distance(flat_z)  # (N, K)
+        assignments = distances.argmin(dim=1)
+        idx = (assignments == k_max).nonzero(as_tuple=False).squeeze(-1)
+        if idx.numel() == 0:
+            return
+        min_dist = distances[idx, k_max]
+        max_idx = idx[min_dist.argmax().item()]
+        sample = flat_z[max_idx].to(self.codebook.dtype)
+
+        # # Only recycle k_min when it is in a crowded region and the seed is
+        # # sufficiently far from k_max; otherwise we may hurt current k_min assignments.
+        # center_kmin = self.codebook[k_min]
+        # center_kmax = self.codebook[k_max]
+        # center_dists = ((self.codebook - center_kmin) ** 2).sum(dim=1)
+        # center_dists[k_min] = float("inf")
+        # min_center_dist = center_dists.min()
+        # seed_to_kmax_dist = ((sample - center_kmax) ** 2).sum()
+        # if not (min_center_dist < seed_to_kmax_dist):
+        #     return
+
+        # Conservative reset weight and donor precision.
+        min_weight = self.codebook_weights.min()
+        donor_prec = 2 * self.codebook_precs[k_max].clone()
+        N = self.ema_cluster_size.sum()
+
+        self.codebook.data[k_min].copy_(sample)
+        self.codebook_precs.data[k_min].copy_(donor_prec)
+        self.codebook_weights.data[k_min].copy_(
+            min_weight.to(self.codebook_weights.dtype)
+        )
+        self.codebook_weights.data.copy_(
+            self.codebook_weights / self.codebook_weights.sum()
+        )
+
+        cluster_size_min = self.codebook_weights[k_min].to(torch.float32) * N
+        self.ema_cluster_size.data[k_min] = cluster_size_min
+        self.ema_embed_acc.data[k_min] = (
+            self.codebook[k_min].to(torch.float32) * cluster_size_min
+        )
+        embed2_mean = (
+            self.codebook_precs[k_min].reciprocal()
+            + self.codebook[k_min].to(torch.float32) ** 2
+        )
+        self.ema_embed2_acc.data[k_min] = embed2_mean * cluster_size_min
+        self._last_reset_step.data[k_min] = self._cur_step
+
     def _select_reset_indices(self) -> tuple[int, int, float]:
-        k_max = self.codebook_weights.argmax().item()
-        k_min = self.codebook_weights.argmin().item()
-        ratio = self.codebook_weights[k_max] / (self.codebook_weights[k_min] + self.eps)
+        if self.reset_cooldown_steps <= 0:
+            eligible = torch.ones_like(self.codebook_weights, dtype=torch.bool)
+        else:
+            eligible = (
+                self._cur_step - self._last_reset_step
+            ) >= self.reset_cooldown_steps
+
+        if not torch.any(eligible):
+            return -1, -1, 0.0
+
+        weights = self.codebook_weights
+        weights_max = weights.masked_fill(~eligible, float("-inf"))
+        weights_min = weights.masked_fill(~eligible, float("inf"))
+
+        k_max = weights_max.argmax().item()
+        k_min = weights_min.argmin().item()
+        if not torch.isfinite(weights_max[k_max]) or not torch.isfinite(
+            weights_min[k_min]
+        ):
+            return -1, -1, 0.0
+
+        ratio = weights[k_max] / (weights[k_min] + self.eps)
         return k_max, k_min, ratio
 
     def _apply_reset(self, k_max: int, k_min: int) -> None:
@@ -2566,25 +3324,31 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
         codebook = self.codebook[k_max]
         precs = self.codebook_precs[k_max]
         std = (1 / precs).sqrt()
+        max_dim = std.argmax().item()
+        delta = torch.zeros_like(std)
+        delta[max_dim] = std[max_dim] * self.split_std_scale
         weight = (self.codebook_weights[k_max] + self.codebook_weights[k_min]) / 2.0
-        new_precs = precs * 2.0
-        self.codebook.data[k_max].copy_((codebook + std).to(self.codebook.dtype))
-        self.codebook.data[k_min].copy_((codebook - std).to(self.codebook.dtype))
+        new_precs = precs.clone()
+        denom = 1.0 - (self.split_std_scale**2)
+        new_precs[max_dim] = precs[max_dim] / denom
+        new_precs.clamp_max_(1.0 / self.var_floor)
+        self.codebook.data[k_max].copy_((codebook + delta).to(self.codebook.dtype))
+        self.codebook.data[k_min].copy_((codebook - delta).to(self.codebook.dtype))
         self.codebook_precs.data[k_max].copy_(new_precs.to(self.codebook_precs.dtype))
         self.codebook_precs.data[k_min].copy_(new_precs.to(self.codebook_precs.dtype))
         self.codebook_weights.data[k_max].copy_(weight.to(self.codebook_weights.dtype))
         self.codebook_weights.data[k_min].copy_(weight.to(self.codebook_weights.dtype))
 
-        cluster_size = (
-            self.ema_cluster_size[k_max] + self.ema_cluster_size[k_min]
-        ) / 2.0
-        self.ema_cluster_size.data[k_max] = cluster_size
-        self.ema_cluster_size.data[k_min] = cluster_size
+        N = self.ema_cluster_size.sum()
+        cluster_size_max = self.codebook_weights[k_max].to(torch.float32) * N
+        cluster_size_min = self.codebook_weights[k_min].to(torch.float32) * N
+        self.ema_cluster_size.data[k_max] = cluster_size_max
+        self.ema_cluster_size.data[k_min] = cluster_size_min
         self.ema_embed_acc.data[k_max] = (
-            self.codebook[k_max].to(torch.float32) * cluster_size
+            self.codebook[k_max].to(torch.float32) * cluster_size_max
         )
         self.ema_embed_acc.data[k_min] = (
-            self.codebook[k_min].to(torch.float32) * cluster_size
+            self.codebook[k_min].to(torch.float32) * cluster_size_min
         )
         embed2_mean_max = (
             self.codebook_precs[k_max].reciprocal()
@@ -2594,8 +3358,10 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
             self.codebook_precs[k_min].reciprocal()
             + self.codebook[k_min].to(torch.float32) ** 2
         )
-        self.ema_embed2_acc.data[k_max] = embed2_mean_max * cluster_size
-        self.ema_embed2_acc.data[k_min] = embed2_mean_min * cluster_size
+        self.ema_embed2_acc.data[k_max] = embed2_mean_max * cluster_size_max
+        self.ema_embed2_acc.data[k_min] = embed2_mean_min * cluster_size_min
+        self._last_reset_step.data[k_max] = self._cur_step
+        self._last_reset_step.data[k_min] = self._cur_step
 
     def compute_codebook_distance(self, encodings: torch.Tensor) -> torch.Tensor:
         """
@@ -2672,11 +3438,20 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
         latents_shape = latents.shape
         latents = latents.view(-1, latents.shape[-1])  # (B*T, D)
         logits = self.compute_cluster_logits(latents)
-        hard = self._resolve_sampling_mode(hard)
-        soft_one_hot = F.gumbel_softmax(
-            logits, tau=float(temp), hard=hard, dim=-1
-        )  # (N, num_embed)
-        codes = soft_one_hot.max(dim=1)[1]  # (B*T)
+        # Use deterministic posteriors during training and hard assignments at inference.
+        if self.training:
+            tau = max(float(temp), 1e-6)
+            soft_one_hot = F.softmax(logits / tau, dim=-1)
+            # soft_one_hot = F.gumbel_softmax(
+            #     logits, tau=float(temp), hard=False, dim=-1
+            # )  # (N, num_embed)
+            codes = soft_one_hot.max(dim=1)[1]  # (B*T)
+        else:
+            codes = logits.max(dim=1)[1]  # (B*T)
+            soft_one_hot = F.one_hot(
+                codes, num_classes=self.codebook_size
+            ).to(logits.dtype)
+
         codes = codes.view(latents_shape[0], -1)  # (B, T)
         if return_probs:
             return codes, soft_one_hot

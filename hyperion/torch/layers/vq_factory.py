@@ -11,6 +11,7 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from .vq import (
+    AdaptiveRateDistortionEMVectorQuantizer,
     BinarySplittingGMMVectorQuantizer,
     EMAGumbelVectorQuantizer,
     EMANNVectorQuantizer,
@@ -25,6 +26,7 @@ vq_dict = {
     "gumbel_vq": GumbelVectorQuantizer,
     "ema_gumbel_vq": EMAGumbelVectorQuantizer,
     "binary_splitting_gmm_vq": BinarySplittingGMMVectorQuantizer,
+    "adaptive_rd_em_vq": AdaptiveRateDistortionEMVectorQuantizer,
 }
 
 
@@ -78,8 +80,11 @@ class VectorQuantizerFactory:
             "use_weight_norm": use_weight_norm,
             "channels_last": channels_last,
         }
-        if vq_class == BinarySplittingGMMVectorQuantizer:
-            # Remove params not used by BinarySplittingGMMVectorQuantizer
+        if vq_class in (
+            BinarySplittingGMMVectorQuantizer,
+            AdaptiveRateDistortionEMVectorQuantizer,
+        ):
+            # Remove params not used by diagonal-GMM quantizers.
             vq_params.pop("distance_metric")
 
         vq_params.update(kwargs)
@@ -214,6 +219,17 @@ class VectorQuantizerFactory:
                 help="Number of training steps between split events",
             )
 
+        if "split_std_scale" not in skip:
+            parser.add_argument(
+                "--split-std-scale",
+                type=float,
+                default=0.75,
+                help=(
+                    "Scale factor for the standard deviation used to offset split "
+                    "means along the maximum-variance dimension (must be in (0, 1))"
+                ),
+            )
+
         if "max_weight_ratio" not in skip:
             parser.add_argument(
                 "--max-weight-ratio",
@@ -222,12 +238,60 @@ class VectorQuantizerFactory:
                 help="Maximum weight ratio before resetting unused codes",
             )
 
+        if "reset_cooldown_steps" not in skip:
+            parser.add_argument(
+                "--reset-cooldown-steps",
+                type=int,
+                default=1000,
+                help="Minimum number of steps between resets for a codebook entry",
+            )
+
         if "var_floor" not in skip:
             parser.add_argument(
                 "--var-floor",
                 type=float,
                 default=1e-5,
                 help="Minimum variance for precision updates",
+            )
+
+        if "usage_target_ppl_ratio" not in skip:
+            parser.add_argument(
+                "--usage-target-ppl-ratio",
+                type=float,
+                default=0.5,
+                help="Target perplexity ratio (target_ppl=ratio*codebook_size)",
+            )
+
+        if "usage_lambda_init" not in skip:
+            parser.add_argument(
+                "--usage-lambda-init",
+                type=float,
+                default=0.0,
+                help="Initial usage regularization factor",
+            )
+
+        if "usage_lambda_lr" not in skip:
+            parser.add_argument(
+                "--usage-lambda-lr",
+                type=float,
+                default=1e-3,
+                help="Step size for adaptive usage regularization factor",
+            )
+
+        if "usage_lambda_max" not in skip:
+            parser.add_argument(
+                "--usage-lambda-max",
+                type=float,
+                default=0.95,
+                help="Maximum value for adaptive usage regularization factor",
+            )
+
+        if "dirichlet_alpha" not in skip:
+            parser.add_argument(
+                "--dirichlet-alpha",
+                type=float,
+                default=0.0,
+                help="Dirichlet pseudocount for mixture-weight smoothing",
             )
 
         if "temp_init" not in skip:

@@ -274,6 +274,86 @@ class ResidualVectorQuantizer(nn.Module):
 
         return cfg
 
+    @torch.no_grad()
+    def init_from_rvq(
+        self, rvq: "ResidualVectorQuantizer"
+    ) -> "ResidualVectorQuantizer":
+        """Initialize this RVQ from another RVQ instance in-place.
+
+        The shared prefix of quantizers is initialized by calling
+        ``init_from_vq`` on each target quantizer:
+        - if ``self`` has fewer levels than ``rvq``, only the first levels in
+          ``self`` are initialized.
+        - if ``self`` has more levels than ``rvq``, the extra tail levels in
+          ``self`` are kept as originally initialized.
+
+        Args:
+            rvq: Source residual vector quantizer.
+
+        Returns:
+            self, initialized from ``rvq``.
+        """
+        if not isinstance(rvq, ResidualVectorQuantizer):
+            raise TypeError(
+                f"`rvq` must be a ResidualVectorQuantizer, got {type(rvq).__name__}"
+            )
+
+        if self.in_feats != rvq.in_feats:
+            raise ValueError(
+                "Cannot init_from_rvq with different in_feats: "
+                f"target={self.in_feats}, source={rvq.in_feats}"
+            )
+
+        if self.latent_dim != rvq.latent_dim:
+            raise ValueError(
+                "Cannot init_from_rvq with different latent_dim: "
+                f"target={self.latent_dim}, source={rvq.latent_dim}"
+            )
+
+        for proj_name in ("in_proj", "out_proj"):
+            self_proj = getattr(self, proj_name, None)
+            src_proj = getattr(rvq, proj_name, None)
+            if (self_proj is None) != (src_proj is None):
+                raise ValueError(
+                    f"Cannot init_from_rvq with mismatched `{proj_name}` presence: "
+                    f"target_is_none={self_proj is None}, source_is_none={src_proj is None}"
+                )
+
+        self.train(rvq.training)
+
+        for proj_name in ("in_proj", "out_proj"):
+            self_proj = getattr(self, proj_name, None)
+            src_proj = getattr(rvq, proj_name, None)
+            if self_proj is None:
+                continue
+
+            src_proj_state = src_proj.state_dict()
+            tgt_proj_state = self_proj.state_dict()
+            merged_proj_state = {}
+            for key, tgt_tensor in tgt_proj_state.items():
+                src_tensor = src_proj_state.get(key)
+                if src_tensor is None or src_tensor.shape != tgt_tensor.shape:
+                    continue
+                merged_proj_state[key] = src_tensor.detach().to(
+                    device=tgt_tensor.device, dtype=tgt_tensor.dtype
+                )
+            self_proj.load_state_dict(merged_proj_state, strict=False)
+
+        if hasattr(self, "bypass_prob") and hasattr(rvq, "bypass_prob"):
+            self.bypass_prob.copy_(rvq.bypass_prob.to(self.bypass_prob.device))
+
+        num_shared = min(len(self.quantizers), len(rvq.quantizers))
+        for i in range(num_shared):
+            tgt_vq = self.quantizers[i]
+            src_vq = rvq.quantizers[i]
+            if not hasattr(tgt_vq, "init_from_vq"):
+                raise TypeError(
+                    f"Quantizer at level {i} does not implement `init_from_vq`"
+                )
+            tgt_vq.init_from_vq(src_vq)
+
+        return self
+
     def scale_quantizer_grad(self, z_q: torch.Tensor) -> torch.Tensor:
         """
         Scale the gradient of the residual by a fixed fraction.

@@ -48,6 +48,7 @@ from .spec_augment import AxisMasker, SpecAugment, SpecWarper
 from .streaming_convs import StreamingCausalConv1d, StreamingCausalConvTranspose1d
 from .subpixel_convs import ICNR1d, ICNR2d, SubPixelConv1d, SubPixelConv2d
 from .vq import (
+    AdaptiveRateDistortionEMVectorQuantizer,
     BinarySplittingGMMVectorQuantizer,
     EMAGumbelVectorQuantizer,
     EMANNVectorQuantizer,

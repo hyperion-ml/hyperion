@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Optional
 
 # --- plotting (headless) ---
 import matplotlib
@@ -29,28 +30,23 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.np.feats import EnergyVAD, st_logE
 from hyperion.np.preprocessing import ResamplerToTargetFreq
+from hyperion.utils.misc import PathLike
 
 
 def save_vad_2channel_plot(
-    output_dir,
-    key,  # string to include in filename
-    channel,  # int: channel index of target channel
-    x,  # 1D np.ndarray (target channel, padded if needed)
-    x_side,  # 1D np.ndarray (side channel, padded if needed)
-    y_init,  # 1D bool array: initial VAD on target (y)
-    y_side_init,  # 1D bool array: initial VAD on side (y_side before energy compare)
-    y_side_after,  # 1D bool array: side VAD after energy comparison
-    y_tgt,  # 1D bool array: final target VAD after removing side
-    fs,  # sample rate (int)
-    frame_shift,  # frame shift in ms
-):
-    """
-    Save a PNG showing waveforms for target/side channels and step overlays for:
-      - target VAD (initial and final)
-      - side VAD (initial and after energy-based assignment)
-
-    Returns: Path to the saved PNG.
-    """
+    output_dir: PathLike,
+    key: str,
+    channel: int,
+    x: np.ndarray,
+    x_side: np.ndarray,
+    y_init: np.ndarray,
+    y_side_init: np.ndarray,
+    y_side_after: np.ndarray,
+    y_tgt: np.ndarray,
+    fs: int,
+    frame_shift: float,
+) -> Path:
+    """Save a two-channel VAD debug plot and return the PNG path."""
     # --- checks ---
     n = len(y_init)
     assert (
@@ -140,28 +136,14 @@ def save_vad_2channel_plot(
 
 
 def save_vad_1channel_plot(
-    output_dir,
-    key,  # string to include in filename
-    x,  # 1D np.ndarray (target channel, padded if needed)
-    y,  # 1D bool array: final target VAD
-    fs,  # sample rate (int)
-    frame_shift,  # frame shift in ms
-):
-    """
-    Save a PNG showing one-channel waveform with VAD overlay.
-
-    Args:
-        output_dir: str | Path, output directory.
-        key: str, used in filename.
-        x: 1D array-like, waveform samples.
-        y: 1D bool array, VAD per frame.
-        fs: int, sample rate (Hz).
-        frame_shift_ms: float, VAD frame shift in milliseconds.
-        y_color: str, color for VAD overlay line.
-
-    Returns:
-        Path to the saved PNG.
-    """
+    output_dir: PathLike,
+    key: str,
+    x: np.ndarray,
+    y: np.ndarray,
+    fs: int,
+    frame_shift: float,
+) -> Path:
+    """Save a one-channel VAD debug plot and return the PNG path."""
     # --- checks ---
     n = len(y)
     out_dir = Path(output_dir)
@@ -206,16 +188,17 @@ def save_vad_1channel_plot(
 
 
 def compute_vad(
-    dataset_file,
-    recordings_file,
-    segments_file,
-    output_spec,
-    write_num_frames,
-    remove_cross_talk,
-    min_post_cross_talk_dur,
-    vad_plot_dir,
-    **kwargs,
-):
+    dataset_file: Optional[PathLike],
+    recordings_file: Optional[PathLike],
+    segments_file: Optional[PathLike],
+    output_spec: PathLike,
+    write_num_frames: Optional[PathLike],
+    remove_cross_talk: bool,
+    min_post_cross_talk_dur: float,
+    vad_plot_dir: Optional[PathLike],
+    **kwargs: Any,
+) -> None:
+    """Compute energy-based VAD and write per-utterance decisions."""
     vad_args = EnergyVAD.filter_args(**kwargs)
     vad = EnergyVAD(**vad_args)
     resampler = ResamplerToTargetFreq(vad.sample_frequency)
@@ -356,23 +339,61 @@ def compute_vad(
         f_num_frames.close()
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run energy-based VAD extraction."""
     parser = ArgumentParser(description="Compute Kaldi Energy VAD")
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--dataset-file", default=None)
-    parser.add_argument("--recordings-file", default=None)
-    parser.add_argument("--segments-file", default=None)
-    parser.add_argument("--output-spec", required=True)
-    parser.add_argument("--write-num-frames", default=None)
-    parser.add_argument("--write-stats", default=None)
-    parser.add_argument("--remove-cross-talk", default=False, action=ActionYesNo)
-    parser.add_argument("--min-post-cross-talk-dur", type=float, default=10.0)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
+    parser.add_argument(
+        "--dataset-file",
+        default=None,
+        help="dataset descriptor used by SequentialAudioReader",
+    )
+    parser.add_argument(
+        "--recordings-file",
+        default=None,
+        help="optional recordings metadata file for segmented audio reading",
+    )
+    parser.add_argument(
+        "--segments-file",
+        default=None,
+        help="optional segments metadata file for utterance extraction",
+    )
+    parser.add_argument(
+        "--output-spec",
+        required=True,
+        help="output VAD wspecifier/path",
+    )
+    parser.add_argument(
+        "--write-num-frames",
+        default=None,
+        help="optional output file to write number of VAD frames per utterance",
+    )
+    parser.add_argument(
+        "--write-stats",
+        default=None,
+        help="deprecated/unused compatibility option",
+    )
+    parser.add_argument(
+        "--remove-cross-talk",
+        default=False,
+        action=ActionYesNo,
+        help="remove likely cross-talk frames using non-target channel energy",
+    )
+    parser.add_argument(
+        "--min-post-cross-talk-dur",
+        type=float,
+        default=10.0,
+        help=(
+            "minimum speech duration (seconds) after cross-talk removal; "
+            "otherwise original VAD is kept"
+        ),
+    )
     parser.add_argument(
         "--vad-plot-dir",
         type=str,
         default=None,
-        help="Directory to save VAD debug plots",
+        help="directory to save per-utterance VAD debug plots",
     )
 
     AR.add_class_args(parser)
@@ -384,7 +405,7 @@ def main():
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
-        help="Verbose level",
+        help="verbosity level (0=error, 1=warning, 2=info, 3=debug)",
     )
     args = parser.parse_args()
     config_logger(args.verbose)

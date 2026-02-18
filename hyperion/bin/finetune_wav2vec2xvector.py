@@ -9,6 +9,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Type
 
 import numpy as np
 import torch
@@ -32,6 +33,7 @@ from hyperion.torch.models import (
 )
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
+from hyperion.utils.misc import PathLike
 
 model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,
@@ -40,7 +42,17 @@ model_dict = {
 }
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def init_data(
+    partition: str, rank: int, num_gpus: int, **kwargs: Any
+) -> torch.utils.data.DataLoader:
+    """Initialize dataset, sampler, and dataloader for a partition.
+
+    Args:
+        partition: Dataset split name, e.g. ``"train"`` or ``"val"``.
+        rank: Distributed rank of the current process.
+        num_gpus: Number of GPUs used by the process group.
+        **kwargs: Parsed configuration dictionary containing ``data`` settings.
+    """
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -79,7 +91,17 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-def init_model(num_classes, in_model_file, rank, **kwargs):
+def init_model(
+    num_classes: int, in_model_file: PathLike, rank: int, **kwargs: Any
+) -> torch.nn.Module:
+    """Load and reconfigure x-vector model checkpoint for fine-tuning.
+
+    Args:
+        num_classes: Number of target classes in current training data.
+        in_model_file: Input model checkpoint path.
+        rank: Distributed rank of the current process.
+        **kwargs: Parsed configuration dictionary containing ``model`` settings.
+    """
     model_args = kwargs["model"]
     if rank == 0:
         logging.info("xvector network ft args={}".format(model_args))
@@ -91,7 +113,17 @@ def init_model(num_classes, in_model_file, rank, **kwargs):
     return model
 
 
-def init_hard_prototype_mining(model, train_loader, val_loader, rank):
+def init_hard_prototype_mining(
+    model: Any, train_loader: Any, val_loader: Any, rank: int
+) -> None:
+    """Initialize hard prototype mining in samplers when enabled.
+
+    Args:
+        model: X-vector model that provides prototype affinities.
+        train_loader: Training dataloader with sampler state to update.
+        val_loader: Validation dataloader with sampler state to update.
+        rank: Distributed rank of the current process.
+    """
     try:
         hard_prototype_mining = train_loader.batch_sampler.hard_prototype_mining
     except:
@@ -112,7 +144,13 @@ def init_hard_prototype_mining(model, train_loader, val_loader, rank):
     val_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
 
 
-def train_model(gpu_id, args):
+def train_model(gpu_id: int, args: Any) -> None:
+    """Run distributed x-vector fine-tuning for one process/GPU.
+
+    Args:
+        gpu_id: Local GPU index used by this process.
+        args: Parsed model-specific command-line namespace.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -147,10 +185,15 @@ def train_model(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class):
+def make_parser(model_class: Type[torch.nn.Module]) -> ArgumentParser:
+    """Build parser for a specific x-vector model subcommand.
+
+    Args:
+        model_class: Model class used to register model-specific arguments.
+    """
     parser = ArgumentParser()
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset", skip={})
     SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
@@ -158,7 +201,7 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="number of worker processes for the training dataloader",
     )
 
     val_parser = ArgumentParser(prog="")
@@ -168,12 +211,22 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="number of worker processes for the validation dataloader",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-    data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-    parser.add_argument("--data", action=ActionParser(parser=data_parser))
+    data_parser.add_argument(
+        "--train",
+        action=ActionParser(parser=train_parser),
+        help="training data configuration block",
+    )
+    data_parser.add_argument(
+        "--val",
+        action=ActionParser(parser=val_parser),
+        help="validation data configuration block",
+    )
+    parser.add_argument(
+        "--data", action=ActionParser(parser=data_parser), help="data configuration"
+    )
     parser.link_arguments(
         "data.train.dataset.class_files", "data.val.dataset.class_files"
     )
@@ -181,7 +234,11 @@ def make_parser(model_class):
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
     )
 
-    parser.add_argument("--in-model-file", required=True)
+    parser.add_argument(
+        "--in-model-file",
+        required=True,
+        help="input model checkpoint path used as fine-tuning starting point",
+    )
     model_class.add_finetune_args(parser, prefix="model")
     Trainer.add_class_args(
         parser, prefix="trainer", train_modes=model_class.valid_train_modes()
@@ -189,17 +246,28 @@ def make_parser(model_class):
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
     )
 
     return parser
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and start x-vector fine-tuning.
+
+    Args:
+        None.
+    """
     parser = ArgumentParser(
         description="Finetunes Wav2Vec2XVector model from audio files"
     )
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
 
     subcommands = parser.add_subcommands()
 

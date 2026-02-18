@@ -5,7 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -59,8 +59,12 @@ table_dict = {
 }
 
 
-def add_common_args(parser):
-    """Add shared table type and verbosity options to an argument parser."""
+def add_common_args(parser: ArgumentParser) -> None:
+    """Add shared table type and verbosity options to an argument parser.
+
+    Args:
+        parser: Argument parser to augment.
+    """
     parser.add_argument(
         "--table-type",
         default="generic",
@@ -74,11 +78,11 @@ def add_common_args(parser):
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
-        help="verbosity level for logging output",
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
 
-def make_cat_parser():
+def make_cat_parser() -> ArgumentParser:
     """Build parser for concatenating multiple tables into one."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -117,13 +121,22 @@ def make_cat_parser():
 
 def cat(
     table_type: str,
-    input_files: Union[List[PathLike], None],
+    input_files: Optional[List[PathLike]],
     output_file: PathLike,
     num_tables: int,
     base_idx: int = 1,
     skip_missing: bool = False,
-):
-    """Concatenate a list of tables into a single file."""
+) -> None:
+    """Concatenate a list of tables into a single file.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_files: Input table files. If ``None``, file names are inferred.
+        output_file: Output table file path.
+        num_tables: Number of inferred input tables.
+        base_idx: Starting index for inferred input table names.
+        skip_missing: If ``True``, skip missing inferred/input files.
+    """
     assert input_files is not None or num_tables != 0
     output_file = Path(output_file)
     if input_files is None:
@@ -154,7 +167,7 @@ def cat(
     output_table.save(output_file)
 
 
-def make_filter_parser():
+def make_filter_parser() -> ArgumentParser:
     """Build parser for filtering a table using another table as filter."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -196,8 +209,18 @@ def filter(
     filter_by: str,
     keep: bool,
     raise_if_missing: bool,
-):
-    """Filter rows by matching values from a second table."""
+) -> None:
+    """Filter rows by matching values from a second table.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Table to filter.
+        filter_file: Table providing filter values.
+        output_file: Output table file path.
+        filter_by: Column name used to match rows.
+        keep: If ``True``, keep matched rows; otherwise remove them.
+        raise_if_missing: Raise if filter values are missing in input table.
+    """
     logging.info(
         f"Filtering {input_file} by {filter_file} on {filter_by} into {output_file}"
     )
@@ -218,7 +241,7 @@ def filter(
     output_table.save(output_file)
 
 
-def make_filter_by_predicate_parser():
+def make_filter_by_predicate_parser() -> ArgumentParser:
     """Build parser for filtering a table using a predicate expression."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -249,8 +272,16 @@ def filter_by_predicate(
     predicate: str,
     keep: bool,
     output_file: PathLike,
-):
-    """Filter rows using a boolean predicate on the table columns."""
+) -> None:
+    """Filter rows using a boolean predicate on the table columns.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Table to filter.
+        predicate: Predicate expression over table columns.
+        keep: If ``True``, keep matching rows; otherwise remove them.
+        output_file: Output table file path.
+    """
     logging.info(f"Filtering {input_file} by {predicate} into {output_file}")
 
     input_file = Path(input_file)
@@ -265,7 +296,7 @@ def filter_by_predicate(
     output_table.save(output_file)
 
 
-def make_make_class_file_from_column_parser():
+def make_make_class_file_from_column_parser() -> ArgumentParser:
     """Build parser for creating a class info table from a column."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -293,8 +324,15 @@ def make_class_file_from_column(
     input_file: PathLike,
     output_file: PathLike,
     column: str,
-):
-    """Generate a class-info table from unique values of a column."""
+) -> None:
+    """Generate a class-info table from unique values of a column.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Input table file path.
+        output_file: Output class-info file path.
+        column: Column whose unique values define class ids.
+    """
     logging.info(
         f"Creating class file from {input_file} column {column} into {output_file}"
     )
@@ -309,7 +347,7 @@ def make_class_file_from_column(
     output_table.save(output_file)
 
 
-def make_drop_columns_parser():
+def make_drop_columns_parser() -> ArgumentParser:
     """Build parser for dropping or keeping columns from a table."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -341,8 +379,16 @@ def drop_columns(
     columns: List[str],
     output_file: Optional[PathLike] = None,
     keep: bool = False,
-):
-    """Drop or keep selected columns, backing up the input if overwriting."""
+) -> None:
+    """Drop or keep selected columns, backing up the input if overwriting.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Input table file path.
+        columns: Columns to keep or drop.
+        output_file: Output file path. If ``None``, overwrite input with backup.
+        keep: If ``True``, keep ``columns``; otherwise drop them.
+    """
 
     input_file = Path(input_file)
     if output_file is None:
@@ -360,7 +406,7 @@ def drop_columns(
     output_table.save(output_file)
 
 
-def make_add_columns_parser():
+def make_add_columns_parser() -> ArgumentParser:
     """Build parser for merging columns from a secondary table."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -406,15 +452,28 @@ def add_columns(
     table_type: str,
     input_file: PathLike,
     right_table_file: PathLike,
-    columns: List[str],
+    columns: Optional[List[str]],
     on: str = "id",
     right_on: Optional[str] = None,
     replace_overlapping: bool = False,
     ignore_overlapping: bool = False,
     remove_missing: bool = False,
     output_file: Optional[PathLike] = None,
-):
-    """Join columns from another table into the input table."""
+) -> None:
+    """Join columns from another table into the input table.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Left/input table file path.
+        right_table_file: Right table file path with columns to merge.
+        columns: Column names to add. If ``None``, use implementation defaults.
+        on: Join key in the input table.
+        right_on: Join key in the right table. If ``None``, uses ``on``.
+        replace_overlapping: Replace overlapping columns.
+        ignore_overlapping: Ignore overlapping columns.
+        remove_missing: Remove rows with missing values after merge.
+        output_file: Output file path. If ``None``, overwrite input with backup.
+    """
 
     input_file = Path(input_file)
     if output_file is None:
@@ -443,7 +502,7 @@ def add_columns(
     input_table.save(output_file)
 
 
-def make_replace_columns_parser():
+def make_replace_columns_parser() -> ArgumentParser:
     """Build parser for replacing columns in a table with another table."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -477,8 +536,16 @@ def replace_columns(
     replacement_file: PathLike,
     output_file: Optional[PathLike] = None,
     columns: Optional[List[str]] = None,
-):
-    """Replace columns in a table with values from another table."""
+) -> None:
+    """Replace columns in a table with values from another table.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Input table file path.
+        replacement_file: Table file used as replacement source.
+        output_file: Output file path. If ``None``, overwrite input with backup.
+        columns: Columns to replace. If ``None``, replace all supported columns.
+    """
     logging.info(
         f"Replacing columns in {input_file} with {replacement_file} into {output_file}"
     )
@@ -498,7 +565,7 @@ def replace_columns(
     input_table.save(output_file)
 
 
-def make_average_results_parser():
+def make_average_results_parser() -> ArgumentParser:
     """Build parser for averaging columns across several result tables."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -531,12 +598,20 @@ def make_average_results_parser():
 
 def average_results(
     table_type: str,
-    input_files: Union[List[PathLike], None],
+    input_files: Optional[List[PathLike]],
     output_file: PathLike,
     num_tables: int,
     base_idx: int = 1,
-):
-    """Average numeric result columns across multiple result tables."""
+) -> None:
+    """Average numeric result columns across multiple result tables.
+
+    Args:
+        table_type: Table type key in ``table_dict`` (kept for CLI consistency).
+        input_files: Input result files. If ``None``, file names are inferred.
+        output_file: Output averaged result file.
+        num_tables: Number of inferred input tables.
+        base_idx: Starting index for inferred input table names.
+    """
     assert input_files is not None or num_tables != 0
     output_file = Path(output_file)
     if input_files is None:
@@ -600,7 +675,7 @@ def average_results(
     output_table.to_csv(output_file, sep=sep, index=False, float_format="{:.4f}".format)
 
 
-def make_harmonize_columns_by_majority_vote_parser():
+def make_harmonize_columns_by_majority_vote_parser() -> ArgumentParser:
     """Build parser for harmonizing categorical columns via majority vote."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -635,8 +710,16 @@ def harmonize_columns_by_majority_vote(
     voter_columns: List[str],
     target_columns: List[str],
     output_file: Optional[PathLike] = None,
-):
-    """Harmonize categorical columns so each group agrees via majority vote."""
+) -> None:
+    """Harmonize categorical columns so each group agrees via majority vote.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Input table file path.
+        voter_columns: Columns defining the grouping.
+        target_columns: Columns harmonized within each group.
+        output_file: Output file path. If ``None``, overwrite input with backup.
+    """
     input_file = Path(input_file)
     if output_file is None:
         bk_file = input_file.with_suffix(input_file.suffix + ".bk")
@@ -661,7 +744,7 @@ def harmonize_columns_by_majority_vote(
     table.save(output_file)
 
 
-def make_harmonize_columns_by_average_parser():
+def make_harmonize_columns_by_average_parser() -> ArgumentParser:
     """Build parser for harmonizing numeric columns via averaging."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -696,8 +779,16 @@ def harmonize_columns_by_average(
     voter_columns: List[str],
     target_columns: List[str],
     output_file: Optional[PathLike] = None,
-):
-    """Harmonize numeric columns so each group shares the same mean value."""
+) -> None:
+    """Harmonize numeric columns so each group shares the same mean value.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Input table file path.
+        voter_columns: Columns defining the grouping.
+        target_columns: Numeric columns harmonized within each group.
+        output_file: Output file path. If ``None``, overwrite input with backup.
+    """
     input_file = Path(input_file)
     if output_file is None:
         bk_file = input_file.with_suffix(input_file.suffix + ".bk")
@@ -722,7 +813,7 @@ def harmonize_columns_by_average(
     table.save(output_file)
 
 
-def make_harmonize_column_by_majority_cluster_parser():
+def make_harmonize_column_by_majority_cluster_parser() -> ArgumentParser:
     """Build parser for harmonizing a numeric column via the dominant cluster."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -776,8 +867,19 @@ def harmonize_column_by_majority_cluster(
     std_threshold: Optional[float] = None,
     max_iter: int = 20,
     output_file: Optional[PathLike] = None,
-):
-    """Harmonize a numeric column via the dominant cluster and flag suspects."""
+) -> None:
+    """Harmonize a numeric column via the dominant cluster and flag suspects.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Input table file path.
+        voter_columns: Columns defining the grouping.
+        target_column: Numeric column to harmonize.
+        suspect_column: Output column used to flag suspected outliers.
+        std_threshold: Split threshold for within-group standard deviation.
+        max_iter: Maximum iterations for 1D two-means refinement.
+        output_file: Output file path. If ``None``, overwrite input with backup.
+    """
     input_file = Path(input_file)
     if output_file is None:
         bk_file = input_file.with_suffix(input_file.suffix + ".bk")
@@ -806,7 +908,7 @@ def harmonize_column_by_majority_cluster(
     table.save(output_file)
 
 
-def make_harmonize_age_given_decade_parser():
+def make_harmonize_age_given_decade_parser() -> ArgumentParser:
     """Build parser for harmonizing age within decade bounds."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -846,8 +948,17 @@ def harmonize_age_given_decade(
     target_column: str,
     decade_column: str = "age_decade",
     output_file: Optional[PathLike] = None,
-):
-    """Harmonize age by averaging within decade bounds."""
+) -> None:
+    """Harmonize age by averaging within decade bounds.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Input table file path.
+        voter_columns: Columns defining the grouping.
+        target_column: Numeric age column to harmonize.
+        decade_column: Column with decade labels used as value bounds.
+        output_file: Output file path. If ``None``, overwrite input with backup.
+    """
     input_file = Path(input_file)
     if output_file is None:
         bk_file = input_file.with_suffix(input_file.suffix + ".bk")
@@ -875,7 +986,7 @@ def harmonize_age_given_decade(
     table.save(output_file)
 
 
-def make_histogram_parser():
+def make_histogram_parser() -> ArgumentParser:
     """Build parser for plotting a histogram of a column."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -933,8 +1044,20 @@ def histogram(
     color: str,
     output_file: Optional[PathLike],
     dropna: bool,
-):
-    """Plot or save a histogram for a column in the table."""
+) -> None:
+    """Plot or save a histogram for a column in the table.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Input table file path.
+        column: Column to plot.
+        bins: Number of histogram bins for numeric columns.
+        density: Plot normalized density instead of counts.
+        kind: Histogram style.
+        color: Plot color.
+        output_file: Output image file. If ``None``, plot is shown.
+        dropna: Whether to drop NA values before plotting.
+    """
     input_file = Path(input_file)
     logging.info(f"Plotting histogram for column {column} from {input_file}")
 
@@ -951,7 +1074,7 @@ def histogram(
     )
 
 
-def make_scatter2d_parser():
+def make_scatter2d_parser() -> ArgumentParser:
     """Build parser for plotting a 2D scattergram."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -1004,8 +1127,20 @@ def scatter2d(
     sample_frac: float,
     output_file: Optional[PathLike],
     dropna: bool,
-):
-    """Plot or save a 2D scattergram for two columns."""
+) -> None:
+    """Plot or save a 2D scattergram for two columns.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Input table file path.
+        x_column: Column plotted on the x-axis.
+        y_column: Column plotted on the y-axis.
+        color: Plot color.
+        marker: Marker style.
+        sample_frac: Fraction of rows sampled for plotting.
+        output_file: Output image file. If ``None``, plot is shown.
+        dropna: Whether to drop NA values before plotting.
+    """
     input_file = Path(input_file)
     logging.info(f"Plotting 2D scatter for {x_column} vs {y_column} from {input_file}")
 
@@ -1022,7 +1157,7 @@ def scatter2d(
     )
 
 
-def make_scatter3d_parser():
+def make_scatter3d_parser() -> ArgumentParser:
     """Build parser for plotting a 3D scattergram."""
     parser = ArgumentParser()
     parser.add_argument(
@@ -1077,8 +1212,21 @@ def scatter3d(
     sample_frac: float,
     output_file: Optional[PathLike],
     dropna: bool,
-):
-    """Plot or save a 3D scattergram for three columns."""
+) -> None:
+    """Plot or save a 3D scattergram for three columns.
+
+    Args:
+        table_type: Table type key in ``table_dict``.
+        input_file: Input table file path.
+        x_column: Column plotted on the x-axis.
+        y_column: Column plotted on the y-axis.
+        z_column: Column plotted on the z-axis.
+        color: Plot color.
+        marker: Marker style.
+        sample_frac: Fraction of rows sampled for plotting.
+        output_file: Output image file. If ``None``, plot is shown.
+        dropna: Whether to drop NA values before plotting.
+    """
     input_file = Path(input_file)
     logging.info(
         f"Plotting 3D scatter for {x_column}, {y_column}, {z_column} from {input_file}"
@@ -1098,9 +1246,9 @@ def scatter3d(
     )
 
 
-def main():
+def main() -> None:
     """Parse CLI arguments and dispatch to the selected table utility."""
-    parser = ArgumentParser(description="Tool to manipulates the Hyperion data tables")
+    parser = ArgumentParser(description="Tool to manipulate Hyperion data tables")
     parser.add_argument(
         "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
     )

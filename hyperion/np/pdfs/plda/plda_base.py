@@ -329,9 +329,11 @@ class PLDABase(PDF):
         """
         x_dim = x.shape[1]
         num_classes = np.max(class_ids) + 1
+        x = x.astype(float_cpu(), copy=False)
         N = np.zeros((num_classes,), dtype=float_cpu())
         F = np.zeros((num_classes, x_dim), dtype=float_cpu())
         if sample_weight is not None:
+            sample_weight = sample_weight.astype(float_cpu(), copy=False)
             wx = sample_weight[:, None] * x
         else:
             wx = x

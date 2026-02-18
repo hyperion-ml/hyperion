@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -31,9 +32,23 @@ from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
 from hyperion.utils import TrialNdx, Utt2Info
+from hyperion.utils.misc import PathLike
 
 
-def read_utt_list(list_file, class2int_file, part_idx, num_parts):
+def read_utt_list(
+    list_file: PathLike,
+    class2int_file: PathLike,
+    part_idx: int,
+    num_parts: int,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Read utterance list and map class names to integer ids.
+
+    Args:
+        list_file: Path to utterance list with class names.
+        class2int_file: Path to class-to-index mapping file.
+        part_idx: Current split index (1-based).
+        num_parts: Number of splits used for parallel processing.
+    """
     logging.info("reading utt list %s", list_file)
     utt_list = Utt2Info.load(list_file)
     utt_list = utt_list.split(part_idx, num_parts)
@@ -47,13 +62,26 @@ def read_utt_list(list_file, class2int_file, part_idx, num_parts):
 
 
 class MyModel(nn.Module):
-    def __init__(self, feat_extractor, xvector_model):
+    """Wrapper model combining feature extraction and x-vector classification."""
+
+    def __init__(self, feat_extractor: AF, xvector_model: nn.Module) -> None:
+        """Initialize attack-time classifier wrapper.
+
+        Args:
+            feat_extractor: Acoustic feature extractor.
+            xvector_model: X-vector classification model.
+        """
         super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
         self.vad = None
 
-    def forward(self, s):
+    def forward(self, s: torch.Tensor) -> torch.Tensor:
+        """Compute classification scores from waveform input.
+
+        Args:
+            s: Input waveform tensor.
+        """
         f, _ = self.feat_extractor(s)
         if self.vad is not None:
             n_vad_frames = len(self.vad)
@@ -70,7 +98,12 @@ class MyModel(nn.Module):
         return score
 
 
-def init_device(use_gpu):
+def init_device(use_gpu: bool) -> torch.device:
+    """Initialize runtime device for attack generation.
+
+    Args:
+        use_gpu: If ``True``, request one GPU device.
+    """
     set_float_cpu("float32")
     num_gpus = 1 if use_gpu else 0
     logging.info("initializing devices num_gpus={}".format(num_gpus))
@@ -78,7 +111,13 @@ def init_device(use_gpu):
     return device
 
 
-def init_model(model_path, **kwargs):
+def init_model(model_path: PathLike, **kwargs: Any) -> MyModel:
+    """Initialize attack model wrapper from configuration and checkpoint.
+
+    Args:
+        model_path: Path to x-vector model checkpoint.
+        **kwargs: Parsed args containing feature-extractor configuration.
+    """
     feat_args = AF.filter_args(**kwargs["feats"])
     logging.info("feat args={}".format(feat_args))
     logging.info("initializing feature extractor")
@@ -105,7 +144,13 @@ def init_model(model_path, **kwargs):
     return model
 
 
-def init_attack_factory(wav_scale=1, **kwargs):
+def init_attack_factory(wav_scale: float = 1.0, **kwargs: Any) -> RandomAttackFactory:
+    """Initialize random attack factory.
+
+    Args:
+        wav_scale: Waveform scale used for attack epsilon and clipping ranges.
+        **kwargs: Parsed args containing attack configuration.
+    """
     attacks_args = RandomAttackFactory.filter_args(**kwargs["attacks"])
     extra_args = {
         "eps_scale": wav_scale,
@@ -121,7 +166,22 @@ def init_attack_factory(wav_scale=1, **kwargs):
     return attack_factory
 
 
-def select_random_chunk(key, s, fs, min_utt_length, max_utt_length):
+def select_random_chunk(
+    key: str,
+    s: np.ndarray,
+    fs: int,
+    min_utt_length: int,
+    max_utt_length: int,
+) -> np.ndarray:
+    """Randomly crop waveform between min and max duration in seconds.
+
+    Args:
+        key: Utterance key used for logging.
+        s: Waveform samples.
+        fs: Sampling rate in Hz.
+        min_utt_length: Minimum random duration in seconds.
+        max_utt_length: Maximum random duration in seconds.
+    """
     utt_length = torch.randint(
         low=min_utt_length * fs, high=max_utt_length * fs + 1, size=(1,)
     ).item()
@@ -136,27 +196,51 @@ def select_random_chunk(key, s, fs, min_utt_length, max_utt_length):
 
 
 def generate_attacks(
-    wav_file,
-    list_file,
-    vad_spec,
-    vad_path_prefix,
-    class2int_file,
-    model_path,
-    output_wav_dir,
-    attack_info_file,
-    attack_tag,
-    random_utt_length,
-    min_utt_length,
-    max_utt_length,
-    random_seed,
-    p_attack,
-    save_failed,
-    save_benign,
-    use_gpu,
-    part_idx,
-    num_parts,
-    **kwargs
-):
+    wav_file: PathLike,
+    list_file: PathLike,
+    vad_spec: Optional[PathLike],
+    vad_path_prefix: Optional[PathLike],
+    class2int_file: PathLike,
+    model_path: PathLike,
+    output_wav_dir: PathLike,
+    attack_info_file: PathLike,
+    attack_tag: str,
+    random_utt_length: bool,
+    min_utt_length: int,
+    max_utt_length: int,
+    random_seed: int,
+    p_attack: float,
+    save_failed: bool,
+    save_benign: bool,
+    use_gpu: bool,
+    part_idx: int,
+    num_parts: int,
+    **kwargs: Any,
+) -> None:
+    """Generate adversarial waveform attacks for x-vector classification.
+
+    Args:
+        wav_file: Input recordings specifier.
+        list_file: Input utterance list with class names.
+        vad_spec: Optional VAD specifier for frame selection.
+        vad_path_prefix: Optional path prefix applied to VAD entries.
+        class2int_file: Class-to-index mapping file.
+        model_path: X-vector model checkpoint path.
+        output_wav_dir: Output directory for attacked waveforms.
+        attack_info_file: Output YAML file with attack metadata/statistics.
+        attack_tag: Tag appended to attacked utterance keys.
+        random_utt_length: Whether to attack a random crop of each utterance.
+        min_utt_length: Minimum random crop duration in seconds.
+        max_utt_length: Maximum random crop duration in seconds.
+        random_seed: Base seed for random operations.
+        p_attack: Probability of generating an attack for an utterance.
+        save_failed: Whether to save failed attacks.
+        save_benign: Whether to save benign copies alongside attacks.
+        use_gpu: Whether to run attack generation on GPU.
+        part_idx: Current split index (1-based).
+        num_parts: Number of splits for parallel processing.
+        **kwargs: Additional parsed args for reader/features/attacks.
+    """
     device = init_device(use_gpu)
     model = init_model(model_path, **kwargs)
     model.to(device)
@@ -313,35 +397,60 @@ def generate_attacks(
             yaml.dump(attacks_info, f, sort_keys=True)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run attack generation.
+
+    Args:
+        None.
+    """
     parser = ArgumentParser(
         description="Generate Attacks for speaker classification with x-vectors"
     )
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--wav-file", required=True)
-    parser.add_argument("--list-file", required=True)
-    parser.add_argument("--class2int-file", required=True)
-    parser.add_argument("--attack-tag", required=True)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
+    parser.add_argument(
+        "--wav-file", required=True, help="input waveform recordings specifier"
+    )
+    parser.add_argument(
+        "--list-file", required=True, help="utterance list with class names"
+    )
+    parser.add_argument(
+        "--class2int-file", required=True, help="class-to-index mapping file"
+    )
+    parser.add_argument(
+        "--attack-tag", required=True, help="tag appended to attacked utterance keys"
+    )
 
     AR.add_class_args(parser)
     AF.add_class_args(parser, prefix="feats")
 
-    parser.add_argument("--vad", dest="vad_spec", default=None)
+    parser.add_argument(
+        "--vad",
+        dest="vad_spec",
+        default=None,
+        help="optional VAD specifier for frame selection",
+    )
     parser.add_argument(
         "--vad-path-prefix",
         default=None,
-        help=("scp file_path prefix for vad"),
+        help="optional prefix for VAD scp file paths",
     )
 
-    parser.add_argument("--model-path", required=True)
     parser.add_argument(
-        "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
+        "--model-path", required=True, help="x-vector model checkpoint path"
+    )
+    parser.add_argument(
+        "--use-gpu", default=False, action="store_true", help="run attack generation on GPU"
     )
 
     RandomAttackFactory.add_class_args(parser, prefix="attacks")
 
-    parser.add_argument("--part-idx", default=1, type=int, help=("part index"))
+    parser.add_argument(
+        "--part-idx",
+        default=1,
+        type=int,
+        help="split index (1-based) when processing list in parts",
+    )
     parser.add_argument(
         "--num-parts",
         default=1,
@@ -353,22 +462,24 @@ def main():
     )
 
     parser.add_argument(
-        "--output-wav-dir", default=None, help="output path of adv signals"
+        "--output-wav-dir",
+        default=None,
+        help="output directory for attacked waveforms",
     )
     parser.add_argument(
         "--attack-info-file",
         default=None,
-        help="output path of to save information about the generated attacks",
+        help="output YAML file with metadata/statistics of generated attacks",
     )
     parser.add_argument(
-        "--random-seed", default=1234, type=int, help="random seed for pytorch"
+        "--random-seed", default=1234, type=int, help="random seed for PyTorch"
     )
 
     parser.add_argument(
         "--random-utt-length",
         default=False,
         action="store_true",
-        help="calculates x-vector from a random chunk",
+        help="generate attack from a random utterance crop",
     )
     parser.add_argument(
         "--min-utt-length",
@@ -403,7 +514,13 @@ def main():
     )
 
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
     )
 
     args = parser.parse_args()

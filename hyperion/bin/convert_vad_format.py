@@ -23,14 +23,19 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.utils import InfoTable, PathLike, RecordingSet, SegmentSet, VADSet
 
-subcommand_list = ["bin_to_time_marks", "time_marks_to_bin"]
+subcommand_list: List[str] = ["bin_to_time_marks", "time_marks_to_bin"]
 
 
-def add_common_args(parser):
-    parser.add_argument("--cfg", action=ActionConfigFile)
+def add_common_args(parser: ArgumentParser) -> None:
+    """Add command-line arguments shared by all subcommands."""
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
     parser.add_argument("--in-vad-file", required=True, help="input VADSet file")
     parser.add_argument("--out-vad-file", required=True, help="output VADSet file")
-    parser.add_argument("--path-prefix", default=None, help="prefix for vad paths")
+    parser.add_argument(
+        "--path-prefix",
+        default=None,
+        help="optional prefix prepended to VAD storage paths",
+    )
 
     parser.add_argument(
         "-v",
@@ -39,10 +44,12 @@ def add_common_args(parser):
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
+        help="verbosity level (0=error, 1=warning, 2=info, 3=debug)",
     )
 
 
-def make_bin_to_time_marks_parser():
+def make_bin_to_time_marks_parser() -> ArgumentParser:
+    """Build parser for converting binary VAD into time-mark tables."""
     parser = ArgumentParser()
     add_common_args(parser)
     parser.add_argument(
@@ -52,7 +59,7 @@ def make_bin_to_time_marks_parser():
         "--format",
         default="csv",
         choices=["tsv", "csv"],
-        help="table format in [csv, tsv]",
+        help="table format for exported time marks",
     )
     return parser
 
@@ -63,7 +70,8 @@ def bin_to_time_marks(
     output_dir: PathLike,
     path_prefix: Optional[PathLike] = None,
     format: str = "csv",
-):
+)-> None:
+    """Convert binary VAD entries into per-recording time-mark tables."""
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, is_ok=True)
@@ -88,26 +96,32 @@ def bin_to_time_marks(
     vad_set.save(out_vad_file)
 
 
-def make_time_marks_to_bin_parser():
+def make_time_marks_to_bin_parser() -> ArgumentParser:
+    """Build parser for converting time-mark VAD tables into binary sequences."""
     parser = ArgumentParser()
     add_common_args(parser)
     parser.add_argument(
         "--frame-length",
         default=25.0,
         type=float,
-        help="frame length of the binary vad",
+        help="frame length of binary VAD in milliseconds",
     )
     parser.add_argument(
-        "--frame-shift", default=10.0, type=float, help="frame shift of the binary vad"
+        "--frame-shift",
+        default=10.0,
+        type=float,
+        help="frame shift of binary VAD in milliseconds",
     )
     parser.add_argument(
         "--snip-edges",
         default=False,
         action=ActionYesNo,
-        help="snip edges in binary vad",
+        help="apply snip-edges rule when mapping time marks to frames",
     )
     parser.add_argument(
-        "--segments-file", default=None, help="segments file to get maximum durations"
+        "--segments-file",
+        default=None,
+        help="optional segments file used to provide utterance durations",
     )
     return parser
 
@@ -120,7 +134,8 @@ def time_marks_to_bin(
     frame_length: float = 25.0,
     snip_edges: bool = False,
     segments_file: Optional[PathLike] = None,
-):
+)-> None:
+    """Convert time-mark VAD into binary frame-level VAD and write ark/scp output."""
 
     v_reader = VRF.create(in_vad_file, path_prefix=path_prefix)
     segments = SegmentSet.load(segments_file)
@@ -157,9 +172,10 @@ def time_marks_to_bin(
             writer.write([id], [vad], metadata)
 
 
-def main():
-    parser = ArgumentParser(description="Tool to manipulates the Hyperion data tables")
-    parser.add_argument("--cfg", action=ActionConfigFile)
+def main() -> None:
+    """Parse CLI arguments and run VAD format conversion."""
+    parser = ArgumentParser(description="Convert VAD between binary and time-mark formats")
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
 
     subcommands = parser.add_subcommands()
     for subcommand in subcommand_list:

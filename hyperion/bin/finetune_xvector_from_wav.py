@@ -9,6 +9,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Type
 
 import torch
 from jsonargparse import (
@@ -32,6 +33,7 @@ from hyperion.torch.models import TransformerXVectorV1 as TFXVec
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
 from hyperion.torch.utils import ddp
+from hyperion.utils.misc import PathLike
 
 xvec_dict = {
     "resnet": RXVec,
@@ -43,7 +45,17 @@ xvec_dict = {
 }
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def init_data(
+    partition: str, rank: int, num_gpus: int, **kwargs: Any
+) -> torch.utils.data.DataLoader:
+    """Initialize dataset, sampler, and dataloader for a partition.
+
+    Args:
+        partition: Dataset split name, e.g. ``"train"`` or ``"val"``.
+        rank: Distributed rank of the current process.
+        num_gpus: Number of GPUs used by the process group.
+        **kwargs: Parsed configuration dictionary containing ``data`` settings.
+    """
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -74,7 +86,13 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-def init_feats(rank, **kwargs):
+def init_feats(rank: int, **kwargs: Any) -> AF:
+    """Initialize acoustic feature extractor for waveform front-end.
+
+    Args:
+        rank: Distributed rank of the current process.
+        **kwargs: Parsed args containing ``feats`` configuration.
+    """
     feat_args = AF.filter_args(**kwargs["feats"])
     if rank == 0:
         logging.info("feat args={}".format(feat_args))
@@ -85,7 +103,22 @@ def init_feats(rank, **kwargs):
     return feat_extractor
 
 
-def init_xvector(num_classes, in_model_file, rank, xvec_class, **kwargs):
+def init_xvector(
+    num_classes: int,
+    in_model_file: PathLike,
+    rank: int,
+    xvec_class: Type[torch.nn.Module],
+    **kwargs: Any,
+) -> torch.nn.Module:
+    """Load and reconfigure x-vector model checkpoint for fine-tuning.
+
+    Args:
+        num_classes: Number of target classes in current training data.
+        in_model_file: Input model checkpoint path used as fine-tuning start.
+        rank: Distributed rank of the current process.
+        xvec_class: X-vector model class used to filter fine-tune arguments.
+        **kwargs: Additional parsed args containing model configuration.
+    """
     xvec_args = xvec_class.filter_finetune_args(**kwargs["model"])
     if rank == 0:
         logging.info("xvector network ft args={}".format(xvec_args))
@@ -97,7 +130,17 @@ def init_xvector(num_classes, in_model_file, rank, xvec_class, **kwargs):
     return model
 
 
-def init_hard_prototype_mining(model, train_loader, val_loader, rank):
+def init_hard_prototype_mining(
+    model: Any, train_loader: Any, val_loader: Any, rank: int
+) -> None:
+    """Initialize hard prototype mining in samplers when enabled.
+
+    Args:
+        model: X-vector model that provides prototype affinities.
+        train_loader: Training dataloader with sampler state to update.
+        val_loader: Validation dataloader with sampler state to update.
+        rank: Distributed rank of the current process.
+    """
     try:
         hard_prototype_mining = train_loader.batch_sampler.hard_prototype_mining
     except:
@@ -123,7 +166,13 @@ def init_hard_prototype_mining(model, train_loader, val_loader, rank):
     val_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
 
 
-def train_xvec(gpu_id, args):
+def train_xvec(gpu_id: int, args: Any) -> None:
+    """Run distributed x-vector fine-tuning from waveforms.
+
+    Args:
+        gpu_id: Local GPU index used by this process.
+        args: Parsed model-specific command-line namespace.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -160,10 +209,15 @@ def train_xvec(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(xvec_class):
+def make_parser(xvec_class: Type[torch.nn.Module]) -> ArgumentParser:
+    """Build parser for a specific x-vector model subcommand.
+
+    Args:
+        xvec_class: Model class used to register model-specific arguments.
+    """
     parser = ArgumentParser()
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
 
     train_parser = ArgumentParser(prog="")
 
@@ -173,7 +227,7 @@ def make_parser(xvec_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="number of worker processes for the training dataloader",
     )
 
     val_parser = ArgumentParser(prog="")
@@ -183,12 +237,22 @@ def make_parser(xvec_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="number of worker processes for the validation dataloader",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-    data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-    parser.add_argument("--data", action=ActionParser(parser=data_parser))
+    data_parser.add_argument(
+        "--train",
+        action=ActionParser(parser=train_parser),
+        help="training data configuration block",
+    )
+    data_parser.add_argument(
+        "--val",
+        action=ActionParser(parser=val_parser),
+        help="validation data configuration block",
+    )
+    parser.add_argument(
+        "--data", action=ActionParser(parser=data_parser), help="data configuration"
+    )
     parser.link_arguments(
         "data.train.dataset.class_files", "data.val.dataset.class_files"
     )
@@ -198,22 +262,37 @@ def make_parser(xvec_class):
 
     AF.add_class_args(parser, prefix="feats")
     xvec_class.add_finetune_args(parser, prefix="model")
-    parser.add_argument("--in-model-file", required=True)
+    parser.add_argument(
+        "--in-model-file",
+        required=True,
+        help="input model checkpoint path used as fine-tuning starting point",
+    )
     Trainer.add_class_args(
         parser, prefix="trainer", train_modes=xvec_class.valid_train_modes()
     )
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
     )
 
     return parser
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and start x-vector fine-tuning from waveforms.
+
+    Args:
+        None.
+    """
     parser = ArgumentParser(description="Fine-tune x-vector model from audio files")
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
 
     subcommands = parser.add_subcommands()
     for k, v in xvec_dict.items():

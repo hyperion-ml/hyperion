@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -35,22 +36,44 @@ from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
 from hyperion.utils import TrialKey, TrialNdx, TrialScores, Utt2Info
 from hyperion.utils.list_utils import ismember
+from hyperion.utils.misc import PathLike
 
 
 class MyModel(nn.Module):
+    """Wrapper model for verification scoring during adversarial attacks."""
+
     def __init__(
-        self, feat_extractor, xvector_model, embed_layer=None, calibrator=None, sigma=0
-    ):
+        self,
+        feat_extractor: AF,
+        xvector_model: nn.Module,
+        embed_layer: Optional[int] = None,
+        calibrator: Optional[nn.Module] = None,
+        sigma: float = 0.0,
+    ) -> None:
+        """Initialize model components used to score verification trials.
+
+        Args:
+            feat_extractor: Acoustic feature extractor.
+            xvector_model: X-vector model used to produce embeddings.
+            embed_layer: Optional embedding layer index for extraction.
+            calibrator: Optional score calibrator applied after cosine scoring.
+            sigma: Standard deviation of Gaussian input noise.
+        """
         super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
-        self.x_e = None
-        self.vad_t = None
+        self.x_e: Optional[torch.Tensor] = None
+        self.vad_t: Optional[torch.Tensor] = None
         self.embed_layer = embed_layer
         self.calibrator = calibrator
         self.sigma = sigma
 
-    def forward(self, s_t):
+    def forward(self, s_t: torch.Tensor) -> torch.Tensor:
+        """Compute verification score for a waveform tensor.
+
+        Args:
+            s_t: Input waveform tensor of shape ``(batch, samples)``.
+        """
         # print('sigma0=', self.sigma)
         if self.sigma > 0:
             s_t = s_t + self.sigma * torch.randn_like(s_t)
@@ -77,7 +100,22 @@ class MyModel(nn.Module):
         return score
 
 
-def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
+def read_data(
+    v_file: PathLike,
+    key_file: PathLike,
+    enroll_file: PathLike,
+    seg_part_idx: int,
+    num_seg_parts: int,
+) -> Tuple[TrialKey, np.ndarray]:
+    """Read enrollment vectors and trial key data.
+
+    Args:
+        v_file: Feature rspecifier containing enrollment x-vectors.
+        key_file: Trial key file with target/non-target labels.
+        enroll_file: Enrollment mapping from model id to vector key.
+        seg_part_idx: Current split index (1-based) for test partitioning.
+        num_seg_parts: Number of test partitions.
+    """
     r = DRF.create(v_file)
     enroll = Utt2Info.load(enroll_file)
     key = TrialKey.load(key_file)
@@ -93,7 +131,22 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
     return key, x_e
 
 
-def init_model(model_path, embed_layer, cal_file, threshold, **kwargs):
+def init_model(
+    model_path: PathLike,
+    embed_layer: Optional[int],
+    cal_file: Optional[PathLike],
+    threshold: float,
+    **kwargs: Any,
+) -> MyModel:
+    """Initialize verification model and optional score calibrator.
+
+    Args:
+        model_path: Path to x-vector model checkpoint.
+        embed_layer: Optional embedding layer index for extraction.
+        cal_file: Optional calibration model path.
+        threshold: Verification threshold used for attack decisions.
+        **kwargs: Parsed configuration dictionary with feature settings.
+    """
     feat_args = AF.filter_args(**kwargs["feats"])
     logging.info("feat args={}".format(feat_args))
     logging.info("initializing feature extractor")
@@ -118,7 +171,15 @@ def init_model(model_path, embed_layer, cal_file, threshold, **kwargs):
     return model
 
 
-def init_attack_factory(wav_scale=1, **kwargs):
+def init_attack_factory(
+    wav_scale: float = 1.0, **kwargs: Any
+) -> RandomAttackFactory:
+    """Initialize random attack factory for waveform perturbations.
+
+    Args:
+        wav_scale: Waveform scaling used for epsilon and clipping bounds.
+        **kwargs: Parsed configuration dictionary with attack settings.
+    """
     attacks_args = RandomAttackFactory.filter_args(**kwargs["attacks"])
     extra_args = {
         "eps_scale": wav_scale,
@@ -134,7 +195,12 @@ def init_attack_factory(wav_scale=1, **kwargs):
     return attack_factory
 
 
-def init_device(use_gpu):
+def init_device(use_gpu: bool) -> torch.device:
+    """Initialize compute device.
+
+    Args:
+        use_gpu: If ``True``, request one GPU device.
+    """
     set_float_cpu("float32")
     num_gpus = 1 if use_gpu else 0
     logging.info("initializing devices num_gpus={}".format(num_gpus))
@@ -142,7 +208,14 @@ def init_device(use_gpu):
     return device
 
 
-def skip_attack(is_target, p_tar_attack, p_non_attack):
+def skip_attack(is_target: bool, p_tar_attack: float, p_non_attack: float) -> bool:
+    """Randomly decide whether to skip attack generation for a trial.
+
+    Args:
+        is_target: ``True`` for target trials, ``False`` for non-target.
+        p_tar_attack: Probability of attacking a target trial.
+        p_non_attack: Probability of attacking a non-target trial.
+    """
     p = torch.rand(1).item()
     if is_target:
         if p > p_tar_attack:
@@ -155,28 +228,53 @@ def skip_attack(is_target, p_tar_attack, p_non_attack):
 
 
 def generate_attacks(
-    v_file,
-    key_file,
-    enroll_file,
-    test_wav_file,
-    vad_spec,
-    vad_path_prefix,
-    model_path,
-    embed_layer,
-    cal_file,
-    threshold,
-    output_wav_dir,
-    attack_info_file,
-    attack_tag,
-    p_tar_attack,
-    p_non_attack,
-    save_failed,
-    use_gpu,
-    seg_part_idx,
-    num_seg_parts,
-    random_seed,
-    **kwargs
-):
+    v_file: PathLike,
+    key_file: PathLike,
+    enroll_file: PathLike,
+    test_wav_file: PathLike,
+    vad_spec: Optional[PathLike],
+    vad_path_prefix: Optional[PathLike],
+    model_path: PathLike,
+    embed_layer: Optional[int],
+    cal_file: Optional[PathLike],
+    threshold: float,
+    output_wav_dir: PathLike,
+    attack_info_file: PathLike,
+    attack_tag: str,
+    p_tar_attack: float,
+    p_non_attack: float,
+    save_failed: bool,
+    use_gpu: bool,
+    seg_part_idx: int,
+    num_seg_parts: int,
+    random_seed: int,
+    **kwargs: Any,
+) -> None:
+    """Generate adversarial waveforms for verification trials.
+
+    Args:
+        v_file: Feature rspecifier with enrollment x-vectors.
+        key_file: Trial key file with target/non-target labels.
+        enroll_file: Enrollment mapping file.
+        test_wav_file: Test audio recordings specifier.
+        vad_spec: Optional VAD specifier.
+        vad_path_prefix: Optional path prefix for VAD entries.
+        model_path: Path to x-vector model checkpoint.
+        embed_layer: Optional embedding layer index.
+        cal_file: Optional calibration model path.
+        threshold: Decision threshold for calibrated scores.
+        output_wav_dir: Directory where adversarial waveforms are saved.
+        attack_info_file: YAML path for generated attack metadata.
+        attack_tag: Tag appended to generated adversarial keys.
+        p_tar_attack: Probability of attacking target trials.
+        p_non_attack: Probability of attacking non-target trials.
+        save_failed: If ``True``, also save failed attacks.
+        use_gpu: If ``True``, run generation on GPU.
+        seg_part_idx: Current split index (1-based) for test partitioning.
+        num_seg_parts: Number of test partitions.
+        random_seed: Base random seed used for reproducibility.
+        **kwargs: Parsed configuration dictionary.
+    """
     device = init_device(use_gpu)
     model = init_model(model_path, embed_layer, cal_file, threshold, **kwargs)
     model.to(device)
@@ -347,42 +445,79 @@ def generate_attacks(
             yaml.dump(attacks_info, f, sort_keys=True)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and generate adversarial verification attacks."""
     parser = ArgumentParser(
         description="Generate Attacks for speaker verification with x-vectors+cos+calibration"
     )
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--v-file", required=True)
-    parser.add_argument("--key-file", default=None)
-    parser.add_argument("--enroll-file", required=True)
-    parser.add_argument("--test-wav-file", required=True)
-    parser.add_argument("--attack-tag", required=True)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
+    parser.add_argument(
+        "--v-file",
+        required=True,
+        help="Input x-vector rspecifier for enrollment embeddings.",
+    )
+    parser.add_argument(
+        "--key-file",
+        default=None,
+        help="Trial key file with target/non-target labels.",
+    )
+    parser.add_argument(
+        "--enroll-file",
+        required=True,
+        help="Enrollment file mapping model ids to x-vector keys.",
+    )
+    parser.add_argument(
+        "--test-wav-file",
+        required=True,
+        help="Audio recordings specifier for test utterances.",
+    )
+    parser.add_argument(
+        "--attack-tag",
+        required=True,
+        help="Tag appended to generated adversarial utterance keys.",
+    )
 
     AR.add_class_args(parser)
     AF.add_class_args(parser, prefix="feats")
 
-    parser.add_argument("--vad", dest="vad_spec", default=None)
+    parser.add_argument(
+        "--vad",
+        dest="vad_spec",
+        default=None,
+        help="Optional VAD specifier used to select speech frames.",
+    )
     parser.add_argument(
         "--vad-path-prefix",
         dest="vad_path_prefix",
         default=None,
-        help=("scp file_path prefix for vad"),
+        help="Optional path prefix prepended to VAD SCP paths.",
     )
 
-    parser.add_argument("--model-path", required=True)
+    parser.add_argument(
+        "--model-path",
+        required=True,
+        help="Path to x-vector model checkpoint.",
+    )
     parser.add_argument(
         "--embed-layer",
         type=int,
         default=None,
         help=(
-            "classifier layer to get the embedding from,"
-            "if None the layer set in training phase is used"
+            "Embedding layer index to extract from; if not set, "
+            "use the model default from training."
         ),
     )
 
     parser.add_argument(
-        "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
+        "--use-gpu",
+        default=False,
+        action="store_true",
+        help="Run attack generation on GPU.",
     )
 
     parser.add_argument("--cal-file", default=None, help="score calibration file")
@@ -390,7 +525,12 @@ def main():
 
     RandomAttackFactory.add_class_args(parser, prefix="attacks")
 
-    parser.add_argument("--seg-part-idx", default=1, type=int, help=("test part index"))
+    parser.add_argument(
+        "--seg-part-idx",
+        default=1,
+        type=int,
+        help="1-based index of the current test partition.",
+    )
     parser.add_argument(
         "--num-seg-parts",
         default=1,
@@ -402,15 +542,17 @@ def main():
     )
 
     parser.add_argument(
-        "--output-wav-dir", default=None, help="output path of adv signals"
+        "--output-wav-dir",
+        default=None,
+        help="Directory where adversarial waveforms are written.",
     )
     parser.add_argument(
         "--attack-info-file",
         default=None,
-        help="output path of to save information about the generated attacks",
+        help="YAML file where metadata for generated attacks is saved.",
     )
     parser.add_argument(
-        "--random-seed", default=1234, type=int, help="random seed for pytorch"
+        "--random-seed", default=1234, type=int, help="Base random seed."
     )
 
     parser.add_argument(
@@ -429,11 +571,17 @@ def main():
         "--save-failed",
         default=False,
         action="store_true",
-        help=("save failed attacks also"),
+        help="Save failed attacks as well.",
     )
 
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
     args = parser.parse_args()

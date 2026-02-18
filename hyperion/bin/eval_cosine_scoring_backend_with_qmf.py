@@ -7,6 +7,7 @@
 import logging
 import time
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -31,14 +32,19 @@ from hyperion.utils import (
     TrialScores,
 )
 from hyperion.utils.math_funcs import average_vectors, cosine_scoring
+from hyperion.utils.misc import PathLike
 
 
-def get_precomp_qm_names(quality_measures):
+def get_precomp_qm_names(quality_measures: List[str]) -> List[str]:
+    """Return quality-measure names that are precomputed in metadata tables."""
     # snorm qm will be calculated later
     return [q for q in quality_measures if q not in ["snorm-mu", "snorm-mu/s"]]
 
 
-def normalize_duration(q, min_dur, max_dur, frame_rate):
+def normalize_duration(
+    q: pd.Series, min_dur: float, max_dur: float, frame_rate: float
+) -> pd.Series:
+    """Clip and log-normalize a duration-like quality measure."""
     q = q / frame_rate
     q = np.log(np.clip(q / frame_rate, a_min=min_dur, a_max=max_dur))
     log_min_dur = np.log(min_dur)
@@ -48,21 +54,22 @@ def normalize_duration(q, min_dur, max_dur, frame_rate):
 
 
 def load_trial_data(
-    enroll_map_file,
-    ndx_file,
-    enroll_feats_file,
-    feats_file,
-    enroll_segments_file,
-    segments_file,
-    quality_measures,
-    min_dur,
-    max_dur,
-    frame_rate,
-    enroll_part_idx,
-    num_enroll_parts,
-    test_part_idx,
-    num_test_parts,
-):
+    enroll_map_file: PathLike,
+    ndx_file: PathLike,
+    enroll_feats_file: Optional[PathLike],
+    feats_file: PathLike,
+    enroll_segments_file: Optional[PathLike],
+    segments_file: Optional[PathLike],
+    quality_measures: List[str],
+    min_dur: float,
+    max_dur: float,
+    frame_rate: float,
+    enroll_part_idx: int,
+    num_enroll_parts: int,
+    test_part_idx: int,
+    num_test_parts: int,
+) -> Tuple[EnrollmentMap, TrialNdx, np.ndarray, np.ndarray, pd.DataFrame, pd.DataFrame]:
+    """Load enrollment/test embeddings, trials, and requested quality measures."""
     test_feats_reader = DRF.create(feats_file)
     if enroll_feats_file is not None and enroll_feats_file != feats_file:
         enroll_feats_reader = DRF.create(enroll_feats_file)
@@ -134,7 +141,10 @@ def load_trial_data(
     return enroll_map, ndx, x_e, x_t, q_e, q_t
 
 
-def load_cohort_data(segments_file, feats_file):
+def load_cohort_data(
+    segments_file: PathLike, feats_file: PathLike
+) -> Tuple[SegmentSet, np.ndarray]:
+    """Load cohort segment metadata and embeddings for score normalization."""
     segments = SegmentSet.load(segments_file)
     feats_reader = DRF.create(feats_file)
     x = feats_reader.read(segments["id"], squeeze=True)
@@ -146,7 +156,10 @@ def load_cohort_data(segments_file, feats_file):
     return segments, x  # , q
 
 
-def average_qm(q, model_set, ids):
+def average_qm(
+    q: pd.DataFrame, model_set: np.ndarray, ids: np.ndarray
+) -> pd.DataFrame:
+    """Average per-segment quality measures by enrollment model id."""
     q_avg = average_vectors(q.values, ids)
     q_avg = pd.DataFrame(q, columns=q.columns)
     q_avg["id"] = model_set
@@ -155,13 +168,14 @@ def average_qm(q, model_set, ids):
 
 
 def get_score_filepath(
-    score_file,
-    score_name,
-    enroll_part_idx,
-    num_enroll_parts,
-    test_part_idx,
-    num_test_parts,
-):
+    score_file: PathLike,
+    score_name: Optional[str],
+    enroll_part_idx: int,
+    num_enroll_parts: int,
+    test_part_idx: int,
+    num_test_parts: int,
+) -> Path:
+    """Build output score path, adding score-name and split suffixes when needed."""
     score_file = Path(score_file)
     new_suffix = ""
     if score_name is not None:
@@ -178,16 +192,17 @@ def get_score_filepath(
 
 
 def save_scores(
-    ndx,
-    scores,
-    score_file,
-    score_name,
-    q_measures,
-    enroll_part_idx,
-    num_enroll_parts,
-    test_part_idx,
-    num_test_parts,
-):
+    ndx: TrialNdx,
+    scores: np.ndarray,
+    score_file: PathLike,
+    score_name: Optional[str],
+    q_measures: Optional[Dict[str, np.ndarray]],
+    enroll_part_idx: int,
+    num_enroll_parts: int,
+    test_part_idx: int,
+    num_test_parts: int,
+) -> None:
+    """Save a score matrix (and optional quality-measure matrices) to disk."""
     score_file = get_score_filepath(
         score_file,
         score_name,
@@ -204,15 +219,16 @@ def save_scores(
 
 
 def save_empty_scores(
-    ndx,
-    score_file,
-    score_name,
-    q_measures,
-    enroll_part_idx,
-    num_enroll_parts,
-    test_part_idx,
-    num_test_parts,
-):
+    ndx: TrialNdx,
+    score_file: PathLike,
+    score_name: Optional[str],
+    q_measures: Optional[Dict[str, np.ndarray]],
+    enroll_part_idx: int,
+    num_enroll_parts: int,
+    test_part_idx: int,
+    num_test_parts: int,
+) -> None:
+    """Save all-zero scores for an empty trial split."""
     scores = np.zeros(ndx.trial_mask.shape, dtype="float32")
     if q_measures is not None:
         q_measures = {k: scores for k in q_measures}
@@ -230,7 +246,8 @@ def save_empty_scores(
     )
 
 
-def segment_to_trial_qm(q_e, q_t):
+def segment_to_trial_qm(q_e: pd.DataFrame, q_t: pd.DataFrame) -> Dict[str, np.ndarray]:
+    """Expand enrollment/test segment-level quality measures into trial-level grids."""
     q_trial = {}
     for q_name in ["speech_duration", "num_speech_frames"]:
         if q_name in q_e:
@@ -246,7 +263,14 @@ def segment_to_trial_qm(q_e, q_t):
     return q_trial
 
 
-def align_scores_to_ndx(enroll_set, ndx, scores, scores_norm, q_trial):
+def align_scores_to_ndx(
+    enroll_set: np.ndarray,
+    ndx: TrialNdx,
+    scores: np.ndarray,
+    scores_norm: Optional[np.ndarray],
+    q_trial: Dict[str, np.ndarray],
+) -> Tuple[np.ndarray, Optional[np.ndarray], Dict[str, np.ndarray]]:
+    """Reorder score rows and trial-level quality measures to match ndx model order."""
     # sort scores rows to match the ndx model_set order
     sort_idx = [np.nonzero(enroll_set == e)[0][0] for e in ndx.model_set]
     scores = scores[sort_idx]
@@ -284,28 +308,29 @@ def align_scores_to_ndx(enroll_set, ndx, scores, scores_norm, q_trial):
 
 
 def eval_backend(
-    enroll_map_file,
-    ndx_file,
-    enroll_feats_file,
-    feats_file,
-    enroll_segments_file,
-    segments_file,
-    preproc_file,
-    qmf_file,
-    quality_measures,
-    min_dur,
-    max_dur,
-    frame_rate,
-    cohort_segments_file,
-    cohort_feats_file,
-    cohort_nbest,
-    avg_cohort_by,
-    score_file,
-    enroll_part_idx,
-    num_enroll_parts,
-    test_part_idx,
-    num_test_parts,
-):
+    enroll_map_file: PathLike,
+    ndx_file: PathLike,
+    enroll_feats_file: Optional[PathLike],
+    feats_file: PathLike,
+    enroll_segments_file: Optional[PathLike],
+    segments_file: Optional[PathLike],
+    preproc_file: Optional[PathLike],
+    qmf_file: Optional[PathLike],
+    quality_measures: List[str],
+    min_dur: float,
+    max_dur: float,
+    frame_rate: float,
+    cohort_segments_file: Optional[PathLike],
+    cohort_feats_file: Optional[PathLike],
+    cohort_nbest: int,
+    avg_cohort_by: Optional[str],
+    score_file: PathLike,
+    enroll_part_idx: int,
+    num_enroll_parts: int,
+    test_part_idx: int,
+    num_test_parts: int,
+) -> None:
+    """Evaluate cosine backend with optional AS-Norm and optional QMF fusion."""
     logging.info("loading data")
     enroll_map, ndx, x_e, x_t, q_e, q_t = load_trial_data(
         enroll_map_file,
@@ -542,24 +567,50 @@ def eval_backend(
     #     scores.save(score_file_snorm)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run cosine-backend evaluation."""
     parser = ArgumentParser(
         description="Eval cosine-scoring with optional AS-Norm and QMF"
     )
 
-    parser.add_argument("--enroll-feats-file", default=None)
-    parser.add_argument("--feats-file", required=True)
-    parser.add_argument("--ndx-file", required=True)
-    parser.add_argument("--enroll-map-file", required=True)
-    parser.add_argument("--enroll-segments-file", default=None)
-    parser.add_argument("--segments-file", default=None)
-    parser.add_argument("--preproc-file", default=None)
-    parser.add_argument("--qmf-file", default=None)
+    parser.add_argument(
+        "--enroll-feats-file",
+        default=None,
+        help="optional enrollment embedding file (defaults to --feats-file)",
+    )
+    parser.add_argument("--feats-file", required=True, help="test embedding file")
+    parser.add_argument("--ndx-file", required=True, help="trial index/key file")
+    parser.add_argument(
+        "--enroll-map-file",
+        required=True,
+        help="enrollment map relating models to enrollment segments",
+    )
+    parser.add_argument(
+        "--enroll-segments-file",
+        default=None,
+        help="optional enrollment SegmentSet with quality measures",
+    )
+    parser.add_argument(
+        "--segments-file",
+        default=None,
+        help="optional test SegmentSet with quality measures",
+    )
+    parser.add_argument(
+        "--preproc-file",
+        default=None,
+        help="optional preprocessing transform list applied before scoring",
+    )
+    parser.add_argument(
+        "--qmf-file",
+        default=None,
+        help="optional logistic-regression model for quality-measure fusion",
+    )
     parser.add_argument(
         "--quality-measures",
         default=["snorm-mu/s", "speech_duration"],
         nargs="+",
         choices=["snorm-mu/s", "snorm-mu", "speech_duration", "num_speech_frames"],
+        help="quality measures to include in output and optional QMF fusion",
     )
     parser.add_argument(
         "--min-dur", default=0.1, type=float, help="lower bound to clip durations"
@@ -571,17 +622,34 @@ def main():
         "--frame-rate",
         default=100,
         type=float,
-        help="frames/sec when durationa are expressed in frames",
+        help="frames/sec when durations are expressed in frames",
     )
-    parser.add_argument("--cohort-segments-file", default=None)
-    parser.add_argument("--cohort-feats-file", default=None)
-    parser.add_argument("--cohort-nbest", type=int, default=1000)
+    parser.add_argument(
+        "--cohort-segments-file",
+        default=None,
+        help="cohort SegmentSet file for AS-Norm",
+    )
+    parser.add_argument(
+        "--cohort-feats-file",
+        default=None,
+        help="cohort embedding file for AS-Norm",
+    )
+    parser.add_argument(
+        "--cohort-nbest",
+        type=int,
+        default=1000,
+        help="number of closest cohort samples used by adaptive S-Norm",
+    )
     parser.add_argument(
         "--avg-cohort-by",
         default=None,
-        help="segments file column to average vectors from same class class",
+        help="cohort SegmentSet column used to average cohort vectors by class",
     )
-    parser.add_argument("--score-file", required=True)
+    parser.add_argument(
+        "--score-file",
+        required=True,
+        help="output score file (split suffixes are auto-appended when needed)",
+    )
     parser.add_argument(
         "--enroll-part-idx", default=1, type=int, help="enroll part index"
     )
@@ -602,7 +670,13 @@ def main():
     )
 
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=error, 1=warning, 2=info, 3=debug)",
     )
 
     args = parser.parse_args()

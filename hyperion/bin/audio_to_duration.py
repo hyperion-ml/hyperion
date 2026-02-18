@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 import time
+from typing import Any
 
 import numpy as np
 from jsonargparse import (
@@ -19,9 +20,17 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.utils import SegmentSet
+from hyperion.utils.misc import PathLike
 
 
-def audio_to_duration(audio_file, output_file, **kwargs):
+def audio_to_duration(audio_file: PathLike, output_file: PathLike, **kwargs: Any) -> None:
+    """Compute utterance durations from audio and save them to a table.
+
+    Args:
+        audio_file: Input audio rspecifier/path consumed by ``SequentialAudioReader``.
+        output_file: Output table path written via ``SegmentSet.save``.
+        **kwargs: Additional audio-reader configuration parameters.
+    """
     input_args = AR.filter_args(**kwargs)
     logging.info(f"input_args={input_args}")
 
@@ -40,12 +49,21 @@ def audio_to_duration(audio_file, output_file, **kwargs):
     seg_set.save(output_file)
 
 
-def main():
-    parser = ArgumentParser(description="Writes audio file durations to table")
+def main() -> None:
+    """Parse CLI arguments and write audio durations."""
+    parser = ArgumentParser(description="Write audio durations to an output table")
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--audio-file", required=True)
-    parser.add_argument("--output-file", required=True)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
+    parser.add_argument(
+        "--audio-file",
+        required=True,
+        help="input audio rspecifier/path (e.g., wav.scp or audio archive)",
+    )
+    parser.add_argument(
+        "--output-file",
+        required=True,
+        help="output table path with one duration entry per utterance",
+    )
     AR.add_class_args(parser)
     parser.add_argument(
         "-v",
@@ -54,7 +72,7 @@ def main():
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
-        help="Verbose level",
+        help="verbosity level (0=error, 1=warning, 2=info, 3=debug)",
     )
     args = parser.parse_args()
     config_logger(args.verbose)

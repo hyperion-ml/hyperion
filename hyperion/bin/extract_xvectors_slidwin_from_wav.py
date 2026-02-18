@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 import time
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -29,9 +30,15 @@ from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
+from hyperion.utils.misc import PathLike
 
 
-def init_device(use_gpu):
+def init_device(use_gpu: bool) -> torch.device:
+    """Initialize runtime device for extraction.
+
+    Args:
+        use_gpu: If ``True``, request one GPU device.
+    """
     set_float_cpu("float32")
     num_gpus = 1 if use_gpu else 0
     logging.info("initializing devices num_gpus={}".format(num_gpus))
@@ -39,7 +46,13 @@ def init_device(use_gpu):
     return device
 
 
-def init_feats(device, **kwargs):
+def init_feats(device: torch.device, **kwargs: Any) -> AF:
+    """Initialize waveform feature extractor from parsed configuration.
+
+    Args:
+        device: Torch device where feature extraction runs.
+        **kwargs: Parsed argument dictionary containing ``feats`` config.
+    """
     feat_args = AF.filter_args(**kwargs["feats"])
     logging.info("feat args={}".format(feat_args))
     logging.info("initializing feature extractor")
@@ -50,7 +63,13 @@ def init_feats(device, **kwargs):
     return feat_extractor
 
 
-def load_model(model_path, device):
+def load_model(model_path: PathLike, device: torch.device) -> torch.nn.Module:
+    """Load x-vector model checkpoint.
+
+    Args:
+        model_path: Path to serialized model checkpoint.
+        device: Torch device where inference runs.
+    """
     logging.info("loading model {}".format(model_path))
     model = TML.load(model_path)
     logging.info("xvector-model={}".format(model))
@@ -59,7 +78,22 @@ def load_model(model_path, device):
     return model
 
 
-def augment(key0, x0, augmenter, aug_df, aug_id):
+def augment(
+    key0: str,
+    x0: np.ndarray,
+    augmenter: Optional[SpeechAugment],
+    aug_df: Optional[List[pd.DataFrame]],
+    aug_id: int,
+) -> Tuple[str, np.ndarray]:
+    """Apply optional augmentation and collect augmentation metadata.
+
+    Args:
+        key0: Original utterance key.
+        x0: Original waveform samples.
+        augmenter: Optional speech augmenter instance.
+        aug_df: Optional list accumulating augmentation metadata rows.
+        aug_id: Augmentation index appended to key suffix.
+    """
     if augmenter is None:
         x = x0
         key = key0
@@ -76,30 +110,52 @@ def augment(key0, x0, augmenter, aug_df, aug_id):
             "sdr": aug_info["sdr"],
         }
 
-        aug_df.append(pd.DataFrame(aug_df_row, index=[0]))
+        if aug_df is not None:
+            aug_df.append(pd.DataFrame(aug_df_row, index=[0]))
 
     return key, x
 
 
 def extract_xvectors(
-    input_spec,
-    output_spec,
-    vad_spec,
-    write_timestamps_spec,
-    slidwin_params_path,
-    vad_path_prefix,
-    model_path,
-    chunk_length,
-    embed_layer,
-    win_length,
-    win_shift,
-    snip_edges,
-    aug_cfg,
-    num_augs,
-    aug_info_path,
-    use_gpu,
-    **kwargs
-):
+    input_spec: PathLike,
+    output_spec: PathLike,
+    vad_spec: Optional[PathLike],
+    write_timestamps_spec: Optional[PathLike],
+    slidwin_params_path: Optional[PathLike],
+    vad_path_prefix: Optional[PathLike],
+    model_path: PathLike,
+    chunk_length: int,
+    embed_layer: Optional[int],
+    win_length: float,
+    win_shift: float,
+    snip_edges: bool,
+    aug_cfg: Optional[PathLike],
+    num_augs: int,
+    aug_info_path: Optional[PathLike],
+    use_gpu: bool,
+    **kwargs: Any,
+) -> None:
+    """Extract sliding-window x-vectors from waveforms.
+
+    Args:
+        input_spec: Input recordings specifier.
+        output_spec: Output writer specifier for x-vectors.
+        vad_spec: Optional VAD specifier for frame selection.
+        write_timestamps_spec: Optional output specifier for per-window timestamps.
+        slidwin_params_path: Optional YAML path for sliding-window parameters.
+        vad_path_prefix: Optional path prefix applied to VAD entries.
+        model_path: Model checkpoint path.
+        chunk_length: Frames per encoder forward pass (0 means full utterance).
+        embed_layer: Optional classifier layer index for embedding extraction.
+        win_length: Sliding-window length in seconds.
+        win_shift: Sliding-window shift in seconds.
+        snip_edges: Whether to keep only full windows.
+        aug_cfg: Optional augmentation configuration file.
+        num_augs: Number of augmentations per utterance.
+        aug_info_path: Optional CSV output path for augmentation metadata.
+        use_gpu: Whether to run extraction on GPU.
+        **kwargs: Additional parsed args for readers/features/partitioning.
+    """
     rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
@@ -262,7 +318,12 @@ def extract_xvectors(
             yaml.dump(params, f)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run sliding-window x-vector extraction from waveforms.
+
+    Args:
+        None.
+    """
     parser = ArgumentParser(
         description=(
             "Extract x-vectors over a sliding window"
@@ -271,29 +332,56 @@ def main():
         )
     )
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--input", dest="input_spec", required=True)
-    parser.add_argument("--vad", dest="vad_spec", default=None)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
     parser.add_argument(
-        "--write-timestamps", dest="write_timestamps_spec", default=None
+        "--input",
+        dest="input_spec",
+        required=True,
+        help="input waveform recordings specifier",
     )
-    parser.add_argument("--slidwin-params-path", default=None)
+    parser.add_argument(
+        "--vad",
+        dest="vad_spec",
+        default=None,
+        help="optional VAD specifier for frame selection",
+    )
+    parser.add_argument(
+        "--write-timestamps",
+        dest="write_timestamps_spec",
+        default=None,
+        help="optional output specifier for per-window timestamps",
+    )
+    parser.add_argument(
+        "--slidwin-params-path",
+        default=None,
+        help="optional YAML path to save sliding-window parameters",
+    )
 
     parser.add_argument(
-        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
+        "--vad-path-prefix",
+        default=None,
+        help="optional prefix for VAD scp file paths",
     )
 
     AR.add_argparse_args(parser)
 
-    parser.add_argument("--aug-cfg", default=None)
-    parser.add_argument("--aug-info-path", default=None)
+    parser.add_argument(
+        "--aug-cfg",
+        default=None,
+        help="optional speech-augmentation configuration file",
+    )
+    parser.add_argument(
+        "--aug-info-path",
+        default=None,
+        help="optional CSV output path for augmentation metadata",
+    )
     parser.add_argument(
         "--num-augs", default=1, type=int, help="number of augmentations per utterance"
     )
 
     AF.add_class_args(parser, prefix="feats")
 
-    parser.add_argument("--model-path", required=True)
+    parser.add_argument("--model-path", required=True, help="model checkpoint path")
     parser.add_argument(
         "--win-length",
         type=float,
@@ -334,17 +422,28 @@ def main():
         type=int,
         default=None,
         help=(
-            "classifier layer to get the embedding from, "
-            "if None, it uses layer set in training phase"
+            "classifier layer used to extract embeddings; if omitted, "
+            "the training-time default layer is used"
         ),
     )
 
-    parser.add_argument("--output", dest="output_spec", required=True)
     parser.add_argument(
-        "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
+        "--output",
+        dest="output_spec",
+        required=True,
+        help="output writer specifier for sliding-window x-vectors",
     )
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "--use-gpu", default=False, action="store_true", help="run extraction on GPU"
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
     )
 
     args = parser.parse_args()

@@ -493,13 +493,19 @@ class InfoTable:
         return self.__class__(self.df.sample(n=n, random_state=random_state))
 
     def drop(
-        self,
-        labels=None,
-        axis=0,
-        index=None,
-        columns=None,
-        level=None,
-        inplace=False,
+        self: T,
+        labels: Optional[
+            Union[str, int, List[Any], np.ndarray, pd.Index, pd.Series]
+        ] = None,
+        axis: Union[int, str] = 0,
+        index: Optional[
+            Union[str, int, List[Any], np.ndarray, pd.Index, pd.Series]
+        ] = None,
+        columns: Optional[
+            Union[str, int, List[Any], np.ndarray, pd.Index, pd.Series]
+        ] = None,
+        level: Optional[Union[int, str]] = None,
+        inplace: bool = False,
         errors: str = "raise",
     ) -> Optional[T]:
         """
@@ -733,10 +739,12 @@ class InfoTable:
                 "age": pd.UInt8Dtype(),
                 "transcript": "string",
                 "transcript_normalized": "string",
+                "whisper_transcript": "string",
                 "sentence_domain": "string",
                 "iarpa_arts_age": "string",
                 "voxprofile_broad_accent": "string",
                 "voxprofile_demographics_sex": "string",
+                "voxprofile_demographics_age": "float32",
                 "voxprofile_emotion_categorical": "string",
                 "voxprofile_fluency": "string",
                 "voxprofile_narrow_accent": "string",
@@ -1273,6 +1281,268 @@ class InfoTable:
             replace_overlapping (bool): Replace overlapping columns if True.
             ignore_overlapping (bool): If True, skip adding columns that already exist.
             remove_missing (bool): Use inner join (drop unmatched rows) if True.
+        """
+        # Normalize right_table to a bare DataFrame so we only handle one type below.
+        if isinstance(right_table, InfoTable):
+            right_table = right_table.df
+
+        def _df_mem_bytes(df: pd.DataFrame) -> int:
+            try:
+                return int(df.memory_usage(deep=True).sum())
+            except Exception:
+                return int(df.memory_usage().sum())
+
+        def _format_bytes(num_bytes: int) -> str:
+            unit = "B"
+            value = float(num_bytes)
+            for next_unit in ["KiB", "MiB", "GiB", "TiB"]:
+                if value < 1024:
+                    break
+                value /= 1024
+                unit = next_unit
+            return f"{value:,.2f} {unit}"
+
+        # Debug print of input sizes to help diagnose memory blow-ups.
+        print(
+            "[add_columns] left_df="
+            f"{_format_bytes(_df_mem_bytes(self.df))} "
+            f"(rows={len(self.df)}, cols={len(self.df.columns)}), "
+            "right_df="
+            f"{_format_bytes(_df_mem_bytes(right_table))} "
+            f"(rows={len(right_table)}, cols={len(right_table.columns)})"
+        )
+
+        # Optionally reduce the right table to the requested columns to save work.
+        if column_names is not None:
+            # Accept a single column name without surprising pandas behavior.
+            if isinstance(column_names, str):
+                column_names = [column_names]
+            # Slice early so downstream operations avoid unused columns.
+            right_table = right_table[column_names]
+
+        # Default join keys on right side to the left join keys.
+        if right_on is None:
+            right_on = on
+
+        # Choose join type based on whether we drop unmatched rows.
+        how = "inner" if remove_missing else "left"
+        # Track whether we are joining on index instead of explicit columns.
+        left_index = False
+        right_index = False
+        # Use index join for left when joining on the id column.
+        if on == "id" or on == ["id"]:
+            on = None
+            left_index = True
+
+        # Use index join for right when joining on the id column and it exists.
+        if (right_on == "id" or right_on == ["id"]) and "id" in right_table:
+            right_on = None
+            right_index = True
+
+        # Normalize join key specs into list form for consistent handling.
+        def _to_list(value: Union[None, str, List[str], np.ndarray]) -> Optional[List]:
+            # Preserve None so we can detect "no keys provided" later.
+            if value is None:
+                return None
+            # Convert array-like to a Python list for pandas helpers.
+            if isinstance(value, (list, tuple, np.ndarray)):
+                return list(value)
+            # Wrap single values to unify downstream logic.
+            return [value]
+
+        # Left join keys as a list (or None if using index joins).
+        on_keys = _to_list(on)
+        # Right join keys as a list (or None if using index joins).
+        right_on_keys = _to_list(right_on)
+
+        # Fast path: align columns without a full merge when right keys are unique,
+        # which avoids building a large merged dataframe and extra temporary copies.
+        can_align = True
+        # We need either an index join or explicit keys to align rows.
+        if not left_index and not on_keys:
+            can_align = False
+        # We also need a right-side key to align by.
+        if not right_index and not right_on_keys:
+            can_align = False
+
+        # Prepare right-side indexing for key-based alignment.
+        right_indexed = None
+        right_key_index = None
+        if can_align:
+            try:
+                # If right joins on index, we can re-use its index directly.
+                if right_index:
+                    right_indexed = right_table
+                else:
+                    # Otherwise, build a key index once to enable reindexing.
+                    right_indexed = right_table.set_index(right_on_keys, drop=False)
+                # Cache the index that represents right-side keys.
+                right_key_index = right_indexed.index
+                # Duplicated keys break 1-to-1 alignment, so disable fast path.
+                if not right_key_index.is_unique:
+                    can_align = False
+            except Exception:
+                # Any failure falls back to the safe full merge path.
+                can_align = False
+
+        if can_align:
+            # Build a zero-row merge to reproduce pandas merge index behavior
+            # without materializing the full join in memory.
+            template = self.df.iloc[0:0].merge(
+                right_table.iloc[0:0],
+                how=how,
+                left_on=on,
+                right_on=right_on,
+                left_index=left_index,
+                right_index=right_index,
+                suffixes=(None, "_right"),
+            )
+            # If pandas would reset to a RangeIndex, we mirror that later.
+            reset_index = isinstance(template.index, pd.RangeIndex)
+
+            # Cache existing column names for overlap checks.
+            left_cols = set(self.df.columns)
+            # Preserve right column order for deterministic column insertion.
+            right_cols = list(right_table.columns)
+
+            # Identify join-key columns shared by name to avoid duplicating them.
+            shared_join_keys = set()
+            if not left_index and not right_index and on_keys and right_on_keys:
+                shared_join_keys = set(on_keys) & set(right_on_keys)
+
+            # Cache left-side keys so we can align columns without a merge.
+            left_key_series = None
+            left_key_index = None
+            # If we need to drop rows without matches, do it once up front.
+            if remove_missing:
+                # Use index membership when left join is by index.
+                if left_index:
+                    mask = self.df.index.isin(right_key_index)
+                # Use vectorized isin for a single join key column.
+                elif len(on_keys) == 1:
+                    left_key_series = self.df[on_keys[0]]
+                    mask = left_key_series.isin(right_key_index)
+                else:
+                    # Use a MultiIndex for multi-key joins.
+                    left_key_index = pd.MultiIndex.from_frame(
+                        self.df[on_keys], names=on_keys
+                    )
+                    mask = left_key_index.isin(right_key_index)
+
+                # Apply the mask once to shrink the left table in place.
+                if not mask.all():
+                    self.df = self.df.loc[mask]
+                    # Keep cached key structures in sync with the filtered rows.
+                    if left_key_series is not None:
+                        left_key_series = self.df[on_keys[0]]
+                    if left_key_index is not None:
+                        left_key_index = left_key_index[mask]
+
+            # Build the left key structures if we did not already.
+            if not left_index:
+                if len(on_keys) == 1:
+                    if left_key_series is None:
+                        left_key_series = self.df[on_keys[0]]
+                else:
+                    if left_key_index is None:
+                        left_key_index = pd.MultiIndex.from_frame(
+                            self.df[on_keys], names=on_keys
+                        )
+
+            # Align a right-side Series to the left rows without a full merge.
+            def align_series(series: pd.Series) -> pd.Series:
+                # Index-based joins can use a simple reindex.
+                if left_index:
+                    return series.reindex(self.df.index)
+                # Single-key joins can use a map for lower overhead.
+                if len(on_keys) == 1:
+                    return left_key_series.map(series)
+                # Multi-key joins reindex via a MultiIndex and restore row order.
+                aligned = series.reindex(left_key_index)
+                return pd.Series(aligned.to_numpy(), index=self.df.index)
+
+            # Add or update each column one at a time to avoid large intermediates.
+            for col in right_cols:
+                # Skip the join key column to avoid duplicating it.
+                if col == "id" or col in shared_join_keys:
+                    continue
+
+                # If the column already exists, apply overlap rules.
+                if col in left_cols:
+                    # Skip if the caller requested ignoring overlaps.
+                    if ignore_overlapping:
+                        continue
+
+                    # Align right-side values to left rows once.
+                    aligned = align_series(right_indexed[col])
+                    if replace_overlapping:
+                        # Overwrite only missing values on the left.
+                        self.df[col] = aligned.combine_first(self.df[col])
+                    else:
+                        # Keep right values in a suffixed column for parity with merge.
+                        self.df[f"{col}_right"] = aligned
+                else:
+                    # New columns can be inserted directly after alignment.
+                    aligned = align_series(right_indexed[col])
+                    self.df[col] = aligned
+
+            # Match pandas merge index behavior when it would reset to RangeIndex.
+            if reset_index:
+                self.df.reset_index(drop=True, inplace=True)
+            # Early return because we handled the join with less memory usage.
+            return
+
+        # Fallback: pandas merge is safer for duplicate keys but uses more memory.
+        self.df = self.df.merge(
+            right_table,
+            how=how,
+            left_on=on,
+            right_on=right_on,
+            left_index=left_index,
+            right_index=right_index,
+            suffixes=(None, "_right"),
+        )
+
+        # 'id' exists in every InfoTable, so merging with another table will
+        # produce an unnecessary 'id_right' copy when pandas applies suffixes.
+        if "id_right" in self.df.columns:
+            self.df.drop(columns=["id_right"], inplace=True)
+
+        if ignore_overlapping:
+            # Drop the extra right-side columns without touching existing data
+            for col in right_table.columns:
+                extra_col = f"{col}_right"
+                if extra_col in self.df.columns:
+                    self.df.drop(columns=[extra_col], inplace=True)
+            return
+
+        if not replace_overlapping:
+            return
+
+        # For overlapping columns: update only where right side is not null
+        for col in right_table.columns:
+            if col == "id":
+                continue  # skip the key
+
+            update_col = f"{col}_right"
+            if update_col in self.df.columns:
+                self.df[col] = self.df[update_col].combine_first(self.df[col])
+                self.df.drop(columns=[update_col], inplace=True)
+
+    def legacy_add_columns(
+        self,
+        right_table: Union[T, pd.DataFrame],
+        column_names: Union[None, str, List[str], np.ndarray] = None,
+        on: Union[str, List[str], np.ndarray] = "id",
+        right_on: Union[None, str, List[str], np.ndarray] = None,
+        replace_overlapping: bool = False,
+        ignore_overlapping: bool = False,
+        remove_missing: bool = False,
+    ) -> None:
+        """
+        Legacy implementation of add_columns that uses a full pandas merge.
+
+        This keeps the original behavior for compatibility/testing.
         """
         if isinstance(right_table, InfoTable):
             right_table = right_table.df

@@ -444,13 +444,6 @@ class PLDA(PLDABase):
             self.U = Vtilde[self.y_dim : -1]
             self.mu = Vtilde[-1]
 
-        ybar = self.mu
-        if self.update_mu and self.prior is not None:
-            self.mu = self._adapt_mu(M, ybar)
-
-        if self.update_V and self.prior is not None:
-            self.V = self._adapt_V(M, ybar, self.V)
-
         if self.update_D:
             Vtilde = np.vstack((self.V, self.U, self.mu))
             CVt = np.dot(Cytilde, Vtilde)
@@ -463,6 +456,13 @@ class PLDA(PLDABase):
 
             iD[iD < self.floor_iD] = self.floor_iD
             self.D = 1 / iD
+
+        ybar = self.mu
+        if self.update_mu and self.prior is not None:
+            self.mu = self._adapt_mu(M, ybar)
+
+        if self.update_V and self.prior is not None:
+            self.V = self._adapt_V(M, ybar, self.V)
 
         if self.update_U and self.prior is not None:
             self.U, self.D = self._adapt_W(N, self.U, self.D)

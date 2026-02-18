@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 import time
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -32,9 +32,11 @@ from hyperion.torch.models.wav2transducer.beam_search import beam_search, greedy
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
+from hyperion.utils.misc import PathLike
 
 
-def init_device(use_gpu):
+def init_device(use_gpu: bool) -> torch.device:
+    """Initialize runtime device for decoding."""
     set_float_cpu("float32")
     num_gpus = 1 if use_gpu else 0
     logging.info("initializing devices num_gpus={}".format(num_gpus))
@@ -42,7 +44,8 @@ def init_device(use_gpu):
     return device
 
 
-def load_model(model_path, device):
+def load_model(model_path: PathLike, device: torch.device) -> nn.Module:
+    """Load wav2vec2-RNN transducer checkpoint and move it to device."""
     logging.info("loading model {}".format(model_path))
     model = TML.load(model_path)
     logging.info("transducer-model={}".format(model))
@@ -55,32 +58,9 @@ def decode_one_batch(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     x: torch.Tensor,
-    decoding_method="beam_search",
-) -> Dict[str, List[List[str]]]:
-    """Decode one batch and return the result in a dict. The dict has the
-    following format:
-        - key: It indicates the setting used for decoding. For example,
-               if greedy_search is used, it would be "greedy_search"
-               If beam search with a beam size of 7 is used, it would be
-               "beam_7"
-        - value: It contains the decoding result. `len(value)` equals to
-                 batch size. `value[i]` is the decoding result for the i-th
-                 utterance in the given batch.
-    Args:
-      params:
-        It's the return value of :func:`get_params`.
-      model:
-        The neural model.
-      sp:
-        The BPE model.
-      batch:
-        It is the return value from iterating
-        `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
-        for the format of the `batch`.
-    Returns:
-      Return the decoding result. See above description for the format of
-      the returned dict.
-    """
+    decoding_method: str = "beam_search",
+) -> List[str]:
+    """Decode one utterance tensor and return tokenized transcript words."""
     device = model.device
     feature = x  # batch["inputs"]
     assert x.shape[0] == 1
@@ -121,15 +101,16 @@ def decode_one_batch(
 
 
 def decode_transducer(
-    input_spec,
-    output_spec,
-    scp_sep,
-    model_path,
-    bpe_model,
-    infer_args,
-    use_gpu,
-    **kwargs,
-):
+    input_spec: PathLike,
+    output_spec: PathLike,
+    scp_sep: str,
+    model_path: PathLike,
+    bpe_model: PathLike,
+    infer_args: Dict[str, Any],
+    use_gpu: bool,
+    **kwargs: Any,
+) -> None:
+    """Decode audio using a wav2vec2-RNN transducer and write hypotheses."""
     device = init_device(use_gpu)
     model = load_model(model_path, device)
 
@@ -202,26 +183,53 @@ def decode_transducer(
                     )
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run wav2vec2-RNN transducer decoding."""
     parser = ArgumentParser(
         description=("ASR decoding for RNN-T with Wav2vec features")
     )
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--input", dest="input_spec", required=True)
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
-
-    AR.add_class_args(parser)
-    parser.add_argument("--model-path", required=True)
-    parser.add_argument("--bpe-model", required=True)
-
-    HFWav2Vec2RNNTransducer.add_infer_args(parser, "infer-args")
-    parser.add_argument("--output", dest="output_spec", required=True)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
     parser.add_argument(
-        "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
+        "--input",
+        dest="input_spec",
+        required=True,
+        help="input audio recordings rspecifier/path",
     )
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "--scp-sep",
+        default=" ",
+        help="field separator used when parsing scp-style entries",
+    )
+
+    AR.add_class_args(parser)
+    parser.add_argument(
+        "--model-path",
+        required=True,
+        help="path to wav2vec2-RNN transducer model checkpoint",
+    )
+    parser.add_argument(
+        "--bpe-model", required=True, help="path to sentencepiece/BPE model file"
+    )
+
+    HFWav2Vec2RNNTransducer.add_infer_args(parser, "infer-args")
+    parser.add_argument(
+        "--output",
+        dest="output_spec",
+        required=True,
+        help="output text file with decoded hypotheses",
+    )
+    parser.add_argument(
+        "--use-gpu", default=False, action="store_true", help="run decoding on GPU"
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=error, 1=warning, 2=info, 3=debug)",
     )
 
     args = parser.parse_args()

@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 import time
+from typing import Any, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -38,9 +39,15 @@ from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
 from hyperion.utils import TrialKey, TrialNdx, TrialScores, Utt2Info
 from hyperion.utils.list_utils import ismember
+from hyperion.utils.misc import PathLike
 
 
-def init_device(use_gpu):
+def init_device(use_gpu: bool) -> torch.device:
+    """Initialize runtime device for evaluation.
+
+    Args:
+        use_gpu: If ``True``, request a GPU device.
+    """
     set_float_cpu("float32")
     num_gpus = 1 if use_gpu else 0
     logging.info("initializing devices num_gpus={}".format(num_gpus))
@@ -48,7 +55,12 @@ def init_device(use_gpu):
     return device
 
 
-def init_feats(**kwargs):
+def init_feats(**kwargs: Any) -> AF:
+    """Initialize waveform feature extractor from parsed configuration.
+
+    Args:
+        **kwargs: Parsed argument dictionary containing ``feats`` config.
+    """
     feat_args = AF.filter_args(**kwargs["feats"])
     logging.info("feat args={}".format(feat_args))
     logging.info("initializing feature extractor")
@@ -58,7 +70,12 @@ def init_feats(**kwargs):
     return feat_extractor
 
 
-def load_model(model_path):
+def load_model(model_path: PathLike) -> nn.Module:
+    """Load x-vector model checkpoint.
+
+    Args:
+        model_path: Path to a serialized torch model checkpoint.
+    """
     logging.info("loading model {}".format(model_path))
     model = TML.load(model_path)
     logging.info("xvector-model={}".format(model))
@@ -66,7 +83,12 @@ def load_model(model_path):
     return model
 
 
-def load_calibrator(cal_file):
+def load_calibrator(cal_file: PathLike) -> Calibrator:
+    """Load logistic calibration parameters and convert to torch module.
+
+    Args:
+        cal_file: Path to calibration model file.
+    """
     logging.info("loading calibration params {}".format(cal_file))
     lr = LR.load(cal_file)
     calibrator = Calibrator(lr.A[0, 0], lr.b[0])
@@ -74,7 +96,22 @@ def load_calibrator(cal_file):
     return calibrator
 
 
-def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
+def read_data(
+    v_file: PathLike,
+    key_file: PathLike,
+    enroll_file: PathLike,
+    seg_part_idx: int,
+    num_seg_parts: int,
+) -> Tuple[TrialKey, np.ndarray]:
+    """Load trial key plus enrollment embeddings for evaluation.
+
+    Args:
+        v_file: Input enrollment embedding archive/specifier.
+        key_file: Trial key file defining target/non-target trials.
+        enroll_file: Enrollment mapping file from model ids to segment ids.
+        seg_part_idx: Current test split index (1-based).
+        num_seg_parts: Number of test splits.
+    """
     r = DRF.create(v_file)
     enroll = Utt2Info.load(enroll_file)
     key = TrialKey.load(key_file)
@@ -89,14 +126,25 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
 
 
 class MyModel(nn.Module):
+    """Wrapper model used to score enroll/test embeddings under ART attacks."""
+
     def __init__(
         self,
-        feat_extractor,
-        xvector_model,
-        embed_layer=None,
-        calibrator=None,
-        threshold=0,
-    ):
+        feat_extractor: AF,
+        xvector_model: nn.Module,
+        embed_layer: Optional[int] = None,
+        calibrator: Optional[nn.Module] = None,
+        threshold: float = 0.0,
+    ) -> None:
+        """Initialize the scoring model.
+
+        Args:
+            feat_extractor: Front-end feature extractor operating on waveform input.
+            xvector_model: X-vector model used to extract embeddings.
+            embed_layer: Optional classifier layer index used for embedding extraction.
+            calibrator: Optional score calibrator applied to cosine scores.
+            threshold: Score threshold used to build the non-target logit.
+        """
         super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
@@ -106,7 +154,12 @@ class MyModel(nn.Module):
         self.calibrator = calibrator
         self.threshold = threshold
 
-    def forward(self, s_t):
+    def forward(self, s_t: torch.Tensor) -> torch.Tensor:
+        """Compute target/non-target logits for ART attack/evaluation.
+
+        Args:
+            s_t: Test waveform tensor.
+        """
         if s_t.dim() == 4:
             # this is for attacks that only work in 4D inputs
             s_t = s_t[0, 0]
@@ -141,26 +194,49 @@ class MyModel(nn.Module):
 
 
 def eval_cosine_scoring(
-    v_file,
-    key_file,
-    enroll_file,
-    test_wav_file,
-    vad_spec,
-    vad_path_prefix,
-    model_path,
-    embed_layer,
-    score_file,
-    stats_file,
-    cal_file,
-    threshold,
-    save_adv_wav,
-    save_adv_wav_path,
-    max_test_length,
-    use_gpu,
-    seg_part_idx,
-    num_seg_parts,
-    **kwargs
-):
+    v_file: PathLike,
+    key_file: PathLike,
+    enroll_file: PathLike,
+    test_wav_file: PathLike,
+    vad_spec: Optional[PathLike],
+    vad_path_prefix: Optional[PathLike],
+    model_path: PathLike,
+    embed_layer: Optional[int],
+    score_file: PathLike,
+    stats_file: Optional[PathLike],
+    cal_file: Optional[PathLike],
+    threshold: float,
+    save_adv_wav: bool,
+    save_adv_wav_path: Optional[PathLike],
+    max_test_length: Optional[float],
+    use_gpu: bool,
+    seg_part_idx: int,
+    num_seg_parts: int,
+    **kwargs: Any,
+) -> None:
+    """Evaluate adversarial cosine scoring on test waveforms using ART attacks.
+
+    Args:
+        v_file: Enrollment embedding archive/specifier.
+        key_file: Trial key file defining target/non-target pairs.
+        enroll_file: Enrollment mapping file.
+        test_wav_file: Test waveform recordings specifier.
+        vad_spec: Optional VAD specifier for selecting speech frames.
+        vad_path_prefix: Optional path prefix applied to VAD entries.
+        model_path: X-vector model checkpoint path.
+        embed_layer: Optional embedding layer index to extract.
+        score_file: Output file for trial scores.
+        stats_file: Output CSV path for adversarial perturbation statistics.
+        cal_file: Optional calibration model file.
+        threshold: Decision threshold for calibrated scores.
+        save_adv_wav: Whether to write adversarial examples to disk.
+        save_adv_wav_path: Output directory for saved adversarial waveforms.
+        max_test_length: Optional max test duration in seconds.
+        use_gpu: Whether to run inference/attacks on GPU.
+        seg_part_idx: Test split index (1-based).
+        num_seg_parts: Total number of test splits.
+        **kwargs: Additional parsed args, including attack/reader/feature settings.
+    """
     device_type = "gpu" if use_gpu else "cpu"
     device = init_device(use_gpu)
     feat_extractor = init_feats(**kwargs)
@@ -347,7 +423,12 @@ def eval_cosine_scoring(
     attack_stats.to_csv(stats_file)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and run ART-based adversarial cosine-scoring evaluation.
+
+    Args:
+        None.
+    """
     parser = ArgumentParser(
         description=(
             "Eval cosine-scoring given enroll x-vector "
@@ -355,40 +436,70 @@ def main():
         )
     )
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--v-file", required=True)
-    parser.add_argument("--key-file", default=None)
-    parser.add_argument("--enroll-file", required=True)
-    parser.add_argument("--test-wav-file", required=True)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
+    parser.add_argument(
+        "--v-file",
+        required=True,
+        help="enrollment x-vector archive/specifier",
+    )
+    parser.add_argument(
+        "--key-file",
+        default=None,
+        help="trial key file containing target/non-target labels",
+    )
+    parser.add_argument(
+        "--enroll-file",
+        required=True,
+        help="enrollment map file linking models to enrollment segment ids",
+    )
+    parser.add_argument(
+        "--test-wav-file",
+        required=True,
+        help="test waveform recordings specifier",
+    )
 
     AR.add_class_args(parser)
     AF.add_class_args(parser, prefix="feats")
 
-    parser.add_argument("--vad", dest="vad_spec", default=None)
+    parser.add_argument(
+        "--vad",
+        dest="vad_spec",
+        default=None,
+        help="optional VAD specifier for frame selection",
+    )
     parser.add_argument(
         "--vad-path-prefix",
         default=None,
-        help=("scp file_path prefix for vad"),
+        help="optional prefix for VAD scp file paths",
     )
 
-    parser.add_argument("--model-path", required=True)
+    parser.add_argument(
+        "--model-path",
+        required=True,
+        help="x-vector model checkpoint path",
+    )
     parser.add_argument(
         "--embed-layer",
         type=int,
         default=None,
         help=(
-            "classifier layer to get the embedding from,"
-            "if None the layer set in training phase is used"
+            "classifier layer used to extract embeddings; if omitted, "
+            "the training-time default layer is used"
         ),
     )
 
     parser.add_argument(
-        "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
+        "--use-gpu", default=False, action="store_true", help="run evaluation on GPU"
     )
 
     AttackFactory.add_class_args(parser, prefix="attack")
 
-    parser.add_argument("--seg-part-idx", default=1, type=int, help=("test part index"))
+    parser.add_argument(
+        "--seg-part-idx",
+        default=1,
+        type=int,
+        help="test split index (1-based) when evaluating in parallel",
+    )
     parser.add_argument(
         "--num-seg-parts",
         default=1,
@@ -399,9 +510,20 @@ def main():
         ),
     )
 
-    parser.add_argument("--score-file", dest="score_file", required=True)
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "--score-file",
+        dest="score_file",
+        required=True,
+        help="output file path for trial scores",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
     )
 
     parser.add_argument(
@@ -411,14 +533,22 @@ def main():
         help="save adversarial signals to disk",
     )
     parser.add_argument(
-        "--save-adv-wav-path", default=None, help="output path of adv signals"
+        "--save-adv-wav-path",
+        default=None,
+        help="output directory for saved adversarial waveforms",
     )
 
     parser.add_argument(
-        "--stats-file", default=None, help="output path of to save stats of adv signals"
+        "--stats-file",
+        default=None,
+        help="output CSV path for adversarial attack statistics",
     )
 
-    parser.add_argument("--cal-file", default=None, help="score calibration file")
+    parser.add_argument(
+        "--cal-file",
+        default=None,
+        help="optional logistic calibration model file",
+    )
     parser.add_argument("--threshold", default=0, type=float, help="decision threshold")
     parser.add_argument(
         "--max-test-length",

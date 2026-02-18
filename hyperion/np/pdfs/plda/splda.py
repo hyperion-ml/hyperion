@@ -11,6 +11,7 @@ from scipy import linalg as sla
 
 from ....hyp_defs import float_cpu
 from ....utils.math_funcs import invert_pdmat, invert_trimat, logdet_pdmat
+from ....utils.misc import check_spd_mat
 from .plda_base import PLDABase
 
 
@@ -314,13 +315,6 @@ class SPLDA(PLDABase):
             self.V = Vtilde[:-1, :]
             self.mu = Vtilde[-1, :]
 
-        ybar = self.mu
-        if self.update_mu and self.prior is not None:
-            self.mu = self._adapt_mu(M, ybar)
-
-        if self.update_V and self.prior is not None:
-            self.V = self._adapt_V(M, ybar, self.V)
-
         if self.update_W:
             if self.update_mu and self.update_V:
                 iW = (S - np.dot(Cy, self.V) - np.outer(F, self.mu)) / N
@@ -329,13 +323,25 @@ class SPLDA(PLDABase):
                 CVt = np.dot(Cytilde, Vtilde)
                 iW = (S - CVt - CVt.T + np.dot(np.dot(Vtilde.T, Rytilde), Vtilde)) / N
 
+            # check_spd_mat("S", S)
+            # check_spd_mat("iW", iW)
+
             if self.prior is not None:
                 iW = self._adapt_iW(N, iW)
+
+            # check_spd_mat("iWa", iW)
 
             if self.fullcov_W:
                 self.W = invert_pdmat(iW, return_inv=True)[-1]
             else:
                 self.W = np.diag(1 / np.diag(iW))
+
+        ybar = self.mu
+        if self.update_mu and self.prior is not None:
+            self.mu = self._adapt_mu(M, ybar)
+
+        if self.update_V and self.prior is not None:
+            self.V = self._adapt_V(M, ybar, self.V)
 
     def MstepMD(self, stats: Tuple[Any, ...]) -> None:
         """Minimum divergence estimation step.
@@ -644,7 +650,7 @@ class SPLDA(PLDABase):
           w_mu: weight of the given mean vector.
 
         """
-        super().weigthed_avg_params(mu, w_mu)
+        super().weighted_avg_params(mu, w_mu)
         if w_B > 0:
             Sb0 = np.dot(self.V.T, self.V)
             Sb = np.dot(V.T, V)
@@ -701,10 +707,11 @@ class SPLDA(PLDABase):
         else:
             prior_iB = np.dot(self.prior.V.T, self.prior.V)
 
-        adapt_iB = M * iB + self.r_V * prior_iB
+        alpha = M / (M + self.r_V)
+        adapt_iB = alpha * iB + (1 - alpha) * prior_iB
         delta_y = ybar - self.prior.mu
-        adapt_iB += np.outer(delta_y, delta_y) * (M * self.r_mu / (M + self.r_mu))
-        adapt_iB /= M + self.r_V
+        adapt_iB += np.outer(delta_y, delta_y) * (alpha * self.r_mu / (M + self.r_mu))
+        # adapt_iB /= M + self.r_V
         w, Vt = sla.eigh(adapt_iB, overwrite_a=True)
         w = w[-self.y_dim :]
         V = np.sqrt(w) * Vt[:, -self.y_dim :]
@@ -719,7 +726,9 @@ class SPLDA(PLDABase):
           adapted within-class precision matrix.
         """
         prior_iW = invert_pdmat(self.prior.W, return_inv=True)[-1]
-        adapt_iW = (N * iW + self.r_W * prior_iW) / (N + self.r_W)
+        alpha = N / (N + self.r_W)
+        adapt_iW = (1 - alpha) * prior_iW + alpha * iW
+        adapt_iW = (adapt_iW + adapt_iW.T) / 2
         return adapt_iW
 
     def project(self, T, delta_mu=None):

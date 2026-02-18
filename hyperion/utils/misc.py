@@ -331,3 +331,19 @@ def check_and_disable_latex():
     if mpl.rcParams.get("text.usetex", False) and shutil.which("latex") is None:
         logging.warning("LaTeX not found. Disabling `usetex`.")
         mpl.rcParams["text.usetex"] = False
+
+
+def check_spd_mat(name, A):
+    # symmetry
+    sym_err = np.linalg.norm(A - A.T, ord="fro") / (
+        np.linalg.norm(A, ord="fro") + 1e-12
+    )
+    # eigenvalues
+    w = np.linalg.eigvalsh((A + A.T) / 2)
+    w_min = w[0]
+    w_max = w[-1]
+    # conditioning
+    cond = w_max / max(w_min, 1e-12)
+    logging.info(
+        f"{name}: sym_err={sym_err:.3e}  w_min={w_min:.3e}  w_max={w_max:.3e}  cond={cond:.3e}"
+    )

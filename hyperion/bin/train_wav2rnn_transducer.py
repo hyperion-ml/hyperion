@@ -9,6 +9,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Dict, List, Type
 
 import k2
 import numpy as np
@@ -35,7 +36,12 @@ model_dict = {
 }
 
 
-def transducer_collate(batch):
+def transducer_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Collate a batch for transducer models.
+
+    Args:
+        batch: List of dataset records containing waveform and tokenized text.
+    """
     audio = []
     audio_length = []
     target = []
@@ -63,7 +69,17 @@ def transducer_collate(batch):
     return batch
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def init_data(
+    partition: str, rank: int, num_gpus: int, **kwargs: Any
+) -> torch.utils.data.DataLoader:
+    """Initialize dataset, sampler, and dataloader for one partition.
+
+    Args:
+        partition: Dataset split name (``"train"`` or ``"val"``).
+        rank: Process rank in distributed training.
+        num_gpus: Number of GPUs available to this job.
+        **kwargs: Parsed configuration dictionary containing data settings.
+    """
     data_kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**data_kwargs["dataset"])
     sampler_args = data_kwargs["sampler"]
@@ -111,7 +127,17 @@ def init_data(partition, rank, num_gpus, **kwargs):
 #     return model
 
 
-def init_model(rank, model_class, tokenizers, **kwargs):
+def init_model(
+    rank: int, model_class: Type[torch.nn.Module], tokenizers: Dict[str, Any], **kwargs: Any
+) -> torch.nn.Module:
+    """Initialize transducer model and inject tokenizer-dependent dimensions.
+
+    Args:
+        rank: Process rank in distributed training.
+        model_class: Transducer model class to instantiate.
+        tokenizers: Dataset tokenizer mapping used to set blank id and vocab size.
+        **kwargs: Parsed configuration dictionary containing model settings.
+    """
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
@@ -125,7 +151,13 @@ def init_model(rank, model_class, tokenizers, **kwargs):
     return model
 
 
-def train_model(gpu_id, args):
+def train_model(gpu_id: int, args: Any) -> None:
+    """Run distributed training for a transducer model.
+
+    Args:
+        gpu_id: Local GPU id used by this process.
+        args: Parsed subcommand arguments.
+    """
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -171,10 +203,19 @@ def train_model(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(model_class):
+def make_parser(model_class: Type[torch.nn.Module]) -> ArgumentParser:
+    """Create parser for one transducer model subcommand.
+
+    Args:
+        model_class: Transducer model class whose args should be exposed.
+    """
     parser = ArgumentParser()
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset")
     SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
@@ -182,7 +223,7 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of workers for the training dataloader.",
     )
 
     val_parser = ArgumentParser(prog="")
@@ -192,12 +233,24 @@ def make_parser(model_class):
         "--data_loader.num-workers",
         type=int,
         default=5,
-        help="num_workers of data loader",
+        help="Number of workers for the validation dataloader.",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-    data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-    parser.add_argument("--data", action=ActionParser(parser=data_parser))
+    data_parser.add_argument(
+        "--train",
+        action=ActionParser(parser=train_parser),
+        help="Training data configuration block.",
+    )
+    data_parser.add_argument(
+        "--val",
+        action=ActionParser(parser=val_parser),
+        help="Validation data configuration block.",
+    )
+    parser.add_argument(
+        "--data",
+        action=ActionParser(parser=data_parser),
+        help="Data configuration block containing train/val settings.",
+    )
 
     # parser.add_argument(
     #     "--data.train.dataset.text_file",
@@ -230,15 +283,26 @@ def make_parser(model_class):
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
     return parser
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and launch transducer training."""
     parser = ArgumentParser(description="Train Transducer model from audio files")
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
 
     subcommands = parser.add_subcommands()
 

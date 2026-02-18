@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -28,10 +29,17 @@ from hyperion.np.metrics import (
     print_confusion_matrix,
 )
 from hyperion.np.transforms import LDA, PCA, CentWhiten, LNorm, TransformList
-from hyperion.utils import SegmentSet
+from hyperion.utils import PathLike, SegmentSet
 
 
-def compute_metrics(y_true, y_pred, labels):
+def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, labels: np.ndarray) -> None:
+    """Compute and log classification metrics on training data.
+
+    Args:
+        y_true: Ground-truth class ids.
+        y_pred: Predicted class ids.
+        labels: Class label names/ids for confusion-matrix display.
+    """
     acc = compute_accuracy(y_true, y_pred)
     logging.info("training acc: %.2f %%", acc * 100)
     logging.info("non-normalized confusion matrix:")
@@ -42,7 +50,15 @@ def compute_metrics(y_true, y_pred, labels):
     print_confusion_matrix(C * 100, labels)
 
 
-def load_segments_and_feats(segments_file, feats_file):
+def load_segments_and_feats(
+    segments_file: PathLike, feats_file: PathLike
+) -> Tuple[SegmentSet, np.ndarray]:
+    """Load segment metadata and corresponding embeddings.
+
+    Args:
+        segments_file: Segment table file with utterance ids and labels.
+        feats_file: Feature file containing embeddings indexed by segment ids.
+    """
     logging.info("loading segments: %s feats: %s", segments_file, feats_file)
     segments = SegmentSet.load(segments_file)
     reader = DRF.create(feats_file)
@@ -50,7 +66,16 @@ def load_segments_and_feats(segments_file, feats_file):
     return segments, x
 
 
-def load_data(segments_files, feats_files, class_name):
+def load_data(
+    segments_files: List[PathLike], feats_files: List[PathLike], class_name: str
+) -> Tuple[SegmentSet, np.ndarray, np.ndarray, np.ndarray]:
+    """Load and concatenate segments/features from multiple inputs.
+
+    Args:
+        segments_files: List of segment table files.
+        feats_files: List of embedding files aligned with ``segments_files``.
+        class_name: Segment column name containing class labels.
+    """
     assert len(segments_files) == len(feats_files)
     segments_list = []
     feats_list = []
@@ -65,7 +90,16 @@ def load_data(segments_files, feats_files, class_name):
     return segments, feats, y, labels
 
 
-def train_pca(x, pca_lnorm, pca_args):
+def train_pca(
+    x: np.ndarray, pca_lnorm: bool, pca_args: Dict[str, Any]
+) -> Tuple[np.ndarray, Optional[LNorm], Optional[PCA]]:
+    """Optionally train/apply PCA (and pre-PCA length norm).
+
+    Args:
+        x: Input embedding matrix.
+        pca_lnorm: Whether to apply length normalization before PCA.
+        pca_args: PCA constructor arguments.
+    """
     pca_var_r = pca_args["pca_var_r"]
     logging.info("computing pca pca_var_r=%f", pca_var_r)
     pca = None
@@ -85,21 +119,39 @@ def train_pca(x, pca_lnorm, pca_args):
 
 
 def train_lgbe(
-    segments_files,
-    feats_files,
-    class_name,
-    preproc_file,
-    lgbe_file,
-    pca,
-    lda,
-    lgbe,
-    pca_lnorm,
-    do_lda,
-    lda_lnorm,
-    lgbe_lnorm,
-    lgbe_center,
-    lgbe_whiten,
-):
+    segments_files: List[PathLike],
+    feats_files: List[PathLike],
+    class_name: str,
+    preproc_file: PathLike,
+    lgbe_file: PathLike,
+    pca: Dict[str, Any],
+    lda: Dict[str, Any],
+    lgbe: Dict[str, Any],
+    pca_lnorm: bool,
+    do_lda: bool,
+    lda_lnorm: bool,
+    lgbe_lnorm: bool,
+    lgbe_center: bool,
+    lgbe_whiten: bool,
+) -> None:
+    """Train preprocessing transforms and a Linear GBE backend.
+
+    Args:
+        segments_files: List of segment table files.
+        feats_files: List of embedding files aligned with ``segments_files``.
+        class_name: Segment column name containing class labels.
+        preproc_file: Output path for preprocessing transform list.
+        lgbe_file: Output path for trained Linear GBE model.
+        pca: PCA configuration arguments.
+        lda: LDA configuration arguments.
+        lgbe: Linear GBE configuration arguments.
+        pca_lnorm: Apply length normalization before PCA.
+        do_lda: Enable LDA stage.
+        lda_lnorm: Apply length normalization before LDA.
+        lgbe_lnorm: Apply length normalization before GBE stage.
+        lgbe_center: Center embeddings before GBE stage.
+        lgbe_whiten: Whiten embeddings before GBE stage.
+    """
     segments, x, y, labels = load_data(segments_files, feats_files, class_name)
     transform_list = []
 
@@ -157,28 +209,91 @@ def train_lgbe(
     gbe.save(lgbe_file)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and train LGBE/preprocessing models."""
     parser = ArgumentParser(
         description="Trains Linear Gaussian Back-end model and embedding preprocessor"
     )
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--feats-files", nargs="+", required=True)
-    parser.add_argument("--segments-files", nargs="+", required=True)
-    parser.add_argument("--class-name", default="language")
-    parser.add_argument("--preproc-file", required=True)
-    parser.add_argument("--lgbe-file", required=True)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
+    parser.add_argument(
+        "--feats-files",
+        nargs="+",
+        required=True,
+        help="Input embedding files used for training.",
+    )
+    parser.add_argument(
+        "--segments-files",
+        nargs="+",
+        required=True,
+        help="Input segment tables aligned with --feats-files.",
+    )
+    parser.add_argument(
+        "--class-name",
+        default="language",
+        help="Segment column used as class label.",
+    )
+    parser.add_argument(
+        "--preproc-file",
+        required=True,
+        help="Output file for preprocessing transform list.",
+    )
+    parser.add_argument(
+        "--lgbe-file",
+        required=True,
+        help="Output file for trained Linear GBE model.",
+    )
     PCA.add_class_args(parser, prefix="pca")
     LDA.add_class_args(parser, prefix="lda")
     GBE.add_class_args(parser, prefix="lgbe")
-    parser.add_argument("--pca-lnorm", default=False, action=ActionYesNo)
-    parser.add_argument("--lda-lnorm", default=False, action=ActionYesNo)
-    parser.add_argument("--do-lda", default=False, action=ActionYesNo)
-    parser.add_argument("--lgbe-lnorm", default=True, action=ActionYesNo)
-    parser.add_argument("--lgbe-center", default=True, action=ActionYesNo)
-    parser.add_argument("--lgbe-whiten", default=True, action=ActionYesNo)
+    parser.add_argument(
+        "--pca-lnorm",
+        default=False,
+        action=ActionYesNo,
+        help="Apply length normalization before PCA.",
+    )
+    parser.add_argument(
+        "--lda-lnorm",
+        default=False,
+        action=ActionYesNo,
+        help="Apply length normalization before LDA.",
+    )
+    parser.add_argument(
+        "--do-lda",
+        default=False,
+        action=ActionYesNo,
+        help="Enable LDA stage after PCA.",
+    )
+    parser.add_argument(
+        "--lgbe-lnorm",
+        default=True,
+        action=ActionYesNo,
+        help="Apply length normalization before the GBE backend.",
+    )
+    parser.add_argument(
+        "--lgbe-center",
+        default=True,
+        action=ActionYesNo,
+        help="Center embeddings before the GBE backend.",
+    )
+    parser.add_argument(
+        "--lgbe-whiten",
+        default=True,
+        action=ActionYesNo,
+        help="Whiten embeddings before the GBE backend.",
+    )
 
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
     args = parser.parse_args()
     config_logger(args.verbose)

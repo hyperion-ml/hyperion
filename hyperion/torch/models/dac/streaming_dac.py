@@ -134,7 +134,17 @@ class StreamingDAC(TorchModel):
             self.quantizer = ResidualVectorQuantizer(**quantizer)
 
         if reconfig_quantizer and quantizer is not None:
-            self.quantizer.change_config(**quantizer)
+            if self.quantizer.base_vq_type == quantizer.get(
+                "base_vq_type", self.quantizer.base_vq_type
+            ):
+                logging.info("reconfiguring quantizer with new config")
+                self.quantizer.change_config(**quantizer)
+            else:
+                quantizer["in_feats"] = self.latent_feats
+                quantizer["channels_last"] = True
+                new_quantizer = ResidualVectorQuantizer(**quantizer)
+                new_quantizer.init_from_rvq(self.quantizer)
+                self.quantizer = new_quantizer
 
     @property
     def input_sample_frequency(self) -> int:

@@ -26,6 +26,17 @@ def accum_speech_quality_metrics(
     num_parts: int,
     base_idx: int,
 ):
+    """Aggregate speech-quality metric tables and write merged statistics.
+
+    Args:
+        input_files: Optional list of metric files to merge. If ``None``, file
+            names are derived from ``output_file`` using ``num_parts`` and
+            ``base_idx``.
+        output_file: Destination CSV/TSV file for the accumulated metrics.
+        num_parts: Number of part files to derive when ``input_files`` is
+            ``None``.
+        base_idx: Starting index used when deriving part-file names.
+    """
     output_file = Path(output_file)
     output_file.parent.mkdir(exist_ok=True, parents=True)
 
@@ -59,6 +70,7 @@ def accum_speech_quality_metrics(
 
 
 def main():
+    """Parse CLI arguments and run speech-quality metric accumulation."""
     parser = ArgumentParser(
         description="Tool to accumulate speech quality metrics obtained by different subprocesses"
     )

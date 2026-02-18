@@ -26,6 +26,17 @@ def accum_voxprofile_metrics(
     num_parts: int,
     base_idx: int,
 ):
+    """Aggregate VoxProfile metric tables and write merged statistics.
+
+    Args:
+        input_files: Optional list of metric files to merge. If ``None``, file
+            names are derived from ``output_file`` using ``num_parts`` and
+            ``base_idx``.
+        output_file: Destination CSV/TSV file for the accumulated metrics.
+        num_parts: Number of part files to derive when ``input_files`` is
+            ``None``.
+        base_idx: Starting index used when deriving part-file names.
+    """
     output_file = Path(output_file)
     output_file.parent.mkdir(exist_ok=True, parents=True)
 
@@ -59,30 +70,39 @@ def accum_voxprofile_metrics(
 
 
 def main():
+    """Parse CLI arguments and run VoxProfile metric accumulation."""
     parser = ArgumentParser(
-        description="Tool to accumulate speech quality metrics obtained by different subprocesses"
+        description=(
+            "Tool to accumulate VoxProfile metrics obtained by different subprocesses"
+        )
     )
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument(
-        "--input-files", default=None, nargs="+", help="optional list of input files"
+        "--input-files",
+        default=None,
+        nargs="+",
+        help="optional list of VoxProfile metric files to merge",
     )
     parser.add_argument(
         "--output-file",
         required=True,
-        help="""output file, if input-files is None, input files names are derived from it""",
+        help=(
+            "output CSV/TSV file; if --input-files is not provided, input part-file "
+            "names are derived from this path"
+        ),
     )
     parser.add_argument(
         "--num-parts",
         default=0,
         type=int,
-        help="""number of parts we divided the test set""",
+        help="number of part files to merge when --input-files is not provided",
     )
 
     parser.add_argument(
         "--base-idx",
         default=1,
         type=int,
-        help="""index of the first job, typically 0 or 1""",
+        help="starting part index used to derive input file names (typically 0 or 1)",
     )
     parser.add_argument(
         "-v",

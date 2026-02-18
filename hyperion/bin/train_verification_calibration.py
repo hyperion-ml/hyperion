@@ -10,6 +10,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import List, Optional
 
 import numpy as np
 from jsonargparse import (
@@ -27,8 +28,27 @@ from hyperion.utils.trial_scores import TrialScores
 
 
 def train_verification_calibration(
-    score_files, key_files, model_file, prior, lambda_reg, num_augs, aug_std, verbose
-):
+    score_files: List[str],
+    key_files: List[str],
+    model_file: str,
+    prior: float,
+    lambda_reg: float,
+    num_augs: Optional[List[int]],
+    aug_std: float,
+    verbose: int,
+) -> None:
+    """Train logistic-regression calibration for verification scores.
+
+    Args:
+        score_files: Input score files.
+        key_files: Trial key files aligned with ``score_files``.
+        model_file: Output path for trained calibration model.
+        prior: Target prior probability used for DCF and calibration.
+        lambda_reg: L2 regularization coefficient.
+        num_augs: Optional number of score augmentations per input score file.
+        aug_std: Standard deviation for Gaussian augmentation noise.
+        verbose: Verbosity level forwarded to logistic-regression solver.
+    """
     assert len(score_files) == len(
         key_files
     ), f"{len(score_files)=} != {len(key_files)=}"
@@ -133,13 +153,38 @@ def train_verification_calibration(
     scr_out.save(output_file)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and train verification calibration."""
     parser = ArgumentParser(description="Trains verification calibration")
 
-    parser.add_argument("--score-files", nargs="+", required=True)
-    parser.add_argument("--key-files", nargs="+", required=True)
-    parser.add_argument("--model-file", required=True)
-    parser.add_argument("--prior", type=float, default=0.01)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
+    parser.add_argument(
+        "--score-files",
+        nargs="+",
+        required=True,
+        help="Input score files used for calibration training.",
+    )
+    parser.add_argument(
+        "--key-files",
+        nargs="+",
+        required=True,
+        help="Trial key files aligned with --score-files.",
+    )
+    parser.add_argument(
+        "--model-file",
+        required=True,
+        help="Output path for trained calibration model.",
+    )
+    parser.add_argument(
+        "--prior",
+        type=float,
+        default=0.01,
+        help="Target prior probability used in DCF and calibration.",
+    )
     parser.add_argument(
         "--lambda-reg", type=float, default=1e-5, help="l2 regularization"
     )
@@ -154,7 +199,13 @@ def main():
         "--aug-std", default=0.1, type=float, help="augmentation standard deviation"
     )
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
     args = parser.parse_args()

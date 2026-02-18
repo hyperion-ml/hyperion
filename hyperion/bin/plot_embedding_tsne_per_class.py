@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Optional
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -25,7 +26,7 @@ from hyperion.hyp_defs import config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.np.clustering import AHC
 from hyperion.np.transforms import PCA, LNorm, SklTSNE
-from hyperion.utils import SegmentSet
+from hyperion.utils import PathLike, SegmentSet
 from hyperion.utils.math_funcs import cosine_scoring
 
 matplotlib.use("Agg")
@@ -36,21 +37,39 @@ color_marker = [(c, m) for m in markers for c in colors]
 
 
 def plot_embedding_tsne(
-    train_v_file,
-    train_list,
-    pca_var_r,
-    prob_plot,
-    lnorm,
-    title,
-    max_classes,
-    plot_class_name,
-    do_ahc,
-    cluster_tsne,
-    num_clusters,
-    ahc_thr,
-    output_dir,
-    **kwargs,
-):
+    train_v_file: PathLike,
+    train_list: PathLike,
+    pca_var_r: float,
+    prob_plot: float,
+    lnorm: bool,
+    title: str,
+    max_classes: Optional[int],
+    plot_class_name: str,
+    do_ahc: bool,
+    cluster_tsne: bool,
+    num_clusters: Optional[int],
+    ahc_thr: float,
+    output_dir: PathLike,
+    **kwargs: Any,
+) -> None:
+    """Project embeddings with t-SNE and save one plot per class.
+
+    Args:
+        train_v_file: Input embeddings rspecifier/file.
+        train_list: Segment list file with sample ids and class labels.
+        pca_var_r: Target explained-variance ratio for PCA (skip if ``>=1``).
+        prob_plot: Probability of keeping each point for plotting.
+        lnorm: If ``True``, apply length normalization to embeddings.
+        title: Prefix title used on saved figures.
+        max_classes: Optional maximum number of classes to process.
+        plot_class_name: Segment column containing class labels.
+        do_ahc: If ``True``, run AHC clustering inside each class.
+        cluster_tsne: If ``True``, cluster in t-SNE space; otherwise in PCA space.
+        num_clusters: Optional fixed number of AHC clusters per class.
+        ahc_thr: AHC threshold when ``num_clusters`` is not set.
+        output_dir: Output directory for generated figures and optional segments file.
+        **kwargs: Extra parsed arguments, including ``tsne`` sub-configuration.
+    """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     logging.info("loading data")
@@ -140,7 +159,8 @@ def plot_embedding_tsne(
         train_segs.save(output_dir / "segments.csv")
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and plot per-class t-SNE embeddings."""
     parser = ArgumentParser(
         description=(
             "Projects embeddings using TSNE, "
@@ -148,43 +168,83 @@ def main():
         )
     )
 
-    parser.add_argument("--train-v-file", required=True)
-    parser.add_argument("--train-list", required=True)
+    parser.add_argument(
+        "--train-v-file",
+        required=True,
+        help="Input embeddings rspecifier/file.",
+    )
+    parser.add_argument(
+        "--train-list",
+        required=True,
+        help="Segments file with ids and class labels.",
+    )
 
-    parser.add_argument("--pca-var-r", default=0.95, type=float)
-    parser.add_argument("--prob-plot", default=0.1, type=float)
-    parser.add_argument("--lnorm", default=False, action=ActionYesNo)
+    parser.add_argument(
+        "--pca-var-r",
+        default=0.95,
+        type=float,
+        help="PCA explained-variance ratio; set >=1 to disable PCA.",
+    )
+    parser.add_argument(
+        "--prob-plot",
+        default=0.1,
+        type=float,
+        help="Probability of plotting each sample point.",
+    )
+    parser.add_argument(
+        "--lnorm",
+        default=False,
+        action=ActionYesNo,
+        help="Apply length normalization before PCA/t-SNE.",
+    )
     parser.add_argument(
         "--plot-class-name",
         default="class_id",
-        help="names of the class column we plot",
+        help="Name of the class-label column used for per-class plotting.",
     )
-    parser.add_argument("--title", default="")
+    parser.add_argument(
+        "--title",
+        default="",
+        help="Optional title prefix added to each class plot.",
+    )
     SklTSNE.add_class_args(parser, prefix="tsne")
 
     parser.add_argument(
-        "--max-classes", default=None, type=int, help="max number of clases to plot"
+        "--max-classes", default=None, type=int, help="Maximum number of classes to plot."
     )
     parser.add_argument(
-        "--do-ahc", default=False, action=ActionYesNo, help="Do AHC on each class"
+        "--do-ahc",
+        default=False,
+        action=ActionYesNo,
+        help="Run AHC clustering within each class.",
     )
     parser.add_argument(
         "--cluster-tsne",
         default=False,
         action=ActionYesNo,
-        help="if true, clustering is done after TSNE, otherwise after PCA",
+        help="If true, cluster in t-SNE space; otherwise in PCA space.",
     )
 
     parser.add_argument(
         "--num-clusters",
         default=None,
         type=int,
-        help="if not None, number of clusters for AHC, discards ahc-threshold",
+        help="If set, fixed number of AHC clusters (overrides --ahc-thr).",
     )
     parser.add_argument("--ahc-thr", default=0.7, type=float, help="AHC threshold")
-    parser.add_argument("--output-dir", required=True)
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "--output-dir",
+        required=True,
+        help="Output directory for generated t-SNE plots.",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
 
     args = parser.parse_args()

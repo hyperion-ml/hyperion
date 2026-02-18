@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -23,10 +24,18 @@ from hyperion.hyp_defs import config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.np.pdfs import PLDAFactory
 from hyperion.np.transforms import LDA, PCA, CentWhiten, LNorm, TransformList
-from hyperion.utils import SegmentSet
+from hyperion.utils import PathLike, SegmentSet
 
 
-def load_segments_and_feats(segments_file, feats_file):  # , class_name):
+def load_segments_and_feats(
+    segments_file: PathLike, feats_file: PathLike
+) -> Tuple[SegmentSet, np.ndarray]:
+    """Load segments and corresponding embeddings, removing NaN rows.
+
+    Args:
+        segments_file: Segment table file with utterance ids and labels.
+        feats_file: Feature file containing embeddings indexed by segment ids.
+    """
     logging.info("loading segments: %s feats: %s", segments_file, feats_file)
     segments = SegmentSet.load(segments_file)
     reader = DRF.create(feats_file)
@@ -43,7 +52,16 @@ def load_segments_and_feats(segments_file, feats_file):  # , class_name):
     return segments, x
 
 
-def load_data(segments_files, feats_files, class_name):
+def load_data(
+    segments_files: List[PathLike], feats_files: List[PathLike], class_name: str
+) -> Tuple[SegmentSet, np.ndarray, np.ndarray]:
+    """Load and concatenate data from multiple segment/feature sources.
+
+    Args:
+        segments_files: List of segment table files.
+        feats_files: List of embedding files aligned with ``segments_files``.
+        class_name: Segment column name containing class labels.
+    """
     assert len(segments_files) == len(feats_files)
     segments_list = []
     feats_list = []
@@ -58,7 +76,16 @@ def load_data(segments_files, feats_files, class_name):
     return segments, feats, y
 
 
-def train_pca(x, pca_lnorm, pca_args):
+def train_pca(
+    x: np.ndarray, pca_lnorm: bool, pca_args: Dict[str, Any]
+) -> Tuple[np.ndarray, Optional[LNorm], Optional[PCA]]:
+    """Optionally train/apply PCA (and pre-PCA length norm).
+
+    Args:
+        x: Input embedding matrix.
+        pca_lnorm: Whether to apply length normalization before PCA.
+        pca_args: PCA constructor arguments.
+    """
     pca_var_r = pca_args["pca_var_r"]
     logging.info("computing pca pca_var_r=%f", pca_var_r)
     pca = None
@@ -78,21 +105,39 @@ def train_pca(x, pca_lnorm, pca_args):
 
 
 def train_plda(
-    segments_files,
-    feats_files,
-    class_name,
-    preproc_file,
-    plda_file,
-    pca,
-    lda,
-    plda,
-    pca_lnorm,
-    do_lda,
-    lda_lnorm,
-    plda_lnorm,
-    plda_center,
-    plda_whiten,
-):
+    segments_files: List[PathLike],
+    feats_files: List[PathLike],
+    class_name: str,
+    preproc_file: PathLike,
+    plda_file: PathLike,
+    pca: Dict[str, Any],
+    lda: Dict[str, Any],
+    plda: Dict[str, Any],
+    pca_lnorm: bool,
+    do_lda: bool,
+    lda_lnorm: bool,
+    plda_lnorm: bool,
+    plda_center: bool,
+    plda_whiten: bool,
+) -> None:
+    """Train preprocessing transforms and a PLDA backend.
+
+    Args:
+        segments_files: List of segment table files.
+        feats_files: List of embedding files aligned with ``segments_files``.
+        class_name: Segment column name containing class labels.
+        preproc_file: Output path for preprocessing transform list.
+        plda_file: Output path for trained PLDA model.
+        pca: PCA configuration arguments.
+        lda: LDA configuration arguments.
+        plda: PLDA configuration arguments.
+        pca_lnorm: Apply length normalization before PCA.
+        do_lda: Enable LDA stage.
+        lda_lnorm: Apply length normalization before LDA.
+        plda_lnorm: Apply length normalization before PLDA stage.
+        plda_center: Center embeddings before PLDA stage.
+        plda_whiten: Whiten embeddings before PLDA stage.
+    """
     segments, x, y = load_data(segments_files, feats_files, class_name)
     transform_list = []
 
@@ -151,26 +196,89 @@ def train_plda(
     loss_df.to_csv(loss_file, index=False)
 
 
-def main():
+def main() -> None:
+    """Parse CLI arguments and train PLDA/preprocessing models."""
     parser = ArgumentParser(description="Trains PLDA model and embedding preprocessor")
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--feats-files", required=True, nargs="+")
-    parser.add_argument("--segments-files", required=True, nargs="+")
-    parser.add_argument("--class-name", default="speaker")
-    parser.add_argument("--preproc-file", required=True)
-    parser.add_argument("--plda-file", required=True)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Path to a configuration file.",
+    )
+    parser.add_argument(
+        "--feats-files",
+        required=True,
+        nargs="+",
+        help="Input embedding files used for training.",
+    )
+    parser.add_argument(
+        "--segments-files",
+        required=True,
+        nargs="+",
+        help="Input segment tables aligned with --feats-files.",
+    )
+    parser.add_argument(
+        "--class-name",
+        default="speaker",
+        help="Segment column used as class label.",
+    )
+    parser.add_argument(
+        "--preproc-file",
+        required=True,
+        help="Output file for preprocessing transform list.",
+    )
+    parser.add_argument(
+        "--plda-file",
+        required=True,
+        help="Output file for trained PLDA model.",
+    )
     PCA.add_class_args(parser, prefix="pca")
     LDA.add_class_args(parser, prefix="lda")
     PLDAFactory.add_class_args(parser, prefix="plda")
-    parser.add_argument("--pca-lnorm", default=False, action=ActionYesNo)
-    parser.add_argument("--lda-lnorm", default=False, action=ActionYesNo)
-    parser.add_argument("--do-lda", default=False, action=ActionYesNo)
-    parser.add_argument("--plda-lnorm", default=True, action=ActionYesNo)
-    parser.add_argument("--plda-center", default=True, action=ActionYesNo)
-    parser.add_argument("--plda-whiten", default=True, action=ActionYesNo)
+    parser.add_argument(
+        "--pca-lnorm",
+        default=False,
+        action=ActionYesNo,
+        help="Apply length normalization before PCA.",
+    )
+    parser.add_argument(
+        "--lda-lnorm",
+        default=False,
+        action=ActionYesNo,
+        help="Apply length normalization before LDA.",
+    )
+    parser.add_argument(
+        "--do-lda",
+        default=False,
+        action=ActionYesNo,
+        help="Enable LDA stage after PCA.",
+    )
+    parser.add_argument(
+        "--plda-lnorm",
+        default=True,
+        action=ActionYesNo,
+        help="Apply length normalization before the PLDA backend.",
+    )
+    parser.add_argument(
+        "--plda-center",
+        default=True,
+        action=ActionYesNo,
+        help="Center embeddings before the PLDA backend.",
+    )
+    parser.add_argument(
+        "--plda-whiten",
+        default=True,
+        action=ActionYesNo,
+        help="Whiten embeddings before the PLDA backend.",
+    )
 
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
     )
     args = parser.parse_args()
     config_logger(args.verbose)

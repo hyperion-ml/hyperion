@@ -29,10 +29,15 @@ from hyperion.np.preprocessing import ResamplerToTargetFreq
 from hyperion.torch import TorchModel
 from hyperion.torch.utils import open_device
 from hyperion.utils import HyperDataset, Utt2Info
+from hyperion.utils.misc import PathLike
 
 
 def init_device(use_gpu: bool) -> torch.device:
-    """Initialise device for inference based on ``use_gpu``."""
+    """Initialise device for inference based on ``use_gpu``.
+
+    Args:
+        use_gpu: If ``True``, request one GPU device.
+    """
     set_float_cpu("float32")
     num_gpus = 1 if use_gpu else 0
     logging.info("initializing devices num_gpus=%d", num_gpus)
@@ -40,8 +45,13 @@ def init_device(use_gpu: bool) -> torch.device:
     return device
 
 
-def load_model(model_path: str, device: torch.device) -> TorchModel:
-    """Load the x-vector model checkpoint and move it to ``device``."""
+def load_model(model_path: PathLike, device: torch.device) -> TorchModel:
+    """Load the x-vector model checkpoint and move it to ``device``.
+
+    Args:
+        model_path: Path to serialized model checkpoint.
+        device: Torch device where inference runs.
+    """
     logging.info("loading model %s", model_path)
     model = TorchModel.auto_load(model_path)
     logging.info(f"xvector-model={model}")
@@ -57,7 +67,15 @@ def augment(
     aug_df: Optional[List[pd.DataFrame]],
     aug_id: int,
 ) -> Tuple[str, np.ndarray]:
-    """Apply optional augmentation while collecting metadata."""
+    """Apply optional augmentation while collecting metadata.
+
+    Args:
+        key0: Original utterance key.
+        x0: Original waveform samples.
+        augmenter: Optional speech augmenter instance.
+        aug_df: Optional list that accumulates augmentation metadata rows.
+        aug_id: Augmentation index appended to the augmented key.
+    """
     if augmenter is None:
         x = x0
         key = key0
@@ -88,7 +106,16 @@ def select_random_chunk(
     max_utt_length: float,
     rng: np.random.Generator,
 ) -> torch.Tensor:
-    """Randomly crop the waveform between ``min`` and ``max`` seconds."""
+    """Randomly crop the waveform between ``min`` and ``max`` seconds.
+
+    Args:
+        key: Utterance key used for logging.
+        x: Waveform tensor with shape ``[1, num_samples]``.
+        fs: Sample frequency in Hz.
+        min_utt_length: Minimum random chunk length in seconds.
+        max_utt_length: Maximum random chunk length in seconds.
+        rng: Numpy random generator.
+    """
     utt_length = rng.integers(
         low=int(fs * min_utt_length), high=int(fs * max_utt_length + 1)
     )
@@ -105,29 +132,53 @@ def select_random_chunk(
 
 
 def extract_xvectors(
-    dataset_path: Optional[str],
-    recordings_file: Optional[str],
-    segments_file: Optional[str],
-    output_spec: Optional[str],
-    xvector_path: Optional[str],
-    vad_spec: Optional[str],
-    vad_file: Optional[str],
+    dataset_path: Optional[PathLike],
+    recordings_file: Optional[PathLike],
+    segments_file: Optional[PathLike],
+    output_spec: Optional[PathLike],
+    xvector_path: Optional[PathLike],
+    vad_spec: Optional[PathLike],
+    vad_file: Optional[PathLike],
     vad_name: Optional[str],
-    write_speech_dur: Optional[str],
-    vad_path_prefix: Optional[str],
-    model_path: str,
+    write_speech_dur: Optional[PathLike],
+    vad_path_prefix: Optional[PathLike],
+    model_path: PathLike,
     chunk_length: float,
     embed_layer: Optional[int],
     random_utt_length: bool,
     min_utt_length: float,
     max_utt_length: float,
-    aug_cfg: Optional[str],
+    aug_cfg: Optional[PathLike],
     num_augs: int,
-    aug_info_path: Optional[str],
+    aug_info_path: Optional[PathLike],
     use_gpu: bool,
     **kwargs: Any,
 ) -> None:
-    """Extract wav2xvector embeddings from audio and write them to disk."""
+    """Extract wav2xvector embeddings from audio and write them to disk.
+
+    Args:
+        dataset_path: Optional HyperDataset manifest path.
+        recordings_file: Optional recordings specifier when no dataset is provided.
+        segments_file: Optional Kaldi segments file (recordings mode only).
+        output_spec: Optional legacy output specifier.
+        xvector_path: Optional preferred output specifier for x-vectors.
+        vad_spec: Optional deprecated VAD specifier.
+        vad_file: Optional VAD specifier overriding ``vad_spec``.
+        vad_name: Optional VAD entry name in dataset manifest.
+        write_speech_dur: Optional output path for utterance speech durations.
+        vad_path_prefix: Optional path prefix applied to VAD entries.
+        model_path: Model checkpoint path.
+        chunk_length: Max chunk length (seconds) for x-vector forward passes.
+        embed_layer: Optional embedding layer index to extract.
+        random_utt_length: Whether to randomly crop utterances.
+        min_utt_length: Minimum random crop length in seconds.
+        max_utt_length: Maximum random crop length in seconds.
+        aug_cfg: Optional augmentation configuration file.
+        num_augs: Number of augmentations per utterance.
+        aug_info_path: Optional CSV output path for augmentation metadata.
+        use_gpu: Whether to run extraction on GPU.
+        **kwargs: Additional parsed args (e.g., reader partition args).
+    """
     rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     torch.backends.cudnn.benchmark = False
     device = init_device(use_gpu)
@@ -173,7 +224,15 @@ def extract_xvectors(
     writer_spec = xvector_path if xvector_path is not None else output_spec
     logging.info("opening output stream: %s with args=%s", writer_spec, str(ar_args))
     with DWF.create(writer_spec, metadata_columns=metadata_columns) as writer:
-        input_stream = dataset_path if dataset_path is not None else recordings_file
+        input_stream = (
+            dataset_path
+            if dataset_path is not None
+            else (
+                f"{segments_file}+{recordings_file}"
+                if segments_file is not None
+                else recordings_file
+            )
+        )
         logging.info(f"opening input stream: {input_stream} with args={ar_args}")
         with AR(
             dataset=dataset_path,
@@ -291,12 +350,16 @@ def extract_xvectors(
 
 
 def main() -> None:
-    """CLI entry point."""
+    """CLI entry point.
+
+    Args:
+        None.
+    """
     parser = ArgumentParser(
         description="""Extracts x-vectors from waveform computing acoustic features on the fly"""
     )
 
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
     parser.add_argument(
         "--dataset-path",
         default=None,
@@ -331,18 +394,28 @@ def main() -> None:
         help="Path to store utt2dur-style detected speech durations",
     )
     parser.add_argument(
-        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
+        "--vad-path-prefix",
+        default=None,
+        help="optional prefix for VAD scp file paths",
     )
 
     AR.add_class_args(parser)
 
-    parser.add_argument("--aug-cfg", default=None)
-    parser.add_argument("--aug-info-path", default=None)
+    parser.add_argument(
+        "--aug-cfg",
+        default=None,
+        help="optional speech-augmentation configuration file",
+    )
+    parser.add_argument(
+        "--aug-info-path",
+        default=None,
+        help="optional CSV output path for augmentation metadata",
+    )
     parser.add_argument(
         "--num-augs", default=1, type=int, help="number of augmentations per utterance"
     )
 
-    parser.add_argument("--model-path", required=True)
+    parser.add_argument("--model-path", required=True, help="model checkpoint path")
     parser.add_argument(
         "--chunk-length",
         type=float,
@@ -393,10 +466,16 @@ def main() -> None:
         help="Legacy output specifier; used when --xvector-path is not provided",
     )
     parser.add_argument(
-        "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
+        "--use-gpu", default=False, action="store_true", help="run extraction on GPU"
     )
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
     )
 
     args = parser.parse_args()
