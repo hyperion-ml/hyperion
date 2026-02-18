@@ -19,7 +19,7 @@ from einops import rearrange  # xxx
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn.utils import weight_norm  # xxx
 
-from ....utils import HypDataClass
+from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
 from ...layers import LoudnessNorm, ResidualVectorQuantizer, VectorQuantizerOutput
 from ...narchs import DACDecoder, DACEncoder
@@ -315,7 +315,7 @@ class DACTrainMode(str, Enum):
 
 
 @dataclass
-class DACOutput(HypDataClass):
+class DACOutput(HyperDataClass):
     """Container for DAC forward outputs.
 
     Attributes:

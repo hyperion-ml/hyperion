@@ -15,7 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ....utils import HypDataClass
+from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
 from ...narchs import (
     HydraClassifHeadOutput,
@@ -30,7 +30,7 @@ from ...torch_model import TorchModel
 
 
 @dataclass
-class QVectorOutput(HypDataClass):
+class QVectorOutput(HyperDataClass):
     """Container for q-vector inference artifacts."""
 
     qmatrix: torch.Tensor

@@ -16,7 +16,7 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn.utils.parametrizations import weight_norm
 from torch.nn.utils.parametrize import is_parametrized, remove_parametrizations
 
-from ...utils import HypDataClass
+from ...utils import HyperDataClass
 from ...utils.misc import filter_func_args
 from ..layer_blocks.dac_blocks import StreamingDACDecoderBlock
 from ..layers import Snake1d, StreamingCausalConv1d
@@ -25,7 +25,7 @@ from .net_arch import NetArch
 
 
 @dataclass
-class StreamingDACDecoderState(HypDataClass):
+class StreamingDACDecoderState(HyperDataClass):
     """Aggregated cache state for `StreamingDACDecoder`.
 
     Attributes:

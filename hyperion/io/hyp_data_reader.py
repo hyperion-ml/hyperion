@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import sys
@@ -12,7 +12,7 @@ from ..hyp_defs import float_cpu
 from ..utils.list_utils import ismember, list2ndarray
 
 
-class HypDataReader(object):
+class HypDataReader:
     """
     Class to read data from hdf5 files (deprecated).
     """

@@ -14,7 +14,7 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn import Linear
 
-from ...utils import HypDataClass
+from ...utils import HyperDataClass
 from ...utils.misc import filter_func_args
 from ..layer_blocks import FCBlock
 from ..layers import ActivationFactory as AF

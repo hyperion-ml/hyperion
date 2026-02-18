@@ -15,7 +15,7 @@ import torch.amp
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ....utils import HypDataClass
+from ....utils import HyperDataClass
 from ...narchs.audio_feats_mvn import AudioFeatsMVN
 from ...narchs.hifi_generator import HiFiGenerator
 from ...narchs.nvp_flow import WaveNetNVPFlow as NVPFlow
@@ -47,7 +47,7 @@ class FreeVCTrainMode(str, Enum):
 
 
 @dataclass
-class FreeVCOutput(HypDataClass):
+class FreeVCOutput(HyperDataClass):
     """
     Output data class for FreeVC model.
     Contains the output tensor and optional metadata.

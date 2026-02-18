@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ....utils import HypDataClass
+from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
 from ...layer_blocks import TDNNBlock
 from ...layers import GlobalPool1dFactory as PF
@@ -31,7 +31,7 @@ class XVectorHeadType(str, Enum):
 
 
 @dataclass
-class XVectorOutput(HypDataClass):
+class XVectorOutput(HyperDataClass):
     loss: torch.Tensor
     logits: torch.Tensor
     xvector: torch.Tensor

@@ -16,14 +16,14 @@ except ModuleNotFoundError:
 
 import torch
 
-from ....utils import HypDataClass
+from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
 from ...narchs import RNNTransducerDecoder
 from ...torch_model import TorchModel
 
 
 @dataclass
-class RNNTransducerOutput(HypDataClass):
+class RNNTransducerOutput(HyperDataClass):
     loss: torch.Tensor
     loss_simple: Optional[torch.Tensor] = None
     loss_pruned: Optional[torch.Tensor] = None

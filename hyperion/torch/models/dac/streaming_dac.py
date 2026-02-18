@@ -15,7 +15,7 @@ import torch.amp
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ....utils import HypDataClass
+from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
 from ...layers import LoudnessNorm, ResidualVectorQuantizer, VectorQuantizerOutput
 from ...narchs import (
@@ -30,7 +30,7 @@ from .dac import DACOutput, DACTrainMode
 
 
 @dataclass
-class StreamingDACState(HypDataClass):
+class StreamingDACState(HyperDataClass):
     """Aggregated cache state for `StreamingDAC`.
 
     Attributes:

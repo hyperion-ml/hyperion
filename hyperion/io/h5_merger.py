@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import sys
@@ -11,7 +11,7 @@ from .hyp_data_reader import HypDataReader as HR
 from .hyp_data_writer import HypDataWriter as HW
 
 
-class H5Merger(object):
+class H5Merger:
     """Merges several hdf5 files into one."""
 
     def __init__(self, input_files, output_file, chunk_size=None):

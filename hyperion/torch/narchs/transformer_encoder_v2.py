@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ...utils.hyp_dataclass import HypDataClass
+from ...utils.hyper_dataclass import HyperDataClass
 from ...utils.misc import filter_func_args
 from ..layer_blocks.transformer_v2 import (
     SDPBackendType,
@@ -34,7 +34,7 @@ from .net_arch import NetArch
 
 
 @dataclass
-class TransformerBlockState(HypDataClass):
+class TransformerBlockState(HyperDataClass):
     """Cache container for an individual transformer block.
 
     Attributes:
@@ -47,7 +47,7 @@ class TransformerBlockState(HypDataClass):
 
 
 @dataclass
-class TransformerEncoderState(HypDataClass):
+class TransformerEncoderState(HyperDataClass):
     """Aggregated cache state for `TransformerEncoderV2`.
 
     Attributes:

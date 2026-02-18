@@ -10,7 +10,16 @@ from .attention_v1 import (
     ScaledDotProdAttRelPosEncV1,
     ScaledDotProdAttV1,
 )
-from .audio_feats import *
+from .audio_feats import (
+    Spec2LogFilterBank,
+    Wav2FFT,
+    Wav2KanBayashiLogFilterBank,
+    Wav2LogFilterBank,
+    Wav2LogSpec,
+    Wav2MFCC,
+    Wav2Spec,
+    Wav2Win,
+)
 from .audio_feats_factory import AudioFeatsFactory
 from .calibrators import LinBinCalibrator
 from .dropout import DropConnect1d, DropConnect2d, Dropout1d, DropPath1d, DropPath2d
@@ -22,7 +31,14 @@ from .feat_fusers import (
     WeightedAvgFeatFuser,
 )
 from .gather_distributed import GatherDistributed, GatherDistributedFunction
-from .global_pool import *
+from .global_pool import (
+    GlobalAvgPool1d,
+    GlobalChWiseAttMeanStdPool1d,
+    GlobalMeanLogVarPool1d,
+    GlobalMeanStdPool1d,
+    LDEPool1d,
+    ScaledDotProdAttV1Pool1d,
+)
 from .grad_rev_layer import GradientReversalLayer
 from .grn import GRN1d, GRN2d
 from .interpolate import Interpolate

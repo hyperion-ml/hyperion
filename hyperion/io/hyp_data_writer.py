@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import sys
@@ -12,7 +12,7 @@ from ..hyp_defs import float_save
 from ..utils.list_utils import ismember, list2ndarray
 
 
-class HypDataWriter(object):
+class HypDataWriter:
     """
     Class to write data to hdf5 files (deprecated).
     """

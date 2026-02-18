@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from torch.nn.utils.parametrizations import weight_norm
 from torch.nn.utils.parametrize import is_parametrized, remove_parametrizations
 
-from ...utils import HypDataClass
+from ...utils import HyperDataClass
 from ...utils.misc import filter_func_args
 from ..utils import seq_lengths_to_mask
 
@@ -32,7 +32,7 @@ class VQDistanceType(str, Enum):
 
 
 @dataclass
-class VectorQuantizerOutput(HypDataClass):
+class VectorQuantizerOutput(HyperDataClass):
     """Output of vector quantization layers."""
 
     z_q: torch.Tensor = None  # Quantized vectors

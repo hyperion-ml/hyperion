@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ....utils import HypDataClass
+from ....utils import HyperDataClass
 from ...layers import ActivationFactory as AF
 from ...torch_model import TorchModel
 
@@ -27,7 +27,7 @@ class AudioDiscriminatorTrainMode(str, Enum):
 
 
 @dataclass
-class AudioMultiDiscriminatorOutput(HypDataClass):
+class AudioMultiDiscriminatorOutput(HyperDataClass):
     msd_outputs: List[torch.Tensor]
     mpd_outputs: List[torch.Tensor]
     mrsp_outputs: List[torch.Tensor]

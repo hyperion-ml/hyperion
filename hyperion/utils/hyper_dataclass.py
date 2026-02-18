@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class HypDataClass:
+class HyperDataClass:
     """Dataclass that can imitate a dict"""
 
     def __getitem__(self, key):
@@ -29,3 +29,9 @@ class HypDataClass:
         args = parent.__dict__
         args.update(kwargs)
         return cls(**args)
+
+
+class HypDataClass(HyperDataClass):
+    """Backward-compatible alias for HyperDataClass."""
+
+    pass
