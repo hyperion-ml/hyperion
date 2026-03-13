@@ -1,77 +1,179 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-import math
-import multiprocessing
-import re
-import time
 from copy import deepcopy
-from enum import Enum
-from typing import Dict, List, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
-import soundfile as sf
 import torch
 import yaml
 from torchaudio.io import AudioEffector, CodecConfig
 
-from ...hyp_defs import float_cpu
 from ..preprocessing.resampler import ResamplerFromInputFreq, ResamplerToTargetFreq
 
 
 class CodecAugment:
-    """Class to augment speech with codecs.
+    """Augments speech waveforms with random codec perturbations.
 
     Attributes:
-      codec_prob: probability of applying codec perturbation.
-      codec_types: list of possible codecs.
-      codec_choice_prob: list with the probability of each codec or "uniform"
-      mp3_qscale: mp3 quality [min_qscale, max_qscale] #lower the better
-                  0-3 will normally produce transparent results, 4 (default) should be close to perceptual transparency, and 6 produces an "acceptable" quality
-      mp3_compression: interval of compression levels for MP3 [min_compression_level, max_compression_level] # lower better
-      vorbis_compression: interval of compression levels for OGG Vorbis [min_compression_level, max_compression_level] # higher better (default:3)
-      opus_compression: interval of compression levels for OGG Opus [min_compression_level, max_compression_level] # higher better (default:10)
-      random_seed: random seed for random number generator.
-      rng:     Random number generator returned by
-               np.random.default_rng (optional).
+      codec_prob: Probability of applying codec perturbation to an input utterance.
+      codec_types: Sequence of codec names that can be sampled.
+      codec_choice_prob: Sampling probabilities aligned with ``codec_types``.
+      mp3_vbr_prob: Probability of using MP3 variable bitrate mode.
+      mp3_cbrs: Valid MP3 constant bitrate values (in bps) allowed by configuration.
+      mp3_qscale: MP3 VBR quality range ``[min_qscale, max_qscale]`` where lower is better.
+      mp3_compression: MP3 compression level range ``[min_level, max_level]`` where lower is better.
+      vorbis_compression: OGG Vorbis compression range ``[min_level, max_level]`` where higher is better.
+      opus_compression: OGG Opus compression range ``[min_level, max_level]`` where higher is better.
+      rng: Random number generator used for codec and parameter sampling.
+      valid_tel_codecs: Codecs considered telephony-style codecs.
+      resampler_to_tel: Resampler that downsamples to 8 kHz for telephony codecs.
+      resampler_from_tel: Resampler that restores original sample rate after telephony codecs.
+      tel_mask: Boolean mask selecting telephony codecs in ``codec_types``.
+      media_mask: Boolean mask selecting non-telephony codecs in ``codec_types``.
     """
+    SUPPORTED_CODEC_TYPES = (
+        "alaw",
+        "mulaw",
+        "g723_1",
+        "g726",
+        "g722",
+        "ac3",
+        "mp3",
+        "vorbis",
+        "opus",
+    )
 
     def __init__(
         self,
         codec_prob: float,
-        codec_types: List[str] = [
+        codec_types: Sequence[str] = (
             "mulaw",
             "alaw",
-            "723_1",
-            "726",
+            "g723_1",
+            "g726",
             "g722",
             "ac3",
             "mp3",
             "vorbis",
             "opus",
-        ],
-        codec_choice_prob: Union[List[str], str] = "uniform",
+        ),
+        codec_choice_prob: Union[Sequence[float], str] = "uniform",
         mp3_vbr_prob: float = 1.0,
-        mp3_cbr: List[int] = [8, 320],
-        mp3_qscale: List[int] = [0, 9],
-        mp3_compression: List[int] = [0, 9],
-        vorbis_compression: List[int] = [-1, 10],
-        opus_compression: List[int] = [0, 10],
-        random_seed=112358,
-        rng=None,
-    ):
+        mp3_cbr: Sequence[int] = (8, 320),
+        mp3_qscale: Sequence[int] = (0, 9),
+        mp3_compression: Sequence[int] = (0, 9),
+        vorbis_compression: Sequence[int] = (-1, 10),
+        opus_compression: Sequence[int] = (0, 10),
+        random_seed: int = 112358,
+        rng: Optional[np.random.Generator] = None,
+    ) -> None:
         logging.info(
             f"init codec augment with prob={codec_prob} {codec_types=} {codec_choice_prob=}"
         )
+        if not np.isscalar(codec_prob):
+            raise TypeError(f"codec_prob must be a scalar value, got {type(codec_prob)}")
+        codec_prob = float(codec_prob)
+        if not np.isfinite(codec_prob) or codec_prob < 0 or codec_prob > 1:
+            raise ValueError(f"codec_prob must be in [0, 1], got {codec_prob}")
+
+        if not np.isscalar(mp3_vbr_prob):
+            raise TypeError(
+                f"mp3_vbr_prob must be a scalar value, got {type(mp3_vbr_prob)}"
+            )
+        mp3_vbr_prob = float(mp3_vbr_prob)
+        if not np.isfinite(mp3_vbr_prob) or mp3_vbr_prob < 0 or mp3_vbr_prob > 1:
+            raise ValueError(f"mp3_vbr_prob must be in [0, 1], got {mp3_vbr_prob}")
+
+        def _validate_int_pair(
+            name: str,
+            values: Sequence[int],
+            min_allowed: Optional[int] = None,
+            max_allowed: Optional[int] = None,
+        ) -> Tuple[int, int]:
+            if isinstance(values, (str, bytes)):
+                raise TypeError(f"{name} must be a sequence of two integer values")
+            try:
+                values = list(values)
+            except TypeError as err:
+                raise TypeError(
+                    f"{name} must be a sequence of two integer values"
+                ) from err
+
+            if len(values) != 2:
+                raise ValueError(f"{name} must contain exactly two values, got {values}")
+
+            out = []
+            for v in values:
+                if not np.isscalar(v):
+                    raise TypeError(f"{name} entries must be scalar values, got {type(v)}")
+                v_f = float(v)
+                if not np.isfinite(v_f) or not v_f.is_integer():
+                    raise ValueError(f"{name} entries must be finite integers, got {values}")
+                out.append(int(v_f))
+
+            low, high = out
+            if low > high:
+                raise ValueError(
+                    f"{name} lower bound must be <= upper bound, got ({low}, {high})"
+                )
+            if min_allowed is not None and low < min_allowed:
+                raise ValueError(
+                    f"{name} lower bound must be >= {min_allowed}, got {low}"
+                )
+            if max_allowed is not None and high > max_allowed:
+                raise ValueError(
+                    f"{name} upper bound must be <= {max_allowed}, got {high}"
+                )
+            return low, high
+
+        mp3_cbr = _validate_int_pair("mp3_cbr", mp3_cbr, min_allowed=0)
+        mp3_qscale = _validate_int_pair("mp3_qscale", mp3_qscale, 0, 9)
+        mp3_compression = _validate_int_pair("mp3_compression", mp3_compression, 0, 9)
+        vorbis_compression = _validate_int_pair(
+            "vorbis_compression", vorbis_compression, -1, 10
+        )
+        opus_compression = _validate_int_pair("opus_compression", opus_compression, 0, 10)
+
         self.codec_prob = codec_prob
-        self.codec_types = codec_types
-        if codec_choice_prob == "uniform":
-            codec_choice_prob = np.ones((len(codec_types),))
-        self.codec_choice_prob = np.asarray(codec_choice_prob)
-        self.codec_choice_prob /= self.codec_choice_prob.sum()
+        self.codec_types = list(codec_types)
+        if not self.codec_types:
+            raise ValueError("codec_types must contain at least one codec name")
+        invalid_codecs = sorted(set(self.codec_types) - set(self.SUPPORTED_CODEC_TYPES))
+        if invalid_codecs:
+            raise ValueError(
+                "Unsupported codec types in codec_types: "
+                f"{invalid_codecs}. Supported codecs are {self.SUPPORTED_CODEC_TYPES}"
+            )
+
+        if isinstance(codec_choice_prob, str) and codec_choice_prob == "uniform":
+            codec_choice_prob = np.ones((len(self.codec_types),))
+        elif isinstance(codec_choice_prob, str):
+            raise ValueError(
+                f"codec_choice_prob='{codec_choice_prob}' is not supported. "
+                "Use 'uniform' or a sequence of probabilities."
+            )
+
+        self.codec_choice_prob = np.asarray(codec_choice_prob, dtype=float)
+        if self.codec_choice_prob.ndim != 1:
+            raise ValueError("codec_choice_prob must be a 1-D sequence")
+        if len(self.codec_choice_prob) != len(self.codec_types):
+            raise ValueError(
+                "codec_choice_prob length does not match codec_types: "
+                f"{len(self.codec_choice_prob)} != {len(self.codec_types)}"
+            )
+        if not np.all(np.isfinite(self.codec_choice_prob)):
+            raise ValueError("codec_choice_prob must contain only finite values")
+        if np.any(self.codec_choice_prob < 0):
+            raise ValueError("codec_choice_prob must contain non-negative values")
+
+        prob_sum = self.codec_choice_prob.sum()
+        if prob_sum <= 0:
+            raise ValueError("codec_choice_prob sum must be > 0")
+        self.codec_choice_prob /= prob_sum
         self.mp3_vbr_prob = mp3_vbr_prob
         valid_cbrs = [
             8,
@@ -96,24 +198,11 @@ class CodecAugment:
             for cbr in valid_cbrs
             if cbr >= mp3_cbr[0] and cbr <= mp3_cbr[1]
         ]
-        assert (
-            mp3_qscale[0] >= 0 and mp3_qscale[1] <= 9 and mp3_qscale[0] <= mp3_qscale[1]
-        )
-        assert (
-            mp3_compression[0] >= 0
-            and mp3_compression[1] <= 9
-            and mp3_compression[0] <= mp3_compression[1]
-        )
-        assert (
-            vorbis_compression[0] >= -1
-            and vorbis_compression[1] <= 10
-            and vorbis_compression[0] <= vorbis_compression[1]
-        )
-        assert (
-            opus_compression[0] >= 0
-            and opus_compression[1] <= 10
-            and opus_compression[0] <= opus_compression[1]
-        )
+        if "mp3" in self.codec_types and not self.mp3_cbrs:
+            raise ValueError(
+                "mp3_cbr range does not include any supported CBR values. "
+                f"Got mp3_cbr={tuple(mp3_cbr)}; supported values (kbps) are {valid_cbrs}."
+            )
         self.mp3_qscale = mp3_qscale
         self.mp3_compression = mp3_compression
         self.vorbis_compression = vorbis_compression
@@ -137,22 +226,28 @@ class CodecAugment:
         self.media_mask = np.logical_not(self.tel_mask)
 
     @classmethod
-    def create(cls, cfg, random_seed=112358, rng=None):
-        """Creates a SpeedAugment object from options dictionary or YAML file.
+    def create(
+        cls,
+        cfg: Union[str, Dict[str, Any]],
+        random_seed: int = 112358,
+        rng: Optional[np.random.Generator] = None,
+    ) -> "CodecAugment":
+        """Creates a ``CodecAugment`` object from a config dictionary or YAML file.
 
         Args:
-          cfg: YAML file path or dictionary with  options.
-          rng: Random number generator returned by
-               np.random.default_rng (optional).
+          cfg: YAML file path or dictionary with codec augmentation options.
+          random_seed: Seed used when creating a new random generator.
+          rng: Optional pre-created random generator.
 
         Returns:
-          CodecAugment object.
+          Configured codec augmenter instance.
         """
         if isinstance(cfg, str):
             with open(cfg, "r") as f:
                 cfg = yaml.load(f, Loader=yaml.FullLoader)
 
-        assert isinstance(cfg, dict), f"wrong object type for cfg={cfg}"
+        if not isinstance(cfg, dict):
+            raise TypeError(f"wrong object type for cfg={cfg}")
 
         return cls(
             **cfg,
@@ -160,7 +255,15 @@ class CodecAugment:
             rng=rng,
         )
 
-    def _get_tel_filter(self):
+    def _get_tel_filter(self) -> str:
+        """Builds a random telephony bandpass filter for FFmpeg effects.
+
+        Args:
+          None.
+
+        Returns:
+          Comma-separated effect string with one random highpass and one lowpass filter.
+        """
         poles = self.rng.integers(low=1, high=3)
         id = self.rng.integers(low=0, high=3)
         if id == 0:
@@ -181,7 +284,18 @@ class CodecAugment:
         filter = ",".join([highpass, lowpass])
         return filter
 
-    def _get_codec_type(self, enable_tel_codecs: bool, enable_media_codecs: bool):
+    def _get_codec_type(
+        self, enable_tel_codecs: bool, enable_media_codecs: bool
+    ) -> Optional[str]:
+        """Samples a codec name under telephony/media enable constraints.
+
+        Args:
+          enable_tel_codecs: If ``True``, telephony codecs are eligible for sampling.
+          enable_media_codecs: If ``True``, media codecs are eligible for sampling.
+
+        Returns:
+          Selected codec type, or ``None`` when no codec type is allowed.
+        """
         if not enable_media_codecs and not enable_tel_codecs:
             return None
 
@@ -197,24 +311,27 @@ class CodecAugment:
             return None
 
         codec_choice_prob /= prob_acc
-        codec_type = self.rng.choice(self.codec_types, p=self.codec_choice_prob)
+        codec_type = self.rng.choice(self.codec_types, p=codec_choice_prob)
         return codec_type
 
     def forward(
         self,
         x: np.ndarray,
-        sample_freq: float,
+        sample_freq: Optional[float],
         enable_tel_codecs: bool = True,
         enable_media_codecs: bool = True,
-    ):
-        """Apply codec to the signal,
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """Applies a randomly sampled codec to the signal.
 
         Args:
-          x: original speech signal.
+          x: Original speech waveform.
+          sample_freq: Waveform sample rate in Hz. Required when codec processing is enabled.
+          enable_tel_codecs: Enables sampling telephony codecs.
+          enable_media_codecs: Enables sampling media codecs.
 
         Returns:
-          Augmented signal.
-          Dictionary containing information about the codec type and codec options.
+          Augmented waveform after codec processing.
+          Dictionary with codec metadata (codec type and sampled codec options).
         """
         # decide whether to add noise or not
         x = x.astype("float32", copy=False)
@@ -231,6 +348,18 @@ class CodecAugment:
         info = {"codec_type": codec_type}
         if codec_type is None:
             return x, info
+
+        if sample_freq is None:
+            raise ValueError(
+                "sample_freq must be provided when codec augmentation is applied"
+            )
+        if not np.isscalar(sample_freq):
+            raise TypeError(f"sample_freq must be a scalar value, got {type(sample_freq)}")
+        sample_freq = float(sample_freq)
+        if not np.isfinite(sample_freq) or sample_freq <= 0:
+            raise ValueError(
+                f"sample_freq must be a positive finite value, got {sample_freq}"
+            )
 
         tel_filter = None
         tel_resampler = False
@@ -280,7 +409,7 @@ class CodecAugment:
             )
             info["compression_level"] = compression_level
             p = self.rng.random()
-            if p > self.mp3_vbr_prob:
+            if p < self.mp3_vbr_prob:
                 # we do variable bit rate
                 qscale = self.rng.integers(
                     low=self.mp3_qscale[0], high=self.mp3_qscale[1] + 1
@@ -321,21 +450,33 @@ class CodecAugment:
                 "encoder": "opus",
                 "codec_config": codec_config,
             }
+        else:
+            raise ValueError(f"Unsupported codec_type sampled: {codec_type}")
 
         # print("codec:", str(effect_config), "tel_filter:", tel_filter, flush=True)
         # t1 = time.time()
+        did_tel_resample = False
         if tel_resampler:
             try:
                 x, effector_sample_freq = self.resampler_to_tel(x, sample_freq)
-            except:
-                print(f"xr1 {x.dtype} {x} {sample_freq}", flush=True)
+                did_tel_resample = True
+            except Exception as err:
+                logging.warning(
+                    "Codec %s pre-resample error: %s. Using original sample rate.",
+                    codec_type,
+                    str(err),
+                )
+                effector_sample_freq = sample_freq
         else:
             effector_sample_freq = sample_freq
 
         x = torch.from_numpy(x).unsqueeze(1)
         if tel_filter is not None:
-            effector = AudioEffector(effect=tel_filter)
-            x = effector.apply(x, int(effector_sample_freq))
+            try:
+                effector = AudioEffector(effect=tel_filter)
+                x = effector.apply(x, int(effector_sample_freq))
+            except Exception as err:
+                logging.warning("Codec %s tel-filter error: %s", codec_type, str(err))
 
         effector = AudioEffector(**effect_config)
         try:
@@ -345,11 +486,15 @@ class CodecAugment:
             y = x
 
         y = y.squeeze(1).numpy()
-        if tel_resampler:
+        if did_tel_resample:
             try:
                 y, _ = self.resampler_from_tel(y, sample_freq)
-            except:
-                print(f"xr2 {x.dtype} {x} {sample_freq}", flush=True)
+            except Exception as err:
+                logging.warning(
+                    "Codec %s post-resample error: %s. Returning unresampled output.",
+                    codec_type,
+                    str(err),
+                )
         # sinfo = re.sub(r"[{}':\. ]", "", str(info))
         # print(f"codec-time {sinfo} dt={time.time()-t1}", flush=True)
         # sf.write(f"audios/{id}-{sinfo}.flac", y, samplerate=sample_freq)
@@ -366,47 +511,26 @@ class CodecAugment:
         return y, info
 
     def __call__(
-        self, x, sample_freq=None, enable_tel_codecs=True, enable_media_codecs=True
-    ):
+        self,
+        x: np.ndarray,
+        sample_freq: Optional[float] = None,
+        enable_tel_codecs: bool = True,
+        enable_media_codecs: bool = True,
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """Runs codec augmentation using callable-style syntax.
+
+        Args:
+          x: Original speech waveform.
+          sample_freq: Waveform sample rate in Hz. Required when codec processing is enabled.
+          enable_tel_codecs: Enables sampling telephony codecs.
+          enable_media_codecs: Enables sampling media codecs.
+
+        Returns:
+          Augmented waveform after codec processing.
+          Dictionary with codec metadata (codec type and sampled codec options).
+        """
         return self.forward(x, sample_freq, enable_tel_codecs, enable_media_codecs)
 
-
-# class CodecAugmentation(SerializableObject):
-#     def __init__(
-#         self,
-#         codec_prob: float,
-#         codecs: List[Dict[str, Union[str, int]]] = [
-#             {"format": "wav", "encoding": "ULAW", "bits_per_sample": 8},  # 8 bit mu-law
-#             {"format": "gsm"},  # GSM-FR
-#             {"format": "mp3", "max_compression": -9, "min_compression": -6},  # mp3
-#             {
-#                 "format": "vorbis",
-#                 "max_compression": -1,
-#                 "min_compression": 10,
-#             },  # vorbis
-#         ],
-#         p: float = 0.0,
-#     ):
-#         self.p = p
-#         self.codecs = codecs
-
-#     def __call__(self, a, sample_rate):
-#         if random.random() > self.p:
-#             return a
-#         config = random.choice(self.codecs)
-#         a = torch.from_numpy(a).unsqueeze(0)
-#         if config["format"] == "gsm":
-#             codec_sr = 8000
-#             a = torchaudio.transforms.Resample(sample_rate, codec_sr)(a)
-#         else:
-#             codec_sr = sample_rate
-#         if "max_compression" in config and "min_compression" in config:
-#             config = copy.deepcopy(config)
-#             config["compression"] = random.randint(
-#                 config.pop("max_compression"), config.pop("min_compression")
-#             )
-#         a = F.apply_codec(a, codec_sr, **config)
-#         if config["format"] == "gsm":
-#             a = torchaudio.transforms.Resample(codec_sr, sample_rate)(a)
-#         a = a.squeeze(0).numpy()
-#         return a
+    def reseed(self, seed: Union[int, np.random.SeedSequence]) -> None:
+        """Reseeds the internal RNG."""
+        self.rng = np.random.default_rng(seed=seed)

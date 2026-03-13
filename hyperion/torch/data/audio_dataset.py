@@ -134,6 +134,7 @@ class AudioDataset(Dataset):
         self.seed = seed
         self.rng = np.random.default_rng(seed + 1000 * rank)
         self._create_augmenters(aug_cfgs)
+        self._worker_reseeded = False
 
         self.target_sample_freq = target_sample_freq
         # self.resamplers = {}
@@ -230,6 +231,24 @@ class AudioDataset(Dataset):
 
     def set_epoch(self, epoch):
         self.epoch = epoch
+
+    def _maybe_reseed_worker(self):
+        if self._worker_reseeded:
+            return
+
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:
+            self._worker_reseeded = True
+            return
+
+        base_seed = int(worker_info.seed) + 1000 * self.rank
+        self.rng = np.random.default_rng(seed=base_seed)
+        child_seeds = np.random.SeedSequence(base_seed).spawn(len(self.augmenters))
+        for i, augmenter in enumerate(self.augmenters):
+            if hasattr(augmenter, "reseed"):
+                augmenter.reseed(child_seeds[i])
+
+        self._worker_reseeded = True
 
     @property
     def segments(self):
@@ -414,6 +433,7 @@ class AudioDataset(Dataset):
         return self.resampler(x, fs)
 
     def __getitem__(self, segment):
+        self._maybe_reseed_worker()
         seg_id, start, duration = self._parse_segment_item(segment)
         audio, fs = self._read_audio(seg_id, start, duration)
         assert (

@@ -257,6 +257,7 @@ class ResidualVectorQuantizer(nn.Module):
         cfg = {
             "in_feats": self.in_feats,
             "num_quantizers": self.num_quantizers,
+            "latent_dim": self.latent_dim,
             "codebook_sizes": self.codebook_sizes,
             "codebook_dims": self.codebook_dims,
             "quantizer_dropout": self.quantizer_dropout,

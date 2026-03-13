@@ -6,6 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 from collections import OrderedDict as ODict
 from copy import deepcopy
+from importlib import import_module
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 
@@ -301,18 +302,18 @@ class HyperTorchModel(nn.Module):
           Fixed configuration dictionary.
         """
         # for compatibility with older x-vector models
-        XVector = HyperTorchModel.registry["XVector"]
-        if issubclass(class_obj, XVector):
+        XVector = HyperTorchModel.registry.get("XVector", None)
+        if XVector is not None and issubclass(class_obj, XVector):
             cfg = HyperTorchModel._fix_xvector_cfg(cfg)
 
         # switch old feature fuser to new feature fuser in w2v x-vectors
-        HFWav2XVector = HyperTorchModel.registry["HFWav2XVector"]
-        if issubclass(class_obj, HFWav2XVector):
+        HFWav2XVector = HyperTorchModel.registry.get("HFWav2XVector", None)
+        if HFWav2XVector is not None and issubclass(class_obj, HFWav2XVector):
             cfg, state_dict = HyperTorchModel._fix_hf_wav2xvector(cfg, state_dict)
 
         # switch audio_feats params to buffers
-        Wav2XVector = HyperTorchModel.registry["Wav2XVector"]
-        if issubclass(class_obj, Wav2XVector):
+        Wav2XVector = HyperTorchModel.registry.get("Wav2XVector", None)
+        if Wav2XVector is not None and issubclass(class_obj, Wav2XVector):
             # Remove _window if it was saved as a parameter
             for key in list(state_dict.keys()):
                 if key.endswith("_window"):
@@ -325,8 +326,8 @@ class HyperTorchModel(nn.Module):
                     state_dict[key] = tensor
 
         # Remove QVector bugs in first implementation
-        ResNetQVector = HyperTorchModel.registry["ResNetQVector"]
-        if issubclass(class_obj, ResNetQVector):
+        ResNetQVector = HyperTorchModel.registry.get("ResNetQVector", None)
+        if ResNetQVector is not None and issubclass(class_obj, ResNetQVector):
             cfg = HyperTorchModel._fix_resnet_qvector_cfg(cfg)
 
         return cfg, state_dict
@@ -379,6 +380,64 @@ class HyperTorchModel(nn.Module):
             return file_path
 
     @staticmethod
+    def _bootstrap_registry():
+        """Import common torch subpackages so subclasses register themselves.
+
+        ``HyperTorchModel.registry`` is populated when subclass definitions are
+        imported. CLI scripts often import only ``HyperTorchModel`` and call
+        ``auto_load``, so we need a lazy import step before class lookup.
+        """
+        # Import packages that actually define HyperTorchModel subclasses.
+        # We ignore import errors here to preserve backward compatibility in
+        # environments missing optional dependencies.
+        module_names = (
+            "hyperion.torch.narchs",
+            "hyperion.torch.models",
+            "hyperion.torch.tpm",
+        )
+        for module_name in module_names:
+            try:
+                import_module(module_name)
+            except Exception as err:
+                logging.debug(
+                    "Skipping registry bootstrap import %s: %s", module_name, err
+                )
+
+    @staticmethod
+    def _find_module_for_class_name(class_name: str) -> Optional[str]:
+        """Find class module by scanning torch source files."""
+        torch_dir = Path(__file__).resolve().parent
+        search_dirs = (
+            torch_dir / "models",
+            torch_dir / "narchs",
+            torch_dir / "layers",
+            torch_dir / "layer_blocks",
+            torch_dir / "tpm",
+        )
+        class_decl = f"class {class_name}("
+        for search_dir in search_dirs:
+            if not search_dir.is_dir():
+                continue
+
+            for py_file in search_dir.rglob("*.py"):
+                try:
+                    text = py_file.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    continue
+
+                if class_decl not in text:
+                    continue
+
+                module_path = (
+                    Path("hyperion")
+                    / "torch"
+                    / py_file.relative_to(torch_dir).with_suffix("")
+                )
+                return ".".join(module_path.parts)
+
+        return None
+
+    @staticmethod
     def auto_load(
         file_path: PathLike,
         model_name: Optional[str] = None,
@@ -415,6 +474,19 @@ class HyperTorchModel(nn.Module):
 
         class_name = cfg["class_name"]
         del cfg["class_name"]
+        if class_name not in HyperTorchModel.registry:
+            HyperTorchModel._bootstrap_registry()
+        if class_name not in HyperTorchModel.registry:
+            module_name = HyperTorchModel._find_module_for_class_name(class_name)
+            if module_name is not None:
+                try:
+                    import_module(module_name)
+                except Exception as err:
+                    raise Exception(
+                        "failed to import module %s for class_name=%s (%s)"
+                        % (module_name, class_name, err)
+                    ) from err
+
         if class_name in HyperTorchModel.registry:
             class_obj = HyperTorchModel.registry[class_name]
         elif class_name in extra_objs:

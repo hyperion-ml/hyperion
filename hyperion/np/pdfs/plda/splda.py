@@ -3,7 +3,7 @@ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np
 from numpy.random import Generator
@@ -233,7 +233,7 @@ class SPLDA(PLDABase):
             r += [Ry, Py]
         return tuple(r)
 
-    def Estep(self, D: Tuple[np.ndarray, np.ndarray, np.ndarray]):
+    def Estep(self, D: Tuple[np.ndarray, np.ndarray, np.ndarray]) -> Tuple[Any, ...]:
         """Expectation step.
 
         Args:
@@ -387,7 +387,7 @@ class SPLDA(PLDABase):
         self._save_params_from_dict(f, params)
 
     @classmethod
-    def load_params(cls, f: Any, config: Dict[str, Any]) -> "SPLDA":
+    def load_params(cls: Type["SPLDA"], f: Any, config: Dict[str, Any]) -> "SPLDA":
         """Initializes the model from the configuration and loads the model
         parameters from file.
 
@@ -403,7 +403,7 @@ class SPLDA(PLDABase):
         kwargs = dict(list(config.items()) + list(params.items()))
         return cls(**kwargs)
 
-    def log_probx_g_y(self, x, y):
+    def log_probx_g_y(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
         """Computes logP(X|Y)
 
         Args:
@@ -423,7 +423,7 @@ class SPLDA(PLDABase):
         logp /= 2
         return logp
 
-    def log_probx(self, x):
+    def log_probx(self, x: np.ndarray) -> np.ndarray:
         """Computes logP(X)
 
         Args:
@@ -444,7 +444,7 @@ class SPLDA(PLDABase):
         logp /= 2
         return logp
 
-    def llr_1vs1(self, x1, x2):
+    def llr_1vs1(self, x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
         """log-likelihood ratio between target and non-target hypothesis for
         the case of one enrollment and one test segments.
 
@@ -496,7 +496,11 @@ class SPLDA(PLDABase):
         scores *= 0.5
         return scores
 
-    def llr_NvsM_book(self, D1, D2):
+    def llr_NvsM_book(
+        self,
+        D1: Tuple[np.ndarray, np.ndarray, np.ndarray],
+        D2: Tuple[np.ndarray, np.ndarray, np.ndarray],
+    ) -> np.ndarray:
         """log-likelihood ratio between target and non-target hypothesis for
         the case of N segments/enrollment-side and M segments/test-side
         evaluated with the exact formula (by the book).
@@ -570,6 +574,126 @@ class SPLDA(PLDABase):
         scores *= 0.5
         return scores
 
+    def precompute_llr_1vs1_cache(
+        self, x1: np.ndarray, x2: Optional[np.ndarray] = None
+    ) -> Dict[str, Union[float, np.ndarray]]:
+        """Precomputes reusable terms for 1-vs-1 PLDA LLR scoring.
+
+        This method factors out the expensive pieces of :meth:`llr_1vs1` and
+        returns them in a cache dictionary that can later be consumed by
+        :meth:`llr_1vs1_from_cache`.
+
+        Args:
+          x1: Enrollment vectors with shape ``(num_enroll, x_dim)``.
+          x2: Optional test vectors with shape ``(num_test, x_dim)``.
+              If ``None``, test-side terms are reused from ``x1`` (equivalent to
+              using ``x2 = x1``).
+
+        Returns:
+          Cache dictionary with the keys:
+
+          - ``gamma_tar_1``: shape ``(num_enroll, y_dim)``
+          - ``gamma_tar_2``: shape ``(num_test, y_dim)``
+          - ``Qtar_1``: shape ``(num_enroll, 1)``
+          - ``Qtar_2``: shape ``(num_test,)``
+          - ``Qnon_1``: shape ``(num_enroll, 1)``
+          - ``Qnon_2``: shape ``(num_test,)``
+          - ``logLnon``: scalar
+          - ``logLtar``: scalar
+
+          Additional internal values may be present.
+        """
+        WV = np.dot(self.W, self.V.T)
+        VV = np.dot(self.V, WV)
+        I = np.eye(self.y_dim, dtype=float_cpu())
+
+        Lnon = I + VV
+        mult_icholLnon, logcholLnon = invert_trimat(
+            sla.cholesky(Lnon, lower=False, overwrite_a=True),
+            right_inv=True,
+            return_logdet=True,
+        )[:2]
+        logLnon = 2 * logcholLnon
+
+        Ltar = I + 2 * VV
+        mult_icholLtar, logcholLtar = invert_trimat(
+            sla.cholesky(Ltar, lower=False, overwrite_a=True),
+            right_inv=True,
+            return_logdet=True,
+        )[:2]
+        logLtar = 2 * logcholLtar
+
+        VWF1 = np.dot(x1 - self.mu, WV)
+        gamma_non_1 = mult_icholLnon(VWF1)
+        Qnon_1 = np.sum(gamma_non_1 * gamma_non_1, axis=1)[
+            :, None
+        ]  # reshape to (num_enroll_segments, 1) for broadcasting
+        gamma_tar_1 = mult_icholLtar(VWF1)
+        Qtar_1 = np.sum(gamma_tar_1 * gamma_tar_1, axis=1)[
+            :, None
+        ]  # reshape to (num_enroll_segments, 1) for broadcasting
+
+        if x2 is not None:
+            VWF2 = np.dot(x2 - self.mu, WV)
+            gamma_non_2 = mult_icholLnon(VWF2)
+            Qnon_2 = np.sum(
+                gamma_non_2 * gamma_non_2, axis=1
+            )  # reshape to (num_test_segments,) for broadcasting
+            gamma_tar_2 = mult_icholLtar(VWF2)
+            Qtar_2 = np.sum(
+                gamma_tar_2 * gamma_tar_2, axis=1
+            )  # reshape to (num_test_segments,) for broadcasting
+        else:
+            gamma_non_2 = gamma_non_1
+            gamma_tar_2 = gamma_tar_1
+            Qnon_2 = Qnon_1.flatten()
+            Qtar_2 = Qtar_1.flatten()
+
+        cache = {
+            "Qnon_1": Qnon_1,
+            "Qnon_2": Qnon_2,
+            "gamma_tar_1": gamma_tar_1,
+            "gamma_tar_2": gamma_tar_2,
+            "Qtar_1": Qtar_1,
+            "Qtar_2": Qtar_2,
+            "logLnon": logLnon,
+            "logLtar": logLtar,
+        }
+        return cache
+
+    def llr_1vs1_from_cache(
+        self,
+        gamma_tar_1: np.ndarray,
+        gamma_tar_2: np.ndarray,
+        Qtar_1: np.ndarray,
+        Qtar_2: np.ndarray,
+        Qnon_1: np.ndarray,
+        Qnon_2: np.ndarray,
+        logLnon: float,
+        logLtar: float,
+        **kwargs,
+    ) -> np.ndarray:
+        """Backward-compatible alias for llr_1vs1_from_cache.
+
+        Args:
+          gamma_tar_1: intermediate variable gamma_tar_1.
+          gamma_tar_2: intermediate variable gamma_tar_2.
+          Qtar_1: intermediate variable Qtar_1.
+          Qtar_2: intermediate variable Qtar_2.
+          Qnon_1: intermediate variable Qnon_1.
+          Qnon_2: intermediate variable Qnon_2.
+          logLnon: log determinant of non-target matrix.
+          logLtar: log determinant of target matrix.
+
+        Returns:
+          Score matrix with shape (num_enrollment_segments, num_test_segments).
+        """
+        scores = 2 * np.dot(gamma_tar_1, gamma_tar_2.T)
+        scores += Qtar_1 - Qnon_1 + Qtar_2 - Qnon_2
+        scores += 2 * logLnon - logLtar
+        scores *= 0.5
+        return scores
+
     def sample(
         self,
         num_classes: int,
@@ -607,7 +731,13 @@ class SPLDA(PLDABase):
 
         return y + z
 
-    def sample_classes(self, num_classes, max_y_l2_norm=None, rng=None, seed=1024):
+    def sample_classes(
+        self,
+        num_classes: int,
+        max_y_l2_norm: Optional[float] = None,
+        rng: Optional[Generator] = None,
+        seed: int = 1024,
+    ) -> np.ndarray:
         """Draws samples from the PLDA model.
 
         Args:
@@ -641,7 +771,15 @@ class SPLDA(PLDABase):
         y = np.dot(y, self.V) + self.mu
         return y
 
-    def weighted_avg_params(self, mu, V, W, w_mu, w_B, w_W):
+    def weighted_avg_params(
+        self,
+        mu: np.ndarray,
+        V: np.ndarray,
+        W: np.ndarray,
+        w_mu: float,
+        w_B: float,
+        w_W: float,
+    ) -> None:
         """Performs weighted average of the model parameters
         and some given parameters.
 
@@ -666,7 +804,9 @@ class SPLDA(PLDABase):
             Sw = w_W * Sw + (1 - w_W) * Sw0
             self.W = invert_pdmat(Sw, return_inv=True)[-1]
 
-    def weighted_avg_model(self, plda, w_mu, w_B, w_W):
+    def weighted_avg_model(
+        self, plda: "SPLDA", w_mu: float, w_B: float, w_W: float
+    ) -> None:
         """Performs weighted average of the model parameters
         and those of another model given as input.
 
@@ -731,7 +871,7 @@ class SPLDA(PLDABase):
         adapt_iW = (adapt_iW + adapt_iW.T) / 2
         return adapt_iW
 
-    def project(self, T, delta_mu=None):
+    def project(self, T: np.ndarray, delta_mu: Optional[np.ndarray] = None) -> "SPLDA":
         """Transforms the PLDA parameters given an affine transformation
         of the data.
 

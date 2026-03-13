@@ -25,6 +25,7 @@ including:
    architecture
    torch
    numpy
+   speech_augmentation
    metrics
    io
    utils

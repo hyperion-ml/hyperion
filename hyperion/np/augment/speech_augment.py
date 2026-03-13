@@ -1,41 +1,52 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-import math
+from copy import deepcopy
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 import yaml
 
-from ...hyp_defs import float_cpu
 from .codec_augment import CodecAugment
 from .noise_augment import NoiseAugment
 from .reverb_augment import ReverbAugment
 from .speed_augment import SpeedAugment
 
 
-class SpeechAugment(object):
-    """Class to change speedd, add noise and reverberation
-       on-the-fly when training nnets.
+class SpeechAugment:
+    """Applies a configurable chain of speech augmentations.
 
     Attributes:
-       speed_aug: SpeedAugment object.
-       reverb_aug: ReverbAugment object.
-       noise_aug: NoiseAugment object.
-       codec_aug: CodecAugment object
-       transcodec_aug: CodecAugment object
+       speed_aug: Optional speed augmenter.
+       reverb_aug: Optional reverb augmenter.
+       noise_aug: Optional additive noise augmenter.
+       codec_aug: Optional codec augmenter.
+       transcodec_aug: Optional second codec augmenter applied after ``codec_aug``.
     """
 
     def __init__(
         self,
-        speed_aug=None,
-        reverb_aug=None,
-        noise_aug=None,
-        codec_aug=None,
-        transcodec_aug=None,
-    ):
+        speed_aug: Optional[SpeedAugment] = None,
+        reverb_aug: Optional[ReverbAugment] = None,
+        noise_aug: Optional[NoiseAugment] = None,
+        codec_aug: Optional[CodecAugment] = None,
+        transcodec_aug: Optional[CodecAugment] = None,
+    ) -> None:
+        """Initializes a speech augmentation pipeline.
+
+        Args:
+          speed_aug: Optional speed augmenter.
+          reverb_aug: Optional reverb augmenter.
+          noise_aug: Optional additive noise augmenter.
+          codec_aug: Optional codec augmenter.
+          transcodec_aug: Optional second codec augmenter applied conditionally.
+
+        Returns:
+          None.
+        """
         self.speed_aug = speed_aug
         self.reverb_aug = reverb_aug
         self.noise_aug = noise_aug
@@ -43,45 +54,71 @@ class SpeechAugment(object):
         self.transcodec_aug = transcodec_aug
 
     @classmethod
-    def create(cls, cfg, random_seed=112358, rng=None):
+    def create(
+        cls,
+        cfg: Union[str, Dict[str, Any]],
+        random_seed: int = 112358,
+        rng: Optional[np.random.Generator] = None,
+    ) -> "SpeechAugment":
         """Creates a SpeechAugment object from options dictionary or YAML file.
 
         Args:
-          cfg: YAML file path or dictionary with noise options.
-          rng: Random number generator returned by
-               np.random.default_rng (optional).
+          cfg: YAML file path or dictionary with augmentation options.
+          random_seed: Seed passed to sub-augmenters when they create RNGs.
+          rng: Optional pre-created random generator.
 
         Returns:
-          SpeechAugment object.
+          Configured speech augmenter instance.
         """
         if isinstance(cfg, str):
             with open(cfg, "r") as f:
                 cfg = yaml.load(f, Loader=yaml.FullLoader)
 
-        assert isinstance(cfg, dict), "wrong object type for cfg={}".format(cfg)
+        if not isinstance(cfg, dict):
+            raise TypeError(f"wrong object type for cfg={cfg}")
+        if rng is None:
+            root_seed = np.random.SeedSequence(random_seed)
+        else:
+            seed_rng = deepcopy(rng)
+            entropy = seed_rng.integers(
+                0, np.iinfo(np.uint32).max, size=5, dtype=np.uint32
+            )
+            root_seed = np.random.SeedSequence(entropy.tolist())
+        child_seeds = root_seed.spawn(5)
 
         speed_aug = None
         if "speed_aug" in cfg:
-            speed_aug = SpeedAugment.create(cfg["speed_aug"], random_seed=random_seed)
+            speed_aug = SpeedAugment.create(
+                cfg["speed_aug"],
+                rng=np.random.default_rng(seed=child_seeds[0]),
+            )
 
         reverb_aug = None
         if "reverb_aug" in cfg:
             reverb_aug = ReverbAugment.create(
-                cfg["reverb_aug"], random_seed=random_seed
+                cfg["reverb_aug"],
+                rng=np.random.default_rng(seed=child_seeds[1]),
             )
 
         noise_aug = None
         if "noise_aug" in cfg:
-            noise_aug = NoiseAugment.create(cfg["noise_aug"], random_seed=random_seed)
+            noise_aug = NoiseAugment.create(
+                cfg["noise_aug"],
+                rng=np.random.default_rng(seed=child_seeds[2]),
+            )
 
         codec_aug = None
         if "codec_aug" in cfg:
-            codec_aug = CodecAugment.create(cfg["codec_aug"], random_seed=random_seed)
+            codec_aug = CodecAugment.create(
+                cfg["codec_aug"],
+                rng=np.random.default_rng(seed=child_seeds[3]),
+            )
 
         transcodec_aug = None
         if "transcodec_aug" in cfg:
             transcodec_aug = CodecAugment.create(
-                cfg["transcodec_aug"], random_seed=random_seed
+                cfg["transcodec_aug"],
+                rng=np.random.default_rng(seed=child_seeds[4]),
             )
 
         return cls(
@@ -93,30 +130,60 @@ class SpeechAugment(object):
         )
 
     @property
-    def max_reverb_context(self):
-        """Maximum length of the RIRs."""
+    def max_reverb_context(self) -> int:
+        """Returns the maximum reverb context required by the pipeline.
+
+        Args:
+          None.
+
+        Returns:
+          Maximum left context in samples required by reverb augmentation.
+        """
         if self.reverb_aug is None:
             return 0
 
         return self.reverb_aug.max_reverb_context
 
+    def reseed(self, seed: Union[int, np.random.SeedSequence]) -> None:
+        """Reseeds all stochastic sub-augmenters with independent child streams."""
+        augmenters = [
+            self.speed_aug,
+            self.reverb_aug,
+            self.noise_aug,
+            self.codec_aug,
+            self.transcodec_aug,
+        ]
+        root_seed = (
+            seed
+            if isinstance(seed, np.random.SeedSequence)
+            else np.random.SeedSequence(seed)
+        )
+        child_seeds = root_seed.spawn(len(augmenters))
+        for i, augmenter in enumerate(augmenters):
+            if augmenter is not None and hasattr(augmenter, "reseed"):
+                augmenter.reseed(child_seeds[i])
+
     def forward(
         self,
-        x,
-        sample_freq=None,
-        enable_tel_codecs=True,
-        enable_media_codecs=True,
-        enable_transcodec=True,
-    ):
+        x: np.ndarray,
+        sample_freq: Optional[float] = None,
+        enable_tel_codecs: bool = True,
+        enable_media_codecs: bool = True,
+        enable_transcodec: bool = True,
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Adds speed augment, noise and reverberation to signal,
         speed multiplier, noise type, SNR, room type and RIRs are chosen randomly.
 
         Args:
-          x: clean speech signal.
+          x: Clean speech signal.
+          sample_freq: Sampling rate in Hz used by codec-based augmenters.
+          enable_tel_codecs: Enables telephony codecs in ``codec_aug``.
+          enable_media_codecs: Enables media codecs in ``codec_aug``.
+          enable_transcodec: Enables second-stage codec augmentation.
 
         Returns:
-          Augmented signal
-          Dictionary containing information of noise type, rir_type, SNR(dB), SDR(dB), speed.
+          Augmented signal.
+          Dictionary containing augmentation metadata for each enabled stage.
         """
 
         info = {}
@@ -173,12 +240,25 @@ class SpeechAugment(object):
 
     def __call__(
         self,
-        x,
-        sample_freq=None,
-        enable_tel_codecs=True,
-        enable_media_codecs=True,
-        enable_transcodec=True,
-    ):
+        x: np.ndarray,
+        sample_freq: Optional[float] = None,
+        enable_tel_codecs: bool = True,
+        enable_media_codecs: bool = True,
+        enable_transcodec: bool = True,
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """Runs the augmentation pipeline using callable-style syntax.
+
+        Args:
+          x: Clean speech signal.
+          sample_freq: Sampling rate in Hz used by codec-based augmenters.
+          enable_tel_codecs: Enables telephony codecs in ``codec_aug``.
+          enable_media_codecs: Enables media codecs in ``codec_aug``.
+          enable_transcodec: Enables second-stage codec augmentation.
+
+        Returns:
+          Augmented signal.
+          Dictionary containing augmentation metadata for each enabled stage.
+        """
         return self.forward(
             x, sample_freq, enable_tel_codecs, enable_media_codecs, enable_transcodec
         )

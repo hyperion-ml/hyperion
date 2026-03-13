@@ -4,7 +4,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from typing import List, Optional, Set, Type, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
@@ -109,7 +109,7 @@ class QFormerV2(NetArch):
         distribute_query_across_layers: bool = False,
         use_layer_idx_encoder: bool = False,
         model_parallel: bool = False,
-    ):
+    ) -> None:
         super().__init__()
         self.multilayer_input = multilayer_input
         if not isinstance(in_feats, int):
@@ -272,7 +272,7 @@ class QFormerV2(NetArch):
 
         self._init_weights()
 
-    def _init_weights(self):
+    def _init_weights(self) -> None:
         """Initialize all learnable weights following BLIP-2 defaults."""
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.Linear)):
@@ -284,7 +284,7 @@ class QFormerV2(NetArch):
                 if m.padding_idx is not None:
                     m.weight.data[m.padding_idx].zero_()
 
-    def _compute_out_size(self, in_size):
+    def _compute_out_size(self, in_size: int) -> int:
         """Return the temporal dimension after processing the query stream.
 
         Args:
@@ -294,15 +294,18 @@ class QFormerV2(NetArch):
         out_size = in_size
         return out_size
 
-    def in_feats_shape(self):
+    def in_feats_shape(self) -> Tuple[Optional[int], Optional[int], int]:
         """Describe the expected `(batch, time, channels)` shape for encoder features."""
         return (None, None, self.in_feats)
 
-    def query_shape(self):
+    def query_shape(self) -> Tuple[Optional[int], Optional[int], int]:
         """Describe the `(batch, time, hidden_dim)` shape for the query tokens."""
         return (None, None, self.hidden_dim)
 
-    def out_shape(self, query_shape=None):
+    def out_shape(
+        self,
+        query_shape: Optional[Tuple[Optional[int], Optional[int], int]] = None,
+    ) -> Tuple[Optional[int], Optional[int], int]:
         """Infer the output shape for a given query input shape.
 
         Args:
@@ -322,16 +325,16 @@ class QFormerV2(NetArch):
         return (query_shape[0], T, out_channels)
 
     @property
-    def out_dim(self):
+    def out_dim(self) -> int:
         """Return the output feature dimension after the Q-Former."""
         return self.out_feats if self.out_feats is not None else self.hidden_dim
 
-    def out_channels(self):
+    def out_channels(self) -> int:
         """Return the output feature dimension after the Q-Former."""
         return self.out_feats if self.out_feats is not None else self.hidden_dim
 
     @property
-    def output_is_normalized(self):
+    def output_is_normalized(self) -> bool:
         return True if self.out_feats is None else False
 
     def forward(
@@ -342,7 +345,7 @@ class QFormerV2(NetArch):
             Union[torch.Tensor, List[Optional[torch.Tensor]]]
         ] = None,
         start_pos: int = 0,
-    ):
+    ) -> torch.Tensor:
         """Dispatch the forward pass to the appropriate pathway.
 
         Args:
@@ -370,7 +373,7 @@ class QFormerV2(NetArch):
             Union[torch.Tensor, List[Optional[torch.Tensor]]]
         ] = None,
         start_pos: int = 0,
-    ):
+    ) -> torch.Tensor:
         """Process a single stream of encoder features through the Q-Former.
 
         Args:
@@ -477,7 +480,7 @@ class QFormerV2(NetArch):
         feats: List[torch.Tensor],
         feats_lengths: Optional[List[Optional[torch.Tensor]]] = None,
         start_pos: int = 0,
-    ):
+    ) -> torch.Tensor:
         """Process encoder hidden states from multiple layers one cross-att step at a time.
 
         Args:
@@ -617,7 +620,7 @@ class QFormerV2(NetArch):
 
     def change_config(
         self, override_dropouts: bool, drop_path_rate: float, att_dropout_rate: float
-    ):
+    ) -> None:
         """Optionally override dropout hyperparameters during fine-tuning.
 
         Args:
@@ -630,7 +633,7 @@ class QFormerV2(NetArch):
             logging.info("chaning convnext1d dropouts")
             self.change_dropouts(drop_path_rate, att_dropout_rate)
 
-    def change_dropouts(self, drop_path_rate: float, att_dropout_rate: float):
+    def change_dropouts(self, drop_path_rate: float, att_dropout_rate: float) -> None:
         """Propagate new dropout values through all attention and DropPath modules.
 
         Args:
@@ -650,7 +653,7 @@ class QFormerV2(NetArch):
         self.drop_path_rate = drop_path_rate
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Filter keyword arguments down to those accepted by the constructor.
 
         Args:
@@ -664,7 +667,7 @@ class QFormerV2(NetArch):
         parser: ArgumentParser,
         prefix: Optional[str] = None,
         skip: Optional[Set[str]] = None,
-    ):
+    ) -> None:
         """Register constructor arguments with a JSONArgParse parser.
 
         Args:
@@ -873,7 +876,7 @@ class QFormerV2(NetArch):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         """Filter keyword arguments to those handled by `change_config`.
 
         Args:
@@ -883,7 +886,9 @@ class QFormerV2(NetArch):
         return filter_func_args(QFormerV2.change_config, kwargs)
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None, skip=set([])):
+    def add_finetune_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set([])
+    ) -> None:
         """Register fine-tuning specific overrides with a JSONArgParse parser.
 
         Args:

@@ -3,8 +3,11 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import json
+import logging
 import os
 from copy import deepcopy
+from importlib import import_module
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -236,8 +239,75 @@ class HyperNPModel(object):
         return json.loads(json_str)
 
     @staticmethod
+    def _bootstrap_registry():
+        """Import common NP subpackages so subclasses register themselves."""
+        module_names = (
+            "hyperion.np.pdfs",
+            "hyperion.np.transforms",
+            "hyperion.np.classifiers",
+            "hyperion.np.calibration",
+            "hyperion.np.clustering",
+            "hyperion.np.score_norm",
+        )
+        for module_name in module_names:
+            try:
+                import_module(module_name)
+            except Exception as err:
+                logging.debug(
+                    "Skipping NP registry bootstrap import %s: %s", module_name, err
+                )
+
+    @staticmethod
+    def _find_module_for_class_name(class_name: str):
+        """Find class module by scanning NP source files."""
+        np_dir = Path(__file__).resolve().parent
+        search_dirs = (
+            np_dir / "pdfs",
+            np_dir / "transforms",
+            np_dir / "classifiers",
+            np_dir / "calibration",
+            np_dir / "clustering",
+            np_dir / "score_norm",
+        )
+        class_decl = f"class {class_name}("
+        for search_dir in search_dirs:
+            if not search_dir.is_dir():
+                continue
+
+            for py_file in search_dir.rglob("*.py"):
+                try:
+                    text = py_file.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    continue
+
+                if class_decl not in text:
+                    continue
+
+                module_path = (
+                    Path("hyperion")
+                    / "np"
+                    / py_file.relative_to(np_dir).with_suffix("")
+                )
+                return ".".join(module_path.parts)
+
+        return None
+
+    @staticmethod
     def auto_load(file_path: PathLike, extra_objs: dict = {}):
         class_name = HyperNPModel.load_config(file_path)["class_name"]
+        if class_name not in HyperNPModel.registry:
+            HyperNPModel._bootstrap_registry()
+        if class_name not in HyperNPModel.registry:
+            module_name = HyperNPModel._find_module_for_class_name(class_name)
+            if module_name is not None:
+                try:
+                    import_module(module_name)
+                except Exception as err:
+                    raise Exception(
+                        "failed to import module %s for class_name=%s (%s)"
+                        % (module_name, class_name, err)
+                    ) from err
+
         if class_name in HyperNPModel.registry:
             class_obj = HyperNPModel.registry[class_name]
         elif class_name in extra_objs:
