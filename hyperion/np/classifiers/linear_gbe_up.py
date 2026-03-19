@@ -3,44 +3,98 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
-from scipy.special import gammaln
 
 from ...hyp_defs import float_cpu
 from ...utils.math_funcs import (
     fullcov_varfloor,
     int2onehot,
     invert_pdmat,
-    logdet_pdmat,
-    softmax,
 )
-from ..hyper_np_model import HyperNPModel
 from .linear_gbe import LinearGBE
 
 
 class LinearGBEUP(LinearGBE):
+    """Linear Gaussian Back-end with uncertainty propagation.
+
+    This variant assumes each input vector concatenates feature means and
+    diagonal feature variances, i.e. ``x = [x_mean, x_var]`` with total shape
+    ``(num_samples, 2 * x_dim)``. During scoring, each trial uncertainty
+    ``diag(x_var)`` is added to the class covariance before evaluating linear
+    scores.
+
+    Attributes:
+      mu: Class means with shape ``(num_classes, x_dim)``.
+      W: Shared within-class precision with shape ``(x_dim, x_dim)``.
+      update_mu: If True, class means are updated in ``fit``.
+      update_W: If True, shared precision is updated in ``fit``.
+      x_dim: Mean-feature dimension (excluding concatenated variance features).
+      num_classes: Number of classes.
+      balance_class_weight: If True, balances class contributions when estimating
+        ``W``.
+      beta: Gaussian-Wishart beta parameter per class.
+      nu: Wishart degrees-of-freedom parameter.
+      prior: Prior ``LinearGBE`` used for MAP adaptation.
+      prior_beta: Optional override for prior beta relevance factor.
+      prior_nu: Optional override for prior nu relevance factor.
+      post_beta: Optional fixed posterior beta relevance factor.
+      post_nu: Optional fixed posterior nu relevance factor.
+
+    Example:
+      >>> import numpy as np
+      >>> from hyperion.np.classifiers.linear_gbe_up import LinearGBEUP
+      >>> x_mean = np.array([[0.1, 1.2], [1.0, -0.2], [0.3, 0.4], [1.2, 0.1]])
+      >>> x_var = 0.05 * np.ones_like(x_mean)
+      >>> x = np.hstack((x_mean, x_var))
+      >>> y = np.array([0, 1, 2, 1], dtype=np.int64)
+      >>> model = LinearGBEUP(num_classes=3, update_mu=True, update_W=True)
+      >>> model.fit(x, class_ids=y)
+      >>> scores = model.predict(x, eval_method="linear", normalize=False)
+    """
+
     def __init__(
         self,
-        mu=None,
-        W=None,
-        update_mu=True,
-        update_W=True,
-        x_dim=1,
-        num_classes=None,
-        balance_class_weight=True,
-        beta=None,
-        nu=None,
-        prior=None,
-        prior_beta=None,
-        prior_nu=None,
-        post_beta=None,
-        post_nu=None,
-        **kwargs
-    ):
+        mu: Optional[np.ndarray] = None,
+        W: Optional[np.ndarray] = None,
+        update_mu: bool = True,
+        update_W: bool = True,
+        x_dim: int = 1,
+        num_classes: Optional[int] = None,
+        balance_class_weight: bool = False,
+        beta: Optional[np.ndarray] = None,
+        nu: Optional[float] = None,
+        prior: Optional[Union["LinearGBE", str]] = None,
+        prior_beta: Optional[float] = 16,
+        prior_nu: Optional[float] = 16,
+        post_beta: Optional[float] = None,
+        post_nu: Optional[float] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initializes a LinearGBEUP model.
 
-        super(LinearGBEUP, self).__init__(
+        Args:
+          mu: Class means with shape ``(num_classes, x_dim)``.
+          W: Shared within-class precision matrix with shape ``(x_dim, x_dim)``.
+          update_mu: If True, update ``mu`` in ``fit``.
+          update_W: If True, update ``W`` in ``fit``.
+          x_dim: Input mean feature dimension (not counting concatenated variance
+            features).
+          num_classes: Number of classes.
+          balance_class_weight: If True, re-balance each class contribution when
+            estimating ``W``.
+          beta: Gaussian-Wishart beta parameter per class.
+          nu: Wishart degrees-of-freedom parameter.
+          prior: Prior ``LinearGBE`` instance or path to a serialized model.
+          prior_beta: Optional override for the prior beta relevance factor.
+          prior_nu: Optional override for the prior nu relevance factor.
+          post_beta: Optional fixed posterior beta relevance factor.
+          post_nu: Optional fixed posterior nu relevance factor.
+          **kwargs: Extra arguments forwarded to ``LinearGBE``.
+        """
+
+        super().__init__(
             mu=mu,
             W=W,
             update_mu=update_mu,
@@ -58,14 +112,39 @@ class LinearGBEUP(LinearGBE):
             **kwargs
         )
 
-    def eval_linear(self, x):
-        x_m = x[:, : x.shape[-1] / 2]
-        x_s = x[:, x.shape[-1] / 2 :]
-        try:
-            S = invert_pdmat(self.W, return_inv=True)[-1]
-        except:
-            #            self.W += np.mean(np.diag(self.W))/1000*np.eye(x.shape[-1]/2)
-            S = invert_pdmat(self.W, return_inv=True)[-1]
+    @staticmethod
+    def _split_mean_var(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Splits concatenated mean/variance features.
+
+        Args:
+          x: Input matrix with shape ``(num_samples, 2 * x_dim)``.
+
+        Returns:
+          Tuple ``(x_mean, x_var)`` each with shape ``(num_samples, x_dim)``.
+        """
+        if x.ndim != 2:
+            raise ValueError(f"x must be 2D, got shape={x.shape}")
+        feat_dim = x.shape[-1]
+        if feat_dim % 2 != 0:
+            raise ValueError(
+                f"x second dimension must be even (mean+var), got shape={x.shape}"
+            )
+        half = feat_dim // 2
+        return x[:, :half], x[:, half:]
+
+    def eval_linear(self, x: np.ndarray) -> np.ndarray:
+        """Evaluates class unnormalized log-likelihoods with uncertainty propagation.
+
+        Args:
+          x: Input features ``[x_mean, x_var]`` with shape ``(num_samples, 2*x_dim)``.
+
+        Returns:
+          Unnormalized log-likelihoods with shape ``(num_samples, num_classes)``.
+        """
+        x_m, x_s = self._split_mean_var(x)
+        if np.any(x_s < 0):
+            raise ValueError("x variance part must be non-negative")
+        S = invert_pdmat(self.W, return_inv=True)[-1]
 
         logp = np.zeros((len(x), self.num_classes), dtype=float_cpu())
         for i in range(x.shape[0]):
@@ -74,54 +153,33 @@ class LinearGBEUP(LinearGBE):
             logp[i] = np.dot(x_m[i], A) + b
         return logp
 
-    def eval_llk(self, x):
-        raise NotImplementedError
-        logp = np.dot(x, self.A) + self.b
-        K = 0.5 * logdet_pdmat(self.W) - 0.5 * self.x_dim * np.log(2 * np.pi)
-        K += -0.5 * np.sum(np.dot(x, self.W) * x, axis=1, keepdims=True)
-        logp += K
-        return logp
+    def eval_llk(self, x: np.ndarray) -> np.ndarray:
+        """Not implemented for uncertainty-propagated inputs."""
+        raise NotImplementedError("eval_llk is not implemented in LinearGBEUP")
 
-    def eval_predictive(self, x):
-        raise NotImplementedError
-        K = self.W / self.nu
-        c = self.nu + 1 - self.x_dim
-        r = self.beta / (self.beta + 1)
+    def eval_predictive(self, x: np.ndarray) -> np.ndarray:
+        """Not implemented for uncertainty-propagated inputs."""
+        raise NotImplementedError("eval_predictive is not implemented in LinearGBEUP")
 
-        # T(mu, L, c) ; L = c r K
+    def fit(
+        self,
+        x: np.ndarray,
+        class_ids: Optional[np.ndarray] = None,
+        p_theta: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+    ) -> None:
+        """Trains the parameters of the model with uncertainty propagation.
 
-        logg = (
-            gammaln((c + self.x_dim) / 2)
-            - gammaln(c / 2)
-            - 0.5 * self.x_dim * np.log(c * np.pi)
-        )
-
-        # 0.5*log|L| = 0.5*log|K| + 0.5*d*log(c r)
-        logK = logdet_pdmat(K)
-        logL_div_2 = 0.5 * logK + 0.5 * self.x_dim * r
-
-        # delta2_0 = (x-mu)^T W (x-mu)
-        delta2_0 = np.sum(np.dot(x, self.W) * x, axis=1, keepdims=True) - 2 * (
-            np.dot(x, self.A) + self.b
-        )
-        # delta2 = (x-mu)^T L (x-mu) = c r delta0 / nu
-        # delta2/c = r delta0 / nu
-        delta2_div_c = r * delta2_0 / self.nu
-
-        D = -0.5 * (c + self.x_dim) * np.log(1 + delta2_div_c)
-        logging.debug(self.nu)
-        logging.debug(c)
-        logging.debug(self.x_dim)
-        logging.debug(logg)
-        logging.debug(logL_div_2.shape)
-        logging.debug(D.shape)
-
-        logp = logg + logL_div_2 + D
-        return logp
-
-    def fit(self, x, class_ids=None, p_theta=None, sample_weight=None):
-        x_m = x[:, : x.shape[-1] / 2]
-        x_s = x[:, x.shape[-1] / 2 :]
+        Args:
+          x: Input features ``[x_mean, x_var]`` with shape ``(num_samples, 2*x_dim)``.
+          class_ids: Integer vector with class ids in ``[0, num_classes)``.
+          p_theta: Alternative to ``class_ids``, posterior class probabilities
+            with shape ``(num_samples, num_classes)``.
+          sample_weight: Per-sample weighting with shape ``(num_samples,)``.
+        """
+        x_m, x_s = self._split_mean_var(x)
+        if np.any(x_s < 0):
+            raise ValueError("x variance part must be non-negative")
         x = x_m
         assert class_ids is not None or p_theta is not None
 
@@ -199,7 +257,16 @@ class LinearGBEUP(LinearGBE):
         self._compute_Ab()
 
     @staticmethod
-    def _compute_Ab_i(mu, W):
+    def _compute_Ab_i(mu: np.ndarray, W: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Computes trial-specific linear scoring parameters.
+
+        Args:
+          mu: Class means with shape ``(num_classes, x_dim)``.
+          W: Trial-specific precision matrix with shape ``(x_dim, x_dim)``.
+
+        Returns:
+          Tuple ``(A, b)`` for linear scoring.
+        """
         A = np.dot(W, mu.T)
         b = -0.5 * np.sum(mu.T * A, axis=0)
         return A, b

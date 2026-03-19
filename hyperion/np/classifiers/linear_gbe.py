@@ -1,9 +1,10 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -33,27 +34,58 @@ class LinearGBE(HyperNPModel):
       post_beta: if given, it fixes the value of beta in the posterior, overwriting the beta computed by the fit function.
       post_nu: if given, it fixes the value of nu in the posterior, overwriting the beta computed by the fit function.
       labels: list of class labels.
+
+    Example:
+      >>> import numpy as np
+      >>> from hyperion.np.classifiers.linear_gbe import LinearGBE
+      >>> x = np.array([[0.1, 1.2], [1.0, -0.2], [0.3, 0.4], [1.2, 0.1]])
+      >>> y = np.array([0, 1, 2, 1], dtype=np.int64)
+      >>> model = LinearGBE(num_classes=3, update_mu=True, update_W=True)
+      >>> model.fit(x, class_ids=y)
+      >>> scores = model.predict(x, eval_method="linear", normalize=False)
+      >>> log_post = model.predict(x, eval_method="linear", normalize=True)
     """
 
     def __init__(
         self,
-        mu=None,
-        W=None,
-        update_mu=True,
-        update_W=True,
-        x_dim=1,
-        num_classes=None,
-        balance_class_weight=True,
-        beta=None,
-        nu=None,
-        prior=None,
-        prior_beta=None,
-        prior_nu=None,
-        post_beta=None,
-        post_nu=None,
-        labels=None,
-        **kwargs
-    ):
+        mu: Optional[np.ndarray] = None,
+        W: Optional[np.ndarray] = None,
+        update_mu: bool = True,
+        update_W: bool = True,
+        x_dim: int = 1,
+        num_classes: Optional[int] = None,
+        balance_class_weight: bool = False,
+        beta: Optional[np.ndarray] = None,
+        nu: Optional[float] = None,
+        prior: Optional[Union["LinearGBE", str]] = None,
+        prior_beta: Optional[float] = 16,
+        prior_nu: Optional[float] = 16,
+        post_beta: Optional[float] = None,
+        post_nu: Optional[float] = None,
+        labels: Optional[Union[np.ndarray, List[Any]]] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initializes a LinearGBE model.
+
+        Args:
+          mu: Class means with shape ``(num_classes, x_dim)``.
+          W: Shared within-class precision matrix with shape ``(x_dim, x_dim)``.
+          update_mu: If True, update ``mu`` in ``fit``.
+          update_W: If True, update ``W`` in ``fit``.
+          x_dim: Input feature dimension.
+          num_classes: Number of classes.
+          balance_class_weight: If True, re-balance each class contribution when
+            estimating ``W``.
+          beta: Gaussian-Wishart beta parameter per class.
+          nu: Wishart degrees-of-freedom parameter.
+          prior: Prior ``LinearGBE`` instance or path to a serialized model.
+          prior_beta: Optional override for the prior beta relevance factor.
+          prior_nu: Optional override for the prior nu relevance factor.
+          post_beta: Optional fixed posterior beta relevance factor.
+          post_nu: Optional fixed posterior nu relevance factor.
+          labels: Optional class labels.
+          **kwargs: Extra arguments forwarded to ``HyperNPModel``.
+        """
 
         super().__init__(**kwargs)
         if mu is not None:
@@ -80,14 +112,20 @@ class LinearGBE(HyperNPModel):
         self.set_labels(labels)
         self._compute_Ab()
 
-    def set_labels(self, labels):
+    def set_labels(self, labels: Optional[Union[np.ndarray, List[Any]]]) -> None:
+        """Sets class labels.
+
+        Args:
+          labels: Class labels as a list/array or ``None``.
+        """
         if isinstance(labels, np.ndarray):
             labels = list(labels)
 
         self.labels = labels
 
-    def get_config(self):
-        """
+    def get_config(self) -> Dict[str, Any]:
+        """Gets model hyperparameters.
+
         Returns:
           Dictionary with the hyperparameters of the model.
         """
@@ -107,7 +145,8 @@ class LinearGBE(HyperNPModel):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def _load_prior(self):
+    def _load_prior(self) -> None:
+        """Loads and configures the prior model for MAP adaptation."""
         if isinstance(self.prior, str):
             self.prior = LinearGBE.load(self.prior)
         num_classes = self.prior.mu.shape[0]
@@ -118,13 +157,14 @@ class LinearGBE(HyperNPModel):
         if self.prior_nu is not None:
             self.prior.nu = num_classes * self.prior_nu
 
-    def _change_post_r(self):
+    def _change_post_r(self) -> None:
+        """Applies fixed posterior relevance factors if configured."""
         if self.post_beta is not None:
             self.beta = self.post_beta * np.ones((self.num_classes,), dtype=float_cpu())
         if self.post_nu is not None:
             self.nu = self.num_classes * self.post_nu
 
-    def eval_linear(self, x):
+    def eval_linear(self, x: np.ndarray) -> np.ndarray:
         """Evals the class unnormalized log-likelihoods. which reduces to a linear function.
 
         Args:
@@ -135,7 +175,7 @@ class LinearGBE(HyperNPModel):
         """
         return np.dot(x, self.A) + self.b
 
-    def eval_llk(self, x):
+    def eval_llk(self, x: np.ndarray) -> np.ndarray:
         """Evals the class log-likelihoods
 
         Args:
@@ -151,7 +191,7 @@ class LinearGBE(HyperNPModel):
         logp += K
         return logp
 
-    def eval_predictive(self, x):
+    def eval_predictive(self, x: np.ndarray) -> np.ndarray:
         """Evals the log-predictive distribution, taking into account the uncertainty in mu and W.
             It involves evaluating the Student-t distributions. For this we need to give priors
             to the model parameters.
@@ -198,7 +238,9 @@ class LinearGBE(HyperNPModel):
         logp = logg + logL_div_2 + D
         return logp
 
-    def predict(self, x, eval_method="linear", normalize=False):
+    def predict(
+        self, x: np.ndarray, eval_method: str = "linear", normalize: bool = False
+    ) -> np.ndarray:
         """Evaluates the Gaussian back-end.
 
         Args:
@@ -225,7 +267,9 @@ class LinearGBE(HyperNPModel):
 
         return logp
 
-    def __call__(self, x, eval_method="linear", normalize=False):
+    def __call__(
+        self, x: np.ndarray, eval_method: str = "linear", normalize: bool = False
+    ) -> np.ndarray:
         """Evaluates the Gaussian back-end.
 
         Args:
@@ -240,7 +284,13 @@ class LinearGBE(HyperNPModel):
         """
         return self.predict(x, eval_method, normalize)
 
-    def fit(self, x, class_ids=None, p_theta=None, sample_weight=None):
+    def fit(
+        self,
+        x: np.ndarray,
+        class_ids: Optional[np.ndarray] = None,
+        p_theta: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+    ) -> None:
         """Trains the parameters of the model.
 
         Args:
@@ -321,33 +371,45 @@ class LinearGBE(HyperNPModel):
         self._change_post_r()
         self._compute_Ab()
 
-    def save_params(self, f):
+    def save_params(self, f: Any) -> None:
+        """Saves model parameters to an open HDF5 handle.
+
+        Args:
+          f: HDF5 file handle.
+        """
         params = {"mu": self.mu, "W": self.W, "beta": self.beta, "nu": self.nu}
         self._save_params_from_dict(f, params)
 
     @classmethod
-    def load_params(cls, f, config):
+    def load_params(cls, f: Any, config: Dict[str, Any]) -> "LinearGBE":
+        """Loads model parameters from an open HDF5 handle.
+
+        Args:
+          f: HDF5 file handle.
+          config: Configuration dictionary.
+
+        Returns:
+          Initialized ``LinearGBE`` instance.
+        """
         param_list = ["mu", "W", "beta", "nu"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
         kwargs = dict(list(config.items()) + list(params.items()))
         return cls(**kwargs)
 
-    def _compute_Ab(self):
+    def _compute_Ab(self) -> None:
         """Computes the rotation and bias parameters for the linear scoring."""
         if self.mu is not None and self.W is not None:
             self.A = np.dot(self.W, self.mu.T)
             self.b = -0.5 * np.sum(self.mu.T * self.A, axis=0)
 
     @staticmethod
-    def filter_class_args(**kwargs):
+    def filter_class_args(**kwargs: Any) -> Dict[str, Any]:
         """Extracts the hyperparams of the class from a dictionary.
 
         Returns:
-          Hyperparamter dictionary to initialize the class.
+          Hyperparameter dictionary to initialize the class.
         """
         valid_args = (
-            "update_mu",
-            "update_W",
             "update_mu",
             "update_W",
             "balance_class_weight",
@@ -364,7 +426,7 @@ class LinearGBE(HyperNPModel):
     filter_train_args = filter_class_args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """It adds the arguments corresponding to the class to jsonarparse.
         Args:
           parser: jsonargparse object
@@ -378,52 +440,51 @@ class LinearGBE(HyperNPModel):
             "--update-mu",
             default=True,
             action=ActionYesNo,
-            nargs="?",
-            help="do not update mu",
+            help="whether to update class means during fit",
         )
         parser.add_argument(
             "--update-W",
             default=True,
             action=ActionYesNo,
-            nargs="?",
-            help="do not update W",
+            help="whether to update the shared within-class precision during fit",
         )
         parser.add_argument(
             "--balance-class-weight",
             default=False,
             action=ActionYesNo,
-            nargs="?",
-            help="Balances the weight of each class when computing W",
+            help="whether to balance each class contribution when estimating W",
         )
         parser.add_argument(
-            "--prior", default=None, help="prior file for MAP adaptation"
+            "--prior",
+            default=None,
+            help="path to a prior LinearGBE model for MAP adaptation",
         )
         parser.add_argument(
             "--prior-beta",
             default=16,
             type=float,
-            help="relevance factor for the means",
+            help="prior relevance factor for class means (MAP adaptation)",
         )
         parser.add_argument(
             "--prior-nu",
             default=16,
             type=float,
-            help="relevance factor for the variances",
+            help="prior relevance factor for precision/covariance (MAP adaptation)",
         )
         parser.add_argument(
             "--post-beta",
             default=None,
             type=float,
-            help="relevance factor for the means",
+            help="fixed posterior relevance factor for class means",
         )
         parser.add_argument(
             "--post-nu",
             default=None,
             type=float,
-            help="relevance factor for the variances",
+            help="fixed posterior relevance factor for precision/covariance",
         )
 
-        parser.add_argument("--name", default="lgbe", help="model name")
+        parser.add_argument("--name", default="lgbe", help="model identifier")
         if prefix is not None:
             outer_parser.add_argument(
                 "--" + prefix,
@@ -431,7 +492,7 @@ class LinearGBE(HyperNPModel):
             )
 
     @staticmethod
-    def filter_eval_args(**kwargs):
+    def filter_eval_args(**kwargs: Any) -> Dict[str, Any]:
         """Extracts the evaluation time hyperparams of the class from a dictionary.
 
         Returns:
@@ -441,7 +502,7 @@ class LinearGBE(HyperNPModel):
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_eval_args(parser, prefix=None):
+    def add_eval_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """It adds the arguments needed to evaluate the class to jsonarparse.
         Args:
           parser: jsonargparse object
@@ -456,16 +517,13 @@ class LinearGBE(HyperNPModel):
             default=False,
             action=ActionYesNo,
             nargs="?",
-            help=("normalizes the ouput probabilities to sum to one"),
+            help="whether to normalize scores into log-posteriors",
         )
         parser.add_argument(
             "--eval-method",
             default="linear",
             choices=["linear", "llk", "predictive"],
-            help=(
-                "evaluates full gaussian likelihood, linear function"
-                "or predictive distribution"
-            ),
+            help="evaluation method: linear function, full Gaussian llk, or predictive distribution",
         )
         if prefix is not None:
             outer_parser.add_argument(
