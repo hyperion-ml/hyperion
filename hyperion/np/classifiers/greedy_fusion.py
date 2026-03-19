@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -10,16 +10,15 @@ import numpy as np
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...hyp_defs import float_cpu, float_save
-from ...utils.math_funcs import softmax
-from ..metrics import dcf
 from ..hyper_np_model import HyperNPModel
+from ..metrics import dcf
 from .binary_logistic_regression import BinaryLogisticRegression as BLR
 
 
 class GreedyFusionBinaryLR(HyperNPModel):
     """Greedy score fusion based on binary logistic regression.
 
-    It computes ``max_systmes`` fusions. The best system, the best fusion of two,
+    It computes ``max_systems`` fusions. The best system, the best fusion of two,
     the best fusion of three, ...
     The system selection procedure is as follows:
     * Choose the best system.
@@ -28,25 +27,29 @@ class GreedyFusionBinaryLR(HyperNPModel):
     * ...
 
     Attributes:
-      weights: fusion weights, this is a list with ``max_systems`` elements with shapes, (1,1), (2,1), (3,1), ..., (max_systems,1).
-      bias: fusion biaes, this is a list with ``max_systems`` elements with shape (1,).
-      system_idx: list of index vector that indicate, which systems are used for the fusion of 1 system, fusion of 2, ....
-      system_names: list of strings containing descriptive names for the systems,
-      max_systems: max number of systems to fuse, if None, ``max_systems=total_systems``.
+      weights: fusion weights. It is a list with ``max_systems`` elements and
+               shapes ``(1,1)``, ``(2,1)``, ``(3,1)``, ...,
+               ``(max_systems,1)``.
+      bias: fusion biases. It is a list with ``max_systems`` elements and shape
+            ``(1,)`` for each element.
+      system_idx: list of index vectors indicating which systems are used for
+                  each fusion size.
+      system_names: optional list of descriptive names for the systems.
+      max_systems: maximum number of systems to fuse. If None, ``fit`` sets it
+                   to ``10`` and then clips it to ``num_systems``.
+      prioritize_positive: if True, among candidates it prioritizes fusions with
+                           all-positive weights before selecting by DCF.
       penalty: str, ‘l1’ or ‘l2’, default: ‘l2’ ,
                  Used to specify the norm used in the penalization. The ‘newton-cg’, ‘sag’ and ‘lbfgs’ solvers support only l2 penalties.
                   New in version 0.19: l1 penalty with SAGA solver (allowing ‘multinomial’ + L1)
       lambda_reg: float, default: 1e-5
                      Regularization strength; must be a positive float.
-      use_bias: bool, default: True
-                   Specifies if a constant (a.k.a. bias or intercept) should be added to the decision function.
       bias_scaling: float, default 1.
                        Useful only when the solver ‘liblinear’ is used and use_bias is set to True.
                        In this case, x becomes [x, bias_scaling], i.e. a “synthetic” feature with constant value equal to intercept_scaling is appended to the instance vector. The intercept becomes intercept_scaling * synthetic_feature_weight.
                        Note! the synthetic feature weight is subject to l1/l2 regularization as all other features. To lessen the effect of regularization on synthetic feature weight (and therefore on the intercept) bias_scaling has to be increased.
-      priors: prior prob for having a positive sample.
-      random_state: int, default_rng instance or None, optional, default: None
-                       The seed of the pseudo random number generator to use when shuffling the data. If int, random_state is the seed used by the random number generator; If default_rng instance, random_state is the random number generator; . Used when solver == ‘sag’ or ‘liblinear’.
+      prior: prior probability for a positive sample.
+      prior_eval: target prior (or list of priors) used for DCF evaluation.
       solver: {‘newton-cg’, ‘lbfgs’, ‘liblinear’, ‘sag’, ‘saga’},
                  default: ‘liblinear’ Algorithm to use in the optimization problem.
                  For small datasets, ‘liblinear’ is a good choice, whereas ‘sag’ and
@@ -62,11 +65,21 @@ class GreedyFusionBinaryLR(HyperNPModel):
               Tolerance for stopping criteria.
       verbose: int, default: 0
                   For the liblinear and lbfgs solvers set verbose to any positive number for verbosity.
-      warm_start: bool, default: False
-                     When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution. Useless for liblinear solver.
-                     New in version 0.17: warm_start to support lbfgs, newton-cg, sag, saga solvers.
       lr_seed: seed for numpy random.
-      force_weighted_avg: it doens't do calibration, just a weighted average that sums up to one.
+      force_weighted_avg: if True, it does not do calibration; it enforces a
+                          non-negative weighted average that sums to one.
+
+    Example:
+      >>> import numpy as np
+      >>> from hyperion.np.classifiers.greedy_fusion import GreedyFusionBinaryLR
+      >>> x = np.array(
+      ...     [[0.2, -0.1, 0.3], [0.5, 0.2, -0.4], [-0.3, 0.4, 0.1], [0.1, -0.2, 0.6]]
+      ... )
+      >>> y = np.array([1, 1, 0, 0], dtype=np.int64)
+      >>> fus = GreedyFusionBinaryLR(max_systems=2, prior=0.01, prior_eval=[0.05, 0.01])
+      >>> fus.fit(x, y)
+      >>> best_1 = fus.predict(x, fus_idx=0)
+      >>> all_fusions = fus.predict(x)
 
     """
 
@@ -90,7 +103,7 @@ class GreedyFusionBinaryLR(HyperNPModel):
         verbose: int = 0,
         lr_seed: int = 1024,
         force_weighted_avg: bool = False,
-        **kwargs
+        **kwargs,
     ):
 
         super().__init__(**kwargs)
@@ -136,35 +149,28 @@ class GreedyFusionBinaryLR(HyperNPModel):
         Returns:
           Weights for fusion ``idx`` shape=(idx+1, 1)
           Bias for fusion ``idx``
-          Indices for systems incuded in fusion ``idx``.
+          Indices for systems included in fusion ``idx``.
         """
         return self.weights[idx], self.bias[idx], self.system_idx[idx]
 
-    def _predict_fus_idx(self, x, fus_idx, eval_type="logit"):
+    def _predict_fus_idx(self, x, fus_idx):
         """Evals the fusion indicated by ``fus_idx``,
         which is the fusion of ``fus_idx+1`` systems.
 
         Args:
           x: input features (num_samples, num_systems)
           fus_idx: index of the fusion, it returns the parameters for the fusion of ``fus_idx+1`` systems.
-          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
 
         Returns:
-          Ouput scores (num_samples,)
+          Output scores (num_samples,)
         """
-
         w, b, idx = self.get_fusion_params(fus_idx)
         x = x[:, idx]
         y = np.dot(x, w).ravel() + b
 
-        if eval_type == "log-post":
-            y = np.log(softmax(y + np.log(self.priors), axis=1) + 1e-10)
-        if eval_type == "post":
-            y = softmax(y + np.log(self.priors))
-
         return y
 
-    def predict(self, x, fus_idx=None, eval_type="logit"):
+    def predict(self, x, fus_idx=None):
         """Evals the fusion indicated by ``fus_idx``,
         which is the fusion of ``fus_idx+1`` systems.
 
@@ -172,22 +178,21 @@ class GreedyFusionBinaryLR(HyperNPModel):
           x: input features (num_samples, num_systems)
           fus_idx: index of the fusion, it returns the parameters for the fusion of ``fus_idx+1`` systems.
                    If None, it evals all the fusions and return a list of score vectors
-          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
 
         Returns:
-          Ouput scores (num_samples,) or List of score vectors.
+          Output scores (num_samples,) or List of score vectors.
         """
 
         if fus_idx is None:
             y = []
             for i in range(len(self.weights)):
-                y_i = self._predict_fus_idx(x, i, eval_type)
+                y_i = self._predict_fus_idx(x, i)
                 y.append(y_i)
             return y
 
-        return self._predict_fus_idx(x, fus_idx, eval_type)
+        return self._predict_fus_idx(x, fus_idx)
 
-    def __call__(self, x, fus_idx=None, eval_type="logit"):
+    def __call__(self, x, fus_idx=None):
         """Evals the fusion indicated by ``fus_idx``,
         which is the fusion of ``fus_idx+1`` systems.
 
@@ -195,14 +200,13 @@ class GreedyFusionBinaryLR(HyperNPModel):
           x: input features (num_samples, num_systems)
           fus_idx: index of the fusion, it returns the parameters for the fusion of ``fus_idx+1`` systems.
                    If None, it evals all the fusions and return a list of score vectors
-          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
 
         Returns:
-          Ouput scores (num_samples,) or List of score vectors.
+          Output scores (num_samples,) or List of score vectors.
         """
-        return self.predict(x, fus_idx, eval_type)
+        return self.predict(x, fus_idx)
 
-    def fit(self, x, class_ids, sample_weights=None):
+    def fit(self, x, class_ids, sample_weight=None):
         """Estimates the parameters of all the fusions
 
         Args:
@@ -212,6 +216,13 @@ class GreedyFusionBinaryLR(HyperNPModel):
         """
 
         num_systems = x.shape[1]
+        if self.system_names is None:
+            self.system_names = [f"sys-{i}" for i in range(num_systems)]
+        elif len(self.system_names) != num_systems:
+            raise ValueError(
+                f"len(system_names)={len(self.system_names)} must match num_systems={num_systems}"
+            )
+
         if self.max_systems is None:
             self.max_systems = 10
 
@@ -240,11 +251,18 @@ class GreedyFusionBinaryLR(HyperNPModel):
                     (fixed_systems, np.expand_dims(cand_systems[j], axis=0)), axis=0
                 )
                 x_ij = x[:, system_idx_ij]
-                self.lr.fit(x_ij, class_ids)
+                self.lr.fit(x_ij, class_ids, sample_weight=sample_weight)
                 if self.force_weighted_avg:
                     self.lr.b = 0.0
                     self.lr.A[self.lr.A < 0] = 0.0
-                    self.lr.A /= self.lr.A.sum()
+                    weight_sum = float(np.sum(self.lr.A))
+                    if not np.isfinite(weight_sum) or weight_sum <= 0:
+                        raise ValueError(
+                            "force_weighted_avg produced non-positive total weight "
+                            f"for candidate systems {system_idx_ij.tolist()}: "
+                            f"sum(weights)={weight_sum}"
+                        )
+                    self.lr.A /= weight_sum
 
                 cand_weights.append([self.lr.A, self.lr.b])
                 all_pos[j] = np.all(self.lr.A > 0)
