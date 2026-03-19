@@ -130,8 +130,16 @@ class LogisticRegression(HyperNPModel):
             # random_state = np.random.default_rng(seed=lr_seed)
             random_state = np.random.RandomState(seed=lr_seed)
 
-        if bias_scaling is None:
-            if use_bias and solver == "liblinear":
+        if solver != "liblinear":
+            if bias_scaling not in (None, 1):
+                logging.warning(
+                    "bias_scaling is only used by solver='liblinear'; "
+                    "forcing bias_scaling=1 for solver='%s'",
+                    solver,
+                )
+            bias_scaling = 1
+        elif bias_scaling is None:
+            if use_bias:
                 bias_scaling = 100
             else:
                 bias_scaling = 1
@@ -199,7 +207,7 @@ class LogisticRegression(HyperNPModel):
             self.lr.coef_ = A.T
 
         if b is not None:
-            self.lr.intercept_ = b / self.bias_scaling
+            self.lr.intercept_ = b
 
     @property
     def A(self) -> np.ndarray:
@@ -211,7 +219,7 @@ class LogisticRegression(HyperNPModel):
 
     @property
     def b(self) -> np.ndarray:
-        return self.lr.intercept_ * self.bias_scaling
+        return self.lr.intercept_
 
     @b.setter
     def b(self, value: Any) -> None:
@@ -221,7 +229,7 @@ class LogisticRegression(HyperNPModel):
         if not isinstance(value, np.ndarray):
             value = np.asarray(value)
 
-        self.lr.intercept_ = value / self.bias_scaling
+        self.lr.intercept_ = value
 
     def get_config(self) -> Dict[str, Any]:
         """Gets configuration hyperparams.
@@ -354,12 +362,12 @@ class LogisticRegression(HyperNPModel):
             # adjust bias to produce log-llk ratios
             if len(self.lr.intercept_) == 1:
                 prior = self.priors[1]
-                self.lr.intercept_ -= np.log(prior / (1 - prior)) / self.bias_scaling
+                self.lr.intercept_ -= np.log(prior / (1 - prior))
             else:
-                self.lr.intercept_ -= np.log(priors / (1 - priors)) / self.bias_scaling
+                self.lr.intercept_ -= np.log(priors / (1 - priors))
         else:
             # adjust bias to produce log-llk
-            self.lr.intercept_ -= np.log(priors) / self.bias_scaling
+            self.lr.intercept_ -= np.log(priors)
 
     def save_params(self, f: Any) -> None:
         params = {"A": self.A, "b": self.b}

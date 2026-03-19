@@ -1,15 +1,14 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import numpy as np
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from sklearn.svm import LinearSVC as SVC
 
-from ...hyp_defs import float_cpu
 from ...utils.math_funcs import softmax
 from ..hyper_np_model import HyperNPModel
 
@@ -18,74 +17,72 @@ class LinearSVMC(HyperNPModel):
     """Linear Support Vector Machine for Classification.
 
     Attributes:
-      A: Linear transformation coefficients (num_feats, num_classes)
-      b: biases (num_classes, )
-      penalty: str, ‘l1’ or ‘l2’, default: ‘l2’ ,
-      C: Regularization parameter.
-        The strength of the regularization is inversely proportional to C.
-        Must be strictly positive.
-      loss: str, 'hinge' or 'squared_hinge', default: 'squared_hinge'.
-      use_bias: if True, it uses bias, otherwise bias is zero.
-      bias_scaling: float, default 1.
-                    In this case, x becomes [x, bias_scaling], i.e.
-                    a “synthetic” feature with constant value equal to
-                    intercept_scaling is appended to the instance vector.
-                    The intercept becomes intercept_scaling * synthetic_feature_weight.
-                    Note! the synthetic feature weight is subject to l1/l2
-                    regularization as all other features.
-                    To lessen the effect of regularization on synthetic feature weight
-                    bias_scaling has to be increased.
-      class_weight: dict or ‘balanced’, default=None
-                    Set the parameter C of class i to class_weight[i]*C for SVC.
-                    If not given, all classes are supposed to have weight one.
-                    The “balanced” mode uses the values of y to automatically adjust
-                    weights inversely proportional to class frequencies in the input
-                    data as n_samples / (n_classes * np.bincount(y)).
-      random_state: default_rng instance or None, optional, default: None
-      max_iter: int, default: 100
-                   Useful only for the newton-cg, sag and lbfgs solvers.
-                   Maximum number of iterations taken for the solvers to converge.
-      dual: bool, default: False
-               Dual or primal formulation.
-      tol: float, default: 1e-4
-              Tolerance for stopping criteria.
-      multi_class: {‘ovr’, ‘crammer_singer’}, default=’ovr’
-                   Determines the multi-class strategy if y contains more than
-                   two classes. "ovr" trains n_classes one-vs-rest classifiers,
-                   while "crammer_singer" optimizes a joint objective over all
-                   classes. While crammer_singer is interesting from a theoretical
-                   perspective as it is consistent,
-                   it is seldom used in practice as it rarely leads to better
-                   accuracy and is more expensive to compute.
-                   If "crammer_singer" is chosen, the options loss,
-                   penalty and dual will be ignored.
-      verbose: int, default: 0
-      balance_class_weight: if True and class_weight is None, it makes class_weight="balanced".
-      lr_seed: seed form default_rng, used when random_state is None.
-      labels: list of class labels
+      A: Linear transformation coefficients with shape ``(feat_dim, num_classes)``.
+      b: Bias vector with shape ``(num_classes,)``.
+      use_bias: If True, fit an intercept term.
+      bias_scaling: Intercept scaling used by ``sklearn.svm.LinearSVC``.
+      balance_class_weight: If True and ``class_weight`` is None, it sets
+        ``class_weight="balanced"``.
+      svm: Internal ``sklearn.svm.LinearSVC`` estimator.
+      labels: Optional list of class labels.
     """
 
     def __init__(
         self,
-        A=None,
-        b=None,
-        penalty="l2",
-        C=1.0,
-        loss="squared_hinge",
-        use_bias=True,
-        bias_scaling=1,
-        class_weight=None,
-        random_state=None,
-        max_iter=100,
-        dual=True,
-        tol=0.0001,
-        multi_class="ovr",
-        verbose=0,
-        balance_class_weight=True,
-        lr_seed=1024,
-        labels=None,
-        **kwargs,
-    ):
+        A: Optional[np.ndarray] = None,
+        b: Optional[np.ndarray] = None,
+        penalty: Literal["l1", "l2"] = "l2",
+        C: float = 1.0,
+        loss: Literal["hinge", "squared_hinge"] = "squared_hinge",
+        use_bias: bool = True,
+        bias_scaling: float = 1,
+        class_weight: Optional[Union[Dict[int, float], str]] = None,
+        random_state: Optional[Union[int, np.random.RandomState]] = None,
+        max_iter: int = 100,
+        dual: bool = True,
+        tol: float = 0.0001,
+        multi_class: Literal["ovr", "crammer_singer"] = "ovr",
+        verbose: int = 0,
+        balance_class_weight: bool = False,
+        lr_seed: int = 1024,
+        labels: Optional[Union[np.ndarray, List[Any]]] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initializes a ``LinearSVMC`` model.
+
+        Args:
+          A: Linear transformation coefficients with shape
+            ``(feat_dim, num_classes)``.
+          b: Bias vector with shape ``(num_classes,)``.
+          penalty: Penalty norm, ``"l1"`` or ``"l2"``.
+          C: Regularization parameter. The strength of regularization is
+            inversely proportional to ``C`` and must be strictly positive.
+          loss: Loss type, ``"hinge"`` or ``"squared_hinge"``.
+          use_bias: If True, includes an intercept term.
+          bias_scaling: Intercept scaling factor. In this case the model uses
+            ``[x, bias_scaling]`` (a synthetic feature appended to the input).
+            The intercept becomes ``bias_scaling * synthetic_feature_weight``.
+            The synthetic feature weight is regularized as other features, so
+            larger values can reduce the relative effect of regularization.
+          class_weight: Dictionary or ``"balanced"``. If a dict is provided,
+            class ``i`` uses effective regularization ``class_weight[i] * C``.
+            If ``"balanced"``, class weights are automatically set inversely
+            proportional to class frequencies.
+          random_state: Integer seed or ``np.random.RandomState`` used by sklearn.
+          max_iter: Maximum number of optimization iterations.
+          dual: Dual or primal formulation.
+          tol: Tolerance for stopping criteria.
+          multi_class: ``"ovr"`` or ``"crammer_singer"``. ``"ovr"`` trains
+            one-vs-rest classifiers. ``"crammer_singer"`` optimizes a joint
+            multi-class objective and ignores ``loss``, ``penalty``, and
+            ``dual``.
+          verbose: Verbosity level.
+          balance_class_weight: If True and ``class_weight`` is None, sets
+            ``class_weight="balanced"``.
+          lr_seed: RNG seed used only when ``random_state`` is None.
+          labels: Optional class labels.
+          **kwargs: Extra arguments forwarded to ``HyperNPModel``.
+        """
 
         super().__init__(**kwargs)
 
@@ -93,7 +90,13 @@ class LinearSVMC(HyperNPModel):
             class_weight = "balanced"
 
         if random_state is None:
-            random_state = np.random.default_rng(seed=lr_seed)
+            # random_state = np.random.default_rng(seed=lr_seed)
+            random_state = np.random.RandomState(seed=lr_seed)
+        elif isinstance(random_state, np.random.Generator):
+            raise TypeError(
+                "random_state as np.random.Generator is not supported; "
+                "use int seed or np.random.RandomState"
+            )
 
         self.use_bias = use_bias
         self.bias_scaling = bias_scaling
@@ -122,21 +125,29 @@ class LinearSVMC(HyperNPModel):
         self.set_labels(labels)
 
     @property
-    def A(self):
+    def A(self) -> np.ndarray:
+        """Linear transformation coefficients."""
         return self.svm.coef_.T
 
     @property
-    def b(self):
-        return self.svm.intercept_ * self.bias_scaling
+    def b(self) -> np.ndarray:
+        """Bias vector."""
+        return self.svm.intercept_
 
-    def set_labels(self, labels):
+    def set_labels(self, labels: Optional[Union[np.ndarray, List[Any]]]) -> None:
+        """Sets class labels.
+
+        Args:
+          labels: Labels as list/array or ``None``.
+        """
         if isinstance(labels, np.ndarray):
             labels = list(labels)
 
         self.labels = labels
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         """Gets configuration hyperparams.
+
         Returns:
           Dictionary with config hyperparams.
         """
@@ -149,76 +160,112 @@ class LinearSVMC(HyperNPModel):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def predict(self, x, eval_type="logit"):
-        """Evaluates the SVM
+    def predict(
+        self,
+        x: np.ndarray,
+        eval_type: Literal[
+            "logit", "bin-log-post", "bin-post", "cat-log-post", "cat-post"
+        ] = "logit",
+    ) -> np.ndarray:
+        """Evaluates the SVM.
 
         Args:
-          x: input features (num_samples, feat_dim),
-             it can be (num_samples,) if feat_dim=1.
-          eval_type: evaluationg method: logit (log-likelihood ratio),
-                     bin-log-post (binary log-posteriors),
-                     bin-post (binary posteriors)
-                     cat-log-post (categorical log-posteriors),
-                     cat-post (categorical posteriors)
+          x: Input features with shape ``(num_samples, feat_dim)``.
+             It can also be ``(num_samples,)`` when ``feat_dim=1``.
+          eval_type: Evaluation method:
+            ``"logit"`` returns linear scores (logits),
+            ``"bin-log-post"`` returns binary log-posteriors,
+            ``"bin-post"`` returns binary posteriors,
+            ``"cat-log-post"`` returns categorical log-posteriors,
+            ``"cat-post"`` returns categorical posteriors.
+
         Returns:
-          Ouput scores (num_samples, num_classes)
+          Output scores with shape ``(num_samples, num_classes)``.
         """
+        if x.ndim == 1:
+            x = x[:, None]
+        elif x.ndim != 2:
+            raise ValueError(f"x must be 1D or 2D, got shape={x.shape}")
+
         s = np.dot(x, self.A) + self.b
 
         if eval_type == "bin-log-post":
-            return np.log(1 + np.exp(-s))
+            return -np.logaddexp(0.0, -s)
         if eval_type == "bin-post":
-            return 1 / (1 + np.exp(-s))
+            return np.exp(-np.logaddexp(0.0, -s))
         if eval_type == "cat-post":
             return softmax(s)
         if eval_type == "cat-log-post":
             return np.log(softmax(s))
+        if eval_type == "logit":
+            return s
+        raise ValueError(f"Invalid eval_type={eval_type}")
 
-        return s
-
-    def __call__(self, x, eval_type="logit"):
-        """Evaluates the SVM
+    def __call__(
+        self,
+        x: np.ndarray,
+        eval_type: Literal[
+            "logit", "bin-log-post", "bin-post", "cat-log-post", "cat-post"
+        ] = "logit",
+    ) -> np.ndarray:
+        """Evaluates the SVM.
 
         Args:
-          x: input features (num_samples, feat_dim),
-             it can be (num_samples,) if feat_dim=1.
-          eval_type: evaluationg method: logit (log-likelihood ratio),
-                     bin-log-post (binary log-posteriors),
-                     bin-post (binary posteriors)
-                     cat-log-post (categorical log-posteriors),
-                     cat-post (categorical posteriors)
+          x: Input features with shape ``(num_samples, feat_dim)``.
+             It can also be ``(num_samples,)`` when ``feat_dim=1``.
+          eval_type: Evaluation method:
+            ``"logit"`` returns linear scores (logits),
+            ``"bin-log-post"`` returns binary log-posteriors,
+            ``"bin-post"`` returns binary posteriors,
+            ``"cat-log-post"`` returns categorical log-posteriors,
+            ``"cat-post"`` returns categorical posteriors.
+
         Returns:
-          Ouput scores (num_samples, num_classes)
+          Output scores with shape ``(num_samples, num_classes)``.
         """
         return self.predict(x, eval_type)
 
-    def fit(self, x, class_ids, sample_weight=None):
+    def fit(
+        self,
+        x: np.ndarray,
+        class_ids: np.ndarray,
+        sample_weight: Optional[np.ndarray] = None,
+    ) -> None:
         """Estimates the parameters of the model.
 
         Args:
-          x: input features (num_samples, feat_dim), it can be (num_samples,) if feat_dim=1.
-          class_ids: class integer [0, num_classes-1] identifier (num_samples,)
-          sample_weight: weight of each sample in the estimation (num_samples,)
+          x: Input features with shape ``(num_samples, feat_dim)``.
+             It can also be ``(num_samples,)`` when ``feat_dim=1``.
+          class_ids: Integer class identifiers in ``[0, num_classes-1]``
+            with shape ``(num_samples,)``.
+          sample_weight: Optional sample weights with shape ``(num_samples,)``.
         """
+        if x.ndim == 1:
+            x = x[:, None]
+        elif x.ndim != 2:
+            raise ValueError(f"x must be 1D or 2D, got shape={x.shape}")
+
         self.svm.fit(x, class_ids, sample_weight=sample_weight)
 
-    def save_params(self, f):
+    def save_params(self, f: Any) -> None:
+        """Saves model parameters to an open HDF5 handle."""
         params = {"A": self.A, "b": self.b}
         self._save_params_from_dict(f, params)
 
     @classmethod
-    def load_params(cls, f, config):
+    def load_params(cls, f: Any, config: Dict[str, Any]) -> "LinearSVMC":
+        """Loads model parameters from an open HDF5 handle."""
         param_list = ["A", "b"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
         kwargs = dict(list(config.items()) + list(params.items()))
         return cls(**kwargs)
 
     @staticmethod
-    def filter_class_args(**kwargs):
+    def filter_class_args(**kwargs: Any) -> Dict[str, Any]:
         """Extracts the hyperparams of the class from a dictionary.
 
         Returns:
-          Hyperparamter dictionary to initialize the class.
+          Hyperparameter dictionary to initialize the class.
         """
         valid_args = (
             "penalty",
@@ -241,8 +288,9 @@ class LinearSVMC(HyperNPModel):
     filter_train_args = filter_class_args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
-        """It adds the arguments corresponding to the class to jsonarparse.
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """It adds the arguments corresponding to the class to jsonargparse.
+
         Args:
           parser: jsonargparse object
           prefix: argument prefix.
@@ -272,7 +320,11 @@ class LinearSVMC(HyperNPModel):
         )
 
         parser.add_argument(
-            "--use-bias", default=True, action=ActionYesNo, nargs="?", help="Use bias",
+            "--use-bias",
+            default=True,
+            action=ActionYesNo,
+            nargs="?",
+            help="Use bias",
         )
         parser.add_argument(
             "--bias-scaling",
@@ -332,22 +384,24 @@ class LinearSVMC(HyperNPModel):
         parser.add_argument("--name", default="svc", help="model name")
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     @staticmethod
-    def filter_eval_args(**kwargs):
+    def filter_eval_args(**kwargs: Any) -> Dict[str, Any]:
         """Extracts the evaluation time hyperparams of the class from a dictionary.
 
         Returns:
           Hyperparameters to evaluate the class.
         """
-        valid_args = "eval_type"
+        valid_args = ("eval_type",)
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_eval_args(parser, prefix=None):
-        """It adds the arguments needed to evaluate the class to jsonarparse.
+    def add_eval_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """It adds the arguments needed to evaluate the class to jsonargparse.
+
         Args:
           parser: jsonargparse object
           prefix: argument prefix.
@@ -365,7 +419,8 @@ class LinearSVMC(HyperNPModel):
 
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     # for backward compatibility
