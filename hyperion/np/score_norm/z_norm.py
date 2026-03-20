@@ -4,16 +4,34 @@
 """
 
 import numpy as np
+from typing import Optional
 
 from .score_norm import ScoreNorm
 
 
 class ZNorm(ScoreNorm):
-    """
-    Class for Z-Norm score normalization.
+    """Class for Z-Norm score normalization.
+
+    Example:
+      ```python
+      import numpy as np
+      from hyperion.np.score_norm import ZNorm
+
+      n_enr, n_test, n_coh = 3, 5, 20
+      scores = np.random.randn(n_enr, n_test)
+      scores_enr_coh = np.random.randn(n_enr, n_coh)
+
+      z_norm = ZNorm(norm_var=True, std_floor=1e-5)
+      scores_z = z_norm.predict(scores, scores_enr_coh)
+      ```
     """
 
-    def predict(self, scores, scores_enr_coh, mask=None):
+    def predict(
+        self,
+        scores: np.ndarray,
+        scores_enr_coh: np.ndarray,
+        mask: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
         """Normalizes the scores.
 
         Args:
@@ -29,7 +47,7 @@ class ZNorm(ScoreNorm):
                 s_z = np.std(scores_enr_coh, axis=1, keepdims=True)
         else:
             scores_enr_coh[mask == False] = 0
-            n_z = np.mean(mask, axis=1, keepdims=True)
+            n_z = np.maximum(np.mean(mask, axis=1, keepdims=True), 1e-10)
             mu_z = np.mean(scores_enr_coh, axis=1, keepdims=True) / n_z
             if self.norm_var:
                 s_z = np.sqrt(

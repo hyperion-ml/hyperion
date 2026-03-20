@@ -4,6 +4,7 @@
 """
 
 import numpy as np
+from typing import Any
 
 from ..hyper_np_model import HyperNPModel
 
@@ -15,15 +16,17 @@ class ScoreNorm(HyperNPModel):
       std_floor: floor for standard deviations.
     """
 
-    def __init__(self, norm_var=True, std_floor=1e-5, **kwargs):
-        super().__init__(*kwargs)
+    def __init__(
+        self, norm_var: bool = True, std_floor: float = 1e-5, **kwargs: Any
+    ) -> None:
+        super().__init__(**kwargs)
         self.norm_var = norm_var
         self.std_floor = std_floor
 
-    def forward(self, **kwargs):
+    def forward(self, **kwargs: Any) -> Any:
         """Overloads predict function."""
         return self.predict(**kwargs)
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Overloads predict function."""
         return self.predict(*args, **kwargs)
