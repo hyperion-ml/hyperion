@@ -1,7 +1,9 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Any, Dict, Optional
 
 import numpy as np
 from jsonargparse import ActionParser, ArgumentParser
@@ -10,7 +12,7 @@ from scipy.signal import convolve2d
 from ...hyp_defs import float_cpu
 
 
-class MeanVarianceNorm(object):
+class MeanVarianceNorm:
     """Class to perform mean and variance normalization
 
     Attributes:
@@ -20,17 +22,28 @@ class MeanVarianceNorm(object):
        right_context: future context of the sliding window, if None all future frames.
 
     If left_context==right_context==None, it will apply global mean/variance normalization.
+
+    Example:
+      >>> import numpy as np
+      >>> from hyperion.np.feats.feature_normalization import MeanVarianceNorm
+      >>> x = np.random.randn(100, 40).astype(np.float32)
+      >>> cmvn = MeanVarianceNorm(norm_mean=True, norm_var=True, left_context=150, right_context=150)
+      >>> x_norm = cmvn.normalize(x)
     """
 
     def __init__(
-        self, norm_mean=True, norm_var=False, left_context=None, right_context=None
-    ):
+        self,
+        norm_mean: bool = True,
+        norm_var: bool = False,
+        left_context: Optional[int] = None,
+        right_context: Optional[int] = None,
+    ) -> None:
         self.norm_mean = norm_mean
         self.norm_var = norm_var
         self.left_context = left_context
         self.right_context = right_context
 
-    def normalize(self, x):
+    def normalize(self, x: np.ndarray) -> np.ndarray:
         """Applies feature normalization.
 
         Args:
@@ -41,7 +54,7 @@ class MeanVarianceNorm(object):
         """
         return self.normalize_cumsum(x)
 
-    def normalize_global(self, x):
+    def normalize_global(self, x: np.ndarray) -> np.ndarray:
         """Applies Global mean/var norm."""
         if self.norm_mean:
             m_x = np.mean(x, axis=0, keepdims=True)
@@ -49,11 +62,12 @@ class MeanVarianceNorm(object):
 
         if self.norm_var:
             s_x = np.std(x, axis=0, keepdims=True)
+            s_x[s_x < np.sqrt(1e-5)] = np.sqrt(1e-5)
             x = x / s_x
 
         return x
 
-    def normalize_conv(self, x):
+    def normalize_conv(self, x: np.ndarray) -> np.ndarray:
         """Normalize featurex in x
            Uses convolution operator
         Args:
@@ -93,7 +107,7 @@ class MeanVarianceNorm(object):
         if self.norm_var:
             m2_x = convolve2d(x * x, h)[right_context : right_context + x.shape[0]]
             m2_x /= counts
-            s2_x = m2_x - m_x ** 2
+            s2_x = m2_x - m_x**2
             s2_x[s2_x < 1e-5] = 1e-5
             s_x = np.sqrt(s2_x)
 
@@ -105,7 +119,7 @@ class MeanVarianceNorm(object):
 
         return x
 
-    def normalize_cumsum(self, x):
+    def normalize_cumsum(self, x: np.ndarray) -> np.ndarray:
         """Normalize featurex in x
            Uses cumsum
         Args:
@@ -179,14 +193,14 @@ class MeanVarianceNorm(object):
 
         if self.norm_var:
             m2_x = (c2_x[total_context:] - c2_x[:-total_context]) / counts
-            s2_x = m2_x - m_x ** 2
+            s2_x = m2_x - m_x**2
             s2_x[s2_x < 1e-5] = 1e-5
             s_x = np.sqrt(s2_x)
             x /= s_x
 
         return x
 
-    def normalize_slow(self, x):
+    def normalize_slow(self, x: np.ndarray) -> np.ndarray:
 
         x = self.normalize_global(x)
 
@@ -222,7 +236,7 @@ class MeanVarianceNorm(object):
         return x
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Filters ST-CMVN args from arguments dictionary.
 
         Args:
@@ -247,8 +261,9 @@ class MeanVarianceNorm(object):
         neg_args2 = ("norm_mean",)
 
         for a, b in zip(neg_args1, neg_args2):
-            d[b] = not d[a]
-            del d[a]
+            if a in d:
+                d[b] = not d[a]
+                del d[a]
 
         if "context" in d:
             if d["context"] is not None:
@@ -259,7 +274,7 @@ class MeanVarianceNorm(object):
         return d
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Adds ST-CMVN options to parser.
 
         Args:
@@ -310,6 +325,5 @@ class MeanVarianceNorm(object):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='mean-var norm options')
 
     add_argparse_args = add_class_args

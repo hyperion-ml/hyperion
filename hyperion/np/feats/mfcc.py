@@ -1,10 +1,10 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
 from enum import Enum
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 from jsonargparse import ActionParser, ArgumentParser
@@ -28,32 +28,32 @@ class MFCCSteps(Enum):
     LOGFB = 4
     MFCC = 5
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         if self.__class__ is other.__class__:
             return self.value < other.value
         return NotImplemented
 
-    def __gt__(self, other):
+    def __gt__(self, other: object) -> bool:
         if self.__class__ is other.__class__:
             return self.value > other.value
         return NotImplemented
 
-    def __le__(self, other):
+    def __le__(self, other: object) -> bool:
         if self.__class__ is other.__class__:
             return self.value <= other.value
         return NotImplemented
 
-    def __ge__(self, other):
+    def __ge__(self, other: object) -> bool:
         if self.__class__ is other.__class__:
             return self.value >= other.value
         return NotImplemented
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if self.__class__ is other.__class__:
             return self.value == other.value
         return NotImplemented
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         if self.__class__ is other.__class__:
             return self.value != other.value
         return NotImplemented
@@ -62,7 +62,7 @@ class MFCCSteps(Enum):
 mfcc_steps_dict = {step.name.lower(): step for step in MFCCSteps}
 
 
-class MFCC(object):
+class MFCC:
     """Compute MFCC features.
 
     Attributes:
@@ -88,33 +88,42 @@ class MFCC(object):
        cepstral_lifter:   Constant that controls scaling of MFCCs (default = 22)
        input_step:        It can continue computation from any step: wav, fft, spec, logfb (default = 'wav')
        output_step:       It can return intermediate result: fft, spec, logfb, mfcc (default = 'mfcc')
+
+    Example:
+      >>> import numpy as np
+      >>> from hyperion.np.feats.mfcc import MFCC
+      >>> wav = np.random.randn(16000).astype(np.float32)  # 1 second @ 16 kHz
+      >>> mfcc = MFCC(sample_frequency=16000, num_ceps=13, input_step="wave", output_step="mfcc")
+      >>> feats = mfcc.compute(wav)
+      >>> feats.shape[1]
+      13
     """
 
     def __init__(
         self,
-        sample_frequency=16000,
-        frame_length=25,
-        frame_shift=10,
-        fft_length=512,
-        remove_dc_offset=True,
-        preemphasis_coeff=0.97,
-        window_type="povey",
-        use_fft2=True,
-        dither=1 / 2**15,
-        fb_type="mel_kaldi",
-        low_freq=20,
-        high_freq=0,
-        num_filters=23,
-        norm_filters=False,
-        num_ceps=13,
-        snip_edges=True,
-        energy_floor=0,
-        raw_energy=True,
-        use_energy=True,
-        cepstral_lifter=22,
-        input_step="wave",
-        output_step="mfcc",
-    ):
+        sample_frequency: int = 16000,
+        frame_length: float = 25,
+        frame_shift: float = 10,
+        fft_length: int = 512,
+        remove_dc_offset: bool = True,
+        preemphasis_coeff: float = 0.97,
+        window_type: str = "povey",
+        use_fft2: bool = True,
+        dither: float = 1 / 2**15,
+        fb_type: str = "mel_kaldi",
+        low_freq: float = 20,
+        high_freq: float = 0,
+        num_filters: int = 23,
+        norm_filters: bool = False,
+        num_ceps: int = 13,
+        snip_edges: bool = True,
+        energy_floor: float = 0,
+        raw_energy: bool = True,
+        use_energy: bool = True,
+        cepstral_lifter: float = 22,
+        input_step: str = "wave",
+        output_step: str = "mfcc",
+    ) -> None:
 
         self.fs = sample_frequency
         self.sample_frequency = sample_frequency
@@ -142,11 +151,17 @@ class MFCC(object):
         self.input_step = input_step
         self.output_step = output_step
 
-        assert input_step in mfcc_steps_dict, "Invalid input step %s" % (input_step)
-        assert output_step in mfcc_steps_dict, "Invalid output step %s" % (output_step)
+        if input_step not in mfcc_steps_dict:
+            raise ValueError(f"invalid input_step {input_step!r}")
+        if output_step not in mfcc_steps_dict:
+            raise ValueError(f"invalid output_step {output_step!r}")
 
         self._input_step = mfcc_steps_dict[input_step]
         self._output_step = mfcc_steps_dict[output_step]
+        if self._output_step < self._input_step:
+            raise ValueError(
+                f"output_step ({output_step!r}) must be >= input_step ({input_step!r})"
+            )
 
         N = int(np.floor(frame_length * fs / 1000))
         if N > fft_length:
@@ -170,13 +185,13 @@ class MFCC(object):
         self._lifter = MFCC.make_lifter(self.num_ceps, self.cepstral_lifter)
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         """Resets the internal states of the filters"""
         self._dc_zi = np.array([0], dtype=float_cpu())
         self._preemph_zi = np.array([0], dtype=float_cpu())
 
     @staticmethod
-    def make_lifter(N, Q):
+    def make_lifter(N: int, Q: float) -> Union[int, np.ndarray]:
         """Makes the liftering function
 
         Args:
@@ -190,7 +205,7 @@ class MFCC(object):
             return 1
         return 1 + 0.5 * Q * np.sin(np.pi * np.arange(N) / Q)
 
-    def compute_raw_logE(self, x):
+    def compute_raw_logE(self, x: np.ndarray) -> np.ndarray:
         """Computes log-energy before preemphasis filter
 
         Args:
@@ -201,7 +216,13 @@ class MFCC(object):
         """
         return st_logE(x, self._length, self._shift)
 
-    def compute(self, x, return_fft=False, return_spec=False, return_logfb=False):
+    def compute(
+        self,
+        x: np.ndarray,
+        return_fft: bool = False,
+        return_spec: bool = False,
+        return_logfb: bool = False,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, ...]]:
         """Evaluates the MFCC pipeline.
 
         Args:
@@ -214,14 +235,45 @@ class MFCC(object):
           Stfft, spectrogram, log-filter-bank or MFCC depending on output_step.
         """
 
-        assert not (return_fft and self._input_step > MFCCSteps.FFT)
-        assert not (
-            return_spec
-            and (
-                self._input_step > MFCCSteps.SPEC or self._output_step < MFCCSteps.SPEC
+        if return_fft and self._input_step > MFCCSteps.FFT:
+            raise ValueError(
+                "return_fft=True is not compatible with input_step "
+                f"{self.input_step!r} (must be <= 'fft')"
             )
-        )
-        assert not (return_logfb and self._output_step < MFCCSteps.LOGFB)
+        if return_spec and (
+            self._input_step > MFCCSteps.SPEC or self._output_step < MFCCSteps.SPEC
+        ):
+            raise ValueError(
+                "return_spec=True is not compatible with "
+                f"input_step={self.input_step!r}, output_step={self.output_step!r}"
+            )
+        if return_logfb and self._output_step < MFCCSteps.LOGFB:
+            raise ValueError(
+                "return_logfb=True requires output_step >= 'logfb', got "
+                f"{self.output_step!r}"
+            )
+
+        if self._input_step == MFCCSteps.WAVE:
+            if x.ndim != 1:
+                raise ValueError(
+                    f"for input_step='wave', x must be 1D waveform, got shape={x.shape}"
+                )
+        elif self._input_step in (MFCCSteps.FFT, MFCCSteps.SPEC, MFCCSteps.LOG_SPEC):
+            if x.ndim != 2:
+                raise ValueError(
+                    f"for input_step={self.input_step!r}, x must be 2D, got shape={x.shape}"
+                )
+        elif self._input_step == MFCCSteps.LOGFB:
+            if x.ndim != 2:
+                raise ValueError(
+                    f"for input_step='logfb', x must be 2D, got shape={x.shape}"
+                )
+            min_cols = self.num_filters + (1 if self.use_energy else 0)
+            if x.shape[1] < min_cols:
+                raise ValueError(
+                    f"for input_step='logfb', expected at least {min_cols} columns "
+                    f"(got {x.shape[1]})"
+                )
 
         # Prepare input
         if self._input_step == MFCCSteps.FFT:
@@ -241,6 +293,8 @@ class MFCC(object):
             if self.use_energy:
                 B = x[:, 1:]
                 logE = x[:, 0]
+            else:
+                B = x
 
         if self._input_step == MFCCSteps.WAVE:
             if self.snip_edges:
@@ -343,7 +397,7 @@ class MFCC(object):
         return tuple(R)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Filters MFCC args from arguments dictionary.
 
         Args:
@@ -360,7 +414,6 @@ class MFCC(object):
             "remove_dc_offset",
             "preemphasis_coeff",
             "window_type",
-            "blackman_coeff",
             "use_fft2",
             "dither",
             "fb_type",
@@ -382,7 +435,7 @@ class MFCC(object):
         return d
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Adds MFCC options to parser.
 
         Args:
@@ -426,7 +479,7 @@ class MFCC(object):
             help="Coefficient for use in signal preemphasis",
         )
 
-        FWF.add_class_args(parser, prefix)
+        FWF.add_class_args(parser)
 
         parser.add_argument(
             "--use-fft2",
@@ -442,7 +495,7 @@ class MFCC(object):
             help="Dithering constant (0.0 means no dither)",
         )
 
-        FBF.add_class_args(parser, prefix)
+        FBF.add_class_args(parser)
 
         parser.add_argument(
             "--num-ceps",

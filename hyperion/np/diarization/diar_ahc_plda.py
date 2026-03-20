@@ -1,13 +1,12 @@
 """
- Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional, Tuple
 
-import h5py
 import matplotlib
 import numpy as np
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -23,42 +22,72 @@ from ..pdfs import GMMTiedDiagCov as GMM
 from ..transforms import PCA
 
 
-class DiarAHCPLDA(object):
-    """Class to perform diarization using
-    Agglomerative clustering using scores computed by a PLDA model.
+class DiarAHCPLDA:
+    """Performs diarization with agglomerative hierarchical clustering (AHC).
 
-    The steps are:
-    - It applies a pre-processing transformation to the data, such as LDA and
-      Length normalization (optional).
-    - Trains PCA on the test data and reduces test data dimension. It also
-      transforms the parameters of the PLDA model using the PCA projection matrix (optional).
-    - Gets affinity matrix using PLDA scoring.
-    - It applies unsupervised calibration to scores using GMM model (optional).
-    - Performs AHC.
+    Pipeline:
+      1. Optional feature pre-processing (e.g., LDA + length norm).
+      2. Optional PCA fit on current utterance and projection of features (and
+         PLDA parameters when PLDA is used).
+      3. Pairwise scoring with PLDA (or cosine scoring if PLDA is not provided).
+      4. Optional score calibration (external calibrator and/or unsupervised GMM).
+      5. AHC and optional post-merge of temporal intervals per speaker.
 
     Attributes:
-      plda_model: pre-trained PLDA model, if None, use cosine scoring
-      preproc: preprocessing transformation class.
-               If None, no transformation is applied.
-      threshold: stopping threshold for AHC.
-      pca_var_r: ratio of variance to keep when doing PCA on features after
-                 the preprocessing. If "pca_var_r=1", PCA is not applied.
-      do_unsup_cal: applies unsupervised calibration to PLDA scores.
-      use_bic: uses Bayesian Information Criterion to decide if there is 1 or 2 components
-               in the GMM used for calibration.
+      plda_model: Pre-trained PLDA-like model. If ``None``, cosine scoring is used.
+      preproc: Optional callable transform applied to ``x`` before scoring.
+      calibrator: Optional external score calibrator applied element-wise to
+        the score matrix.
+      threshold: Stopping threshold for AHC flat clustering.
+      max_clusters: Optional upper bound on number of output clusters.
+      pca_var_r: Variance ratio preserved by PCA in ``(0, 1]``.
+        If ``pca_var_r=1``, PCA is skipped.
+      do_unsup_cal: If ``True``, runs unsupervised 2-Gaussian score calibration.
+      use_bic: If ``True`` (and unsupervised calibration is enabled), uses BIC to
+        detect one-Gaussian cases and return a single cluster.
+
+    Example:
+      >>> import numpy as np
+      >>> from hyperion.np.diarization.diar_ahc_plda import DiarAHCPLDA
+      >>> x = np.random.randn(100, 256).astype(np.float32)
+      >>> t_start = np.arange(100, dtype=np.float32) * 0.01
+      >>> t_end = t_start + 0.01
+      >>> diar = DiarAHCPLDA(threshold=0.0, pca_var_r=1.0, do_unsup_cal=False)
+      >>> cluster_ids, t_start_out, t_end_out = diar(x, t_start=t_start, t_end=t_end)
     """
 
     def __init__(
         self,
-        plda_model=None,
-        preproc=None,
-        calibrator=None,
+        plda_model: Optional[Any] = None,
+        preproc: Optional[Any] = None,
+        calibrator: Optional[Any] = None,
         threshold: float = 0.0,
         max_clusters: Optional[int] = None,
         pca_var_r: float = 1.0,
         do_unsup_cal: bool = False,
         use_bic: bool = False,
-    ):
+    ) -> None:
+        """Initializes a diarization backend based on AHC over PLDA scores.
+
+        Args:
+          plda_model: Pre-trained PLDA-like model. If ``None``, cosine scoring is used.
+          preproc: Optional preprocessing transform/callable applied to features.
+          calibrator: Optional external score calibrator.
+          threshold: AHC threshold used to cut the dendrogram.
+          max_clusters: Optional upper bound on number of output clusters.
+          pca_var_r: PCA kept-variance ratio in ``(0, 1]``. ``1`` disables PCA.
+          do_unsup_cal: Enables unsupervised GMM score calibration.
+          use_bic: Uses BIC decision from unsupervised calibration to force a
+            single-cluster output when supported by the data.
+        """
+        if not (0 < pca_var_r <= 1):
+            raise ValueError(f"pca_var_r must be in (0, 1], got {pca_var_r!r}")
+        if max_clusters is not None and (
+            not isinstance(max_clusters, (int, np.integer)) or max_clusters < 1
+        ):
+            raise ValueError(
+                f"max_clusters must be a positive integer or None, got {max_clusters!r}"
+            )
 
         self.plda_model = plda_model
         self.preproc = preproc
@@ -71,8 +100,23 @@ class DiarAHCPLDA(object):
         self._ahc = AHC()
 
     @staticmethod
-    def _plot_score_hist(scores, output_file, thr=None, gmm=None):
-        """Plots the score histograms and GMM."""
+    def _plot_score_hist(
+        scores: np.ndarray,
+        output_file: PathLike,
+        thr: Optional[float] = None,
+        gmm: Optional[Any] = None,
+    ) -> None:
+        """Plots score histogram and optional calibration model density.
+
+        Args:
+          scores: Pairwise score matrix ``(N, N)``.
+          output_file: Output plot path.
+          thr: Optional decision threshold to draw as vertical line.
+          gmm: Optional fitted GMM object for plotting model density.
+
+        Returns:
+          ``None``.
+        """
         output_dir = Path(output_file).parent
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -117,14 +161,23 @@ class DiarAHCPLDA(object):
         plt.clf()
 
     @staticmethod
-    def _unsup_gmm_calibration(scores):
-        """Performs unsupervised calibration on the scores by training a GMM."""
+    def _unsup_gmm_calibration(scores: np.ndarray) -> Tuple[np.ndarray, float, Any]:
+        """Performs unsupervised score calibration using a 2-component GMM.
+
+        Args:
+          scores: Pairwise score matrix ``(N, N)``.
+
+        Returns:
+          scores_cal: Calibrated scores with same shape as input.
+          bic: BIC-based evidence for 2-comp vs 1-comp model.
+          gmm_2c: Trained 2-component GMM used for calibration.
+        """
         mask = np.triu(np.ones(scores.shape, dtype=bool), 1)
         scores_r = scores[mask].ravel()[:, None]  # N x 1
         gmm_1c = GMM(num_comp=1)
         gmm_1c.fit(scores_r, epochs=1)
         gmm_2c = gmm_1c.split_comp(2)
-        e = gmm_2c.fit(scores_r, epochs=20)
+        gmm_2c.fit(scores_r, epochs=20)
         scale = (gmm_2c.mu[0] - gmm_2c.mu[1]) * gmm_2c.Lambda
         bias = (
             (gmm_2c.mu[1] ** 2 - gmm_2c.mu[0] ** 2) * gmm_2c.Lambda / 2
@@ -141,7 +194,21 @@ class DiarAHCPLDA(object):
         )
         return scores, bic, gmm_2c
 
-    def _merge_intervals(self, cluster_ids, t_start, t_end):
+    def _merge_intervals(
+        self, cluster_ids: np.ndarray, t_start: np.ndarray, t_end: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Merges overlapping/adjacent intervals per speaker cluster.
+
+        Args:
+          cluster_ids: Cluster assignments ``(num_segments,)``.
+          t_start: Segment start times ``(num_segments,)``.
+          t_end: Segment end times ``(num_segments,)``.
+
+        Returns:
+          new_cluster_ids: Reindexed cluster labels sorted by start time.
+          new_t_start: Merged segment start times.
+          new_t_end: Merged segment end times.
+        """
         new_t_start = []
         new_t_end = []
         new_cluster_ids = []
@@ -172,20 +239,45 @@ class DiarAHCPLDA(object):
         t_start: Optional[np.ndarray] = None,
         t_end: Optional[np.ndarray] = None,
         hist_file: Optional[PathLike] = None,
-    ):
-        """Peforms the diarization clustering.
+    ) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
+        """Performs diarization clustering.
 
         Args:
-          x: input data (num_frames, feat_dim)
-          t_start: frame start times
-          t_end: frame end times
-          hist_file: file to plot the score histogram (optional).
+          x: Input feature matrix ``(num_segments, feat_dim)``.
+          t_start: Optional segment start times.
+          t_end: Optional segment end times.
+          hist_file: Optional path to save score histogram plot.
 
         Returns:
-          Cluster assigments as (num_frames,) integer array.
+          cluster_ids: Cluster assignments. Shape is ``(num_segments,)`` when no
+            interval merge is requested, otherwise ``(num_merged_segments,)``.
+          t_start: Input/merged segment start times if provided.
+          t_end: Input/merged segment end times if provided.
         """
+        if x.ndim != 2:
+            raise ValueError(
+                f"x must be a 2D array with shape (num_segments, feat_dim), got {x.shape}"
+            )
         if self.preproc is not None:
             x = self.preproc(x)
+
+        num_segments = x.shape[0]
+        if (t_start is None) != (t_end is None):
+            raise ValueError("t_start and t_end must both be provided or both be None")
+        if t_start is not None and t_end is not None:
+            if len(t_start) != num_segments or len(t_end) != num_segments:
+                raise ValueError(
+                    "t_start and t_end must have length equal to number of segments: "
+                    f"len(t_start)={len(t_start)}, len(t_end)={len(t_end)}, "
+                    f"num_segments={num_segments}"
+                )
+        if num_segments < 2:
+            logging.warning(
+                "DiarAHCPLDA received %d segment(s); returning trivial clustering",
+                num_segments,
+            )
+            cluster_ids = np.zeros((num_segments,), dtype=int)
+            return cluster_ids, t_start, t_end
 
         if self.pca_var_r < 1:
             pca = PCA(pca_var_r=self.pca_var_r, whiten=True)
@@ -216,9 +308,12 @@ class DiarAHCPLDA(object):
             )
             if hist_file:
                 hist_file = Path(hist_file)
-                hist_file_1 = hist_file.with_suffix("_nocal" + hist_file.suffix)
+                hist_file_1 = hist_file.with_name(
+                    f"{hist_file.stem}_nocal{hist_file.suffix}"
+                )
                 self._plot_score_hist(scores, hist_file_1, None, gmm_2c)
-                scores = scores_cal
+
+            scores = scores_cal
 
         if hist_file:
             self._plot_score_hist(scores, hist_file, self.threshold)
@@ -226,7 +321,7 @@ class DiarAHCPLDA(object):
         if self.use_bic and bic < 0:
             # unsup calibration detected only one Gaussian -> only target trials
             cluster_ids = np.zeros(len(x), dtype=int)
-            return cluster_ids
+            return cluster_ids, t_start, t_end
 
         self._ahc.fit(scores)
         cluster_ids = self._ahc.get_flat_clusters(self.threshold)
@@ -242,39 +337,72 @@ class DiarAHCPLDA(object):
         return cluster_ids, t_start, t_end
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Filters diarization args from arguments dictionary.
 
         Args:
-          prefix: Options prefix.
           kwargs: Arguments dictionary.
 
         Returns:
           Dictionary with diarization options.
         """
-        valid_args = ("threshold", "pca_var_r", "do_unsup_cal", "use_bic")
+        valid_args = (
+            "threshold",
+            "max_clusters",
+            "pca_var_r",
+            "do_unsup_cal",
+            "use_bic",
+        )
 
         d = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return d
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Adds diarization options to parser.
 
         Args:
-          parser: Arguments parser
+          parser: Arguments parser.
           prefix: Options prefix.
+
+        Returns:
+          ``None``.
         """
 
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument("--threshold", default=0, type=float)
-        parser.add_argument("--max-clusters", default=None, type=int)
-        parser.add_argument("--pca-var-r", default=1, type=float)
-        parser.add_argument("--do-unsup-cal", default=False, action=ActionYesNo)
-        parser.add_argument("--use-bic", default=False, action=ActionYesNo)
+        parser.add_argument(
+            "--threshold",
+            default=0,
+            type=float,
+            help="AHC threshold used to cut the dendrogram into flat clusters",
+        )
+        parser.add_argument(
+            "--max-clusters",
+            default=None,
+            type=int,
+            help="optional upper bound on number of output clusters",
+        )
+        parser.add_argument(
+            "--pca-var-r",
+            default=1,
+            type=float,
+            help="PCA kept-variance ratio in (0,1]; set to 1 to disable PCA",
+        )
+        parser.add_argument(
+            "--do-unsup-cal",
+            default=False,
+            action=ActionYesNo,
+            help="enable unsupervised GMM-based score calibration",
+        )
+        parser.add_argument(
+            "--use-bic",
+            default=False,
+            action=ActionYesNo,
+            help="with unsupervised calibration, use BIC to force one-cluster output when appropriate",
+        )
         if prefix is not None:
             outer_parser.add_argument(
                 "--" + prefix,

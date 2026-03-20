@@ -1,21 +1,22 @@
 """
- Copyright 2018 Jesus Villalba (Johns Hopkins University)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Jesus Villalba (Johns Hopkins University)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
+from typing import Optional
 
 import numpy as np
+from jsonargparse import ActionParser, ArgumentParser
 from scipy.signal.windows import blackman, hamming, hann
 
 from ...hyp_defs import float_cpu
 
 
-class FeatureWindowFactory(object):
+class FeatureWindowFactory:
     """Factory class to create windowing functions."""
 
     @staticmethod
-    def create(window_type, N, sym=False):
+    def create(window_type: str, N: int, sym: bool = False) -> np.ndarray:
         """Creates a windowing function.
 
         Args:
@@ -26,6 +27,10 @@ class FeatureWindowFactory(object):
         Returns:
           Window as (N,) numpy array.
         """
+        if not isinstance(N, int) or N < 1:
+            raise ValueError(f"N must be a positive integer, got {N!r}")
+
+        window_type = window_type.lower()
 
         if window_type == "povey":
             return np.power(
@@ -41,33 +46,32 @@ class FeatureWindowFactory(object):
         if window_type == "rectangular":
             return np.ones((N,), dtype=float_cpu())
 
-        raise Exception("Invalid window type %s" % window_type)
+        raise ValueError(f"invalid window type {window_type!r}")
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Adds feature window options to parser.
 
         Args:
           parser: Arguments parser
           prefix: Options prefix.
         """
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "window-type",
+            "--window-type",
             default="povey",
             choices=["hamming", "hanning", "povey", "rectangular", "blackman"],
             help=(
-                'Type of window ("hamming"|"hanning"|"povey"|"rectangular"|"blackmann")'
+                'Type of window ("hamming"|"hanning"|"povey"|"rectangular"|"blackman")'
             ),
         )
-
-        # parser.add_argument(
-        #     p1+'blackman-coeff', type=float,
-        #     default=0.42,
-        #     help='Constant coefficient for generalized Blackman window. (default = 0.42)')
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
     add_argparse_args = add_class_args

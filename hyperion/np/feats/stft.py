@@ -3,14 +3,20 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
+from typing import Optional
 
 import numpy as np
 
 from ...hyp_defs import float_cpu
 
 
-def stft(x, frame_length, frame_shift, fft_length, window=None):
+def stft(
+    x: np.ndarray,
+    frame_length: int,
+    frame_shift: int,
+    fft_length: int,
+    window: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """Short-time Fourier Transform for real or complex signals.
 
     Args:
@@ -23,10 +29,26 @@ def stft(x, frame_length, frame_shift, fft_length, window=None):
     Returns:
       Fourier transform (num_frames, fft_length)
     """
+    if x.ndim != 1:
+        raise ValueError(f"x must be a 1D signal, got shape={x.shape}")
+    if frame_length <= 0:
+        raise ValueError(f"frame_length must be > 0, got {frame_length!r}")
+    if frame_shift <= 0:
+        raise ValueError(f"frame_shift must be > 0, got {frame_shift!r}")
+    if fft_length <= 0:
+        raise ValueError(f"fft_length must be > 0, got {fft_length!r}")
+
     if window is None:
-        window = 1
+        window = np.ones((frame_length,), dtype=float_cpu())
+    elif not isinstance(window, np.ndarray):
+        raise TypeError(f"window must be a numpy array, got {type(window)!r}")
+    elif window.shape[0] != frame_length:
+        raise ValueError(
+            f"window length ({window.shape[0]}) must match frame_length ({frame_length})"
+        )
 
     num_frames = int(np.floor((len(x) - frame_length + frame_shift) / frame_shift))
+    num_frames = max(0, num_frames)
     X = np.zeros((num_frames, fft_length), dtype="complex64")
     j = 0
     for i in range(num_frames):
@@ -36,21 +58,40 @@ def stft(x, frame_length, frame_shift, fft_length, window=None):
     return X
 
 
-def istft(X, frame_length, frame_shift, window=None):
+def istft(
+    X: np.ndarray,
+    frame_length: int,
+    frame_shift: int,
+    window: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """Short-time Fourier Transform for real or complex signals.
 
     Args:
       X: input FFT (num_frames, fft_length).
       frame_length: frame length.
       frame_shift: frame shift.
-      fft_length: length of the FFT.
       window: window function as numpy array (frame_length,)
 
     Returns:
-      Reconstructed signal (num_frames * (frame_shift-1) + frame_length,)
+      Reconstructed signal ((num_frames - 1) * frame_shift + frame_length,).
     """
+    if X.ndim != 2:
+        raise ValueError(f"X must be a 2D matrix, got shape={X.shape}")
+    if frame_length <= 0:
+        raise ValueError(f"frame_length must be > 0, got {frame_length!r}")
+    if frame_shift <= 0:
+        raise ValueError(f"frame_shift must be > 0, got {frame_shift!r}")
     if window is None:
         window = np.ones((frame_length,), dtype=float_cpu())
+    elif not isinstance(window, np.ndarray):
+        raise TypeError(f"window must be a numpy array, got {type(window)!r}")
+    elif window.shape[0] != frame_length:
+        raise ValueError(
+            f"window length ({window.shape[0]}) must match frame_length ({frame_length})"
+        )
+
+    if X.shape[0] == 0:
+        return np.zeros((0,), dtype="complex64")
 
     num_samples = (X.shape[0] - 1) * frame_shift + frame_length
     x_overlap = np.zeros((num_samples,), dtype="complex64")
@@ -70,7 +111,13 @@ def istft(X, frame_length, frame_shift, window=None):
     return x
 
 
-def strft(x, frame_length, frame_shift, fft_length, window=None):
+def strft(
+    x: np.ndarray,
+    frame_length: int,
+    frame_shift: int,
+    fft_length: int,
+    window: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """Short-time Fourier Transform for real signals.
 
     Args:
@@ -83,10 +130,26 @@ def strft(x, frame_length, frame_shift, fft_length, window=None):
     Returns:
       Fourier transform (num_frames, fft_length/2+1)
     """
+    if x.ndim != 1:
+        raise ValueError(f"x must be a 1D signal, got shape={x.shape}")
+    if frame_length <= 0:
+        raise ValueError(f"frame_length must be > 0, got {frame_length!r}")
+    if frame_shift <= 0:
+        raise ValueError(f"frame_shift must be > 0, got {frame_shift!r}")
+    if fft_length <= 0:
+        raise ValueError(f"fft_length must be > 0, got {fft_length!r}")
+
     if window is None:
-        window = 1
+        window = np.ones((frame_length,), dtype=float_cpu())
+    elif not isinstance(window, np.ndarray):
+        raise TypeError(f"window must be a numpy array, got {type(window)!r}")
+    elif window.shape[0] != frame_length:
+        raise ValueError(
+            f"window length ({window.shape[0]}) must match frame_length ({frame_length})"
+        )
 
     num_frames = int(np.floor((len(x) - frame_length + frame_shift) / frame_shift))
+    num_frames = max(0, num_frames)
     X = np.zeros((num_frames, int(fft_length / 2 + 1)), dtype="complex64")
     j = 0
     for i in range(num_frames):
@@ -96,21 +159,40 @@ def strft(x, frame_length, frame_shift, fft_length, window=None):
     return X
 
 
-def istrft(X, frame_length, frame_shift, window=None):
+def istrft(
+    X: np.ndarray,
+    frame_length: int,
+    frame_shift: int,
+    window: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """Short-time Fourier Transform for real signals.
 
     Args:
       X: input FFT (num_frames, fft_length/2+1).
       frame_length: frame length.
       frame_shift: frame shift.
-      fft_length: length of the FFT.
       window: window function as numpy array (frame_length,)
 
     Returns:
-      Reconstructed signal (num_frames * (frame_shift-1) + frame_length,)
+      Reconstructed signal ((num_frames - 1) * frame_shift + frame_length,).
     """
+    if X.ndim != 2:
+        raise ValueError(f"X must be a 2D matrix, got shape={X.shape}")
+    if frame_length <= 0:
+        raise ValueError(f"frame_length must be > 0, got {frame_length!r}")
+    if frame_shift <= 0:
+        raise ValueError(f"frame_shift must be > 0, got {frame_shift!r}")
     if window is None:
         window = np.ones((frame_length,), dtype=float_cpu())
+    elif not isinstance(window, np.ndarray):
+        raise TypeError(f"window must be a numpy array, got {type(window)!r}")
+    elif window.shape[0] != frame_length:
+        raise ValueError(
+            f"window length ({window.shape[0]}) must match frame_length ({frame_length})"
+        )
+
+    if X.shape[0] == 0:
+        return np.zeros((0,), dtype=float_cpu())
 
     num_samples = (X.shape[0] - 1) * frame_shift + frame_length
     x_overlap = np.zeros((num_samples,), dtype=float_cpu())
@@ -130,7 +212,7 @@ def istrft(X, frame_length, frame_shift, window=None):
     return x
 
 
-def st_logE(x, frame_length, frame_shift):
+def st_logE(x: np.ndarray, frame_length: int, frame_shift: int) -> np.ndarray:
     """Computes log-energy before preemphasis filter
 
     Args:
@@ -139,8 +221,15 @@ def st_logE(x, frame_length, frame_shift):
     Returns:
       Log-energy
     """
+    if x.ndim != 1:
+        raise ValueError(f"x must be a 1D signal, got shape={x.shape}")
+    if frame_length <= 0:
+        raise ValueError(f"frame_length must be > 0, got {frame_length!r}")
+    if frame_shift <= 0:
+        raise ValueError(f"frame_shift must be > 0, got {frame_shift!r}")
 
     num_frames = int(np.floor((len(x) - frame_length + frame_shift) / frame_shift))
+    num_frames = max(0, num_frames)
 
     x2 = x ** 2
     e = np.zeros((num_frames,), dtype=float_cpu())

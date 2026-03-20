@@ -31,6 +31,14 @@ Primary subpackages:
 * ``hyperion.np.score_norm``
 * ``hyperion.np.transforms``
 
+Feature Tutorials
+-----------------
+
+.. toctree::
+   :maxdepth: 1
+
+   np/mfcc
+
 Probability density models
 --------------------------
 
@@ -81,5 +89,6 @@ NumPy metric functions are exposed from ``hyperion.np.metrics``.
 See Also
 --------
 
+* :doc:`np/mfcc`
 * :doc:`metrics`
-* :doc:`speech_augmentation`
+* :doc:`np/speech_augmentation`
