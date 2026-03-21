@@ -1,7 +1,10 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Any, Dict, Optional
+
 import numpy as np
 from jsonargparse import ActionParser, ArgumentParser
 from sklearn.manifold import TSNE
@@ -28,32 +31,45 @@ class SklTSNE(HyperNPModel):
       method: gradient calculation method in [‘barnes_hut’, 'exact']
       angle: angle thetha in Barnes-Hut TSNE
       num_jobs: number of parallel jobs to run for neighbors search.
+
+    Example:
+      ```python
+      import numpy as np
+      from hyperion.np.transforms import SklTSNE
+
+      rng = np.random.default_rng(1234)
+      x = rng.standard_normal((1500, 128))
+
+      tsne = SklTSNE(tsne_dim=2, perplexity=30.0, num_iter=1000, rng_seed=1234)
+      y = tsne.fit(x)
+      print(y.shape)  # (1500, 2)
+      ```
     """
 
     def __init__(
         self,
-        tsne_dim=2,
-        perplexity=30.0,
-        early_exaggeration=12.0,
-        lr=200.0,
-        num_iter=1000,
-        num_iter_without_progress=300,
-        min_grad_norm=1e-07,
-        metric="euclidean",
-        init="random",
-        verbose=0,
-        rng=None,
-        rng_seed=1234,
-        method="barnes_hut",
-        angle=0.5,
-        num_jobs=None,
-        **kwargs
-    ):
+        tsne_dim: int = 2,
+        perplexity: float = 30.0,
+        early_exaggeration: float = 12.0,
+        lr: float = 200.0,
+        num_iter: int = 1000,
+        num_iter_without_progress: int = 300,
+        min_grad_norm: float = 1e-07,
+        metric: str = "euclidean",
+        init: str = "random",
+        verbose: int = 0,
+        rng: Optional[np.random.RandomState] = None,
+        rng_seed: int = 1234,
+        method: str = "barnes_hut",
+        angle: float = 0.5,
+        num_jobs: Optional[int] = None,
+        **kwargs: Any,
+    ) -> None:
 
         super().__init__(**kwargs)
         self.rng_seed = rng_seed
         if rng is None:
-            #rng = np.random.default_rng(seed=rng_seed)
+            # rng = np.random.default_rng(seed=rng_seed)
             rng = np.random.RandomState(seed=rng_seed)
 
         self._tsne = TSNE(
@@ -74,54 +90,54 @@ class SklTSNE(HyperNPModel):
         )
 
     @property
-    def tsne_dim(self):
+    def tsne_dim(self) -> int:
         return self._tsne.n_components
 
     @property
-    def perplexity(self):
-        return self.perplexity
+    def perplexity(self) -> float:
+        return self._tsne.perplexity
 
     @property
-    def early_exaggeration(self):
+    def early_exaggeration(self) -> float:
         return self._tsne.early_exaggeration
 
     @property
-    def lr(self):
+    def lr(self) -> float:
         return self._tsne.learning_rate
 
     @property
-    def num_iter(self):
+    def num_iter(self) -> int:
         return self._tsne.n_iter
 
     @property
-    def num_iter_without_progress(self):
+    def num_iter_without_progress(self) -> int:
         return self._tsne.n_iter_without_progress
 
     @property
-    def min_grad_norm(self):
+    def min_grad_norm(self) -> float:
         return self._tsne.min_grad_norm
 
     @property
-    def metric(self):
+    def metric(self) -> str:
         return self._tsne.metric
 
     @property
-    def init(self):
+    def init(self) -> str:
         return self._tsne.init
 
     @property
-    def method(self):
+    def method(self) -> str:
         return self._tsne.method
 
     @property
-    def angle(self):
+    def angle(self) -> float:
         return self._tsne.angle
 
     @property
-    def num_jobs(self):
+    def num_jobs(self) -> Optional[int]:
         return self._tsne.n_jobs
 
-    def __call__(self, x):
+    def __call__(self, x: np.ndarray) -> np.ndarray:
         """Trains and applies the transformation to the data.
 
         Args:
@@ -132,7 +148,7 @@ class SklTSNE(HyperNPModel):
         """
         return self.predict(x)
 
-    def forward(self, x):
+    def forward(self, x: np.ndarray) -> np.ndarray:
         """Trains and applies the transformation to the data.
 
         Args:
@@ -143,7 +159,7 @@ class SklTSNE(HyperNPModel):
         """
         return self.predict(x)
 
-    def predict(self, x):
+    def predict(self, x: np.ndarray) -> np.ndarray:
         """Trains and applies the transformation to the data.
 
         Args:
@@ -154,7 +170,7 @@ class SklTSNE(HyperNPModel):
         """
         return self._tsne.fit_transform(x)
 
-    def fit(self, x):
+    def fit(self, x: np.ndarray) -> np.ndarray:
         """Trains and applies the transformation to the data.
 
         Args:
@@ -165,14 +181,14 @@ class SklTSNE(HyperNPModel):
         """
         return self._tsne.fit_transform(x)
 
-    def save_params(self, f):
+    def save_params(self, f: Any) -> None:
         pass
 
     @classmethod
-    def load_params(cls, f, config):
+    def load_params(cls, f: Any, config: Dict[str, Any]) -> "SklTSNE":
         return cls(**config)
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         """Returns the model configuration dict."""
         config = {
             "tsne_dim": self.tsne_dim,
@@ -193,7 +209,7 @@ class SklTSNE(HyperNPModel):
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Filters the arguments corresponding to this model from a dictionary.
 
         Returns
@@ -217,7 +233,7 @@ class SklTSNE(HyperNPModel):
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Adds model options to parser.
 
         Args:
@@ -285,7 +301,7 @@ class SklTSNE(HyperNPModel):
         parser.add_argument(
             "--num-jobs", default=1, type=int, help=("num parallel jobs for NN search")
         )
-        parser.add_argument("--rnd-seed", default=1234, type=int, help=("random seed"))
+        parser.add_argument("--rng-seed", default=1234, type=int, help=("random seed"))
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
