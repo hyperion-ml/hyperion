@@ -3,11 +3,18 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Any, Optional, Sequence, Union
+
 import numpy as np
 from sklearn.metrics import accuracy_score
 
 
-def compute_accuracy(y_true, y_pred, normalize=True, sample_weight=None):
+def compute_accuracy(
+    y_true: Union[np.ndarray, Sequence[Any]],
+    y_pred: Union[np.ndarray, Sequence[Any]],
+    normalize: bool = True,
+    sample_weight: Optional[Union[np.ndarray, Sequence[float]]] = None,
+) -> Union[float, int]:
     """Computes accuracy
 
     Args:

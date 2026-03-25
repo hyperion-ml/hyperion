@@ -9,7 +9,7 @@ from ...utils.math_funcs import neglogsigmoid
 from .utils import opt_loglr
 
 
-def compute_cllr(tar, non):
+def compute_cllr(tar: np.ndarray, non: np.ndarray) -> float:
     """CLLR: Measure of goodness of log-likelihood-ratio detection output.
        This measures both:
         - The quality of the score (over the whole DET curve), and
@@ -26,7 +26,7 @@ def compute_cllr(tar, non):
     return (c1 + c2) / 2
 
 
-def compute_min_cllr(tar, non):
+def compute_min_cllr(tar: np.ndarray, non: np.ndarray) -> float:
     """Minimum CLLR. CLLR given perfect score calibration.
 
     Args:

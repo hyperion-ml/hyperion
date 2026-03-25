@@ -3,13 +3,20 @@ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Sequence, Tuple, Union
+
 import numpy as np
 
 from .roc import compute_roc, compute_rocch, roc2eer, rocch2eer
 from .utils import compute_equalized_partition_weights
 
 
-def compute_dcf(p_miss, p_fa, prior, normalize=True):
+def compute_dcf(
+    p_miss: np.ndarray,
+    p_fa: np.ndarray,
+    prior: Union[float, np.ndarray, Sequence[float]],
+    normalize: bool = True,
+) -> np.ndarray:
     """Computes detection cost function
         DCF = prior*p_miss + (1-prior)*p_fa
 
@@ -34,10 +41,17 @@ def compute_dcf(p_miss, p_fa, prior, normalize=True):
     return dcf
 
 
-def compute_min_dcf(tar, non, prior, normalize=True):
+def compute_min_dcf(
+    tar: np.ndarray,
+    non: np.ndarray,
+    prior: Union[float, np.ndarray, Sequence[float]],
+    normalize: bool = True,
+) -> Tuple[
+    Union[float, np.ndarray], Union[float, np.ndarray], Union[float, np.ndarray]
+]:
     """Computes minimum DCF
         min_DCF = min_t prior*p_miss(t) + (1-prior)*p_fa(t)
-       where t is the decission threshold.
+       where t is the decision threshold.
 
     Args:
       tar: Target scores.
@@ -66,7 +80,12 @@ def compute_min_dcf(tar, non, prior, normalize=True):
     return min_dcf, p_miss, p_fa
 
 
-def compute_act_dcf(tar, non, prior, normalize=True):
+def compute_act_dcf(
+    tar: np.ndarray,
+    non: np.ndarray,
+    prior: Union[float, np.ndarray, Sequence[float]],
+    normalize: bool = True,
+) -> Tuple[Union[float, np.ndarray], np.ndarray, np.ndarray]:
     """Computes actual DCF by making decisions assuming that scores
        are calibrated to act as log-likelihood ratios.
 
@@ -125,20 +144,39 @@ def compute_act_dcf(tar, non, prior, normalize=True):
     return act_dcf, p_miss, p_fa
 
 
-def fast_eval_dcf_eer(tar, non, prior, normalize_dcf=True, return_probs=False):
-    """Computes actual DCF, minimum DCF, EER and PRBE all togther
+def fast_eval_dcf_eer(
+    tar: np.ndarray,
+    non: np.ndarray,
+    prior: Union[float, np.ndarray, Sequence[float]],
+    normalize_dcf: bool = True,
+    return_probs: bool = False,
+) -> Union[
+    Tuple[Union[float, np.ndarray], Union[float, np.ndarray], float, float],
+    Tuple[
+        Union[float, np.ndarray],
+        Union[float, np.ndarray],
+        float,
+        float,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+    ],
+]:
+    """Computes actual DCF, minimum DCF, EER and PRBEP all together.
 
     Args:
       tar: Target scores.
       non: Non-target scores.
       prior: Target prior or vector of target priors.
-      normalize_cdf: if true, return normalized DCF, else unnormalized.
+      normalize_dcf: If True, returns normalized DCF; otherwise unnormalized.
+      return_probs: If True, returns miss/false-alarm operating points as well.
 
     Returns:
       Vector Minimum DCF for each prior.
       Vector Actual DCF for each prior.
       EER value
-      PREBP value
+      PRBEP value
     """
 
     p_miss, p_fa = compute_rocch(tar, non)
@@ -163,21 +201,38 @@ def fast_eval_dcf_eer(tar, non, prior, normalize_dcf=True, return_probs=False):
 
 
 def fast_eval_equalized_dcf_eer(
-    tars, nons, prior, normalize_dcf=True, return_probs=False
-):
+    tars: Sequence[np.ndarray],
+    nons: Sequence[np.ndarray],
+    prior: Union[float, np.ndarray, Sequence[float]],
+    normalize_dcf: bool = True,
+    return_probs: bool = False,
+) -> Union[
+    Tuple[Union[float, np.ndarray], Union[float, np.ndarray], float, float],
+    Tuple[
+        Union[float, np.ndarray],
+        Union[float, np.ndarray],
+        float,
+        float,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+    ],
+]:
     """Computes actual DCF, minimum DCF, EER and PRBE all together, equalized by common conditions
 
     Args:
       tars: Tuple of Target scores, each element of the tuple is a condition
       nons: Non-target scores, each element of the tuple is a condition.
       prior: Target prior or vector of target priors.
-      normalize_cdf: if true, return normalized DCF, else unnormalized.
+      normalize_dcf: If True, returns normalized DCF; otherwise unnormalized.
+      return_probs: If True, returns miss/false-alarm operating points as well.
 
     Returns:
       Vector Minimum DCF for each prior.
       Vector Actual DCF for each prior.
       EER value
-      PREBP value
+      PRBEP value
     """
     ntars = [len(tar) for tar in tars]
     nnons = [len(non) for non in nons]

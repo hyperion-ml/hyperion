@@ -3,7 +3,7 @@ Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import List, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -12,11 +12,11 @@ from .wer import compute_wer
 
 
 def compute_cer(
-    hyp: Union[List[str], str],
-    ref: Union[List[str], str],
+    hyp: Union[List[str], List[List[str]]],
+    ref: Union[List[str], List[List[str]]],
     utt_ids: Union[np.ndarray, List[str], None] = None,
     sclite_mode: bool = True,
-):
+) -> Tuple[float, int, int, int, int, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Calculates Char Error Rate (CER) and detailed error statistics between reference and hypothesis transcripts.
 
@@ -55,7 +55,7 @@ def compute_cer(
             Per-substitution statistics showing the most frequent ref->hyp word substitutions and their rates.
 
     Notes:
-        - This function assumes word-level tokenization is already done.
+        - This function accepts strings or tokenized words and converts them to characters internally.
         - Adapted from: https://github.com/k2-fsa/icefall/blob/master/icefall/utils.py
     """
     if isinstance(hyp[0], str):

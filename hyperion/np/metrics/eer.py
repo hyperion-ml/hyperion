@@ -8,7 +8,7 @@ import numpy as np
 from .roc import compute_rocch, rocch2eer
 
 
-def compute_eer(tar, non):
+def compute_eer(tar: np.ndarray, non: np.ndarray) -> float:
     """Computes equal error rate.
 
     Args:
@@ -22,8 +22,8 @@ def compute_eer(tar, non):
     return rocch2eer(p_miss, p_fa)
 
 
-def compute_prbep(tar, non):
-    """Computes precission-recall break-even point
+def compute_prbep(tar: np.ndarray, non: np.ndarray) -> float:
+    """Computes precision-recall break-even point
        where #FA == #Miss
 
     Args:

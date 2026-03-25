@@ -17,7 +17,7 @@ def compute_wer(
     ref: List[List[str]],
     utt_ids: Union[np.ndarray, List[str], None] = None,
     sclite_mode: bool = True,
-):
+) -> Tuple[float, int, int, int, int, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Calculates Word Error Rate (WER) and detailed error statistics between reference and hypothesis transcripts.
 

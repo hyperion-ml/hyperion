@@ -5,13 +5,19 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 Utility functions to evaluate performance
 """
 
+from typing import List, Optional, Sequence, Tuple, Union
+
 import numpy as np
 
 from ...hyp_defs import float_cpu
 from ...utils.math_funcs import logsumexp, softmax
 
 
-def effective_prior(p_tar, c_miss, c_fa):
+def effective_prior(
+    p_tar: Union[float, np.ndarray],
+    c_miss: Union[float, np.ndarray],
+    c_fa: Union[float, np.ndarray],
+) -> Union[float, np.ndarray]:
     """This function adjusts a given prior probability of target p_targ,
     to incorporate the effects of a cost of miss, cmiss, and a cost of false-alarm, cfa.
 
@@ -28,7 +34,7 @@ def effective_prior(p_tar, c_miss, c_fa):
     return p_eff
 
 
-def lre_priors(num_classes, p_tar, p_oos=0.0):
+def lre_priors(num_classes: int, p_tar: float, p_oos: float = 0.0) -> np.ndarray:
     """Returns all prior distributions as needed for LRE language detection task.
 
     Args:
@@ -36,7 +42,7 @@ def lre_priors(num_classes, p_tar, p_oos=0.0):
       p_tar: target prior.
       p_oos: prior of out-of-set hypothesis.
 
-    Returns
+    Returns:
       Matrix of priors P with shape (num_classes, num_classes) or (num_classes, num_classes+1) if p_oos > 0, where P(i,:) are the priors for the case that class i is the target class.
     """
     I = np.eye(num_classes)
@@ -49,7 +55,11 @@ def lre_priors(num_classes, p_tar, p_oos=0.0):
     return priors
 
 
-def loglk2llr(loglk, priors, target_idx=None):
+def loglk2llr(
+    loglk: np.ndarray,
+    priors: np.ndarray,
+    target_idx: Optional[Union[int, Sequence[int]]] = None,
+) -> np.ndarray:
     """Converts log-likelihoods to detection log-likelihood ratios.
 
     Args:
@@ -60,7 +70,7 @@ def loglk2llr(loglk, priors, target_idx=None):
                  if None, it returns matrix with LLR w.r.t. all classes.
 
     Returns:
-     Matrix of log-likelihood ratios LLR = log P(x_t | class_i) / log P(x_t / non-class_i) with
+     Matrix of log-likelihood ratios LLR = log P(x_t | class_i) - log P(x_t | non-class_i) with
       shape (num_samples, num_target_classes), if None, num_target_classes=num_classes
 
     """
@@ -91,7 +101,7 @@ def loglk2llr(loglk, priors, target_idx=None):
     return llr
 
 
-def loglk2posterior(loglk, priors):
+def loglk2posterior(loglk: np.ndarray, priors: np.ndarray) -> np.ndarray:
     """Converts log-likelihoods to posteriors
 
     Args:
@@ -112,16 +122,16 @@ def loglk2posterior(loglk, priors):
     return softmax(log_post, axis=-1)
 
 
-def lre_loglk2llr(loglk, p_tar, p_oos=0):
+def lre_loglk2llr(loglk: np.ndarray, p_tar: float, p_oos: float = 0) -> np.ndarray:
     """Converts log-likelihoods to detection log-likelihood ratios suitable for LRE.
 
     Args:
      loglk: log-likelihood matrix P(x_t | class_i) with shape = (num_samples, num_classes)
-     priors:  prior prob that each language is the target language
+     p_tar: prior probability that each language is the target language.
      p_oos: prior prob that test language is out-of-set.
 
     Returns:
-     Matrix of log-likelihood ratios LLR = log P(x_t | class_i) / log P(x_t / non-class_i) with
+     Matrix of log-likelihood ratios LLR = log P(x_t | class_i) - log P(x_t | non-class_i) with
       shape (num_samples, classes),
 
     """
@@ -137,15 +147,15 @@ def lre_loglk2llr(loglk, p_tar, p_oos=0):
     return llr
 
 
-def pavx(y):
-    """PAV: Pool Adjacent Violators algorithm. Non-paramtetric optimization subject to monotonicity.
+def pavx(y: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """PAV: Pool Adjacent Violators algorithm. Non-parametric optimization subject to monotonicity.
 
      ghat = pav(y)
      fits a vector ghat with nondecreasing components to the
      data vector y such that sum((y - ghat).^2) is minimal.
      (Pool-adjacent-violators algorithm).
 
-    Author: This code is and adaptation from Bosaris Toolkit and
+    Author: This code is an adaptation from Bosaris Toolkit and
             it is a simplified version of the 'IsoMeans.m' code made available
             by Lutz Duembgen at:
               http://www.imsv.unibe.ch/~duembgen/software
@@ -204,7 +214,9 @@ def pavx(y):
     return ghat, width, height
 
 
-def opt_loglr(tar, non, method="laplace"):
+def opt_loglr(
+    tar: np.ndarray, non: np.ndarray, method: str = "laplace"
+) -> Tuple[np.ndarray, np.ndarray]:
     """Non-parametric optimization of score to log-likelihood-ratio mapping.
 
     Taken from Bosaris toolkit.
@@ -259,7 +271,18 @@ def opt_loglr(tar, non, method="laplace"):
     return tar_llr, non_llr
 
 
-def compute_equalized_partition_weights(ntars, nnons):
+def compute_equalized_partition_weights(
+    ntars: Sequence[int], nnons: Sequence[int]
+) -> Tuple[List[float], List[float]]:
+    """Computes per-partition weights to equalize target/non-target conditions.
+
+    Args:
+      ntars: Number of target trials for each partition.
+      nnons: Number of non-target trials for each partition.
+
+    Returns:
+      Tuple with target weights list and non-target weights list.
+    """
     max_ntar = np.max(ntars)
     max_nnon = np.max(nnons)
     tar_weights = [max_ntar / ntar if ntar > 0 else 0 for ntar in ntars]

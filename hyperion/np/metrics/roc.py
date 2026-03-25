@@ -3,27 +3,31 @@ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Optional, Tuple, Union
+
 import numpy as np
 import scipy.linalg as sla
 
 from .utils import pavx
 
 
-def compute_roc(true_scores,
-                false_scores,
-                true_weights=None,
-                false_weights=None):
+def compute_roc(
+    true_scores: np.ndarray,
+    false_scores: np.ndarray,
+    true_weights: Optional[np.ndarray] = None,
+    false_weights: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Computes the (observed) miss/false_alarm probabilities
         for a set of detection output scores.
 
     Args:
-      true_scores (false_scores) are detection output scores for a set of
-      detection trials, given that the target hypothesis is true (false).
-         (By convention, the more positive the score,
-         the more likely is the target hypothesis.)
+      true_scores: Detection scores for target trials.
+      false_scores: Detection scores for non-target trials.
+      true_weights: Optional per-trial weights for target trials.
+      false_weights: Optional per-trial weights for non-target trials.
 
     Returns:
-      The miss/false_alarm error probabilities
+      Tuple with miss probabilities and false-alarm probabilities.
     """
     num_true = len(true_scores)
     num_false = len(false_scores)
@@ -60,16 +64,19 @@ def compute_roc(true_scores,
     return p_miss, p_fa
 
 
-def compute_rocch(tar_scores, non_scores, return_thresholds=False):
+def compute_rocch(
+    tar_scores: np.ndarray, non_scores: np.ndarray, return_thresholds: bool = False
+) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """Computes ROCCH: ROC Convex Hull.
 
     Args:
       tar_scores: scores for target trials
-      nontar_scores: scores for non-target trials
+      non_scores: scores for non-target trials
+      return_thresholds: If True, also returns the score thresholds.
 
     Returns:
-       pmiss and pfa contain the coordinates of the vertices of the
-       ROC Convex Hull.
+      pmiss and pfa contain the coordinates of the vertices of the
+      ROC Convex Hull. If `return_thresholds` is True, also returns thresholds.
     """
     assert isinstance(tar_scores, np.ndarray)
     assert isinstance(non_scores, np.ndarray)
@@ -97,7 +104,7 @@ def compute_rocch(tar_scores, non_scores, return_thresholds=False):
         scores = scores[perturb]
         thresholds = np.zeros((nbins + 1,))
 
-    # threshold leftmost: accept eveything, miss nothing
+    # threshold leftmost: accept everything, miss nothing
     # 0 scores to left of threshold
     left = 0
     fa = Nn
@@ -122,14 +129,15 @@ def compute_rocch(tar_scores, non_scores, return_thresholds=False):
     return p_miss, p_fa
 
 
-def roc2eer(p_miss, p_fa):
-    """Calculates the equal error rate (eer) from pmiss and pfa
-     Args:
-        p_miss: array, miss rates
-        p_fa: array, false acceptance rates
+def roc2eer(p_miss: np.ndarray, p_fa: np.ndarray) -> float:
+    """Calculates the equal error rate (EER) from miss and false-alarm rates.
+
+    Args:
+      p_miss: Array of miss rates.
+      p_fa: Array of false-acceptance rates.
 
     Returns:
-    eer: scalar
+      EER value.
     """
     delta = p_miss - p_fa
     x1 = np.flatnonzero(delta >= 0)[0]
@@ -138,7 +146,9 @@ def roc2eer(p_miss, p_fa):
     return p_miss[x1] + a * (p_miss[x2] - p_miss[x1])
 
 
-def rocch2eer(p_miss, p_fa, thresholds=None):
+def rocch2eer(
+    p_miss: np.ndarray, p_fa: np.ndarray, thresholds: Optional[np.ndarray] = None
+) -> Union[float, Tuple[float, float]]:
     """Calculates the equal error rate (eer) from pmiss and pfa
     vectors.
     Note: pmiss and pfa contain the coordinates of the vertices of the
@@ -193,7 +203,7 @@ def rocch2eer(p_miss, p_fa, thresholds=None):
     return eer
 
 
-def filter_roc(p_miss, p_fa):
+def filter_roc(p_miss: np.ndarray, p_fa: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Removes redundant points from the sequence of points (p_fa,p_miss) so
        that plotting an ROC or DET curve will be faster.  The output ROC
        curve will be identical to the one plotted from the input
@@ -233,7 +243,7 @@ def filter_roc(p_miss, p_fa):
     return new_p_miss, new_p_fa
 
 
-def compute_area_under_rocch(p_miss, p_fa):
+def compute_area_under_rocch(p_miss: np.ndarray, p_fa: np.ndarray) -> float:
     """Calculates area under the ROC convex hull given p_miss, p_fa.
 
     Args:
@@ -255,7 +265,9 @@ def compute_area_under_rocch(p_miss, p_fa):
     return auc
 
 
-def test_roc():
+def test_roc() -> None:
+    """Plots ROC and ROCCH examples for synthetic score configurations.
+    """
     import matplotlib.pyplot as plt
 
     plt.figure()

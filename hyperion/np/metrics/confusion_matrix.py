@@ -4,6 +4,7 @@
 """
 
 import sys
+from typing import Any, Optional, Sequence, TextIO, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,8 +14,12 @@ from ...utils.list_utils import list2ndarray
 
 
 def compute_confusion_matrix(
-    y_true, y_pred, labels=None, normalize=True, sample_weight=None
-):
+    y_true: Union[np.ndarray, Sequence[Any]],
+    y_pred: Union[np.ndarray, Sequence[Any]],
+    labels: Optional[Sequence[Any]] = None,
+    normalize: bool = True,
+    sample_weight: Optional[Union[np.ndarray, Sequence[float]]] = None,
+) -> np.ndarray:
     """Computes confusion matrix.
 
     Args:
@@ -23,6 +28,7 @@ def compute_confusion_matrix(
       labels: List of labels to index the matrix. This may be used to reorder
               or select a subset of labels. If none is given, those that
               appear at least once in y_true or y_pred are used in sorted order.
+      normalize: If True, row-normalizes the confusion matrix.
       sample_weight: Sample weights.
 
     Returns:
@@ -35,13 +41,13 @@ def compute_confusion_matrix(
 
 
 def compute_xlabel_confusion_matrix(
-    y_true,
-    y_pred,
-    labels_train=None,
-    labels_test=None,
-    normalize=True,
-    sample_weight=None,
-):
+    y_true: Union[np.ndarray, Sequence[Any]],
+    y_pred: Union[np.ndarray, Sequence[Any]],
+    labels_train: Optional[Union[np.ndarray, Sequence[Any]]] = None,
+    labels_test: Optional[Union[np.ndarray, Sequence[Any]]] = None,
+    normalize: bool = True,
+    sample_weight: Optional[Union[np.ndarray, Sequence[float]]] = None,
+) -> np.ndarray:
     """Computes confusion matrix when the labels used to train the classifier are
        different than those of the test set.
 
@@ -54,7 +60,7 @@ def compute_xlabel_confusion_matrix(
       labels_test: List of labels of the test set. This may be used to reorder
                     or select a subset of labels. If none is given, those that
                     appear at least once in y_true are used in sorted order.
-
+      normalize: If True, row-normalizes the confusion matrix.
       sample_weight: Sample weights.
 
     Returns:
@@ -112,21 +118,22 @@ def compute_xlabel_confusion_matrix(
 
 
 def plot_confusion_matrix(
-    C,
-    labels_true,
-    labels_pred=None,
-    title="Confusion matrix",
-    cmap=plt.cm.Blues,
-    fmt=None,
-):
+    C: np.ndarray,
+    labels_true: Sequence[Any],
+    labels_pred: Optional[Sequence[Any]] = None,
+    title: str = "Confusion matrix",
+    cmap: Any = plt.cm.Blues,
+    fmt: Optional[str] = None,
+) -> None:
     """Plots a confusion matrix in a figure.
 
     Args:
       C: 2D numpy array with confusion matrix.
       labels_true: Labels of the true classes (rows).
-      labels_cols: Labels of the predicted classes. If None, it is equal to labels_true.
+      labels_pred: Labels of the predicted classes. If None, it is equal to labels_true.
       title: Title for the figure.
-      cmp: Color MAP.
+      cmap: Color map.
+      fmt: Numeric format string for matrix values.
     """
     if labels_pred is None:
         labels_pred = labels_true
@@ -161,14 +168,21 @@ def plot_confusion_matrix(
     plt.xlabel("Predicted label")
 
 
-def write_confusion_matrix(f, C, labels_true, labels_pred=None, fmt=None):
+def write_confusion_matrix(
+    f: TextIO,
+    C: np.ndarray,
+    labels_true: Sequence[str],
+    labels_pred: Optional[Sequence[str]] = None,
+    fmt: Optional[str] = None,
+) -> None:
     """Writes confusion matrix to file.
 
     Args:
-      f: Python file hangle.
+      f: Python file handle.
       C: 2D numpy array with confusion matrix.
       labels_true: Labels of the true classes (rows).
-      labels_cols: Labels of the predicted classes. If None, it is equal to labels_true.
+      labels_pred: Labels of the predicted classes. If None, it is equal to labels_true.
+      fmt: Numeric format string for matrix values.
     """
 
     if labels_pred is None:
@@ -195,12 +209,18 @@ def write_confusion_matrix(f, C, labels_true, labels_pred=None, fmt=None):
         f.write("\n")
 
 
-def print_confusion_matrix(C, labels_true, labels_pred=None, fmt=None):
+def print_confusion_matrix(
+    C: np.ndarray,
+    labels_true: Sequence[str],
+    labels_pred: Optional[Sequence[str]] = None,
+    fmt: Optional[str] = None,
+) -> None:
     """Prints confusion matrix to std output.
 
     Args:
       C: 2D numpy array with confusion matrix.
       labels_true: Labels of the true classes (rows).
-      labels_cols: Labels of the predicted classes. If None, it is equal to labels_true.
+      labels_pred: Labels of the predicted classes. If None, it is equal to labels_true.
+      fmt: Numeric format string for matrix values.
     """
     write_confusion_matrix(sys.stdout, C, labels_true, labels_pred, fmt)
