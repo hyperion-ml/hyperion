@@ -27,7 +27,7 @@ from ....utils.plotting import (
 )
 from ...clustering import KMeans
 from ..core import Normal
-from .exp_family_mixture import ExpFamilyMixture
+from .exp_family_mixture import ExpFamilyMixture, NBestType
 
 
 class GMM(ExpFamilyMixture):
@@ -42,6 +42,16 @@ class GMM(ExpFamilyMixture):
         update_mu: Whether to update ``mu`` during EM.
         update_Lambda: Whether to update precision matrices during EM.
         x_dim: Data dimensionality inferred from ``mu`` if provided.
+
+    Examples:
+        >>> import numpy as np
+        >>> from hyperion.np.pdfs.mixtures.gmm import GMM
+        >>> x = np.random.randn(200, 4).astype("float32")
+        >>> gmm = GMM(num_comp=2, x_dim=4)
+        >>> _ = gmm.fit(x, epochs=2)
+        >>> llk = gmm.log_prob(x[:5])
+        >>> llk.shape
+        (5,)
     """
 
     def __init__(
@@ -216,8 +226,8 @@ class GMM(ExpFamilyMixture):
             F_norm[k] = np.dot(F_norm[k], self.cholLambda[k].T)
             if return_order2:
                 SS = vec2symmat(S[k])
-                Fmu = np.outer(self.F[k], self.mu[k])
-                SS = SS - Fmu - Fmu.T + N * np.outer(self.mu[k], self.mu[k])
+                Fmu = np.outer(F[k], self.mu[k])
+                SS = SS - Fmu - Fmu.T + N[k] * np.outer(self.mu[k], self.mu[k])
                 SS = np.dot(self.cholLambda[k], np.dot(SS, self.cholLambda[k].T))
                 S[k] = symmat2vec(SS)
         if return_order2:
@@ -232,9 +242,12 @@ class GMM(ExpFamilyMixture):
             u_x: Stacked first- and second-order statistics.
         """
         F, S = self.unstack_suff_stats(u_x)
+        N = np.maximum(N, 1e-5)
 
         if self.update_mu:
             self.mu = F / N[:, None]
+        elif self.mu is None:
+            raise ValueError("mu must be initialized if update_mu is False")
 
         if self.update_Lambda:
             C = np.zeros((self.num_comp, self.x_dim, self.x_dim), dtype=float_cpu())
@@ -249,6 +262,8 @@ class GMM(ExpFamilyMixture):
             self._Sigma = None
             self._logLambda = None
             self._cholLambda = None
+        elif self.Lambda is None:
+            raise ValueError("Lambda must be initialized if update_Lambda is False")
 
         if self.update_pi:
             N0 = N < self.min_N
@@ -256,8 +271,19 @@ class GMM(ExpFamilyMixture):
                 N[N0] = 0
                 self.mu[N0] = 0
                 self.Lambda[N0] = np.eye(self.x_dim)
-            self.pi = N / np.sum(N)
+                # Lambda changed in the pruning path even when update_Lambda=False.
+                self._Sigma = None
+                self._logLambda = None
+                self._cholLambda = None
+            N_sum = np.sum(N)
+            if N_sum <= 0:
+                raise ValueError(
+                    "all components were pruned (sum(N)==0); reduce min_N"
+                )
+            self.pi = N / N_sum
             self._log_pi = None
+        elif self.pi is None:
+            raise ValueError("pi must be initialized if update_pi is False")
 
         self._compute_nat_params()
 
@@ -307,6 +333,61 @@ class GMM(ExpFamilyMixture):
             llk_k[:, k] = r0[k] - 0.5 * mah_dist2
 
         return logsumexp(llk_k, axis=-1)
+
+    def log_prob_nbest_std(
+        self,
+        x: np.ndarray,
+        nbest_mode: str = "master",
+        nbest: NBestType = 1,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """Computes top-N log-likelihoods using standard parameters.
+
+        Args:
+            x: Input data with shape ``(num_samples, x_dim)``.
+            nbest_mode: If ``"master"``, selects top components per sample.
+            nbest: Number of top components or explicit component indices.
+
+        Returns:
+            If ``nbest_mode == "master"``, returns ``(llk, top_idx)`` where
+            ``top_idx`` has shape ``(num_samples, nbest_eff)``. Otherwise returns
+            only ``llk``.
+        """
+        r0 = self.log_pi + 0.5 * self.logLambda - 0.5 * self.x_dim * np.log(2 * np.pi)
+
+        if nbest_mode == "master":
+            llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
+            for k in range(self.num_comp):
+                mah_dist2 = np.sum(
+                    np.dot(x - self.mu[k], self.cholLambda[k]) ** 2, axis=1
+                )
+                llk_k[:, k] = r0[k] - 0.5 * mah_dist2
+            assert isinstance(nbest, int)
+            assert nbest > 0
+            nbest_eff = min(nbest, self.num_comp)
+            if nbest_eff < self.num_comp:
+                top_idx = np.argpartition(llk_k, -nbest_eff, axis=1)[:, -nbest_eff:]
+            else:
+                top_idx = np.tile(
+                    np.arange(self.num_comp, dtype=np.intp), (x.shape[0], 1)
+                )
+            llk_sel = np.take_along_axis(llk_k, top_idx, axis=1)
+            sort_idx = np.argsort(llk_sel, axis=1)[:, ::-1]
+            top_idx = np.take_along_axis(top_idx, sort_idx, axis=1)
+            llk_sel = np.take_along_axis(llk_sel, sort_idx, axis=1)
+            llk = logsumexp(llk_sel, axis=-1)
+            return llk, top_idx
+
+        nbest_idx = np.asarray(nbest, dtype=np.intp)
+        if nbest_idx.ndim != 2 or nbest_idx.shape[0] != x.shape[0]:
+            raise ValueError(
+                "for nbest_mode!='master', nbest must have shape "
+                "(num_samples, nbest)"
+            )
+        delta = x[:, None, :] - self.mu[nbest_idx]
+        proj = np.einsum("nkd,nkde->nke", delta, self.cholLambda[nbest_idx])
+        llk_sel = r0[nbest_idx] - 0.5 * np.sum(proj * proj, axis=-1)
+        llk = logsumexp(llk_sel, axis=-1)
+        return llk
 
     def sample(
         self,

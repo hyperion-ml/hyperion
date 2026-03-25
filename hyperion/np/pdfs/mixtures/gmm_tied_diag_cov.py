@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
@@ -19,6 +19,7 @@ from ....utils.plotting import (
     plot_gaussian_ellipsoid_3D,
 )
 from ...clustering import KMeans
+from .exp_family_mixture import NBestType
 from .gmm_diag_cov import GMMDiagCov
 
 
@@ -34,6 +35,16 @@ class GMMTiedDiagCov(GMMDiagCov):
         update_mu: Whether to update ``mu`` during training.
         update_Lambda: Whether to update the shared precision during training.
         x_dim: Data dimensionality inferred from ``mu`` if provided.
+
+    Examples:
+        >>> import numpy as np
+        >>> from hyperion.np.pdfs.mixtures.gmm_tied_diag_cov import GMMTiedDiagCov
+        >>> x = np.random.randn(300, 5).astype("float32")
+        >>> gmm = GMMTiedDiagCov(num_comp=3, x_dim=5)
+        >>> _ = gmm.fit(x, epochs=2)
+        >>> llk = gmm.log_prob(x[:4])
+        >>> llk.shape
+        (4,)
     """
 
     def __init__(
@@ -45,7 +56,7 @@ class GMMTiedDiagCov(GMMDiagCov):
         var_floor: float = 1e-3,
         update_mu: bool = True,
         update_Lambda: bool = True,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initializes the tied-covariance GMM.
 
@@ -67,7 +78,7 @@ class GMMTiedDiagCov(GMMDiagCov):
             var_floor=var_floor,
             update_mu=update_mu,
             update_Lambda=update_Lambda,
-            **kwargs
+            **kwargs,
         )
 
     def _compute_gmm_nat_std(self) -> None:
@@ -96,7 +107,7 @@ class GMMTiedDiagCov(GMMDiagCov):
         if num_comp == 1:
             self.pi = np.array([1], dtype=float_cpu())
             self.mu = np.mean(x, axis=0, keepdims=True)
-            self.Lambda = 1 / np.std(x, axis=0, keepdims=True) ** 2
+            self.Lambda = 1 / np.std(x, axis=0, keepdims=False) ** 2
             return
 
         kmeans = KMeans(num_clusters=num_comp, epochs=100)
@@ -121,19 +132,29 @@ class GMMTiedDiagCov(GMMDiagCov):
             u_x: Stacked first- and second-order statistics.
         """
         F, S = self.unstack_suff_stats(u_x)
+        N = np.maximum(N, 1e-5)
 
         if self.update_mu:
             self.mu = F / N[:, None]
+        elif self.mu is None:
+            raise ValueError("mu must be initialized if update_mu is False")
 
         if self.update_Lambda:
             S = S / N[:, None] - self.mu**2
-            S_floor = self.var_floor * np.mean(S[N > self.min_N], axis=0)
+            active = N > self.min_N
+            if np.any(active):
+                S_floor = self.var_floor * np.mean(S[active], axis=0)
+            else:
+                S_floor = self.var_floor * np.mean(S, axis=0)
+            S_floor = np.maximum(S_floor, 1e-10)
             S = np.maximum(S, S_floor)
             Spool = np.sum(N[:, None] * S, axis=0) / np.sum(N)
             self.Lambda = 1 / Spool
             self._Sigma = Spool
             self._cholLambda = None
             self._logLambda = None
+        elif self.Lambda is None:
+            raise ValueError("Lambda must be initialized if update_Lambda is False")
 
         if self.update_pi:
             N0 = N < self.min_N
@@ -141,8 +162,15 @@ class GMMTiedDiagCov(GMMDiagCov):
                 N[N0] = 0
                 self.mu[N0] = 0
 
-            self.pi = N / np.sum(N)
+            N_sum = np.sum(N)
+            if N_sum <= 0:
+                raise ValueError(
+                    "all components were pruned (sum(N)==0); reduce min_N"
+                )
+            self.pi = N / N_sum
             self._log_pi = None
+        elif self.pi is None:
+            raise ValueError("pi must be initialized if update_pi is False")
 
         self._compute_nat_params()
 
@@ -187,6 +215,58 @@ class GMMTiedDiagCov(GMMDiagCov):
             mah_dist2 = np.sum(((x - self.mu[k]) * self.cholLambda) ** 2, axis=-1)
             llk_k[:, k] = r0[k] - 0.5 * mah_dist2
         return logsumexp(llk_k, axis=-1)
+
+    def log_prob_nbest_std(
+        self,
+        x: np.ndarray,
+        nbest_mode: str = "master",
+        nbest: NBestType = 1,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """Computes top-N log-likelihoods using tied standard parameters.
+
+        Args:
+            x: Input data with shape ``(num_samples, x_dim)``.
+            nbest_mode: If ``"master"``, selects top components per sample.
+            nbest: Number of top components or explicit component indices.
+
+        Returns:
+            If ``nbest_mode == "master"``, returns ``(llk, top_idx)`` where
+            ``top_idx`` has shape ``(num_samples, nbest_eff)``. Otherwise returns
+            only ``llk``.
+        """
+        r0 = self.log_pi + 0.5 * self.logLambda - 0.5 * self.x_dim * np.log(2 * np.pi)
+
+        if nbest_mode == "master":
+            llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
+            for k in range(self.num_comp):
+                mah_dist2 = np.sum(((x - self.mu[k]) * self.cholLambda) ** 2, axis=-1)
+                llk_k[:, k] = r0[k] - 0.5 * mah_dist2
+            assert isinstance(nbest, int)
+            assert nbest > 0
+            nbest_eff = min(nbest, self.num_comp)
+            if nbest_eff < self.num_comp:
+                top_idx = np.argpartition(llk_k, -nbest_eff, axis=1)[:, -nbest_eff:]
+            else:
+                top_idx = np.tile(
+                    np.arange(self.num_comp, dtype=np.intp), (x.shape[0], 1)
+                )
+            llk_sel = np.take_along_axis(llk_k, top_idx, axis=1)
+            sort_idx = np.argsort(llk_sel, axis=1)[:, ::-1]
+            top_idx = np.take_along_axis(top_idx, sort_idx, axis=1)
+            llk_sel = np.take_along_axis(llk_sel, sort_idx, axis=1)
+            llk = logsumexp(llk_sel, axis=-1)
+            return llk, top_idx
+
+        nbest_idx = np.asarray(nbest, dtype=np.intp)
+        if nbest_idx.ndim != 2 or nbest_idx.shape[0] != x.shape[0]:
+            raise ValueError(
+                "for nbest_mode!='master', nbest must have shape "
+                "(num_samples, nbest)"
+            )
+        delta = x[:, None, :] - self.mu[nbest_idx]
+        llk_sel = r0[nbest_idx] - 0.5 * np.sum((delta * self.cholLambda) ** 2, axis=-1)
+        llk = logsumexp(llk_sel, axis=-1)
+        return llk
 
     def log_cdf(self, x: np.ndarray) -> np.ndarray:
         """Computes the log CDF of the tied-covariance mixture."""

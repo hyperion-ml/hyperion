@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from typing import Any, List, Optional, Sequence, Tuple
@@ -145,7 +145,7 @@ class ExpFamily(PDF):
         if sample_weight is None:
             N = u_x.shape[0]
         else:
-            u_x *= sample_weight[:, None]
+            u_x = u_x * sample_weight[:, None]
             N = np.sum(sample_weight)
         acc_u_x = np.sum(u_x, axis=0)
         return N, acc_u_x

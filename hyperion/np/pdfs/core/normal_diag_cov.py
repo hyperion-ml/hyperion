@@ -33,6 +33,29 @@ class NormalDiagCov(ExpFamily):
         var_floor: Minimum variance allowed during re-estimation.
         update_mu: Whether ``mu`` is updated during :meth:`Mstep`.
         update_Lambda: Whether ``Lambda`` is updated during :meth:`Mstep`.
+
+    Examples:
+        Initialize from standard parameters and evaluate log-probabilities:
+
+        >>> import numpy as np
+        >>> from hyperion.np.pdfs import NormalDiagCov
+        >>> mu = np.array([0.0, 1.0, -0.5])
+        >>> Lambda = np.array([2.0, 1.5, 0.8])
+        >>> model = NormalDiagCov(mu=mu, Lambda=Lambda, x_dim=3)
+        >>> x = np.array([[0.1, 0.8, -0.2], [0.3, 1.4, -1.0]])
+        >>> llk = model.log_prob(x)
+        >>> llk.shape
+        (2,)
+
+        Fit a model from data and draw samples:
+
+        >>> rng = np.random.default_rng(2)
+        >>> x_train = rng.normal(size=(1200, 3))
+        >>> model = NormalDiagCov(x_dim=3)
+        >>> _ = model.fit(x_train)
+        >>> x_gen = model.sample(4, rng=rng)
+        >>> x_gen.shape
+        (4, 3)
     """
 
     def __init__(
@@ -175,6 +198,8 @@ class NormalDiagCov(ExpFamily):
 
         if self.update_mu:
             self.mu = F / N
+        elif self.mu is None:
+            raise ValueError("mu must be initialized if update_mu is False")
 
         if self.update_Lambda:
             S = S / N - self.mu**2
@@ -183,6 +208,8 @@ class NormalDiagCov(ExpFamily):
             self._Sigma = S
             self._cholLambda = None
             self._logLambda = None
+        elif self.Lambda is None:
+            raise ValueError("Lambda must be initialized if update_Lambda is False")
 
         self._compute_nat_params()
 

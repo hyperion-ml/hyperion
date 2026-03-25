@@ -44,6 +44,29 @@ class Normal(ExpFamily):
         update_mu: Whether ``mu`` is updated during the M-step.
         update_Lambda: Whether ``Lambda`` is updated during the M-step.
         x_dim: Data dimensionality inherited from :class:`PDF`.
+
+    Examples:
+        Initialize from standard parameters and evaluate log-probabilities:
+
+        >>> import numpy as np
+        >>> from hyperion.np.pdfs import Normal
+        >>> mu = np.array([0.0, 1.0])
+        >>> Lambda = np.array([[2.0, 0.3], [0.3, 1.5]])
+        >>> model = Normal(mu=mu, Lambda=Lambda, x_dim=2)
+        >>> x = np.array([[0.1, 1.2], [-0.5, 0.7]])
+        >>> llk = model.log_prob(x)
+        >>> llk.shape
+        (2,)
+
+        Fit a model from data and sample from it:
+
+        >>> rng = np.random.default_rng(1)
+        >>> x_train = rng.normal(size=(1000, 2))
+        >>> model = Normal(x_dim=2)
+        >>> _ = model.fit(x_train)
+        >>> x_gen = model.sample(5, rng=rng)
+        >>> x_gen.shape
+        (5, 2)
     """
 
     def __init__(
@@ -224,15 +247,19 @@ class Normal(ExpFamily):
 
         if self.update_mu:
             self.mu = F / N
+        elif self.mu is None:
+            raise ValueError("mu must be initialized if update_mu is False")
 
         if self.update_Lambda:
             S = vec2symmat(S / N)
             S -= np.outer(self.mu, self.mu)
-            # S = fullcov_varfloor(S, self.var_floor)
+            S = fullcov_varfloor(S, self.var_floor)
             self.Lambda = invert_pdmat(S, return_inv=True)[-1]
             self._Sigma = None
             self._logLambda = None
             self._cholLambda = None
+        elif self.Lambda is None:
+            raise ValueError("Lambda must be initialized if update_Lambda is False")
 
         self._compute_nat_params()
 

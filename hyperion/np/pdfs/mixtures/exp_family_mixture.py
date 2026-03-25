@@ -7,10 +7,13 @@ import logging
 from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ....hyp_defs import float_cpu
 from ....utils.math_funcs import logsumexp, softmax
 from ..core import PDF
+
+NBestType = Union[int, NDArray[np.intp]]
 
 
 class ExpFamilyMixture(PDF):
@@ -123,7 +126,7 @@ class ExpFamilyMixture(PDF):
         if x_val is None:
             return elbo, elbo / x.shape[0]
         else:
-            return elbo, elbo / x.shape[0], elbo_val, elbo_val / x.shape[0]
+            return elbo, elbo / x.shape[0], elbo_val, elbo_val / x_val.shape[0]
 
     def log_h(self, x: np.ndarray) -> np.ndarray:
         """Computes the log base measure ``log h(x)``.
@@ -434,8 +437,8 @@ class ExpFamilyMixture(PDF):
         K = len(self.pi)
         num_frames = x.shape[0]
         num_segments = int(np.floor((num_frames - frame_length) / frame_shift + 1))
-        if num_segments == 1:
-            return self._accum_suff_stats_1batch(self, x, u_x, sample_weight)
+        if num_segments <= 1:
+            return self._accum_suff_stats_1batch(x, u_x, sample_weight)
 
         if u_x is None:
             u_x = self.compute_suff_stats(x)
@@ -474,30 +477,30 @@ class ExpFamilyMixture(PDF):
         K = len(self.pi)
         num_frames = x.shape[0]
         num_segments = int(np.floor((num_frames - frame_length) / frame_shift + 1))
-        if num_segments == 1:
-            return self._accum_suff_stats_1batch(self, x, None, sample_weight)
+        if num_segments <= 1:
+            return self._accum_suff_stats_1batch(x, None, sample_weight)
 
-        num_segments_per_batch = np.floor((num_frames - frame_length) / frame_shift + 1)
-        batch_size = int((num_segments_per_batch - 1) * frame_shift + frame_length)
-        batch_shift = int(num_segments_per_batch * frame_shift)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be > 0")
+        num_segments_per_batch = min(int(batch_size), num_segments)
 
         N = np.zeros((num_segments, K), float_cpu())
         acc_u_x = np.zeros((num_segments, K, self.eta.shape[1]), float_cpu())
 
         sw_i = None
-        cur_segment = 0
-        for i1 in range(0, x.shape[0], batch_shift):
-            i2 = np.minimum(i1 + batch_size, x.shape[0])
+        for seg_start in range(0, num_segments, num_segments_per_batch):
+            seg_end = min(seg_start + num_segments_per_batch, num_segments)
+            num_segments_i = seg_end - seg_start
+            i1 = seg_start * frame_shift
+            i2 = i1 + (num_segments_i - 1) * frame_shift + frame_length
             x_i = x[i1:i2, :]
             if sample_weight is not None:
                 sw_i = sample_weight[i1:i2]
             N_i, u_x_i = self._accum_suff_stats_sorttime_1batch(
                 x_i, frame_length, frame_shift, sample_weight=sw_i
             )
-            num_segments_i = N_i.shape[0]
-            N[cur_segment : cur_segment + num_segments_i] = N_i
-            acc_u_x[cur_segment : cur_segment + num_segments_i] = u_x_i
-            cur_segment += num_segments_i
+            N[seg_start:seg_end] = N_i
+            acc_u_x[seg_start:seg_end] = u_x_i
         return N, acc_u_x
 
     def Estep(
@@ -596,9 +599,9 @@ class ExpFamilyMixture(PDF):
         x: np.ndarray,
         u_x: Optional[np.ndarray] = None,
         mode: str = "nat",
-        nbest_mode: str = "ubm",
-        nbest: Union[int, Sequence[int]] = 1,
-    ) -> np.ndarray:
+        nbest_mode: str = "master",
+        nbest: NBestType = 1,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """Computes ``log p(x)`` using only the top-N components.
 
         Args:
@@ -606,10 +609,14 @@ class ExpFamilyMixture(PDF):
             u_x: Optional sufficient statistics.
             mode: Whether to use natural or standard parameters.
             nbest_mode: Strategy for selecting the components.
-            nbest: Number of components or indexes to consider.
+            nbest: In ``"master"`` mode, number of top components. In other
+                modes, per-sample component indices with shape
+                ``(num_samples, nbest)``.
 
         Returns:
-            Log-likelihood per sample using the selected components.
+            In ``nbest_mode="master"``, returns ``(log_likelihood, top_idx)``
+            where ``top_idx`` stores the selected component indices per sample.
+            In other modes, returns only the log-likelihood per sample.
         """
         if mode == "nat":
             return self.log_prob_nbest_nat(x, u_x, nbest_mode=nbest_mode, nbest=nbest)
@@ -621,8 +628,8 @@ class ExpFamilyMixture(PDF):
         x: np.ndarray,
         u_x: Optional[np.ndarray] = None,
         nbest_mode: str = "master",
-        nbest: Union[int, Sequence[int]] = 1,
-    ) -> np.ndarray:
+        nbest: NBestType = 1,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """Top-N log-probability computation using natural parameters.
 
         Args:
@@ -632,26 +639,52 @@ class ExpFamilyMixture(PDF):
             nbest: Number of components or explicit indices.
 
         Returns:
-            Log-likelihood per sample computed with the selected components.
+            If ``nbest_mode == "master"``, returns ``(llk, top_idx)`` where
+            ``top_idx`` are the selected component indices for each sample.
+            Otherwise returns only ``llk``.
         """
         if u_x is None:
             u_x = self.compute_suff_stats(x)
         if nbest_mode == "master":
             assert isinstance(nbest, int)
+            assert nbest > 0
             llk_k = np.dot(u_x, self.eta.T) - self.A + self.log_pi
-            nbest = np.argsort(llk_k)[: -(nbest + 1) : -1]
-            llk_k = llk_k[nbest]
+            nbest_eff = min(nbest, self.num_comp)
+            if nbest_eff < self.num_comp:
+                top_idx = np.argpartition(llk_k, -nbest_eff, axis=1)[:, -nbest_eff:]
+            else:
+                top_idx = np.tile(
+                    np.arange(self.num_comp, dtype=np.int64), (x.shape[0], 1)
+                )
+
+            llk_sel = np.take_along_axis(llk_k, top_idx, axis=1)
+            sort_idx = np.argsort(llk_sel, axis=1)[:, ::-1]
+            top_idx = np.take_along_axis(top_idx, sort_idx, axis=1)
+            llk_k = np.take_along_axis(llk_sel, sort_idx, axis=1)
         else:
-            llk_k = np.dot(u_x, self.eta[nbest, :].T) - self.A + self.log_pi
-        llk = logsumexp(llk_k)
-        return self.log_h(x) + llk
+            nbest_idx = np.asarray(nbest, dtype=np.intp)
+            if nbest_idx.ndim != 2 or nbest_idx.shape[0] != x.shape[0]:
+                raise ValueError(
+                    "for nbest_mode!='master', nbest must have shape "
+                    "(num_samples, nbest)"
+                )
+            llk_k = (
+                np.einsum("nd,nkd->nk", u_x, self.eta[nbest_idx])
+                - self.A[nbest_idx]
+                + self.log_pi[nbest_idx]
+            )
+        llk = logsumexp(llk_k, axis=-1)
+        llk = self.log_h(x) + llk
+        if nbest_mode == "master":
+            return llk, top_idx
+        return llk
 
     def log_prob_nbest_std(
         self,
         x: np.ndarray,
         nbest_mode: str = "master",
-        nbest: Union[int, Sequence[int]] = 1,
-    ) -> np.ndarray:
+        nbest: NBestType = 1,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """Top-N log-probability computation using standard parameters.
 
         Args:
@@ -660,7 +693,9 @@ class ExpFamilyMixture(PDF):
             nbest: Number of components or explicit indices.
 
         Returns:
-            Log-likelihood per sample computed with the selected components.
+            In ``nbest_mode="master"``, returns ``(log_likelihood, top_idx)``
+            with per-sample selected component indices. In other modes, returns
+            only log-likelihood per sample.
         """
         raise NotImplementedError()
 

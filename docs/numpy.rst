@@ -38,6 +38,7 @@ Feature Tutorials
    :maxdepth: 1
 
    np/mfcc
+   np/pdfs/mixtures
    np/transforms
 
 Probability density models
@@ -91,6 +92,7 @@ See Also
 --------
 
 * :doc:`np/mfcc`
+* :doc:`np/pdfs/mixtures`
 * :doc:`np/transforms`
 * :doc:`metrics`
 * :doc:`np/speech_augmentation`
