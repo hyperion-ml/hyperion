@@ -34,6 +34,16 @@ class FRPLDA(PLDABase):
       r_B: relevance factor for adapting B.
       r_W: relevance factor for adapting W.
       x_dim: data dimension.
+
+    Examples:
+      >>> import numpy as np
+      >>> from hyperion.np.pdfs.plda.frplda import FRPLDA
+      >>> rng = np.random.default_rng(13)
+      >>> x = rng.standard_normal((240, 80)).astype(np.float32)
+      >>> class_ids = np.repeat(np.arange(24), 10)
+      >>> model = FRPLDA(fullcov_W=True, epochs=3)
+      >>> _ = model.fit(x, class_ids=class_ids)
+      >>> scores = model.llr_1vs1(x[:4], x[4:8])
     """
 
     def __init__(
@@ -46,8 +56,6 @@ class FRPLDA(PLDABase):
         update_B: bool = True,
         update_W: bool = True,
         epochs: int = 20,
-        ml_md: str = "ml+md",
-        md_epochs: Optional[Sequence[int]] = None,
         prior: Optional["FRPLDA"] = None,
         r_mu: float = 24.0,
         r_B: float = 256.0,
@@ -225,7 +233,7 @@ class FRPLDA(PLDABase):
             r += [logpy]
         if return_acc:
             r += [Ry, Py]
-        return r
+        return tuple(r)
 
     def Estep(self, D: Tuple[np.ndarray, np.ndarray, np.ndarray]):
         """Expectation step.

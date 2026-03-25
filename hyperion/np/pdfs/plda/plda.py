@@ -36,6 +36,16 @@ class PLDA(PLDABase):
       r_V: relevance factor for adapting V.
       r_W: relevance factor for adapting W.
       x_dim: data dimension.
+
+    Examples:
+      >>> import numpy as np
+      >>> from hyperion.np.pdfs.plda.plda import PLDA
+      >>> rng = np.random.default_rng(23)
+      >>> x = rng.standard_normal((200, 64)).astype(np.float32)
+      >>> class_ids = np.repeat(np.arange(20), 10)
+      >>> model = PLDA(y_dim=24, z_dim=24, epochs=3)
+      >>> _ = model.fit(x, class_ids=class_ids)
+      >>> scores = model.llr_NvsM(x[:100], x[100:200], method="book")
     """
 
     def __init__(
@@ -419,7 +429,7 @@ class PLDA(PLDABase):
             self.U = Vtilde[:-1]
             self.mu = Vtilde[-1]
 
-        if not self.update_mu and self.update_V and not self.update_U:
+        if self.update_mu and self.update_V and not self.update_U:
             a = np.hstack((Ry, Ry1[:, None]))
             b = np.hstack((Ry1, N))
             Rytilde = np.vstack((a, b))
@@ -429,7 +439,7 @@ class PLDA(PLDABase):
             C = np.vstack((a, b))
             Vtilde = iRytilde_mult(C)
             self.V = Vtilde[:-1]
-            self.U = Vtilde[-1]
+            self.mu = Vtilde[-1]
 
         a = np.hstack((Ry, Ryz, Ry1[:, None]))
         b = np.hstack((Ryz.T, Rz, Rz1[:, None]))
@@ -781,12 +791,12 @@ class PLDA(PLDABase):
         N1, F1, _ = D1
         N2, F2, _ = D2
 
-        WV = self._WV
+        WV = self._VW
         VV = self._VWV
         I = np.eye(self.y_dim, dtype=float_cpu())
 
-        F1 -= N1[:, None] * self.mu
-        F2 -= N2[:, None] * self.mu
+        F1 = F1 - N1[:, None] * self.mu
+        F2 = F2 - N2[:, None] * self.mu
 
         scores = np.zeros((len(N1), len(N2)), dtype=float_cpu())
         for N1_i in np.unique(N1):

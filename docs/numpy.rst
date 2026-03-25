@@ -39,6 +39,7 @@ Feature Tutorials
 
    np/mfcc
    np/pdfs/mixtures
+   np/pdfs/plda
    np/transforms
 
 Probability density models
@@ -93,6 +94,7 @@ See Also
 
 * :doc:`np/mfcc`
 * :doc:`np/pdfs/mixtures`
+* :doc:`np/pdfs/plda`
 * :doc:`np/transforms`
 * :doc:`metrics`
 * :doc:`np/speech_augmentation`

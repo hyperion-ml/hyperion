@@ -28,11 +28,21 @@ class PLDAType(str, Enum):
 
 
 class PLDAFactory(object):
-    """Class to  create PLDA objects."""
+    """Class to  create PLDA objects.
+
+    Examples:
+        >>> from hyperion.np.pdfs.plda.factory import PLDAFactory, PLDAType
+        >>> model = PLDAFactory.create(
+        ...     plda_type=PLDAType.SPLDA,
+        ...     y_dim=64,
+        ...     fullcov_W=True,
+        ...     update_mu=True,
+        ... )
+    """
 
     @staticmethod
     def create(
-        plda_type: Union[PLDAType, str],
+        plda_type: PLDAType,
         y_dim: Optional[int] = None,
         z_dim: Optional[int] = None,
         fullcov_W: bool = True,
@@ -323,7 +333,7 @@ class PLDAFactory(object):
         Returns:
             Dictionary containing only valid evaluation argument names.
         """
-        valid_args = "eval_method"
+        valid_args = ("llr_method",)
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod

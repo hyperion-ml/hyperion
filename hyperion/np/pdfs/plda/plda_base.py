@@ -43,6 +43,18 @@ class PLDABase(PDF):
         epochs: Default number of EM epochs.
         ml_md: Default training strategy (``"ml"``, ``"md"``, or ``"ml+md"``).
         md_epochs: Optional iterable of epochs where MD is applied.
+
+    Examples:
+        Train a concrete PLDA subclass and score trials:
+
+        >>> import numpy as np
+        >>> from hyperion.np.pdfs.plda.splda import SPLDA
+        >>> rng = np.random.default_rng(7)
+        >>> x = rng.standard_normal((200, 128)).astype(np.float32)
+        >>> class_ids = np.repeat(np.arange(20), 10)
+        >>> model = SPLDA(y_dim=32, fullcov_W=True, epochs=3)
+        >>> _ = model.fit(x, class_ids=class_ids)
+        >>> scores = model.llr_1vs1(x[:5], x[5:10])
     """
 
     def __init__(
@@ -238,6 +250,12 @@ class PLDABase(PDF):
         """
 
         assert self.is_init
+        if plda0 is None:
+            plda0 = self.prior
+        if plda0 is None:
+            raise ValueError(
+                "plda0 must be provided, or self.prior must be set, for weighted averaging"
+            )
         use_ml = False if ml_md == "md" else True
         use_md = False if ml_md == "ml" else True
 
@@ -437,10 +455,22 @@ class PLDABase(PDF):
             Score matrix; dimensions depend on the strategy.
         """
         if method == PLDALLRNvsMMethod.savg:
+            if ids1 is None:
+                ids1 = np.arange(x1.shape[0], dtype=np.int64)
+            if ids2 is None:
+                ids2 = np.arange(x2.shape[0], dtype=np.int64)
             return self.llr_NvsM_savg(x1, ids1, x2, ids2)
 
-        D1 = x1 if ids1 is None else self.compute_stats_hard(x1, class_ids=ids1)
-        D2 = x2 if ids2 is None else self.compute_stats_hard(x2, class_ids=ids2)
+        D1 = (
+            (np.ones((x1.shape[0],), dtype=x1.dtype), x1, None)
+            if ids1 is None
+            else self.compute_stats_hard(x1, class_ids=ids1)
+        )
+        D2 = (
+            (np.ones((x2.shape[0],), dtype=x2.dtype), x2, None)
+            if ids2 is None
+            else self.compute_stats_hard(x2, class_ids=ids2)
+        )
 
         if method == PLDALLRNvsMMethod.book:
             return self.llr_NvsM_book(D1, D2)
@@ -520,9 +550,15 @@ class PLDABase(PDF):
             Score matrix with shape ``(num_enroll_sides, num_test_segments)``.
         """
         if method == PLDALLRNvsMMethod.savg:
+            if ids1 is None:
+                ids1 = np.arange(x1.shape[0], dtype=np.int64)
             return self.llr_Nvs1_savg(x1, ids1, x2)
 
-        D1 = x1 if ids1 is None else self.compute_stats_hard(x1, class_ids=ids1)
+        D1 = (
+            (np.ones((len(x1),), dtype=x1.dtype), x1, None)
+            if ids1 is None
+            else self.compute_stats_hard(x1, class_ids=ids1)
+        )
 
         if method == PLDALLRNvsMMethod.book:
             D2 = self.compute_stats_hard(x2, np.arange(x2.shape[0]))

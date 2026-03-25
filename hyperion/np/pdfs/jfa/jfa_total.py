@@ -20,6 +20,18 @@ class JFATotal(PDF):
         K: Number of Gaussian mixture components.
         y_dim: Dimensionality of the latent i-vector subspace.
         T: Total-variability matrix with shape ``(y_dim, K * x_dim)``.
+
+    Examples:
+        >>> import numpy as np
+        >>> from hyperion.np.pdfs.jfa.jfa_total import JFATotal
+        >>> rng = np.random.default_rng(7)
+        >>> num_utts, K, x_dim = 300, 4, 20
+        >>> N = rng.uniform(1.0, 30.0, size=(num_utts, K)).astype(np.float32)
+        >>> F = rng.standard_normal((num_utts, K * x_dim)).astype(np.float32)
+        >>> model = JFATotal(K=K, y_dim=64)
+        >>> _ = model.fit(N, F, epochs=3, ml_md="ml+md")
+        >>> y = model.compute_py_g_x(N[:10], F[:10])
+        >>> print(y.shape)  # (10, 64)
     """
 
     def __init__(
@@ -38,8 +50,13 @@ class JFATotal(PDF):
             **kwargs: Additional keyword arguments passed to :class:`PDF`.
         """
         super().__init__(**kwargs)
+        if K <= 0:
+            raise ValueError(f"K must be > 0, got {K}")
         if T is not None:
+            self._validate_T_shape(T, K)
             y_dim = T.shape[0]
+        elif y_dim is None:
+            raise ValueError("Either y_dim or T must be provided.")
 
         self.K: int = K
         self.y_dim: int = y_dim
@@ -59,6 +76,7 @@ class JFATotal(PDF):
         if self._is_init:
             return True
         if self.T is not None:
+            self._validate_T_shape(self.T, self.K, expected_y_dim=self.y_dim)
             self._is_init = True
         return self._is_init
 
@@ -69,8 +87,18 @@ class JFATotal(PDF):
             N: Zero-order statistics of shape ``(num_utterances, K)``.
             F: First-order statistics of shape ``(num_utterances, K * x_dim)``.
         """
-        assert N.shape[1] == self.K
+        if N.shape[0] != F.shape[0]:
+            raise ValueError(
+                f"N.shape[0]={N.shape[0]} does not match F.shape[0]={F.shape[0]}"
+            )
+        if N.shape[1] != self.K:
+            raise ValueError(f"N.shape[1]={N.shape[1]} does not match K={self.K}")
+        if F.shape[1] % self.K != 0:
+            raise ValueError(
+                f"F.shape[1] must be divisible by K. Got F.shape[1]={F.shape[1]}, K={self.K}"
+            )
         self.T = np.random.randn(self.y_dim, F.shape[1]).astype(float_cpu(), copy=False)
+        self.reset_aux()
 
     def compute_py_g_x(
         self,
@@ -101,6 +129,16 @@ class JFATotal(PDF):
         M = F.shape[0]
         y_dim = self.y_dim
         assert self.T is not None
+        if N.shape[0] != F.shape[0]:
+            raise ValueError(
+                f"N.shape[0]={N.shape[0]} does not match F.shape[0]={F.shape[0]}"
+            )
+        if N.shape[1] != self.K:
+            raise ValueError(f"N.shape[1]={N.shape[1]} does not match K={self.K}")
+        if F.shape[1] != self.T.shape[1]:
+            raise ValueError(
+                f"F.shape[1]={F.shape[1]} does not match T.shape[1]={self.T.shape[1]}"
+            )
 
         compute_inv = return_cov or return_acc
         return_tuple = compute_inv or return_elbo
@@ -254,6 +292,11 @@ class JFATotal(PDF):
             Training ELBO and normalized ELBO, optionally followed by the
             validation counterparts.
         """
+        if (N_val is None) != (F_val is None):
+            raise ValueError("N_val and F_val must be provided together.")
+        if ml_md not in ("ml+md", "ml", "md"):
+            raise ValueError(f"ml_md must be 'ml+md', 'ml' or 'md', got '{ml_md}'")
+        use_val = N_val is not None and F_val is not None
 
         use_ml = False if ml_md == "md" else True
         use_md = False if ml_md == "ml" else True
@@ -267,7 +310,7 @@ class JFATotal(PDF):
 
             stats = self.Estep(N, F, G)
             elbo[epoch] = stats[0]
-            if N_val is not None and F_val is not None:
+            if use_val:
                 _, elbo_val_e = self.compute_py_g_x(
                     N_val, F_val, G_val, return_elbo=True
                 )
@@ -279,7 +322,7 @@ class JFATotal(PDF):
                 self.MstepMD(stats)
 
         elbo_norm = elbo / np.sum(N)
-        if N_val is None:
+        if not use_val:
             return elbo, elbo_norm
         else:
             elbo_val_norm = elbo_val / np.sum(N_val)
@@ -312,7 +355,8 @@ class JFATotal(PDF):
             Array of shape ``(K, y_dim * (y_dim + 1) / 2)`` containing vectorized
             upper-triangular entries.
         """
-        x_dim = int(T.shape[1] / K)
+        JFATotal._validate_T_shape(T, K)
+        x_dim = T.shape[1] // K
         y_dim = T.shape[0]
         TT = np.zeros((K, int(y_dim * (y_dim + 1) / 2)), dtype=float_cpu())
         for k in range(K):
@@ -352,7 +396,17 @@ class JFATotal(PDF):
         """
         Tnorm = np.zeros_like(T)
         K = chol_prec.shape[0]
-        x_dim = int(T.shape[1] / K)
+        JFATotal._validate_T_shape(T, K)
+        x_dim = T.shape[1] // K
+        if chol_prec.ndim != 3:
+            raise ValueError(
+                f"chol_prec must be 3D with shape (K, x_dim, x_dim), got {chol_prec.shape}"
+            )
+        if chol_prec.shape[1] != x_dim or chol_prec.shape[2] != x_dim:
+            raise ValueError(
+                "chol_prec inner dimensions must match x_dim="
+                f"{x_dim}, got {chol_prec.shape[1:]}"
+            )
         for k in range(K):
             idx = k * x_dim
             Tnorm[:, idx : idx + x_dim] = np.dot(
@@ -360,6 +414,24 @@ class JFATotal(PDF):
             )
 
         return Tnorm
+
+    @staticmethod
+    def _validate_T_shape(
+        T: np.ndarray, K: int, expected_y_dim: Optional[int] = None
+    ) -> None:
+        """Validates ``T`` layout against ``K`` and optional ``y_dim``."""
+        if T.ndim != 2:
+            raise ValueError(f"T must be 2D, got shape {T.shape}")
+        if K <= 0:
+            raise ValueError(f"K must be > 0, got {K}")
+        if T.shape[1] % K != 0:
+            raise ValueError(
+                f"T.shape[1] must be divisible by K. Got T.shape[1]={T.shape[1]}, K={K}"
+            )
+        if expected_y_dim is not None and T.shape[0] != expected_y_dim:
+            raise ValueError(
+                f"T.shape[0]={T.shape[0]} does not match y_dim={expected_y_dim}"
+            )
 
     def get_config(self) -> Dict[str, Any]:
         """Builds a serializable configuration dictionary."""

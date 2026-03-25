@@ -34,6 +34,16 @@ class SPLDA(PLDABase):
       r_V: relevance factor for adapting V.
       r_W: relevance factor for adapting W.
       x_dim: data dimension.
+
+    Examples:
+      >>> import numpy as np
+      >>> from hyperion.np.pdfs.plda.splda import SPLDA
+      >>> rng = np.random.default_rng(19)
+      >>> x = rng.standard_normal((300, 96)).astype(np.float32)
+      >>> class_ids = np.repeat(np.arange(30), 10)
+      >>> model = SPLDA(y_dim=40, fullcov_W=True, epochs=3)
+      >>> _ = model.fit(x, class_ids=class_ids)
+      >>> scores = model.llr_Nvs1(x[:100], x[100:120], method="vavg")
     """
 
     def __init__(
@@ -519,8 +529,8 @@ class SPLDA(PLDABase):
         VV = np.dot(self.V, WV)
         I = np.eye(self.y_dim, dtype=float_cpu())
 
-        F1 -= N1[:, None] * self.mu
-        F2 -= N2[:, None] * self.mu
+        F1 = F1 - N1[:, None] * self.mu
+        F2 = F2 - N2[:, None] * self.mu
 
         scores = np.zeros((len(N1), len(N2)), dtype=float_cpu())
         for N1_i in np.unique(N1):
@@ -883,8 +893,8 @@ class SPLDA(PLDABase):
           Projected PLDA model.
         """
         mu = self.mu
-        if mu is not None:
-            mu -= delta_mu
+        if delta_mu is not None:
+            mu = mu - delta_mu
         mu = np.dot(mu, T)
         V = np.dot(self.V, T)
         Sw = invert_pdmat(self.W, return_inv=True)[-1]
