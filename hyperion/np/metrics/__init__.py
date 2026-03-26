@@ -9,9 +9,9 @@ from .confusion_matrix import *
 from .dcf import compute_act_dcf, compute_dcf, compute_min_dcf, fast_eval_dcf_eer
 from .eer import compute_eer, compute_prbep
 from .gain_distinctness import compute_gain_distinctness
+from .lsd import compute_lsd
+from .pesq import compute_pesq
+from .snr import compute_si_snr, compute_snr
+from .stoi import compute_stoi
 from .utils import effective_prior
-from .verification_evaluator import (
-    VerificationAdvAttackEvaluator,
-    VerificationEvaluator,
-)
 from .wer import compute_wer
