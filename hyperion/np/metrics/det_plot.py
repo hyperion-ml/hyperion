@@ -366,6 +366,7 @@ class DETPlot:
         system_name: str,
         color: str,
         line_type: str,
+        line_width: float = 1.5,
         min_dcf: bool = False,
     ) -> Any:
         """Plots a DET curve from precomputed ROC points.
@@ -376,6 +377,7 @@ class DETPlot:
             system_name: Legend label for the curve.
             color: Matplotlib color specification.
             line_type: Matplotlib line style specification.
+            line_width: Matplotlib line width for the DET curve.
             min_dcf: If True, marks min-DCF points for each prior.
 
         Returns:
@@ -407,6 +409,7 @@ class DETPlot:
             self._probit(pmiss),
             color=color,
             linestyle=line_type,
+            linewidth=line_width,
             label=system_name,
         )
 
@@ -440,6 +443,7 @@ class DETPlot:
         system_name: str = "",
         color: str = "b",
         line_type: str = "-",
+        line_width: float = 1.5,
         min_dcf: bool = False,
         act_dcf: bool = False,
     ) -> Any:
@@ -452,6 +456,7 @@ class DETPlot:
             system_name: Legend label for the curve.
             color: Matplotlib color specification.
             line_type: Matplotlib line style specification.
+            line_width: Matplotlib line width for the DET curve.
             min_dcf: If True, marks min-DCF points for each prior.
             act_dcf: If True, plots actual-DCF operating points with confidence crosses.
 
@@ -479,6 +484,7 @@ class DETPlot:
             system_name=system_name,
             color=color,
             line_type=line_type,
+            line_width=line_width,
             min_dcf=min_dcf,
         )
 
@@ -509,6 +515,7 @@ class DETPlot:
         system_name: str = "",
         color: str = "b",
         line_type: str = "-",
+        line_width: float = 1.5,
         min_dcf: bool = False,
         act_dcf: bool = False,
     ) -> Any:
@@ -521,6 +528,7 @@ class DETPlot:
             system_name: Legend label for the curve.
             color: Matplotlib color specification.
             line_type: Matplotlib line style specification.
+            line_width: Matplotlib line width for the DET curve.
             min_dcf: If True, marks min-DCF points for each prior.
             act_dcf: If True, plots actual-DCF operating points with confidence crosses.
 
@@ -535,6 +543,7 @@ class DETPlot:
             system_name=system_name,
             color=color,
             line_type=line_type,
+            line_width=line_width,
             min_dcf=min_dcf,
             act_dcf=act_dcf,
         )
@@ -657,6 +666,7 @@ class DETPlot:
         num_non: int,
         color: str = "k",
         line_type: str = "--",
+        line_width: float = 1.5,
         legend_string: str = "",
     ) -> Any:
         """Plots Doddington Rule-of-30 false-alarm vertical line.
@@ -665,6 +675,7 @@ class DETPlot:
             num_non: Number of non-target trials.
             color: Matplotlib color specification.
             line_type: Matplotlib line style specification.
+            line_width: Matplotlib line width for the DR30 line.
             legend_string: Optional legend label for this line.
 
         Returns:
@@ -693,6 +704,7 @@ class DETPlot:
             y,
             color=color,
             linestyle=line_type,
+            linewidth=line_width,
             label=legend_string if legend_string else "_nolegend_",
         )
 
@@ -708,6 +720,7 @@ class DETPlot:
         num_tar: int,
         color: str = "k",
         line_type: str = "--",
+        line_width: float = 1.5,
         legend_string: str = "",
     ) -> Any:
         """Plots Doddington Rule-of-30 miss-rate horizontal line.
@@ -716,6 +729,7 @@ class DETPlot:
             num_tar: Number of target trials.
             color: Matplotlib color specification.
             line_type: Matplotlib line style specification.
+            line_width: Matplotlib line width for the DR30 line.
             legend_string: Optional legend label for this line.
 
         Returns:
@@ -744,6 +758,7 @@ class DETPlot:
             y,
             color=color,
             linestyle=line_type,
+            linewidth=line_width,
             label=legend_string if legend_string else "_nolegend_",
         )
 
@@ -760,6 +775,7 @@ class DETPlot:
         num_non: int,
         color: str = "k",
         line_type: str = "--",
+        line_width: float = 1.5,
         legend_fa: str = "",
         legend_pmiss: str = "",
     ) -> Any:
@@ -770,6 +786,7 @@ class DETPlot:
             num_non: Number of non-target trials.
             color: Matplotlib color specification.
             line_type: Matplotlib line style specification.
+            line_width: Matplotlib line width for both DR30 lines.
             legend_fa: Optional legend label for the false-alarm line.
             legend_pmiss: Optional legend label for the miss-rate line.
 
@@ -780,12 +797,14 @@ class DETPlot:
             num_non=num_non,
             color=color,
             line_type=line_type,
+            line_width=line_width,
             legend_string=legend_fa,
         )
         h_pmiss = self.plot_dr30_pmiss(
             num_tar=num_tar,
             color=color,
             line_type=line_type,
+            line_width=line_width,
             legend_string=legend_pmiss,
         )
         return h_fa, h_pmiss

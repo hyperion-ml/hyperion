@@ -125,6 +125,7 @@ class NormDCFPlot:
         y: np.ndarray,
         color: Optional[str],
         line_type: Any,
+        line_width: float,
         legend: Optional[str],
     ) -> Any:
         """Plots a y-series on ``self.plo`` and optionally registers legend entry.
@@ -133,6 +134,7 @@ class NormDCFPlot:
             y: Y values to plot against ``self.plo``.
             color: Optional line color.
             line_type: Matplotlib line style.
+            line_width: Matplotlib line width.
             legend: Optional legend text.
 
         Returns:
@@ -144,6 +146,7 @@ class NormDCFPlot:
             y,
             color=c,
             linestyle=line_type,
+            linewidth=line_width,
             label=legend if legend else "_nolegend_",
         )
         if legend:
@@ -218,6 +221,7 @@ class NormDCFPlot:
         self,
         color: Optional[str] = None,
         line_type: Any = "-",
+        line_width: float = 1.5,
         legend: Optional[str] = None,
     ) -> Any:
         """Plots minimum normalized DCF curve.
@@ -225,6 +229,7 @@ class NormDCFPlot:
         Args:
             color: Optional curve color.
             line_type: Matplotlib line style.
+            line_width: Matplotlib line width.
             legend: Optional legend text. Defaults to ``"MinDCF {system_name}"``.
 
         Returns:
@@ -233,12 +238,13 @@ class NormDCFPlot:
         if self.minDCF is None:
             raise ValueError("Call set_system_from_scores or set_system_from_trials first")
         legend = self._resolve_legend(legend, "MinDCF")
-        return self._plot_series(self.minDCF, color, line_type, legend)
+        return self._plot_series(self.minDCF, color, line_type, line_width, legend)
 
     def plot_act_dcf(
         self,
         color: Optional[str] = None,
         line_type: Any = "--",
+        line_width: float = 1.5,
         legend: Optional[str] = None,
     ) -> Any:
         """Plots actual normalized DCF curve.
@@ -246,6 +252,7 @@ class NormDCFPlot:
         Args:
             color: Optional curve color.
             line_type: Matplotlib line style.
+            line_width: Matplotlib line width.
             legend: Optional legend text. Defaults to ``"ActDCF {system_name}"``.
 
         Returns:
@@ -254,12 +261,13 @@ class NormDCFPlot:
         if self.actDCF is None:
             raise ValueError("Call set_system_from_scores or set_system_from_trials first")
         legend = self._resolve_legend(legend, "ActDCF")
-        return self._plot_series(self.actDCF, color, line_type, legend)
+        return self._plot_series(self.actDCF, color, line_type, line_width, legend)
 
     def plot_mindcf_pmiss(
         self,
         color: Optional[str] = None,
         line_type: Any = "-.",
+        line_width: float = 1.5,
         legend: Optional[str] = None,
     ) -> Any:
         """Plots miss contribution to minimum normalized DCF.
@@ -267,6 +275,7 @@ class NormDCFPlot:
         Args:
             color: Optional curve color.
             line_type: Matplotlib line style.
+            line_width: Matplotlib line width.
             legend: Optional legend text. Defaults to ``"MinDCF PMiss {system_name}"``.
 
         Returns:
@@ -276,12 +285,13 @@ class NormDCFPlot:
             raise ValueError("Call set_system_from_scores or set_system_from_trials first")
         legend = self._resolve_legend(legend, "MinDCF PMiss")
         y = self.minPmiss * self.Ptar_norm
-        return self._plot_series(y, color, line_type, legend)
+        return self._plot_series(y, color, line_type, line_width, legend)
 
     def plot_mindcf_pfa(
         self,
         color: Optional[str] = None,
         line_type: Any = ":",
+        line_width: float = 1.5,
         legend: Optional[str] = None,
     ) -> Any:
         """Plots false-alarm contribution to minimum normalized DCF.
@@ -289,6 +299,7 @@ class NormDCFPlot:
         Args:
             color: Optional curve color.
             line_type: Matplotlib line style.
+            line_width: Matplotlib line width.
             legend: Optional legend text. Defaults to ``"MinDCF PFA {system_name}"``.
 
         Returns:
@@ -298,12 +309,13 @@ class NormDCFPlot:
             raise ValueError("Call set_system_from_scores or set_system_from_trials first")
         legend = self._resolve_legend(legend, "MinDCF PFA")
         y = self.minPfa * self.Pnon_norm
-        return self._plot_series(y, color, line_type, legend)
+        return self._plot_series(y, color, line_type, line_width, legend)
 
     def plot_actdcf_pmiss(
         self,
         color: Optional[str] = None,
         line_type: Any = (0, (1, 1)),
+        line_width: float = 1.5,
         legend: Optional[str] = None,
     ) -> Any:
         """Plots miss contribution to actual normalized DCF.
@@ -311,6 +323,7 @@ class NormDCFPlot:
         Args:
             color: Optional curve color.
             line_type: Matplotlib line style.
+            line_width: Matplotlib line width.
             legend: Optional legend text. Defaults to ``"ActDCF PMiss {system_name}"``.
 
         Returns:
@@ -320,12 +333,13 @@ class NormDCFPlot:
             raise ValueError("Call set_system_from_scores or set_system_from_trials first")
         legend = self._resolve_legend(legend, "ActDCF PMiss")
         y = self.actPmiss * self.Ptar_norm
-        return self._plot_series(y, color, line_type, legend)
+        return self._plot_series(y, color, line_type, line_width, legend)
 
     def plot_actdcf_pfa(
         self,
         color: Optional[str] = None,
         line_type: Any = (0, (3, 1, 1, 1)),
+        line_width: float = 1.5,
         legend: Optional[str] = None,
     ) -> Any:
         """Plots false-alarm contribution to actual normalized DCF.
@@ -333,6 +347,7 @@ class NormDCFPlot:
         Args:
             color: Optional curve color.
             line_type: Matplotlib line style.
+            line_width: Matplotlib line width.
             legend: Optional legend text. Defaults to ``"ActDCF PFA {system_name}"``.
 
         Returns:
@@ -342,19 +357,20 @@ class NormDCFPlot:
             raise ValueError("Call set_system_from_scores or set_system_from_trials first")
         legend = self._resolve_legend(legend, "ActDCF PFA")
         y = self.actPfa * self.Pnon_norm
-        return self._plot_series(y, color, line_type, legend)
+        return self._plot_series(y, color, line_type, line_width, legend)
 
-    def plot_both_dcf(self, color: Optional[str] = None) -> Any:
+    def plot_both_dcf(self, color: Optional[str] = None, line_width: float = 1.5) -> Any:
         """Plots both minimum and actual DCF curves.
 
         Args:
             color: Optional shared color for both curves.
+            line_width: Matplotlib line width for both curves.
 
         Returns:
             Any: Tuple with handles ``(h_min_dcf, h_act_dcf)``.
         """
-        h_min = self.plot_min_dcf(color=color)
-        h_act = self.plot_act_dcf(color=color)
+        h_min = self.plot_min_dcf(color=color, line_width=line_width)
+        h_act = self.plot_act_dcf(color=color, line_width=line_width)
         return h_min, h_act
 
     def save(self, img_path: str, dpi: Optional[int] = None, **kwargs: Any) -> None:
@@ -375,6 +391,7 @@ class NormDCFPlot:
         value: float,
         color: str = "k",
         line_type: str = "--",
+        line_width: float = 1.5,
         legend: Optional[str] = None,
     ) -> Any:
         """Plots a vertical operating-point line on the DCF plot.
@@ -383,6 +400,7 @@ class NormDCFPlot:
             value: X-axis position in logit-prior domain.
             color: Matplotlib color specification.
             line_type: Matplotlib line style specification.
+            line_width: Matplotlib line width.
             legend: Optional legend string (no system-name prefix added).
 
         Returns:
@@ -404,6 +422,7 @@ class NormDCFPlot:
             [ymin, ymax],
             color=color,
             linestyle=line_type,
+            linewidth=line_width,
             label=legend if legend else "_nolegend_",
         )
         if legend:
@@ -446,7 +465,9 @@ class NormDCFPlot:
             self.minDCF[idx],
             color=c,
             marker=marker,
+            markersize=9,
             linestyle="None",
+            markeredgewidth=1.5,
             label=legend if legend else "_nolegend_",
         )
         if legend:
@@ -489,7 +510,9 @@ class NormDCFPlot:
             self.minDCF[idx],
             color=c,
             marker=marker,
+            markersize=9,
             linestyle="None",
+            markeredgewidth=1.5,
             label=legend if legend else "_nolegend_",
         )
         if legend:
