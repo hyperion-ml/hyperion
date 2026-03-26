@@ -62,6 +62,8 @@ def eval_verification_metrics(
     plot_det_min_dcf: bool,
     plot_det_act_dcf: bool,
     line_width: float,
+    det_file: Optional[PathLike],
+    dcf_file: Optional[PathLike],
     output_file: PathLike,
 ) -> None:
     """Evaluate verification metrics across multiple keys and score systems.
@@ -89,12 +91,18 @@ def eval_verification_metrics(
         plot_det_min_dcf: If True, plot DET min-DCF points.
         plot_det_act_dcf: If True, plot DET act-DCF points.
         line_width: Line width used for DET/DCF plotted curves.
+        det_file: Optional output path to save the DET figure.
+        dcf_file: Optional output path to save the normalized DCF figure.
         output_file: Destination CSV/TSV file for aggregated metrics.
     """
     assert len(key_files) == len(key_names)
     assert len(score_files) == len(score_names)
     if line_width <= 0:
         raise ValueError(f"line_width must be > 0, got {line_width}")
+    if det_file is not None and not plot_det:
+        raise ValueError("det_file was provided but plot_det is False")
+    if dcf_file is not None and not plot_dcf:
+        raise ValueError("dcf_file was provided but plot_dcf is False")
 
     plot_priors = np.atleast_1d(np.asarray(p_tar, dtype=float))
     if c_miss is not None and c_fa is not None:
@@ -192,6 +200,16 @@ def eval_verification_metrics(
 
     pd.options.display.float_format = "{:.4}".format
     print(df.to_string(), flush=True)
+
+    if det_plot is not None and det_file is not None:
+        det_file = Path(det_file)
+        det_file.parent.mkdir(exist_ok=True, parents=True)
+        det_plot.save(det_file)
+
+    if norm_dcf_plot is not None and dcf_file is not None:
+        dcf_file = Path(dcf_file)
+        dcf_file.parent.mkdir(exist_ok=True, parents=True)
+        norm_dcf_plot.save(dcf_file)
 
 
 def main() -> None:
@@ -330,6 +348,16 @@ def main() -> None:
         default=1.5,
         type=float,
         help="line width used for DET/DCF plotted curves",
+    )
+    parser.add_argument(
+        "--det-file",
+        default=None,
+        help="optional output path to save DET figure",
+    )
+    parser.add_argument(
+        "--dcf-file",
+        default=None,
+        help="optional output path to save normalized DCF figure",
     )
     parser.add_argument(
         "--output-file",

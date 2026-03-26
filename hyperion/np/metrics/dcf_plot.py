@@ -13,6 +13,7 @@ from ...utils.sparse_trial_key import SparseTrialKey
 from ...utils.sparse_trial_scores import SparseTrialScores
 from ...utils.trial_key import TrialKey
 from ...utils.trial_scores import TrialScores
+from ...utils.misc import PathLike
 from .dcf import compute_act_dcf, compute_min_dcf
 
 
@@ -373,7 +374,7 @@ class NormDCFPlot:
         h_act = self.plot_act_dcf(color=color, line_width=line_width)
         return h_min, h_act
 
-    def save(self, img_path: str, dpi: Optional[int] = None, **kwargs: Any) -> None:
+    def save(self, img_path: PathLike, dpi: Optional[int] = None, **kwargs: Any) -> None:
         """Saves the current normalized DCF figure.
 
         Args:
@@ -384,7 +385,7 @@ class NormDCFPlot:
         save_kwargs = dict(kwargs)
         if dpi is not None:
             save_kwargs["dpi"] = dpi
-        self.fh.savefig(img_path, **save_kwargs)
+        self.fh.savefig(str(img_path), **save_kwargs)
 
     def plot_operating_point(
         self,
