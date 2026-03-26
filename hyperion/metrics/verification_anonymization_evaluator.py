@@ -38,26 +38,47 @@ from ..utils.misc import PathLike, check_and_disable_latex
 
 
 class VerificationAnonymizationEvaluator:
-    """Class computes performance metrics for verification problems.
-       Same metrics can be obtained from fast_eval_dcf_eer functions
+    """Evaluate speaker verification metrics for anonymization scenarios.
+
+    The evaluator compares multiple score sets (original-original,
+    original-anonymized, anonymized-anonymized) and computes:
+
+    - Privacy operating points/costs (multiple target/non-target pairings).
+    - Consistency-vs-diversity metrics on anonymized trials.
+    - Optional voice-cloning metrics using a reference key/scores.
+    - Optional gain-in-distinctness derived from class-similarity matrices.
 
     Attributes:
-       key: TrialKey object or file_name.
-       scores: TrialScores object or file_name
-       p_tar: target prior float or list/nparray sorted in ascending order
-       c_miss: cost of miss
-       c_fa: cost of false alarm
-       key_name: name describing the key
-       score_name: name describing the score
-       sparse: use sparse versions of TrialScores and Keys
+        key: Trial key defining target/non-target pairs.
+        scores_orig_orig: Scores for original-enroll vs original-test trials.
+        scores_orig_anon: Scores for original-enroll vs anonymized-test trials.
+        scores_anon_anon: Scores for anonymized-enroll vs anonymized-test trials.
+        p_tar: Target prior(s), sorted internally for DCF computation.
+        key_name: Optional dataset/key label included in reports.
+        score_name: Optional system label included in reports.
+        sparse: Whether sparse trial key/score containers are used.
+
+    Examples:
+        >>> from hyperion.metrics import VerificationAnonymizationEvaluator
+        >>> evaluator = VerificationAnonymizationEvaluator(
+        ...     key="trials.h5",
+        ...     scores_orig_orig="scores_oo.h5",
+        ...     scores_orig_anon="scores_oa.h5",
+        ...     scores_anon_anon="scores_aa.h5",
+        ...     p_tar=[0.01, 0.05],
+        ...     key_name="vox_eval",
+        ...     score_name="systemA",
+        ... )
+        >>> df = evaluator.compute_dcf_eer()
+        >>> print(df[["anon_case", "eer(%)"]])
     """
 
     def __init__(
         self,
         key: Union[PathLike, TrialKey, SparseTrialKey],
-        scores_orig_orig: Union[str, TrialScores, SparseTrialScores],
-        scores_orig_anon: Union[str, TrialScores, SparseTrialScores],
-        scores_anon_anon: Union[str, TrialScores, SparseTrialScores],
+        scores_orig_orig: Union[PathLike, TrialScores, SparseTrialScores],
+        scores_orig_anon: Union[PathLike, TrialScores, SparseTrialScores],
+        scores_anon_anon: Union[PathLike, TrialScores, SparseTrialScores],
         enroll_map: Union[PathLike, EnrollmentMap, None] = None,
         anon_enroll_segments: Union[PathLike, SegmentSet, None] = None,
         anon_test_segments: Union[PathLike, SegmentSet, None] = None,
@@ -73,54 +94,91 @@ class VerificationAnonymizationEvaluator:
         ref_key: Optional[Union[PathLike, TrialKey, SparseTrialKey]] = None,
         scores_ref_anon: Optional[Union[str, TrialScores, SparseTrialScores]] = None,
     ):
-        if isinstance(key, str):
+        """Initialize anonymization evaluator state and optional calibration.
+
+        Args:
+            key: Trial key object/path used for the main evaluation.
+            scores_orig_orig: Score object/path for original-vs-original trials.
+            scores_orig_anon: Score object/path for original-vs-anonymized trials.
+            scores_anon_anon: Score object/path for anonymized-vs-anonymized trials.
+            enroll_map: Optional enrollment map linking model IDs to segment IDs.
+            anon_enroll_segments: Optional anonymized enrollment metadata table.
+            anon_test_segments: Optional anonymized test metadata table.
+            p_tar: Target prior(s) for DCF evaluation.
+            c_miss: Optional miss costs aligned with ``p_tar``.
+            c_fa: Optional false-alarm costs aligned with ``p_tar``.
+            key_name: Optional key label for output tables.
+            score_name: Optional score/system label for output tables.
+            calibrate_on_orig: If True, fit logistic calibration on
+                original-vs-original scores and apply it to all score sets.
+            sparse: If True, load sparse key/score classes for file inputs.
+            class_column: Column name for original speaker ID metadata.
+            anon_class_column: Column name for pseudo-speaker ID metadata.
+            ref_key: Optional key used for reference-vs-anonymized evaluation.
+            scores_ref_anon: Optional scores aligned with ``ref_key``.
+        """
+        if isinstance(key, (str, Path)):
             logging.info("Load key: %s", key)
             if sparse:
                 key = SparseTrialKey.load(key)
             else:
                 key = TrialKey.load(key)
 
-        if isinstance(scores_orig_orig, str):
+        if isinstance(scores_orig_orig, (str, Path)):
             logging.info("Load scores orig. vs orig.: %s", scores_orig_orig)
             if sparse:
                 scores_orig_orig = SparseTrialScores.load(scores_orig_orig)
             else:
                 scores_orig_orig = TrialScores.load(scores_orig_orig)
 
-        if isinstance(scores_orig_anon, str):
+        if isinstance(scores_orig_anon, (str, Path)):
             logging.info("Load scores orig. vs anon.: %s", scores_orig_anon)
             if sparse:
                 scores_orig_anon = SparseTrialScores.load(scores_orig_anon)
             else:
                 scores_orig_anon = TrialScores.load(scores_orig_anon)
 
-        if isinstance(scores_anon_anon, str):
+        if isinstance(scores_anon_anon, (str, Path)):
             logging.info("Load scores anon. vs anon.: %s", scores_anon_anon)
             if sparse:
                 scores_anon_anon = SparseTrialScores.load(scores_anon_anon)
             else:
                 scores_anon_anon = TrialScores.load(scores_anon_anon)
 
-        if enroll_map is not None and isinstance(enroll_map, str):
+        if enroll_map is not None and isinstance(enroll_map, (str, Path)):
             logging.info("Load enrollment map: %s", enroll_map)
             enroll_map = EnrollmentMap.load(enroll_map)
 
-        if anon_enroll_segments is not None and isinstance(anon_enroll_segments, str):
+        if anon_enroll_segments is not None and isinstance(
+            anon_enroll_segments, (str, Path)
+        ):
             logging.info("Load enroll anon meta: %s", anon_enroll_segments)
             anon_enroll_segments = SegmentSet.load(anon_enroll_segments)
 
-        if anon_test_segments is not None and isinstance(anon_test_segments, str):
+        if anon_test_segments is not None and isinstance(
+            anon_test_segments, (str, Path)
+        ):
             logging.info("Load test anon meta: %s", anon_test_segments)
             anon_test_segments = SegmentSet.load(anon_test_segments)
 
-        if ref_key is not None and isinstance(ref_key, str):
+        if ref_key is not None and isinstance(ref_key, (str, Path)):
             logging.info("Load ref key: %s", ref_key)
-            ref_key = TrialKey.load(ref_key)
-            if scores_ref_anon is not None and isinstance(scores_ref_anon, str):
-                logging.info("Load scores ref. vs anon.: %s", scores_ref_anon)
+            if sparse:
+                ref_key = SparseTrialKey.load(ref_key)
+            else:
+                ref_key = TrialKey.load(ref_key)
+
+        if scores_ref_anon is not None and isinstance(scores_ref_anon, (str, Path)):
+            logging.info("Load scores ref. vs anon.: %s", scores_ref_anon)
+            if sparse or isinstance(ref_key, SparseTrialKey):
+                scores_ref_anon = SparseTrialScores.load(scores_ref_anon)
+            else:
                 scores_ref_anon = TrialScores.load(scores_ref_anon)
 
-        assert ref_key is None or scores_ref_anon is not None
+        if ref_key is not None and scores_ref_anon is None:
+            raise ValueError(
+                "scores_ref_anon must be provided when ref_key is not None"
+            )
 
         self.key = key
         self.scores_orig_orig = scores_orig_orig.align_with_ndx(key)
@@ -141,16 +199,20 @@ class VerificationAnonymizationEvaluator:
         else:
             self.scores_ref_anon = None
 
-        # compute effective prior is c_miss and c_fa are given
-        if isinstance(p_tar, float):
-            p_tar = [p_tar]
-
-        p_tar = np.asarray(p_tar)
+        # compute effective prior when c_miss and c_fa are given
+        p_tar = np.atleast_1d(np.asarray(p_tar, dtype=float))
         if c_miss is not None and c_fa is not None:
-            assert len(c_miss) == len(p_tar)
-            assert len(c_fa) == len(p_tar)
-            c_miss = np.asarray(c_miss)
-            c_fa = np.asarray(c_fa)
+            c_miss = np.atleast_1d(np.asarray(c_miss, dtype=float))
+            c_fa = np.atleast_1d(np.asarray(c_fa, dtype=float))
+            if c_miss.size == 1 and p_tar.size > 1:
+                c_miss = np.full_like(p_tar, c_miss.item(), dtype=float)
+            if c_fa.size == 1 and p_tar.size > 1:
+                c_fa = np.full_like(p_tar, c_fa.item(), dtype=float)
+            if c_miss.size != p_tar.size or c_fa.size != p_tar.size:
+                raise ValueError(
+                    "c_miss and c_fa must have the same length as p_tar, "
+                    "or be scalars"
+                )
             p_tar = effective_prior(p_tar, c_miss, c_fa)
 
         self._p_tar_sort = np.argsort(p_tar)
@@ -162,6 +224,12 @@ class VerificationAnonymizationEvaluator:
             self.calibrate_scores()
 
     def calibrate_scores(self):
+        """Calibrate all score matrices using original-vs-original trials.
+
+        Fits a binary logistic regression calibrator on target/non-target scores
+        from ``scores_orig_orig`` and applies the transform to all available
+        score containers.
+        """
         lr = LR(prior=np.max(self.p_tar), bias_scaling=1, lambda_reg=1e-5)
         tar, non = self.scores_orig_orig.get_tar_non(self.key)
         x = np.concatenate((tar, non))
@@ -169,26 +237,31 @@ class VerificationAnonymizationEvaluator:
             (np.ones_like(tar, dtype="int32"), np.zeros_like(non, dtype="int32"))
         )
         lr.fit(x, y)
-        if self.sparse:
-            pass
-        else:
-            self.scores_orig_orig.scores = lr(
-                self.scores_orig_orig.scores.ravel()
-            ).reshape(self.scores_orig_orig.scores.shape)
-            self.scores_orig_anon.scores = lr(
-                self.scores_orig_anon.scores.ravel()
-            ).reshape(self.scores_orig_anon.scores.shape)
-            self.scores_anon_anon.scores = lr(
-                self.scores_anon_anon.scores.ravel()
-            ).reshape(self.scores_anon_anon.scores.shape)
-            if self.scores_ref_anon is not None:
-                self.scores_ref_anon.scores = lr(
-                    self.scores_ref_anon.scores.ravel()
-                ).reshape(self.scores_ref_anon.scores.shape)
+
+        def _calibrate_score_obj(score_obj):
+            if isinstance(score_obj, SparseTrialScores):
+                valid_scores = score_obj.get_valid_scores()
+                score_obj.set_valid_scores(lr(valid_scores))
+            else:
+                score_obj.scores = lr(score_obj.scores.ravel()).reshape(
+                    score_obj.scores.shape
+                )
+
+        _calibrate_score_obj(self.scores_orig_orig)
+        _calibrate_score_obj(self.scores_orig_anon)
+        _calibrate_score_obj(self.scores_anon_anon)
+        if self.scores_ref_anon is not None:
+            _calibrate_score_obj(self.scores_ref_anon)
 
         self.lr = lr
 
     def prepare_enroll_meta(self):
+        """Join enrollment metadata and enforce one pseudo-id per model.
+
+        When anonymized enrollment metadata is available, this method adds
+        speaker and pseudo-speaker columns to ``self.enroll_map``. If a model
+        maps to multiple pseudo-speaker IDs, it is marked as ``"mixed"``.
+        """
         if self.anon_enroll_segments is None or self.enroll_map is None:
             return
 
@@ -214,6 +287,16 @@ class VerificationAnonymizationEvaluator:
         self.enroll_map = self.enroll_map.get_unique_modelid_df()
 
     def make_anon_keys(self):
+        """Build derived trial keys for anonymization analyses.
+
+        Creates:
+        - ``key_anon_anon``: anonymized-anonymized trials excluding same pseudo-id pairs.
+        - ``key_cons_div``: combined consistency/diversity partition.
+        - ``key_cons_div_intra``: intra-pseudo-speaker partition.
+        - ``key_cons_div_inter``: inter-pseudo-speaker partition.
+
+        If metadata is unavailable, consistency/diversity keys are disabled.
+        """
         if self.enroll_map is None or self.anon_test_segments is None:
             logging.info(
                 "anon_enroll_segments and anon_test_segments were not provided"
@@ -243,22 +326,24 @@ class VerificationAnonymizationEvaluator:
 
             # Ensure pseudo_tar is in CSR format
             pseudo_tar = pseudo_tar.tocsr()
-            # Logical NOT of pseudo_tar
-            not_pseudo_tar = ~pseudo_tar
+            # Sparse boolean algebra: use multiply/max instead of ~, &, |.
+            tar_pseudo = self.key.tar.multiply(pseudo_tar)
+            non_pseudo = self.key.non.multiply(pseudo_tar)
+            tar_not_pseudo = self.key.tar - tar_pseudo
+            non_not_pseudo = self.key.non - non_pseudo
+
             # key_anon_anon
-            key_anon_anon.tar = self.key.tar & not_pseudo_tar
-            key_anon_anon.non = self.key.non & not_pseudo_tar
+            key_anon_anon.tar = tar_not_pseudo
+            key_anon_anon.non = non_not_pseudo
             # key_cons_div
-            key_cons_div.tar = (self.key.tar & pseudo_tar) | (self.key.non & pseudo_tar)
-            key_cons_div.non = (self.key.tar & not_pseudo_tar) | (
-                self.key.non & not_pseudo_tar
-            )
+            key_cons_div.tar = tar_pseudo.maximum(non_pseudo)
+            key_cons_div.non = tar_not_pseudo.maximum(non_not_pseudo)
             # key_cons_div_intra
-            key_cons_div_intra.tar = self.key.tar & pseudo_tar
-            key_cons_div_intra.non = self.key.tar & not_pseudo_tar
+            key_cons_div_intra.tar = tar_pseudo
+            key_cons_div_intra.non = tar_not_pseudo
             # key_cons_div_inter
-            key_cons_div_inter.tar = self.key.tar & pseudo_tar
-            key_cons_div_inter.non = self.key.non & not_pseudo_tar
+            key_cons_div_inter.tar = tar_pseudo
+            key_cons_div_inter.non = non_not_pseudo
         else:
             pseudo_tar = np.zeros_like(self.key.tar)
             for i, e_id in enumerate(enroll_pseudo):
@@ -288,19 +373,22 @@ class VerificationAnonymizationEvaluator:
         self.key_cons_div_inter = key_cons_div_inter
 
     def __call__(self):
+        """Alias for :meth:`compute_dcf_eer`."""
         return self.compute_dcf_eer()
 
     def _compute_dcf_eer(self, tar, non, key_name, score_name, anon_case):
-        """
-        This function computes the DCF and EER metrics for the given target and non-target scores.
+        """Compute DCF/EER for one target/non-target score pairing.
+
         Args:
-            tar: target scores (np.array)
-            non: non-target scores (np.array)
-            key_name: name describing the key
-            score_name: name describing the score
-            anon_case: anonimization condition name  (e.g., 'orig vs orig', 'orig vs anon', 'anon vs anon')
+            tar: Target-trial scores.
+            non: Non-target-trial scores.
+            key_name: Key label for reporting.
+            score_name: Score/system label for reporting.
+            anon_case: Scenario label describing the anonymization condition.
+
         Returns:
-            pandas DataFrame
+            Single-row DataFrame with EER/minDCF/actDCF and trial counts, or
+            ``None`` when either class is empty.
         """
         logging.info("separating tar/non")
 
@@ -346,11 +434,10 @@ class VerificationAnonymizationEvaluator:
         return df
 
     def compute_privacy_dcf_eer(self):
-        """
-        Computes DCF/EER for all privacy cases
+        """Compute DCF/EER for all privacy-oriented anonymization pairings.
 
         Returns:
-           pandas DataFrame with the results
+            DataFrame containing one row per privacy case.
         """
         logging.info("Computing DCF/EER for orig vs orig")
         tar_orig_orig, non_orig_orig = self.scores_orig_orig.get_tar_non(self.key)
@@ -425,10 +512,11 @@ class VerificationAnonymizationEvaluator:
         return pd.concat(dfs, ignore_index=True)
 
     def compute_cons_div_dcf_eer(self):
-        """
-        Computes DCF/EER for consistency vs diversity cases
+        """Compute DCF/EER for consistency-versus-diversity cases.
+
         Returns:
-           pandas DataFrame with the results
+            DataFrame with Cons/Div rows, or ``None`` when required keys are
+            unavailable.
         """
         if self.key_cons_div is None:
             logging.warning(
@@ -459,10 +547,11 @@ class VerificationAnonymizationEvaluator:
         return pd.concat(dfs, ignore_index=True)
 
     def compute_voice_cloning_dcf_eer(self):
-        """
-        Computes DCF/EER for reference vs anonymized
+        """Compute DCF/EER for reference-vs-anonymized (voice cloning) trials.
+
         Returns:
-           pandas DataFrame with the results
+            Single-row DataFrame with voice-cloning metrics, or ``None`` if
+            reference key/scores are not provided.
         """
         if self.ref_key is None or self.scores_ref_anon is None:
             return None
@@ -493,10 +582,11 @@ class VerificationAnonymizationEvaluator:
         return df_tar_ra_non_ra
 
     def compute_dcf_eer(self):
-        """
-        Computes DCF/EER for all cases
+        """Compute and merge all enabled anonymization evaluation tables.
+
         Returns:
-           pandas DataFrame with the results
+            DataFrame combining privacy, optional voice-cloning, and optional
+            consistency/diversity metrics (with gain distinctness when available).
         """
         df_priv = self.compute_privacy_dcf_eer()
         df_ref = self.compute_voice_cloning_dcf_eer()
@@ -516,12 +606,14 @@ class VerificationAnonymizationEvaluator:
         return df
 
     def compute_gain_distinctness(self):
-        """
-        Computes the gain in voice distinctness for the anonymization process.
-        This is a placeholder for the actual implementation.
+        """Compute gain in voice distinctness from class-similarity matrices.
+
+        The metric compares calibrated similarity structure before and after
+        anonymization using common class subsets.
 
         Returns:
-            pandas DataFrame with the results
+            Single-row DataFrame with ``gain_distinctness``, or ``None`` when
+            consistency/diversity keys are unavailable.
         """
         if self.key_cons_div is None:
             logging.warning(
@@ -557,15 +649,15 @@ class VerificationAnonymizationEvaluator:
         M_orig_orig = M_orig_orig[np.isin(model_classes, common_classes), :][
             :, np.isin(test_classes, common_classes)
         ]
-        print(
-            M_orig_orig[:5, :5],
-            "\n",
-            M_orig_orig[5:10, 5:10],
-            "\n",
-            M_orig_orig[10:15, 5:15],
-            "\n",
-            flush=True,
-        )
+        # print(
+        #     M_orig_orig[:5, :5],
+        #     "\n",
+        #     M_orig_orig[5:10, 5:10],
+        #     "\n",
+        #     M_orig_orig[10:15, 5:15],
+        #     "\n",
+        #     flush=True,
+        # )
 
         if (
             self.anon_class_column in self.enroll_map
@@ -588,15 +680,15 @@ class VerificationAnonymizationEvaluator:
         M_anon_anon = M_anon_anon[np.isin(model_classes, common_classes), :][
             :, np.isin(test_classes, common_classes)
         ]
-        print(
-            M_anon_anon[:5, :5],
-            "\n",
-            M_anon_anon[5:10, 5:10],
-            "\n",
-            M_anon_anon[10:15, 5:15],
-            "\n",
-            flush=True,
-        )
+        # print(
+        #     M_anon_anon[:5, :5],
+        #     "\n",
+        #     M_anon_anon[5:10, 5:10],
+        #     "\n",
+        #     M_anon_anon[10:15, 5:15],
+        #    "\n",
+        #    flush=True,
+        # )
 
         M_orig_orig = sigmoid(M_orig_orig)
         M_anon_anon = sigmoid(M_anon_anon)
@@ -615,6 +707,12 @@ class VerificationAnonymizationEvaluator:
     def plot_privacy_score_hist(
         self, output_path: PathLike, plot_thresholds: bool = False
     ):
+        """Plot score histograms for privacy scenarios and save to disk.
+
+        Args:
+            output_path: Directory where the plot image is written.
+            plot_thresholds: If True, overlays LLR thresholds for each ``p_tar``.
+        """
         check_and_disable_latex()
         tar_orig_orig, non_orig_orig = self.scores_orig_orig.get_tar_non(self.key)
         tar_orig_anon, non_orig_anon = self.scores_orig_anon.get_tar_non(self.key)
@@ -713,6 +811,19 @@ class VerificationAnonymizationEvaluator:
     def plot_cons_div_score_hist(
         self, output_path: PathLike, plot_thresholds: bool = False
     ):
+        """Plot score histograms for consistency/diversity scenarios.
+
+        Args:
+            output_path: Directory where the plot image is written.
+            plot_thresholds: If True, overlays LLR thresholds for each ``p_tar``.
+        """
+        if self.key_cons_div_intra is None or self.key_cons_div_inter is None:
+            logging.warning(
+                "Consistency/diversity keys are unavailable; "
+                "cannot plot Cons/Div score histogram."
+            )
+            return
+
         check_and_disable_latex()
         tar_orig, non_orig = self.scores_orig_orig.get_tar_non(self.key)
         tar_anon_intra, non_anon_intra = self.scores_anon_anon.get_tar_non(

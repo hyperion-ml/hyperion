@@ -42,6 +42,27 @@ class VoxProfileEvaluator:
             segment sequentially (currently unimplemented).
         batch_size: Number of segments evaluated together when running models
             in parallel mode.
+
+    Examples:
+        Python API:
+            >>> from hyperion.metrics import VoxProfileEvaluator
+            >>> evaluator = VoxProfileEvaluator(
+            ...     segments="data/segments.csv",
+            ...     recordings="data/recordings.csv",
+            ...     batch_size=8,
+            ...     use_dimensional_emotion=False,
+            ... )
+            >>> stats, segments = evaluator(return_df=True)
+            >>> print(stats[["num_segments"]])
+            >>> segments.save("exp/segments_metrics.csv")
+
+        CLI:
+            ``python -m hyperion.bin.eval_voxprofile_metrics \\
+              --segments-file data/segments.csv \\
+              --recordings-file data/recordings.csv \\
+              --batch-size 8 \\
+              --global-metrics-file exp/global_metrics.csv \\
+              --segments-metrics-file exp/segments_metrics.csv``
     """
 
     def __init__(
@@ -336,6 +357,8 @@ class VoxProfileEvaluator:
 
         Currently records the number of segments and, for columns ending with
         ``"_fluency"``, the share of non-null entries equal to ``"fluent"``.
+        It also stores ``*_count`` and ``*_fluent_count`` accumulators to
+        support correct weighted aggregation across shards.
 
         Args:
             segments: Segment metadata containing evaluator outputs.
@@ -351,10 +374,12 @@ class VoxProfileEvaluator:
         for col in segments.df.columns:
             if col.endswith("_fluency"):
                 col_values = segments.df[col].dropna()
+                count = int(len(col_values))
+                fluent_count = int((col_values == "fluent").sum())
+                stats[f"{col}_count"] = count
+                stats[f"{col}_fluent_count"] = fluent_count
                 stats[f"{col}_fluent_prob"] = (
-                    (col_values == "fluent").astype(float).mean()
-                    if len(col_values) > 0
-                    else np.nan
+                    float(fluent_count) / count if count > 0 else np.nan
                 )
         return stats
 
@@ -386,6 +411,31 @@ class VoxProfileEvaluator:
             )
             for col in stats.columns
         }
+
+        # Recompute fluency probabilities using count accumulators when
+        # available (weighted across shards). Fall back to mean of shard-level
+        # probabilities for backward compatibility with older tables.
+        fluency_bases = set()
+        for col in stats.columns:
+            if col.endswith("_fluent_prob"):
+                fluency_bases.add(col[: -len("_fluent_prob")])
+            elif col.endswith("_fluent_count"):
+                fluency_bases.add(col[: -len("_fluent_count")])
+
+        for base in fluency_bases:
+            prob_col = f"{base}_fluent_prob"
+            count_col = f"{base}_count"
+            fluent_count_col = f"{base}_fluent_count"
+            if count_col in stats.columns and fluent_count_col in stats.columns:
+                total_count = float(stats[count_col].sum(skipna=True))
+                total_fluent_count = float(stats[fluent_count_col].sum(skipna=True))
+                accum_stats[count_col] = int(total_count)
+                accum_stats[fluent_count_col] = int(total_fluent_count)
+                accum_stats[prob_col] = (
+                    total_fluent_count / total_count if total_count > 0 else np.nan
+                )
+            elif prob_col in stats.columns:
+                accum_stats[prob_col] = stats[prob_col].mean(skipna=True)
 
         if return_df:
             accum_stats = pd.DataFrame([accum_stats])
