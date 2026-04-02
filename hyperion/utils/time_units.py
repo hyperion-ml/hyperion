@@ -2,13 +2,56 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 import math
+from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
 
 
-def _merge_frames(s_start, s_end):
+def _to_frame_array(frames: Union[np.ndarray, Sequence[int]]) -> np.ndarray:
+    """Convert frame indices to a 1D int64 numpy array."""
+    arr = np.asarray(frames, dtype=np.int64)
+    if arr.ndim != 1:
+        raise ValueError(f"frames must be 1D, got shape {arr.shape}")
+    return arr
+
+
+def _frame_params(
+    fs: Union[int, float], frame_length: Union[int, float], frame_shift: Union[int, float]
+) -> Tuple[int, int]:
+    """Convert frame length/shift in ms to samples and validate them."""
+    if fs <= 0:
+        raise ValueError(f"fs must be > 0, got {fs}")
+    frame_length_samples = int(frame_length * fs // 1000)
+    frame_shift_samples = int(frame_shift * fs // 1000)
+    if frame_length_samples <= 0:
+        raise ValueError(
+            f"frame_length in samples must be > 0, got {frame_length_samples}"
+        )
+    if frame_shift_samples <= 0:
+        raise ValueError(
+            f"frame_shift in samples must be > 0, got {frame_shift_samples}"
+        )
+    return frame_length_samples, frame_shift_samples
+
+
+def _merge_frames(s_start: np.ndarray, s_end: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Merge overlapping/contiguous sample intervals.
+
+    Args:
+        s_start: Interval starts (inclusive), sorted ascending.
+        s_end: Interval ends (exclusive), sorted by corresponding starts.
+
+    Returns:
+        Two arrays with merged starts and ends.
+    """
+    if s_start.shape != s_end.shape:
+        raise ValueError(
+            f"s_start and s_end must have same shape, got {s_start.shape} and {s_end.shape}"
+        )
+    if len(s_start) == 0:
+        return s_start.copy(), s_end.copy()
+
     merge_idx = s_start[1:] <= s_end[:-1]
     num_frames = len(s_start) - np.sum(merge_idx)
     new_s_start = np.zeros((num_frames,), dtype=s_start.dtype)
@@ -18,7 +61,7 @@ def _merge_frames(s_start, s_end):
     new_s_start[0] = s_start[0]
     for i in range(1, len(s_start)):
         if merge_idx[i - 1]:
-            cur_end = s_end[i]
+            cur_end = max(cur_end, s_end[i])
         else:
             new_s_end[cur_frame] = cur_end
             cur_frame += 1
@@ -28,9 +71,17 @@ def _merge_frames(s_start, s_end):
     return new_s_start, new_s_end
 
 
-def frames_to_start_samples(frames, fs, frame_length, frame_shift, snip_edges, center):
-    frame_length = int(frame_length * fs // 1000)
-    frame_shift = int(frame_shift * fs // 1000)
+def frames_to_start_samples(
+    frames: Union[np.ndarray, Sequence[int]],
+    fs: Union[int, float],
+    frame_length: Union[int, float],
+    frame_shift: Union[int, float],
+    snip_edges: bool,
+    center: bool,
+) -> np.ndarray:
+    """Convert frame indices to start sample indices."""
+    frames = _to_frame_array(frames)
+    frame_length, frame_shift = _frame_params(fs, frame_length, frame_shift)
     if center:
         left_padding = int(frame_length // 2)
     else:
@@ -44,9 +95,17 @@ def frames_to_start_samples(frames, fs, frame_length, frame_shift, snip_edges, c
     return s_start
 
 
-def frames_to_bound_samples(frames, fs, frame_length, frame_shift, snip_edges, center):
-    frame_length = int(frame_length * fs // 1000)
-    frame_shift = int(frame_shift * fs // 1000)
+def frames_to_bound_samples(
+    frames: Union[np.ndarray, Sequence[int]],
+    fs: Union[int, float],
+    frame_length: Union[int, float],
+    frame_shift: Union[int, float],
+    snip_edges: bool,
+    center: bool,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Convert frame indices to [start, end) sample boundaries."""
+    frames = _to_frame_array(frames)
+    frame_length, frame_shift = _frame_params(fs, frame_length, frame_shift)
     if center:
         left_padding = int(frame_length // 2)
     else:
@@ -61,9 +120,17 @@ def frames_to_bound_samples(frames, fs, frame_length, frame_shift, snip_edges, c
     return s_start, s_end
 
 
-def frames_to_center_samples(frames, fs, frame_length, frame_shift, snip_edges, center):
-    frame_length = int(frame_length * fs // 1000)
-    frame_shift = int(frame_shift * fs // 1000)
+def frames_to_center_samples(
+    frames: Union[np.ndarray, Sequence[int]],
+    fs: Union[int, float],
+    frame_length: Union[int, float],
+    frame_shift: Union[int, float],
+    snip_edges: bool,
+    center: bool,
+) -> np.ndarray:
+    """Convert frame indices to center sample indices."""
+    frames = _to_frame_array(frames)
+    frame_length, frame_shift = _frame_params(fs, frame_length, frame_shift)
     if center:
         center_0 = 0
     else:
@@ -76,13 +143,24 @@ def frames_to_center_samples(frames, fs, frame_length, frame_shift, snip_edges, 
     return s_center
 
 
-def frames_to_samples(frames, fs, frame_length, frame_shift, snip_edges, center):
+def frames_to_samples(
+    frames: Union[np.ndarray, Sequence[int]],
+    fs: Union[int, float],
+    frame_length: Union[int, float],
+    frame_shift: Union[int, float],
+    snip_edges: bool,
+    center: bool,
+) -> np.ndarray:
+    """Expand frame indices into an explicit sample-index vector."""
     s_start, s_end = frames_to_bound_samples(
         frames, fs, frame_length, frame_shift, snip_edges, center
     )
+    if len(s_start) == 0:
+        return np.zeros((0,), dtype=np.int64)
+
     s_start, s_end = _merge_frames(s_start, s_end)
     deltas = s_end - s_start
-    num_samples = np.sum(deltas)
+    num_samples = int(np.sum(deltas))
     samples = np.zeros((num_samples,), dtype=s_start.dtype)
     cur_pos = 0
     for i in range(len(s_start)):
@@ -94,13 +172,28 @@ def frames_to_samples(frames, fs, frame_length, frame_shift, snip_edges, center)
 
 
 def frames_to_sample_mask(
-    frames, max_samples, fs, frame_length, frame_shift, snip_edges, center
-):
+    frames: Union[np.ndarray, Sequence[int]],
+    max_samples: Optional[int],
+    fs: Union[int, float],
+    frame_length: Union[int, float],
+    frame_shift: Union[int, float],
+    snip_edges: bool,
+    center: bool,
+) -> np.ndarray:
+    """Convert frame indices to a boolean sample mask."""
     s_start, s_end = frames_to_bound_samples(
         frames, fs, frame_length, frame_shift, snip_edges, center
     )
+    if len(s_end) == 0:
+        max_samples = 0 if max_samples is None else max_samples
+        if max_samples < 0:
+            raise ValueError(f"max_samples must be >= 0, got {max_samples}")
+        return np.zeros((max_samples,), dtype=bool)
+
     if max_samples is None:
-        max_samples = s_end[-1] - 1
+        max_samples = int(s_end[-1])
+    if max_samples < 0:
+        raise ValueError(f"max_samples must be >= 0, got {max_samples}")
     mask = np.zeros((max_samples,), dtype=bool)
     for i in range(len(s_start)):
         mask[s_start[i] : s_end[i]] = True
@@ -109,8 +202,14 @@ def frames_to_sample_mask(
 
 
 def frames_to_start_timestamps(
-    frames, fs, frame_length, frame_shift, snip_edges, center
-):
+    frames: Union[np.ndarray, Sequence[int]],
+    fs: Union[int, float],
+    frame_length: Union[int, float],
+    frame_shift: Union[int, float],
+    snip_edges: bool,
+    center: bool,
+) -> np.ndarray:
+    """Convert frame indices to start timestamps in seconds."""
     s_start = frames_to_start_samples(
         frames, fs, frame_length, frame_shift, snip_edges, center
     )
@@ -118,8 +217,14 @@ def frames_to_start_timestamps(
 
 
 def frames_to_bound_timestamps(
-    frames, fs, frame_length, frame_shift, snip_edges, center
-):
+    frames: Union[np.ndarray, Sequence[int]],
+    fs: Union[int, float],
+    frame_length: Union[int, float],
+    frame_shift: Union[int, float],
+    snip_edges: bool,
+    center: bool,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Convert frame indices to boundary timestamps in seconds."""
     s_start, s_end = frames_to_bound_samples(
         frames, fs, frame_length, frame_shift, snip_edges, center
     )
@@ -129,8 +234,14 @@ def frames_to_bound_timestamps(
 
 
 def frames_to_center_timestamps(
-    frames, fs, frame_length, frame_shift, snip_edges, center
-):
+    frames: Union[np.ndarray, Sequence[int]],
+    fs: Union[int, float],
+    frame_length: Union[int, float],
+    frame_shift: Union[int, float],
+    snip_edges: bool,
+    center: bool,
+) -> np.ndarray:
+    """Convert frame indices to center timestamps in seconds."""
     s_center = frames_to_center_samples(
         frames, fs, frame_length, frame_shift, snip_edges, center
     )

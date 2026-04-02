@@ -1,9 +1,10 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from pathlib import Path
+from typing import TypeVar, Union
 
 import numpy as np
 import pandas as pd
@@ -11,14 +12,48 @@ import pandas as pd
 from .info_table import InfoTable
 from .misc import PathLike
 
+T = TypeVar("T", bound="DiarizationSet")
+
 
 class DiarizationSet(InfoTable):
-    def __init__(self, df):
+    """
+    InfoTable specialization for diarization-related manifests.
+
+    The table must contain ``id`` (from ``InfoTable``) and ``storage_path``.
+
+    Examples:
+        >>> import pandas as pd
+        >>> from hyperion.utils.diarization_set import DiarizationSet
+        >>> df = pd.DataFrame({"id": ["utt1"], "storage_path": ["seg1.rttm"]})
+        >>> diar = DiarizationSet(df)
+        >>> diar.add_prefix_to_storage_path("/data/")
+        >>> diar.df.loc["utt1", "storage_path"]
+        '/data/seg1.rttm'
+        >>> diar2 = diar.copy()
+        >>> len(diar2)
+        1
+    """
+
+    def __init__(self, df: Union[pd.DataFrame, T]) -> None:
+        """
+        Initialize a diarization set.
+
+        Args:
+            df (pd.DataFrame or DiarizationSet): Input metadata table.
+        """
         super().__init__(df)
         assert "storage_path" in df
 
-    def add_prefix_to_storage_path(self, prefix: PathLike):
-        self.df["storge_path"] = self.df["storage_path"].apply(lambda x: f"{prefix}{x}")
+    def add_prefix_to_storage_path(self, prefix: PathLike) -> None:
+        """
+        Prefix values in the ``storage_path`` column.
+
+        Args:
+            prefix (PathLike): Prefix prepended to each value in ``storage_path``.
+        """
+        self.df["storage_path"] = self.df["storage_path"].apply(
+            lambda x: f"{prefix}{x}"
+        )
 
     # def save(self, file_path, sep=None):
     #     """Saves info table to file

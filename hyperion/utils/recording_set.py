@@ -8,6 +8,7 @@ import multiprocessing
 import threading
 import time
 from pathlib import Path
+from typing import Any, List, Optional, Tuple, Type, TypeVar, Union
 
 import numpy as np
 import pandas as pd
@@ -15,10 +16,36 @@ import soundfile as sf
 import torchaudio
 
 from .info_table import InfoTable
+from .misc import PathLike
+
+T = TypeVar("T", bound="RecordingSet")
 
 
 class RecordingSet(InfoTable):
-    def __init__(self, df):
+    """
+    InfoTable specialization for audio-recording manifests.
+
+    The table must contain ``id`` and ``storage_path`` columns.
+
+    Examples:
+        >>> import pandas as pd
+        >>> from hyperion.utils.recording_set import RecordingSet
+        >>> df = pd.DataFrame({"id": ["utt1"], "storage_path": ["/audio/utt1.wav"]})
+        >>> recs = RecordingSet(df)
+        >>> recs.is_valid_df(recs.df)
+        True
+        >>> recs2 = recs.filter(items=["utt1"])
+        >>> len(recs2)
+        1
+    """
+
+    def __init__(self, df: Union[pd.DataFrame, T]) -> None:
+        """
+        Initialize a recording set.
+
+        Args:
+            df (pd.DataFrame or RecordingSet): Input metadata table.
+        """
         super().__init__(df)
         assert "storage_path" in df
 
@@ -35,12 +62,13 @@ class RecordingSet(InfoTable):
         """
         return "id" in df and "storage_path" in df
 
-    def save(self, file_path, sep=None):
-        """Saves info table to file
+    def save(self, file_path: PathLike, sep: Optional[str] = None) -> None:
+        """
+        Save the recording manifest to disk.
 
         Args:
-          file_path: File to write the list.
-          sep: Separator between the key and file_path in the text file.
+            file_path (PathLike): Output file path.
+            sep (Optional[str]): Delimiter for non-``.scp`` files.
         """
         file_path = Path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -56,14 +84,16 @@ class RecordingSet(InfoTable):
         super().save(file_path, sep)
 
     @classmethod
-    def load(cls, file_path, sep=None):
-        """Loads utt2info list from text file.
+    def load(cls: Type[T], file_path: PathLike, sep: Optional[str] = None) -> T:
+        """
+        Load a recording manifest from disk.
 
         Args:
-          file_path: File to read the list.
-          sep: Separator between the key and file_path in the text file.
+            file_path (PathLike): Input file path.
+            sep (Optional[str]): Delimiter for non-``.scp`` files.
+
         Returns:
-          RecordingSet object
+            RecordingSet: Loaded recording set.
         """
         file_path = Path(file_path)
         ext = file_path.suffix
@@ -80,7 +110,20 @@ class RecordingSet(InfoTable):
         return super().load(file_path, sep)
 
     @staticmethod
-    def _get_durations_old(recordings, i, n):
+    def _get_durations_old(
+        recordings: "RecordingSet", i: int, n: int
+    ) -> Tuple[List[int], List[float]]:
+        """
+        Legacy duration extraction helper based on sequential audio reads.
+
+        Args:
+            recordings (RecordingSet): Source recordings table.
+            i (int): 1-based partition index.
+            n (int): Number of partitions.
+
+        Returns:
+            Tuple[List[int], List[float]]: Sample rates and durations.
+        """
         from ..io import SequentialAudioReader as AR
 
         durations = []
@@ -95,7 +138,27 @@ class RecordingSet(InfoTable):
         return fss, durations
 
     @staticmethod
-    def _get_durations(recordings, i, n, progress=None, report_every=1000):
+    def _get_durations(
+        recordings: "RecordingSet",
+        i: int,
+        n: int,
+        progress: Optional[Any] = None,
+        report_every: int = 1000,
+    ) -> Tuple[List[str], List[int], List[float]]:
+        """
+        Duration extraction helper with file-header and fallback decoding logic.
+
+        Args:
+            recordings (RecordingSet): Source recordings table.
+            i (int): 1-based partition index.
+            n (int): Number of partitions.
+            progress (Optional[Any]): Shared counter proxy with a ``value`` field.
+            report_every (int): Counter update interval.
+
+        Returns:
+            Tuple[List[str], List[int], List[float]]: Recording IDs, sample rates,
+            and durations.
+        """
         from ..io import RandomAccessAudioReader as AR
 
         ids = []
@@ -118,7 +181,11 @@ class RecordingSet(InfoTable):
                         num_samples = None
                         sample_rate = None
 
-                if num_samples is None or sample_rate is None:
+                if (
+                    num_samples is None
+                    or sample_rate is None
+                    or sample_rate <= 0
+                ):
                     try:
                         info = torchaudio.info(audio_file)
                         num_samples = info.num_frames
@@ -128,10 +195,19 @@ class RecordingSet(InfoTable):
                         num_samples = None
                         sample_rate = None
 
-                if num_samples is None or sample_rate is None:
+                if (
+                    num_samples is None
+                    or sample_rate is None
+                    or sample_rate <= 0
+                ):
                     x, fs = reader.read(_id)
                     num_samples = x[0].shape[0]
                     sample_rate = fs[0]
+
+                if sample_rate is None or sample_rate <= 0:
+                    raise ValueError(
+                        f"Invalid sample rate {sample_rate} for recording '{_id}' at '{audio_file}'"
+                    )
 
                 duration = num_samples / sample_rate
                 ids.append(_id)
@@ -153,47 +229,72 @@ class RecordingSet(InfoTable):
 
         return ids, fss, durations
 
-    def get_durations_old(self, num_threads: int = 16):
-        import itertools
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+    # def get_durations_old(self, num_threads: int = 16) -> None:
+    #     """
+    #     Estimate recording duration and sample rate with a thread pool.
 
-        from tqdm import tqdm
+    #     Args:
+    #         num_threads (int): Number of worker threads.
+    #     """
+    #     import itertools
+    #     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        futures = []
-        num_threads = min(num_threads, len(self.df))
-        logging.info("submitting threads...")
+    #     from tqdm import tqdm
 
-        with ThreadPoolExecutor(max_workers=num_threads) as pool:
-            for i in tqdm(range(num_threads)):
-                future = pool.submit(RecordingSet._get_durations, self, i, num_threads)
-                futures.append(future)
+    #     futures = []
+    #     num_threads = min(num_threads, len(self.df))
+    #     logging.info("submitting threads...")
 
-        logging.info("waiting threads...")
-        for handler in logging.getLogger().handlers:
-            handler.flush()
-        res = []
-        for f in tqdm(as_completed(futures), total=len(futures)):
-            res.append(f.result())
+    #     with ThreadPoolExecutor(max_workers=num_threads) as pool:
+    #         for i in tqdm(range(num_threads)):
+    #             future = pool.submit(RecordingSet._get_durations, self, i, num_threads)
+    #             futures.append(future)
 
-        fss = list(itertools.chain.from_iterable(r[0] for r in res))
-        durations = list(itertools.chain.from_iterable(r[1] for r in res))
+    #     logging.info("waiting threads...")
+    #     for handler in logging.getLogger().handlers:
+    #         handler.flush()
+    #     res = []
+    #     for f in tqdm(as_completed(futures), total=len(futures)):
+    #         res.append(f.result())
 
-        self.df["duration"] = durations
-        self.df["sample_freq"] = fss
+    #     fss = list(itertools.chain.from_iterable(r[0] for r in res))
+    #     durations = list(itertools.chain.from_iterable(r[1] for r in res))
 
-    def get_durations(self, num_threads: int = 16, report_every: int = 5000):
+    #     self.df["duration"] = durations
+    #     self.df["sample_freq"] = fss
+
+    def get_durations(self, num_threads: int = 16, report_every: int = 5000) -> None:
+        """
+        Estimate recording duration and sample rate with a process pool.
+
+        This version periodically reports progress and writes ``duration`` and
+        ``sample_freq`` columns back into the table.
+
+        Args:
+            num_threads (int): Number of worker processes.
+            report_every (int): Progress update interval in processed recordings.
+        """
         import itertools
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
         from tqdm import tqdm
 
+        total = len(self.df)
+        if total == 0:
+            logging.info("No recordings available; skipping duration estimation.")
+            return
+
+        if num_threads < 1:
+            raise ValueError("num_threads must be >= 1")
+
+        num_threads = min(num_threads, total)
+
         manager = multiprocessing.Manager()
         progress = manager.Value("i", 0)
         stop_event = threading.Event()
-        total = len(self.df)
         progress_interval = 60.0
 
-        def heartbeat():
+        def heartbeat() -> None:
             while not stop_event.wait(progress_interval):
                 value = progress.value
                 percent = (100.0 * value / total) if total else 0.0
@@ -218,7 +319,6 @@ class RecordingSet(InfoTable):
         heartbeat_thread.start()
 
         futures = []
-        num_threads = min(num_threads, len(self.df))
         logging.info("submitting threads...")
 
         try:
@@ -227,7 +327,7 @@ class RecordingSet(InfoTable):
                     future = pool.submit(
                         RecordingSet._get_durations,
                         self,
-                        i,
+                        i + 1,
                         num_threads,
                         progress,
                         report_every,

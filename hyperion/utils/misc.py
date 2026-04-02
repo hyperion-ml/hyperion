@@ -7,6 +7,7 @@ Miscellaneous functions
 
 import logging
 import shutil
+import typing
 from inspect import signature
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Set, Tuple, TypeVar, Union
@@ -15,17 +16,17 @@ import matplotlib as mpl
 import numpy as np
 import scipy.sparse as sparse
 
-# PathLike = TypeVar("PathLike", str, Path, type(None))
-PathLike = Union[str, Path, None]
+PathLike = Union[str, Path]
 ArrayLike = Union[float, np.ndarray]
+_latex_checked: Optional[bool] = None
 
 
-def generate_data(g):
+def generate_data(g: typing.Any) -> typing.Any:
     while 1:
         yield g.get_next_batch()
 
 
-def str2bool(s: str):
+def str2bool(s: str) -> typing.Any:
     """Convert string to bool for argparse"""
     if isinstance(s, bool):
         return s
@@ -115,6 +116,11 @@ def apply_gain(x: ArrayLike, feat_type: str, AdB: ArrayLike) -> ArrayLike:
         "logfb": apply_gain_logx,
         "logfb2": apply_gain_logx2,
     }
+    if feat_type not in f_dict:
+        valid = ", ".join(sorted(f_dict.keys()))
+        raise ValueError(
+            f"Unknown feat_type={feat_type!r}. Supported values: {valid}"
+        )
     f = f_dict[feat_type]
     return f(x, AdB)
 
@@ -169,7 +175,7 @@ def filter_args(valid_args: Iterable[str], kwargs: Dict[str, Any]) -> Dict[str, 
 
 
 def filter_func_args(
-    func: Callable[..., Any], kwargs: Dict[str, Any], skip: Set[str] = set()
+    func: Callable[..., Any], kwargs: Dict[str, Any], skip: Optional[Set[str]] = None
 ) -> Dict[str, Any]:
     """
     Filters arguments expected by a function.
@@ -183,15 +189,14 @@ def filter_func_args(
         Dictionary with arguments expected by the target function.
     """
     sig = signature(func)
-    valid_args = sig.parameters.keys()
-    skip.add("self")
-    for param in skip:
-        if param in kwargs:
-            del kwargs[param]
+    skip_args = set() if skip is None else set(skip)
+    skip_args.add("self")
 
+    valid_args = [k for k in sig.parameters.keys() if k not in skip_args]
     my_kwargs = filter_args(valid_args, kwargs)
-    if "kwargs" in kwargs:
-        my_kwargs.update(kwargs["kwargs"])
+
+    if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
+        my_kwargs.update(filter_args(valid_args, kwargs["kwargs"]))
 
     args = sig.bind_partial(**my_kwargs).arguments
     return args
@@ -232,9 +237,9 @@ def tqdm_urlretrieve_hook(
         """
         if tsize not in (None, -1):
             t.total = tsize
-            displayed = t.update((b - last_b[0]) * bsize)
-            last_b[0] = b
-            return displayed
+        displayed = t.update((b - last_b[0]) * bsize)
+        last_b[0] = b
+        return displayed
 
     return update_to
 
@@ -265,7 +270,7 @@ def urlretrieve_progress(
         return urlretrieve(url=url, filename=filename, reporthook=reporthook, data=data)
 
 
-def build_class_labels_from_boolean_matrix_dense(B: np.ndarray):
+def build_class_labels_from_boolean_matrix_dense(B: np.ndarray) -> typing.Any:
     """
     Given a boolean matrix B of shape (N, M), where B[i, j] is True if row i and column j
     are of the same class, this function returns class labels for rows and columns.
@@ -298,7 +303,7 @@ def build_class_labels_from_boolean_matrix_dense(B: np.ndarray):
     return row_labels, col_labels
 
 
-def build_class_labels_from_boolean_matrix_sparse(B: sparse.csr_matrix):
+def build_class_labels_from_boolean_matrix_sparse(B: sparse.csr_matrix) -> typing.Any:
     """
     Given a boolean sparse matrix B of shape (N, M), where B[i, j] is True if row i and column j
     are of the same class, this function returns class labels for rows and columns.
@@ -327,13 +332,38 @@ def build_class_labels_from_boolean_matrix_sparse(B: sparse.csr_matrix):
     return row_labels, col_labels
 
 
-def check_and_disable_latex():
-    if mpl.rcParams.get("text.usetex", False) and shutil.which("latex") is None:
+def check_and_disable_latex() -> None:
+    global _latex_checked
+    if not mpl.rcParams.get("text.usetex", False):
+        return
+
+    if _latex_checked is False:
+        mpl.rcParams["text.usetex"] = False
+        return
+
+    if shutil.which("latex") is None:
         logging.warning("LaTeX not found. Disabling `usetex`.")
         mpl.rcParams["text.usetex"] = False
+        _latex_checked = False
+        return
+
+    if _latex_checked:
+        return
+
+    try:
+        from matplotlib import texmanager
+
+        texmanager.TexManager.get_text_width_height_descent("lp", 10)
+        _latex_checked = True
+    except Exception as e:
+        # Latex can be present in PATH but still unusable (missing TeX packages).
+        err = str(e).splitlines()[0]
+        logging.warning("LaTeX check failed (%s). Disabling `usetex`.", err)
+        mpl.rcParams["text.usetex"] = False
+        _latex_checked = False
 
 
-def check_spd_mat(name, A):
+def check_spd_mat(name: typing.Any, A: typing.Any) -> None:
     # symmetry
     sym_err = np.linalg.norm(A - A.T, ord="fro") / (
         np.linalg.norm(A, ord="fro") + 1e-12

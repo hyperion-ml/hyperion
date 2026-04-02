@@ -6,7 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import copy
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import h5py
 import numpy as np
@@ -21,7 +21,7 @@ from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
 
 
-class TrialScores(object):
+class TrialScores:
     """
     Container for speaker recognition trial scores, compatible with BOSARIS toolkit.
 
@@ -31,6 +31,26 @@ class TrialScores(object):
         scores (np.ndarray): Score matrix (num_models x num_segments).
         score_mask (np.ndarray): Boolean matrix indicating which scores are valid.
         q_measures (Optional[Dict[str, np.ndarray]]): Optional dictionary of quality measures.
+
+    Examples:
+        >>> import numpy as np
+        >>> from hyperion.utils.trial_key import TrialKey
+        >>> from hyperion.utils.trial_scores import TrialScores
+        >>> key = TrialKey(
+        ...     model_set=["m1", "m2"],
+        ...     seg_set=["s1", "s2"],
+        ...     tar=np.array([[1, 0], [0, 1]], dtype=bool),
+        ...     non=np.array([[0, 1], [1, 0]], dtype=bool),
+        ... )
+        >>> scores = TrialScores(
+        ...     model_set=["m1", "m2"],
+        ...     seg_set=["s1", "s2"],
+        ...     scores=np.array([[2.1, -0.4], [-1.2, 1.7]], dtype=np.float32),
+        ...     score_mask=np.ones((2, 2), dtype=bool),
+        ... )
+        >>> tar, non = scores.get_tar_non(key)
+        >>> tar.shape, non.shape
+        ((2,), (2,))
     """
 
     def __init__(
@@ -40,7 +60,7 @@ class TrialScores(object):
         scores: Optional[np.ndarray] = None,
         score_mask: Optional[np.ndarray] = None,
         q_measures: Optional[Dict[str, np.ndarray]] = None,
-    ):
+    ) -> None:
         self.model_set = model_set
         self.seg_set = seg_set
         self.scores = scores
@@ -50,18 +70,18 @@ class TrialScores(object):
             self.validate()
 
     @property
-    def num_models(self):
+    def num_models(self) -> int:
         return len(self.model_set)
 
     @property
-    def num_tests(self):
+    def num_tests(self) -> int:
         return len(self.seg_set)
 
-    def copy(self):
+    def copy(self) -> "TrialScores":
         """Makes a copy of the object"""
         return copy.deepcopy(self)
 
-    def sort(self):
+    def sort(self) -> None:
         """Sorts the object by model and test segment names."""
         self.model_set, m_idx = sort(self.model_set, return_index=True)
         self.seg_set, s_idx = sort(self.seg_set, return_index=True)
@@ -175,7 +195,7 @@ class TrialScores(object):
             return cls.load_table(file_path, sep)
 
     @classmethod
-    def load_h5(cls, file_path: PathLike):
+    def load_h5(cls, file_path: PathLike) -> "TrialScores":
         """Loads object from h5 file
 
         Args:
@@ -191,14 +211,16 @@ class TrialScores(object):
             score_mask = np.asarray(f["score_mask"], dtype="bool")
             if "q_measures" in f:
                 q_grp = f["q_measures"]
-                q_measures = {k: q_grp[k] for k in q_grp}
+                q_measures = {
+                    k: np.asarray(q_grp[k], dtype=float_cpu()) for k in q_grp
+                }
             else:
                 q_measures = None
         return cls(model_set, seg_set, scores, score_mask, q_measures)
 
     @classmethod
-    def load_txt(cls, file_path: PathLike):
-        """Loads object from h5 file
+    def load_txt(cls, file_path: PathLike) -> "TrialScores":
+        """Loads object from txt file
 
         Args:
           file_path: File to read the list.
@@ -206,11 +228,28 @@ class TrialScores(object):
         Returns:
           TrialScores object.
         """
+        rows = []
         with open(file_path, "r") as f:
-            fields = [line.split() for line in f]
-        models = [i[0] for i in fields]
-        segments = [i[1] for i in fields]
-        scores_v = np.array([i[2] for i in fields])
+            for line_num, line in enumerate(f, 1):
+                parts = line.split()
+                if len(parts) == 0:
+                    continue
+                if len(parts) < 3:
+                    raise ValueError(
+                        f"Malformed line {line_num} in scores file: expected at least 3 columns"
+                    )
+                rows.append((parts[0], parts[1], parts[2], line_num))
+
+        models = [r[0] for r in rows]
+        segments = [r[1] for r in rows]
+        scores_v = np.zeros(len(rows), dtype=float_cpu())
+        for i, r in enumerate(rows):
+            try:
+                scores_v[i] = float(r[2])
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid score value '{r[2]}' at line {r[3]} in scores file"
+                ) from e
 
         model_set, _, model_idx = np.unique(
             models, return_index=True, return_inverse=True
@@ -227,7 +266,9 @@ class TrialScores(object):
         return cls(model_set, seg_set, scores, score_mask)
 
     @classmethod
-    def load_table(cls, file_path: PathLike, sep: Optional[str] = None):
+    def load_table(
+        cls, file_path: PathLike, sep: Optional[str] = None
+    ) -> "TrialScores":
         """Loads object from pandas table file
 
         Args:
@@ -270,21 +311,43 @@ class TrialScores(object):
         return cls(model_set, seg_set, scores, score_mask, q_measures)
 
     @classmethod
-    def merge(cls, scr_list: List["TrialScores"]):
+    def merge(cls, scr_list: List["TrialScores"]) -> "TrialScores":
         """Merges several score objects.
 
         Args:
-          scr_list: List of TrialNdx objects.
+          scr_list: List of TrialScores objects.
 
         Returns:
           Merged TrialScores object.
         """
+        if len(scr_list) == 0:
+            raise ValueError("scr_list must contain at least one TrialScores")
+        if len(scr_list) == 1:
+            return scr_list[0].copy()
+
+        has_q = [s.q_measures is not None for s in scr_list]
+        if any(has_q) and not all(has_q):
+            raise ValueError("Cannot merge TrialScores with mixed q_measures presence")
+
+        if all(has_q):
+            q_keys = list(scr_list[0].q_measures.keys())
+            q_key_set = set(q_keys)
+            for s in scr_list[1:]:
+                if set(s.q_measures.keys()) != q_key_set:
+                    raise ValueError(
+                        "All TrialScores must have identical q_measures keys"
+                    )
+        else:
+            q_keys = []
+
         num_scr = len(scr_list)
         model_set = scr_list[0].model_set
         seg_set = scr_list[0].seg_set
         scores = scr_list[0].scores
         score_mask = scr_list[0].score_mask
-        q_measures = scr_list[0].q_measures
+        q_measures = (
+            {k: scr_list[0].q_measures[k] for k in q_keys} if q_keys else None
+        )
         for i in range(1, num_scr):
             scr_i = scr_list[i]
             new_model_set = np.union1d(model_set, scr_i.model_set)
@@ -299,18 +362,17 @@ class TrialScores(object):
             )
             ix_a = np.ix_(mi_a, si_a)
             ix_b = np.ix_(mi_b, si_b)
-            scores_1 = np.zeros(shape)
+            scores_1 = np.zeros(shape, dtype=scores.dtype)
             scores_1[ix_a] = scores[ix_b]
             score_mask_1 = np.zeros(shape, dtype="bool")
             score_mask_1[ix_a] = score_mask[ix_b]
-            if q_measures is not None:
-                q_measures_1 = {k: np.zeros(shape) for k in q_measures.keys()}
-                for k in q_measures.keys():
+            if q_keys:
+                q_measures_1 = {
+                    k: np.zeros(shape, dtype=q_measures[k].dtype) for k in q_keys
+                }
+                for k in q_keys:
                     q_measures_1[k][ix_a] = q_measures[k][ix_b]
 
-            trial_mask_2 = np.zeros(
-                (len(new_model_set), len(new_seg_set)), dtype="bool"
-            )
             _, mi_a, mi_b = intersect(
                 new_model_set, scr_i.model_set, assume_unique=True, return_index=True
             )
@@ -319,22 +381,28 @@ class TrialScores(object):
             )
             ix_a = np.ix_(mi_a, si_a)
             ix_b = np.ix_(mi_b, si_b)
-            scores_2 = np.zeros(shape)
+            scores_2 = np.zeros(shape, dtype=scr_i.scores.dtype)
             scores_2[ix_a] = scr_i.scores[ix_b]
             score_mask_2 = np.zeros(shape, dtype="bool")
             score_mask_2[ix_a] = scr_i.score_mask[ix_b]
-            if q_measures is not None:
-                q_measures_2 = {k: np.zeros(shape) for k in q_measures.keys()}
-                for k in q_measures.keys():
+            if q_keys:
+                q_measures_2 = {
+                    k: np.zeros(shape, dtype=scr_i.q_measures[k].dtype)
+                    for k in q_keys
+                }
+                for k in q_keys:
                     q_measures_2[k][ix_a] = scr_i.q_measures[k][ix_b]
 
             model_set = new_model_set
             seg_set = new_seg_set
             scores = scores_1 + scores_2
-            assert not (np.any(np.logical_and(score_mask_1, score_mask_2)))
+            if np.any(np.logical_and(score_mask_1, score_mask_2)):
+                raise ValueError(
+                    "Cannot merge TrialScores with overlapping valid trials"
+                )
             score_mask = np.logical_or(score_mask_1, score_mask_2)
-            if q_measures is not None:
-                for k in q_measures.keys():
+            if q_keys:
+                for k in q_keys:
                     q_measures[k] = q_measures_1[k] + q_measures_2[k]
 
         return cls(model_set, seg_set, scores, score_mask, q_measures)
@@ -345,7 +413,7 @@ class TrialScores(object):
         seg_set: Union[np.ndarray, List[str]],
         keep: bool = True,
         raise_missing: bool = True,
-    ):
+    ) -> "TrialScores":
         """Removes elements from TrialScores object.
 
         Args:
@@ -361,7 +429,7 @@ class TrialScores(object):
 
         if not keep:
             model_set = np.setdiff1d(self.model_set, model_set)
-            seg_set = np.setdiff1d(self.model_set, seg_set)
+            seg_set = np.setdiff1d(self.seg_set, seg_set)
 
         f_mod, mod_idx = ismember(model_set, self.model_set)
         f_seg, seg_idx = ismember(seg_set, self.seg_set)
@@ -382,7 +450,7 @@ class TrialScores(object):
             for i in (f_seg == 0).nonzero()[0]:
                 logging.info("segment %s not found", seg_set[i])
             if raise_missing:
-                raise Exception("some scores were not computed")
+                raise ValueError("some scores were not computed")
 
             scores = np.zeros((len(model_set), len(seg_set)), dtype=float_cpu())
             score_mask = np.zeros(scores.shape, dtype=bool)
@@ -400,7 +468,7 @@ class TrialScores(object):
 
     def split(
         self, model_idx: int, num_model_parts: int, seg_idx: int, num_seg_parts: int
-    ):
+    ) -> "TrialScores":
         """Splits the TrialScores into num_model_parts x num_seg_parts and returns part
            (model_idx, seg_idx).
 
@@ -427,29 +495,44 @@ class TrialScores(object):
 
         return TrialScores(model_set, seg_set, scores, score_mask, q_measures)
 
-    def validate(self):
+    def validate(self) -> None:
         """Validates the attributes of the TrialScores object."""
         self.model_set = list2ndarray(self.model_set)
         self.seg_set = list2ndarray(self.seg_set)
 
-        assert len(np.unique(self.model_set)) == len(self.model_set)
-        assert len(np.unique(self.seg_set)) == len(self.seg_set)
+        if len(np.unique(self.model_set)) != len(self.model_set):
+            raise ValueError("model_set must contain unique entries")
+        if len(np.unique(self.seg_set)) != len(self.seg_set):
+            raise ValueError("seg_set must contain unique entries")
         if self.scores is None:
             self.scores = np.zeros((len(self.model_set), len(self.seg_set)))
         else:
-            assert self.scores.shape == (len(self.model_set), len(self.seg_set))
-            assert np.all(np.isfinite(self.scores))
+            expected_shape = (len(self.model_set), len(self.seg_set))
+            if self.scores.shape != expected_shape:
+                raise ValueError(
+                    f"scores shape {self.scores.shape} does not match {expected_shape}"
+                )
+            if not np.all(np.isfinite(self.scores)):
+                raise ValueError("scores must contain only finite values")
 
         if self.score_mask is None:
             self.score_mask = np.ones(
                 (len(self.model_set), len(self.seg_set)), dtype="bool"
             )
         else:
-            assert self.score_mask.shape == (len(self.model_set), len(self.seg_set))
+            expected_shape = (len(self.model_set), len(self.seg_set))
+            if self.score_mask.shape != expected_shape:
+                raise ValueError(
+                    f"score_mask shape {self.score_mask.shape} does not match {expected_shape}"
+                )
 
         if self.q_measures is not None:
             for k in self.q_measures.keys():
-                assert self.q_measures[k].shape == self.scores.shape
+                if self.q_measures[k].shape != self.scores.shape:
+                    raise ValueError(
+                        f"q_measures['{k}'] shape {self.q_measures[k].shape} "
+                        f"does not match scores shape {self.scores.shape}"
+                    )
 
     def align_with_ndx(
         self, ndx: Union[TrialNdx, TrialKey], raise_missing: bool = True
@@ -486,7 +569,7 @@ class TrialScores(object):
                 )
 
             if raise_missing:
-                raise Exception("some scores were not computed")
+                raise ValueError("some scores were not computed")
         return scr
 
     def get_tar_non(self, key: TrialKey) -> Tuple[np.ndarray, np.ndarray]:
@@ -524,10 +607,10 @@ class TrialScores(object):
         non_mask = np.logical_and(scr.score_mask, key.non)
         non = scr.scores[non_mask]
         if key.spoof is None:
-            spoof = np.empty(dtype=scr.scores.dtype)
+            spoof = np.empty((0,), dtype=scr.scores.dtype)
         else:
             spoof_mask = np.logical_and(scr.score_mask, key.spoof)
-            non = scr.scores[spoof_mask]
+            spoof = scr.scores[spoof_mask]
         return tar, non, spoof
 
     def get_tar_non_q_measures(
@@ -551,18 +634,31 @@ class TrialScores(object):
             Tuple: (target quality measures, non-target quality measures)
         """
         scr = self.align_with_ndx(key)
+        if scr.q_measures is None:
+            raise ValueError("q_measures are not available in TrialScores")
+
         tar_mask = np.logical_and(scr.score_mask, key.tar)
         if q_names is None:
-            q_names = self.q_measures.keys()
+            q_names = list(scr.q_measures.keys())
+        else:
+            missing_q = [q for q in q_names if q not in scr.q_measures]
+            if missing_q:
+                raise ValueError(
+                    f"Requested q_names not found in q_measures: {missing_q}"
+                )
         tar = {}
         for k in q_names:
-            tar[k] = self.q_measures[k][tar_mask]
+            tar[k] = scr.q_measures[k][tar_mask]
         non_mask = np.logical_and(scr.score_mask, key.non)
         non = {}
         for k in q_names:
-            non[k] = self.q_measures[k][non_mask]
+            non[k] = scr.q_measures[k][non_mask]
 
         if not return_dict:
+            if len(q_names) == 0:
+                tar = np.empty((int(np.sum(tar_mask)), 0), dtype=float_cpu())
+                non = np.empty((int(np.sum(non_mask)), 0), dtype=float_cpu())
+                return tar, non
             tar = np.vstack(tuple(tar[k] for k in q_names)).T
             non = np.vstack(tuple(non[k] for k in q_names)).T
         return tar, non
@@ -572,7 +668,7 @@ class TrialScores(object):
         key: TrialKey,
         model_classes: Union[List[str], np.ndarray, None] = None,
         seg_classes: Union[List[str], np.ndarray, None] = None,
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Returns the class similarity scores for the trials in key.
 
         Args:
@@ -632,6 +728,8 @@ class TrialScores(object):
             mask = ndx.trial_mask
         else:
             mask = np.logical_or(ndx.tar, ndx.non)
+            if ndx.spoof is not None:
+                mask = np.logical_or(mask, ndx.spoof)
         mask = np.logical_and(np.logical_not(scr.score_mask), mask)
         scr.scores[mask] = val
         scr.score_mask[mask] = True
@@ -647,39 +745,38 @@ class TrialScores(object):
         mask = self.score_mask
         self.scores[mask] = f(self.scores[mask])
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Equal operator"""
+        if not isinstance(other, TrialScores):
+            return False
         eq = self.model_set.shape == other.model_set.shape
         eq = eq and np.all(self.model_set == other.model_set)
         eq = eq and (self.seg_set.shape == other.seg_set.shape)
         eq = eq and np.all(self.seg_set == other.seg_set)
         eq = eq and np.all(np.isclose(self.scores, other.scores, atol=1e-5))
         eq = eq and np.all(self.score_mask == other.score_mask)
-        if self.q_measures is not None:
-            eq = eq and other.q_measures is not None
+        eq = eq and ((self.q_measures is None) == (other.q_measures is None))
+        if eq and self.q_measures is not None and other.q_measures is not None:
+            eq = self.q_measures.keys() == other.q_measures.keys()
             if eq:
-                eq = self.q_measures.keys() == other.q_measures.keys()
-                if eq:
-                    for k in self.q_measures.keys():
-                        eq = eq and np.all(
-                            np.isclose(
-                                self.q_measures[k], other.q_measures[k], atol=1e-5
-                            )
-                        )
+                for k in self.q_measures.keys():
+                    eq = eq and np.all(
+                        np.isclose(self.q_measures[k], other.q_measures[k], atol=1e-5)
+                    )
 
         return eq
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         """Non-equal operator"""
         return not self.__eq__(other)
 
-    def __cmp__(self, other):
+    def __cmp__(self, other: object) -> int:
         """Comparison operator"""
         if self.__eq__(other):
             return 0
         return 1
 
-    def test(key_file="core-core_det5_key.h5"):
+    def test(key_file: PathLike = "core-core_det5_key.h5") -> None:
         key = TrialKey.load(key_file)
 
         mask = np.logical_or(key.tar, key.non)

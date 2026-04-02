@@ -66,13 +66,17 @@ def plot_gaussian_3D(
       kwargs: extra arguments for matplotlib
     """
 
-    assert mu.shape[0] == 2
-    assert C.shape[0] == 2 and C.shape[1] == 2
+    if mu.shape[0] != 2:
+        raise ValueError(f"mu must have shape (2,), got {mu.shape}")
+    if C.shape != (2, 2):
+        raise ValueError(f"C must have shape (2, 2), got {C.shape}")
     num_pts *= 1j
     invC, _, logC = invert_pdmat(C, return_logdet=True)
     dim = mu.shape[0]
     d, v = la.eigh(C)
-    delta = num_sigmas * np.sum(v * np.sqrt(d), axis=1)
+    # Bounding box half-widths: sum of axis-aligned contributions from
+    # principal directions scaled by standard deviations.
+    delta = num_sigmas * np.sum(np.abs(v) * np.sqrt(d), axis=1)
     low_lim = mu - delta
     high_lim = mu + delta
     X, Y = np.mgrid[
@@ -112,16 +116,18 @@ def plot_gaussian_ellipsoid_2D(
       kwargs: extra arguments for matplotlib
     """
 
-    assert mu.shape[0] == 2
-    assert C.shape[0] == 2 and C.shape[1] == 2
+    if mu.shape[0] != 2:
+        raise ValueError(f"mu must have shape (2,), got {mu.shape}")
+    if C.shape != (2, 2):
+        raise ValueError(f"C must have shape (2, 2), got {C.shape}")
 
     t = np.linspace(0, 2 * np.pi, num_pts)
     x = np.cos(t)
     y = np.sin(t)
     xy = np.vstack((x, y))
     d, v = la.eigh(C)
-    d *= num_sigmas
-    r = np.dot(v * d, xy) + mu[:, None]
+    radii = num_sigmas * np.sqrt(d)
+    r = np.dot(v * radii, xy) + mu[:, None]
     plt.plot(r[0, :], r[1, :], **kwargs)
 
 
@@ -146,17 +152,20 @@ def plot_gaussian_ellipsoid_3D(
       kwargs: extra arguments for matplotlib
     """
 
-    assert mu.shape[0] == 3
-    assert C.shape[0] == 3 and C.shape[1] == 3
+    if mu.shape[0] != 3:
+        raise ValueError(f"mu must have shape (3,), got {mu.shape}")
+    if C.shape != (3, 3):
+        raise ValueError(f"C must have shape (3, 3), got {C.shape}")
 
     num_pts *= 1j
-    u, v = np.mgrid[0 : 2 * np.pi : num_pts, 0 : np.pi : num_pts / 2]
-    x = np.cos(u) * np.sin(v)
-    y = np.sin(u) * np.sin(v)
-    z = np.cos(v)
-    d, v = la.eigh(C)
+    u, v_grid = np.mgrid[0 : 2 * np.pi : num_pts, 0 : np.pi : num_pts / 2]
+    x = np.cos(u) * np.sin(v_grid)
+    y = np.sin(u) * np.sin(v_grid)
+    z = np.cos(v_grid)
+    d, eigvecs = la.eigh(C)
     xyz = np.vstack((x.ravel(), y.ravel(), z.ravel()))
-    r = np.dot(v * d, xyz) + mu[:, None]
+    radii = num_sigmas * np.sqrt(d)
+    r = np.dot(eigvecs * radii, xyz) + mu[:, None]
 
     X = np.reshape(r[0, :], u.shape)
     Y = np.reshape(r[1, :], u.shape)

@@ -7,7 +7,7 @@ import logging
 import math
 from copy import deepcopy
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import lhotse
 import numpy as np
@@ -28,6 +28,21 @@ from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
 from .vad_set import VADSet
 from .video_set import VideoSet
+
+TrialObj = Union[TrialKey, TrialNdx, SparseTrialKey]
+ManifestObj = Union[
+    ClassInfo,
+    RecordingSet,
+    ImageSet,
+    VideoSet,
+    FeatureSet,
+    VADSet,
+    DiarizationSet,
+    EnrollmentMap,
+    TrialKey,
+    TrialNdx,
+    SparseTrialKey,
+]
 
 
 class HyperDataset:
@@ -52,6 +67,36 @@ class HyperDataset:
       sparse_trials: If True, load trials using SparseTrialKey to save memory.
       table_sep: Default column separator when reading/writing tables.
       trials_sep: Separator for trial manifests; falls back to ``table_sep`` when None.
+
+    Examples:
+      >>> import pandas as pd
+      >>> from hyperion.utils import HyperDataset, RecordingSet, SegmentSet
+      >>> segments = SegmentSet(
+      ...     pd.DataFrame(
+      ...         {
+      ...             "id": ["utt1", "utt2", "utt3"],
+      ...             "recording": ["rec1", "rec1", "rec2"],
+      ...             "speaker": ["spk1", "spk1", "spk2"],
+      ...             "duration": [1.2, 0.9, 2.4],
+      ...         }
+      ...     )
+      ... )
+      >>> recordings = RecordingSet(
+      ...     pd.DataFrame(
+      ...         {
+      ...             "id": ["rec1", "rec2"],
+      ...             "storage_path": ["/data/audio/rec1.wav", "/data/audio/rec2.wav"],
+      ...         }
+      ...     )
+      ... )
+      >>> dataset = HyperDataset(segments=segments, recordings=recordings)
+      >>> dataset.add_classes_from_segments("speaker")
+      >>> len(dataset), sorted(dataset.classes_keys())
+      (3, ['speaker'])
+      >>> dataset.save("tmp/my_dataset", force_save_all=True)
+      >>> ds2 = HyperDataset.load("tmp/my_dataset", lazy=True)
+      >>> len(ds2.segments())
+      3
     """
 
     def __init__(
@@ -71,7 +116,7 @@ class HyperDataset:
         sparse_trials: bool = False,
         table_sep: Optional[str] = None,
         trials_sep: Optional[str] = None,
-    ):
+    ) -> None:
         """Initialize the dataset wrapper and optionally register auxiliary tables.
 
         Args:
@@ -147,12 +192,12 @@ class HyperDataset:
         self._files_to_delete = []
         self.fix_segments_dtypes()
 
-    def fix_segments_dtypes(self):
+    def fix_segments_dtypes(self) -> None:
         """Ensure any class columns in the segments table are stored as strings."""
         if self._segments is not None:
             self._fix_segments_dtypes(self._segments)
 
-    def _fix_segments_dtypes(self, segments):
+    def _fix_segments_dtypes(self, segments: SegmentSet) -> None:
         """Convert class columns in a SegmentSet to string dtype.
 
         Args:
@@ -163,7 +208,7 @@ class HyperDataset:
             if k in segments:
                 segments.convert_col_to_str(k)
 
-    def describe(self):
+    def describe(self) -> Dict[str, Union[int, float, str]]:
         """Summarize dataset counts and duration, logging a human-readable message.
 
         Returns:
@@ -181,7 +226,7 @@ class HyperDataset:
         logging.info(msg)
         return info
 
-    def get_dataset_files(self):
+    def get_dataset_files(self) -> List[Path]:
         """Collect all manifest file paths referenced by the dataset.
 
         Returns:
@@ -191,6 +236,7 @@ class HyperDataset:
         for file_path in [
             self._segments_path,
             self._recordings_path,
+            self._images_path,
             self._videos_path,
         ]:
             if file_path is not None:
@@ -210,7 +256,7 @@ class HyperDataset:
 
         return file_paths
 
-    def _delete_files(self, dataset_dir):
+    def _delete_files(self, dataset_dir: PathLike) -> None:
         """Delete files queued for removal if they are not part of the saved dataset.
 
         Args:
@@ -231,7 +277,14 @@ class HyperDataset:
             if file_path.parent == dataset_dir and file_path.is_file():
                 file_path.unlink()
 
-    def _parse_dict_args(self, data, types):
+    def _parse_dict_args(
+        self,
+        data: Optional[Dict[str, Union[ManifestObj, PathLike]]],
+        types: Union[type, Tuple[type, ...]],
+    ) -> Tuple[
+        Optional[Dict[str, Optional[ManifestObj]]],
+        Optional[Dict[str, Optional[Path]]],
+    ]:
         """Split a mapping into separate object and path dictionaries.
 
         Args:
@@ -247,15 +300,15 @@ class HyperDataset:
         assert isinstance(data, dict)
         objects = {k: (v if isinstance(v, types) else None) for k, v in data.items()}
         paths = {
-            k: (v if isinstance(v, (str, Path)) else None) for k, v in data.items()
+            k: (Path(v) if isinstance(v, (str, Path)) else None) for k, v in data.items()
         }
         return objects, paths
 
-    def clone(self):
+    def clone(self) -> "HyperDataset":
         """Return a deep copy of the dataset."""
         return deepcopy(self)
 
-    def segments(self, keep_loaded: bool = True):
+    def segments(self, keep_loaded: bool = True) -> SegmentSet:
         """Access the segments table, loading from disk if needed.
 
         Args:
@@ -274,26 +327,26 @@ class HyperDataset:
 
         return self._segments
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Number of segments in the dataset."""
         return len(self.segments())
 
     @property
-    def has_recordings(self):
+    def has_recordings(self) -> bool:
         """Whether a recordings manifest is available (loaded or path)."""
         return self._recordings is not None or self._recordings_path is not None
 
     @property
-    def has_images(self):
+    def has_images(self) -> bool:
         """Whether an images manifest is available (loaded or path)."""
         return self._images is not None or self._images_path is not None
 
     @property
-    def has_videos(self):
+    def has_videos(self) -> bool:
         """Whether a videos manifest is available (loaded or path)."""
         return self._videos is not None or self._videos_path is not None
 
-    def recordings(self, keep_loaded: bool = True):
+    def recordings(self, keep_loaded: bool = True) -> RecordingSet:
         """Access the recordings table, loading from disk if needed.
 
         Args:
@@ -311,7 +364,7 @@ class HyperDataset:
 
         return self._recordings
 
-    def images(self, keep_loaded: bool = True):
+    def images(self, keep_loaded: bool = True) -> ImageSet:
         """Access the images table, loading from disk if needed.
 
         Args:
@@ -329,7 +382,7 @@ class HyperDataset:
 
         return self._images
 
-    def videos(self, keep_loaded: bool = True):
+    def videos(self, keep_loaded: bool = True) -> VideoSet:
         """Access the videos table, loading from disk if needed.
 
         Args:
@@ -359,7 +412,7 @@ class HyperDataset:
 
     #     return self._recordings[key]
 
-    def features_keys(self):
+    def features_keys(self) -> Iterable[str]:
         """Return names of feature sets present in the dataset."""
         if self._features is not None:
             return self._features.keys()
@@ -368,7 +421,7 @@ class HyperDataset:
         else:
             return {}
 
-    def features_value(self, key: str, keep_loaded: bool = True):
+    def features_value(self, key: str, keep_loaded: bool = True) -> FeatureSet:
         """Access a feature manifest by name.
 
         Args:
@@ -387,7 +440,7 @@ class HyperDataset:
 
         return self._features[key]
 
-    def vads_keys(self):
+    def vads_keys(self) -> Iterable[str]:
         """Return names of VAD sets present in the dataset."""
         if self._vads is not None:
             return self._vads.keys()
@@ -396,7 +449,7 @@ class HyperDataset:
         else:
             return {}
 
-    def vads_value(self, key: str, keep_loaded: bool = True):
+    def vads_value(self, key: str, keep_loaded: bool = True) -> VADSet:
         """Access a VAD manifest by name.
 
         Args:
@@ -415,7 +468,7 @@ class HyperDataset:
 
         return self._vads[key]
 
-    def diarizations_keys(self):
+    def diarizations_keys(self) -> Iterable[str]:
         """Return names of diarization sets present in the dataset."""
         if self._diarizations is not None:
             return self._diarizations.keys()
@@ -424,7 +477,7 @@ class HyperDataset:
         else:
             return {}
 
-    def diarizations_value(self, key: str, keep_loaded: bool = True):
+    def diarizations_value(self, key: str, keep_loaded: bool = True) -> DiarizationSet:
         """Access a diarization manifest by name.
 
         Args:
@@ -443,9 +496,9 @@ class HyperDataset:
                 self._diarizations[key] = diarizations
             return diarizations
 
-        return self._vads[key]
+        return self._diarizations[key]
 
-    def classes_keys(self):
+    def classes_keys(self) -> Iterable[str]:
         """Return names of class info tables present in the dataset."""
         if self._classes is not None:
             return self._classes.keys()
@@ -454,7 +507,7 @@ class HyperDataset:
         else:
             return {}
 
-    def classes_value(self, key: str, keep_loaded: bool = True):
+    def classes_value(self, key: str, keep_loaded: bool = True) -> ClassInfo:
         """Access a class info manifest by name.
 
         Args:
@@ -473,7 +526,7 @@ class HyperDataset:
 
         return self._classes[key]
 
-    def enrollments_value(self, key: str, keep_loaded: bool = True):
+    def enrollments_value(self, key: str, keep_loaded: bool = True) -> EnrollmentMap:
         """Access an enrollment map by name.
 
         Args:
@@ -494,7 +547,7 @@ class HyperDataset:
 
         return self._enrollments[key]
 
-    def trials_value(self, key: str, keep_loaded: bool = True):
+    def trials_value(self, key: str, keep_loaded: bool = True) -> TrialObj:
         """Access a trials object by name, loading lazily from disk.
 
         Args:
@@ -505,14 +558,34 @@ class HyperDataset:
             Union[TrialKey, TrialNdx, SparseTrialKey]: Trials data referenced by ``key``.
         """
         if self._trials[key] is None:
-            assert self._trials_paths[key] is not None
+            path = self._trials_paths[key]
+            assert path is not None
+
+            primary_loader = (
+                SparseTrialKey.load if self.sparse_trials else TrialKey.load
+            )
             try:
-                if self.sparse_trials:
-                    trials = SparseTrialKey.load(self._trials_paths[key])
-                else:
-                    trials = TrialKey.load(self._trials_paths[key])
-            except:
-                trials = TrialNdx.load(self._trials_paths[key])
+                trials = primary_loader(path)
+            except (
+                ValueError,
+                KeyError,
+                AssertionError,
+                OSError,
+                pd.errors.ParserError,
+            ):
+                try:
+                    trials = TrialNdx.load(path)
+                except (
+                    ValueError,
+                    KeyError,
+                    AssertionError,
+                    OSError,
+                    pd.errors.ParserError,
+                ) as err:
+                    raise ValueError(
+                        f"Cannot load trials '{key}' from '{path}' as "
+                        f"{primary_loader.__qualname__} or TrialNdx.load"
+                    ) from err
 
             if keep_loaded:
                 self._trials[key] = trials
@@ -527,7 +600,7 @@ class HyperDataset:
     #         for key in self._recordings.keys():
     #             yield key, self.recordings_value(key, keep_loaded)
 
-    def features(self, keep_loaded: bool = True):
+    def features(self, keep_loaded: bool = True) -> Iterator[Tuple[str, FeatureSet]]:
         """Iterate over all feature sets, loading lazily if necessary.
 
         Args:
@@ -542,7 +615,7 @@ class HyperDataset:
             for key in self._features.keys():
                 yield key, self.features_value(key, keep_loaded)
 
-    def vads(self, keep_loaded: bool = True):
+    def vads(self, keep_loaded: bool = True) -> Iterator[Tuple[str, VADSet]]:
         """Iterate over all VAD sets, loading lazily if necessary.
 
         Args:
@@ -557,7 +630,9 @@ class HyperDataset:
             for key in self._vads.keys():
                 yield key, self.vads_value(key, keep_loaded)
 
-    def diarizations(self, keep_loaded: bool = True):
+    def diarizations(
+        self, keep_loaded: bool = True
+    ) -> Iterator[Tuple[str, DiarizationSet]]:
         """Iterate over all diarization sets, loading lazily if necessary.
 
         Args:
@@ -572,7 +647,7 @@ class HyperDataset:
             for key in self._diarizations.keys():
                 yield key, self.diarizations_value(key, keep_loaded)
 
-    def classes(self, keep_loaded: bool = True):
+    def classes(self, keep_loaded: bool = True) -> Iterator[Tuple[str, ClassInfo]]:
         """Iterate over all class info tables, loading lazily if necessary.
 
         Args:
@@ -587,7 +662,9 @@ class HyperDataset:
             for key in self._classes.keys():
                 yield key, self.classes_value(key, keep_loaded)
 
-    def enrollments(self, keep_loaded: bool = True):
+    def enrollments(
+        self, keep_loaded: bool = True
+    ) -> Iterator[Tuple[str, EnrollmentMap]]:
         """Iterate over all enrollment maps, loading lazily if necessary.
 
         Args:
@@ -602,7 +679,7 @@ class HyperDataset:
             for key in self._enrollments.keys():
                 yield key, self.enrollments_value(key, keep_loaded)
 
-    def trials(self, keep_loaded: bool = True):
+    def trials(self, keep_loaded: bool = True) -> Iterator[Tuple[str, TrialObj]]:
         """Iterate over all trials, loading lazily if necessary.
 
         Args:
@@ -618,7 +695,7 @@ class HyperDataset:
                 yield key, self.trials_value(key, keep_loaded)
 
     @staticmethod
-    def resolve_dataset_path(dataset_path):
+    def resolve_dataset_path(dataset_path: PathLike) -> Tuple[Path, Path]:
         """Normalize a dataset path to directory and YAML manifest.
 
         Args:
@@ -629,7 +706,7 @@ class HyperDataset:
         """
         dataset_path = Path(dataset_path)
         ext = dataset_path.suffix
-        if ext in [".yaml", "yml"]:
+        if ext in [".yaml", ".yml"]:
             dataset_file = dataset_path
             dataset_dir = dataset_path.parent
         else:
@@ -639,7 +716,7 @@ class HyperDataset:
         return dataset_dir, dataset_file
 
     @staticmethod
-    def resolve_file_path(dataset_dir, file_path):
+    def resolve_file_path(dataset_dir: PathLike, file_path: PathLike) -> Path:
         """Resolve a manifest path relative to the dataset directory.
 
         Args:
@@ -662,7 +739,7 @@ class HyperDataset:
         update_paths: bool = True,
         table_sep: Optional[str] = None,
         force_save_all: bool = False,
-    ):
+    ) -> None:
         """Persist the dataset manifests to disk.
 
         Args:
@@ -686,7 +763,7 @@ class HyperDataset:
         update_paths: bool = True,
         table_sep: Optional[str] = None,
         trials_sep: Optional[str] = None,
-    ):
+    ) -> None:
         """Save only manifests that changed or are missing in the target directory.
 
         Args:
@@ -885,7 +962,7 @@ class HyperDataset:
         update_paths: bool = True,
         table_sep: Optional[str] = None,
         trials_sep: Optional[str] = None,
-    ):
+    ) -> None:
         """Save every manifest to disk, regardless of change tracking.
 
         Args:
@@ -1016,12 +1093,17 @@ class HyperDataset:
 
         self._delete_files(dataset_dir)
 
-    def update_from_disk(self):
+    def update_from_disk(self) -> None:
         """Eagerly load every registered manifest into memory."""
         self.segments()
-        self.recordings()
-        self.images()
-        self.videos()
+        if self.has_recordings:
+            self.recordings()
+
+        if self.has_images:
+            self.images()
+
+        if self.has_videos:
+            self.videos()
 
         for k, v in self.features():
             pass
@@ -1044,7 +1126,7 @@ class HyperDataset:
     @classmethod
     def load(
         cls, dataset_path: PathLike, lazy: bool = True, sparse_trials: bool = False
-    ):
+    ) -> "HyperDataset":
         """Instantiate a dataset from a manifest directory or YAML file.
 
         Args:
@@ -1135,7 +1217,7 @@ class HyperDataset:
     def set_segments(
         self,
         segments: Union[PathLike, SegmentSet],
-    ):
+    ) -> None:
         """Replace the segments table reference.
 
         Args:
@@ -1146,7 +1228,7 @@ class HyperDataset:
         """
         if isinstance(segments, (str, Path)):
             self._segments = None
-            self._segments_path = segments
+            self._segments_path = Path(segments)
         elif isinstance(segments, SegmentSet):
             self._segments = segments
             self._segments_path = None
@@ -1157,7 +1239,7 @@ class HyperDataset:
         self,
         recordings: Union[PathLike, RecordingSet],
         update_seg_durs: bool = False,
-    ):
+    ) -> None:
         """Attach a recordings manifest to the dataset.
 
         Args:
@@ -1178,12 +1260,14 @@ class HyperDataset:
 
         if update_seg_durs:
             rec_ids = self.segments(keep_loaded=True).recording()
-            self.segments()["duration"] = self.recordings().loc[rec_ids, "duration"]
+            self.segments()["duration"] = (
+                self.recordings().loc[rec_ids, "duration"].to_numpy()
+            )
 
     def set_images(
         self,
         images: Union[PathLike, ImageSet],
-    ):
+    ) -> None:
         """Attach an images manifest to the dataset.
 
         Args:
@@ -1205,7 +1289,7 @@ class HyperDataset:
         self,
         videos: Union[PathLike, VideoSet],
         update_seg_durs: bool = False,
-    ):
+    ) -> None:
         """Attach a videos manifest to the dataset.
 
         Args:
@@ -1226,9 +1310,13 @@ class HyperDataset:
 
         if update_seg_durs:
             rec_ids = self.segments(keep_loaded=True).recording()
-            self.segments()["duration"] = self.videos().loc[rec_ids, "duration"]
+            self.segments()["duration"] = self.videos().loc[
+                rec_ids, "duration"
+            ].to_numpy()
 
-    def add_features(self, features_name: str, features: Union[PathLike, FeatureSet]):
+    def add_features(
+        self, features_name: str, features: Union[PathLike, FeatureSet]
+    ) -> None:
         """Register a feature manifest under a given name.
 
         Args:
@@ -1244,14 +1332,14 @@ class HyperDataset:
 
         if isinstance(features, (str, Path)):
             self._features[features_name] = None
-            self._features_paths[features_name] = features
+            self._features_paths[features_name] = Path(features)
         elif isinstance(features, FeatureSet):
             self._features[features_name] = features
             self._features_paths[features_name] = None
         else:
             raise ValueError()
 
-    def add_vads(self, vads_name: str, vads: Union[PathLike, VADSet]):
+    def add_vads(self, vads_name: str, vads: Union[PathLike, VADSet]) -> None:
         """Register a VAD manifest under a given name.
 
         Args:
@@ -1267,7 +1355,7 @@ class HyperDataset:
 
         if isinstance(vads, (str, Path)):
             self._vads[vads_name] = None
-            self._vads_paths[vads_name] = vads
+            self._vads_paths[vads_name] = Path(vads)
         elif isinstance(vads, VADSet):
             self._vads[vads_name] = vads
             self._vads_paths[vads_name] = None
@@ -1276,7 +1364,7 @@ class HyperDataset:
 
     def add_diarizations(
         self, diarizations_name: str, diarizations: Union[PathLike, DiarizationSet]
-    ):
+    ) -> None:
         """Register a diarization manifest under a given name.
 
         Args:
@@ -1292,14 +1380,16 @@ class HyperDataset:
 
         if isinstance(diarizations, (str, Path)):
             self._diarizations[diarizations_name] = None
-            self._diarizations_paths[diarizations_name] = diarizations
+            self._diarizations_paths[diarizations_name] = Path(diarizations)
         elif isinstance(diarizations, DiarizationSet):
             self._diarizations[diarizations_name] = diarizations
             self._diarizations_paths[diarizations_name] = None
         else:
             raise ValueError()
 
-    def add_classes(self, classes_name: str, classes: Union[PathLike, ClassInfo]):
+    def add_classes(
+        self, classes_name: str, classes: Union[PathLike, ClassInfo]
+    ) -> None:
         """Register a class info table under a given name.
 
         Args:
@@ -1326,7 +1416,7 @@ class HyperDataset:
         self,
         enrollments_name: str,
         enrollments: Union[PathLike, EnrollmentMap],
-    ):
+    ) -> None:
         """Register an enrollment map under a given name.
 
         Args:
@@ -1353,7 +1443,7 @@ class HyperDataset:
         self,
         trials_name: str,
         trials: Union[PathLike, TrialKey, TrialNdx, SparseTrialKey],
-    ):
+    ) -> None:
         """Register a trials object under a given name.
 
         Args:
@@ -1378,7 +1468,7 @@ class HyperDataset:
 
     def remove_recordings(
         self,
-    ):
+    ) -> None:
         """Detach recordings and mark backing file for deletion if present."""
         if self._recordings_path is not None:
             self._files_to_delete.append(self._recordings_path)
@@ -1388,7 +1478,7 @@ class HyperDataset:
 
     def remove_images(
         self,
-    ):
+    ) -> None:
         """Detach images and mark backing file for deletion if present."""
         if self._images_path is not None:
             self._files_to_delete.append(self._images_path)
@@ -1398,7 +1488,7 @@ class HyperDataset:
 
     def remove_videos(
         self,
-    ):
+    ) -> None:
         """Detach videos and mark backing file for deletion if present."""
         if self._videos_path is not None:
             self._files_to_delete.append(self._videos_path)
@@ -1406,15 +1496,25 @@ class HyperDataset:
         self._videos = None
         self._videos_path = None
 
-    def remove_features(self, features_name: str):
-        """Remove a feature set and optionally delete its manifest file.
+    def remove_features(self, features_name: Optional[str] = None) -> None:
+        """Remove one feature set or all feature sets.
 
         Args:
             features_name: Identifier of the feature set to remove.
+                If ``None``, remove every feature set.
 
         Returns:
             None
         """
+        if features_name is None:
+            if self._features_paths is not None:
+                for key in list(self._features_paths.keys()):
+                    self.remove_features(key)
+            elif self._features is not None:
+                for key in list(self._features.keys()):
+                    self.remove_features(key)
+            return
+
         if self._features_paths is None or features_name not in self._features_paths:
             logging.warning("Features %s not found in dataset", features_name)
             return
@@ -1425,15 +1525,29 @@ class HyperDataset:
         del self._features[features_name]
         del self._features_paths[features_name]
 
-    def remove_vads(self, vads_name: str):
-        """Remove a VAD set and optionally delete its manifest file.
+        if len(self._features) == 0:
+            self._features = None
+            self._features_paths = None
+
+    def remove_vads(self, vads_name: Optional[str] = None) -> None:
+        """Remove one VAD set or all VAD sets.
 
         Args:
             vads_name: Identifier of the VAD set to remove.
+                If ``None``, remove every VAD set.
 
         Returns:
             None
         """
+        if vads_name is None:
+            if self._vads_paths is not None:
+                for key in list(self._vads_paths.keys()):
+                    self.remove_vads(key)
+            elif self._vads is not None:
+                for key in list(self._vads.keys()):
+                    self.remove_vads(key)
+            return
+
         if self._vads_paths is None or vads_name not in self._vads_paths:
             logging.warning("VAD %s not found in dataset", vads_name)
             return
@@ -1444,15 +1558,29 @@ class HyperDataset:
         del self._vads[vads_name]
         del self._vads_paths[vads_name]
 
-    def remove_diarizations(self, diarizations_name: str):
-        """Remove a diarization set and optionally delete its manifest file.
+        if len(self._vads) == 0:
+            self._vads = None
+            self._vads_paths = None
+
+    def remove_diarizations(self, diarizations_name: Optional[str] = None) -> None:
+        """Remove one diarization set or all diarization sets.
 
         Args:
             diarizations_name: Identifier of the diarization set to remove.
+                If ``None``, remove every diarization set.
 
         Returns:
             None
         """
+        if diarizations_name is None:
+            if self._diarizations_paths is not None:
+                for key in list(self._diarizations_paths.keys()):
+                    self.remove_diarizations(key)
+            elif self._diarizations is not None:
+                for key in list(self._diarizations.keys()):
+                    self.remove_diarizations(key)
+            return
+
         if (
             self._diarizations_paths is None
             or diarizations_name not in self._diarizations_paths
@@ -1466,56 +1594,117 @@ class HyperDataset:
         del self._diarizations[diarizations_name]
         del self._diarizations_paths[diarizations_name]
 
-    def remove_classes(self, classes_name: str):
-        """Remove a class info table and optionally delete its manifest file.
+        if len(self._diarizations) == 0:
+            self._diarizations = None
+            self._diarizations_paths = None
+
+    def remove_classes(self, classes_name: Optional[str] = None) -> None:
+        """Remove one class info table or all class info tables.
 
         Args:
             classes_name: Identifier of the class info table to remove.
+                If ``None``, remove every class info table.
 
         Returns:
             None
         """
+        if classes_name is None:
+            if self._classes_paths is not None:
+                for key in list(self._classes_paths.keys()):
+                    self.remove_classes(key)
+            elif self._classes is not None:
+                for key in list(self._classes.keys()):
+                    self.remove_classes(key)
+            return
+
+        if self._classes_paths is None or classes_name not in self._classes_paths:
+            logging.warning("Classes %s not found in dataset", classes_name)
+            return
+
         if self._classes_paths[classes_name] is not None:
             self._files_to_delete.append(self._classes_paths[classes_name])
 
         del self._classes[classes_name]
         del self._classes_paths[classes_name]
 
+        if len(self._classes) == 0:
+            self._classes = None
+            self._classes_paths = None
+
     def remove_enrollments(
         self,
-        enrollments_name: str,
-    ):
-        """Remove an enrollment map and optionally delete its manifest file.
+        enrollments_name: Optional[str] = None,
+    ) -> None:
+        """Remove one enrollment map or all enrollment maps.
 
         Args:
             enrollments_name: Identifier of the enrollment map to remove.
+                If ``None``, remove every enrollment map.
 
         Returns:
             None
         """
+        if enrollments_name is None:
+            if self._enrollments_paths is not None:
+                for key in list(self._enrollments_paths.keys()):
+                    self.remove_enrollments(key)
+            elif self._enrollments is not None:
+                for key in list(self._enrollments.keys()):
+                    self.remove_enrollments(key)
+            return
+
+        if (
+            self._enrollments_paths is None
+            or enrollments_name not in self._enrollments_paths
+        ):
+            logging.warning("Enrollment %s not found in dataset", enrollments_name)
+            return
+
         if self._enrollments_paths[enrollments_name] is not None:
             self._files_to_delete.append(self._enrollments_paths[enrollments_name])
 
         del self._enrollments[enrollments_name]
         del self._enrollments_paths[enrollments_name]
 
+        if len(self._enrollments) == 0:
+            self._enrollments = None
+            self._enrollments_paths = None
+
     def remove_trials(
         self,
-        trials_name: str,
-    ):
-        """Remove a trials entry and optionally delete its manifest file.
+        trials_name: Optional[str] = None,
+    ) -> None:
+        """Remove one trials entry or all trials entries.
 
         Args:
             trials_name: Identifier of the trials entry to remove.
+                If ``None``, remove every trials entry.
 
         Returns:
             None
         """
+        if trials_name is None:
+            if self._trials_paths is not None:
+                for key in list(self._trials_paths.keys()):
+                    self.remove_trials(key)
+            elif self._trials is not None:
+                for key in list(self._trials.keys()):
+                    self.remove_trials(key)
+            return
+
+        if self._trials_paths is None or trials_name not in self._trials_paths:
+            logging.warning("Trials %s not found in dataset", trials_name)
+            return
+
         if self._trials_paths[trials_name] is not None:
             self._files_to_delete.append(self._trials_paths[trials_name])
 
         del self._trials[trials_name]
         del self._trials_paths[trials_name]
+
+        if len(self._trials) == 0:
+            self._trials = None
+            self._trials_paths = None
 
     def add_cols_to_segments(
         self,
@@ -1525,7 +1714,7 @@ class HyperDataset:
         right_on: Union[None, str, List[str], np.ndarray] = None,
         remove_missing: bool = False,
         create_class_info: bool = False,
-    ):
+    ) -> None:
         """Join additional columns into the segments table.
 
         Args:
@@ -1559,7 +1748,7 @@ class HyperDataset:
                 elif right_table in self.classes_keys():
                     right_table = self.classes_value(right_table)
                 else:
-                    raise ValueError("%s not found", right_table)
+                    raise ValueError(f"{right_table} not found")
 
         segments = self.segments(keep_loaded=True)
         num_segs_0 = len(segments)
@@ -1574,32 +1763,9 @@ class HyperDataset:
             self.clean()
 
         if create_class_info and column_names is not None:
-            self.create_class_info_from_col(column_names)
+            self.add_classes_from_segments(column_names)
 
-    def create_class_info_from_col(
-        self,
-        column_names: Union[str, List[str], np.ndarray],
-    ):
-        """Create ClassInfo tables from columns in the segments table.
-
-        Args:
-            column_names: Column name or list of column names to convert into ClassInfo tables.
-
-        Returns:
-            None
-        """
-        if isinstance(column_names, str):
-            column_names = [column_names]
-
-        for col in column_names:
-            if col not in self._classes:
-                df = pd.DataFrame(
-                    {"id": np.unique(self.segments(keep_loaded=True)[col])}
-                )
-                class_info = ClassInfo(df)
-                self.add_classes(col, class_info)
-
-    def clean(self, rebuild_class_idx=False):
+    def clean(self, rebuild_class_idx: bool = False) -> None:
         """Drop orphaned entries across manifests based on current segments.
 
         Args:
@@ -1675,7 +1841,7 @@ class HyperDataset:
         num_tar_trials: int,
         num_trial_speakers: int,
         seed: int,
-    ):
+    ) -> Tuple[TrialKey, EnrollmentMap, SegmentSet]:
         """Create a trials list and cohort split from a subset of segments.
 
         Args:
@@ -1727,9 +1893,9 @@ class HyperDataset:
         num_1k_tar_trials: int,
         num_trial_speakers: int,
         intra_gender: bool = True,
-        trials_name="trials_qmf",
-        seed=1123,
-    ):
+        trials_name: str = "trials_qmf",
+        seed: int = 1123,
+    ) -> Tuple["HyperDataset", "HyperDataset"]:
         """Split dataset into a trial subset and a cohort subset for QMF training.
 
         Args:
@@ -1781,7 +1947,7 @@ class HyperDataset:
         segments = self.segments()
         trials_segments = SegmentSet(segments.loc[segments["id"].isin(trials.seg_set)])
         dataset_trials.set_segments(trials_segments)
-        dataset_trials.add_trials("trials", trials)
+        dataset_trials.add_trials(trials_name, trials)
         dataset_trials.add_enrollments("enrollments", enroll)
         dataset_trials.clean()
 
@@ -1791,7 +1957,9 @@ class HyperDataset:
 
         return dataset_trials, dataset_cohort
 
-    def remove_short_segments(self, min_length: float, length_name: str = "duration"):
+    def remove_short_segments(
+        self, min_length: float, length_name: str = "duration"
+    ) -> None:
         """Remove segments shorter than a given length.
 
         Args:
@@ -1810,7 +1978,7 @@ class HyperDataset:
         class_name: str,
         min_segs: int,
         rebuild_idx: bool = False,
-    ):
+    ) -> None:
         """Drop classes with fewer than ``min_segs`` segments.
 
         Args:
@@ -1836,7 +2004,7 @@ class HyperDataset:
         min_segs: int,
         max_segs: Union[int, None],
         rebuild_idx: bool = False,
-    ):
+    ) -> None:
         """Drop classes with too few or too many segments.
 
         Args:
@@ -1868,7 +2036,7 @@ class HyperDataset:
         class_ids: List[str],
         remove_na: bool,
         rebuild_idx: bool = False,
-    ):
+    ) -> None:
         """Remove specific class ids (and optionally NaNs) from the dataset.
 
         Args:
@@ -1882,7 +2050,7 @@ class HyperDataset:
         """
         segments = self.segments()
         if remove_na:
-            self._segments = segments.dropna(subset=[class_name], inplace=True)
+            segments.dropna(subset=[class_name], inplace=True)
 
         if class_ids is not None:
             self._segments = segments.filter(lambda df: ~df[class_name].isin(class_ids))
@@ -1896,7 +2064,7 @@ class HyperDataset:
         segments: Union[SegmentSet, List[str]],
         rebuild_class_idx: bool = False,
         keep: bool = True,
-    ):
+    ) -> None:
         """Filter dataset by a list of segment ids or a SegmentSet.
 
         Args:
@@ -1922,7 +2090,7 @@ class HyperDataset:
         predicate: str,
         rebuild_class_idx: bool = False,
         keep: bool = True,
-    ):
+    ) -> None:
         """Filter dataset by an expression evaluated on the segments table.
 
         Args:
@@ -1945,7 +2113,7 @@ class HyperDataset:
         remove_na: bool,
         rebuild_idx: bool = False,
         keep: bool = True,
-    ):
+    ) -> None:
         """Filter dataset by class membership.
 
         Args:
@@ -1965,7 +2133,7 @@ class HyperDataset:
             class_ids = classes
 
         if remove_na:
-            self._segments = segments.dropna(subset=[class_name], inplace=True)
+            segments.dropna(subset=[class_name], inplace=True)
 
         self._segments = segments.filter(
             lambda df: df[class_name].isin(class_ids), keep=keep
@@ -1984,7 +2152,7 @@ class HyperDataset:
         remove_na: bool,
         rebuild_idx: bool = False,
         keep: bool = True,
-    ):
+    ) -> None:
         """Filter dataset by class membership and enrollment ids, updating trials too.
 
         Args:
@@ -2006,7 +2174,7 @@ class HyperDataset:
             class_ids = classes
 
         if remove_na:
-            self._segments = segments.dropna(subset=[class_name], inplace=True)
+            segments.dropna(subset=[class_name], inplace=True)
 
         self._segments = segments.filter(
             lambda df: df[class_name].isin(class_ids), keep=keep
@@ -2014,7 +2182,7 @@ class HyperDataset:
         model_ids = np.unique(np.unique(enrollments["id"]))
         if self._enrollments is not None and enrollment_name in self._enrollments:
             my_enrollments = self.enrollments_value(enrollment_name)
-            self.enrollments[enrollment_name] = my_enrollments.filter(
+            self._enrollments[enrollment_name] = my_enrollments.filter(
                 items=model_ids, keep=keep
             )
 
@@ -2027,7 +2195,7 @@ class HyperDataset:
             class_info = self.classes_value(class_name)
             class_info.add_class_idx()
 
-    def rebuild_class_idx(self, class_name: str):
+    def rebuild_class_idx(self, class_name: str) -> None:
         """Recompute integer class indices for a given class info table.
 
         Args:
@@ -2039,7 +2207,9 @@ class HyperDataset:
         class_info = self.classes_value(class_name)
         class_info.add_class_idx()
 
-    def _segments_split(self, val_prob: float, rng: np.random.Generator):
+    def _segments_split(
+        self, val_prob: float, rng: np.random.Generator
+    ) -> Tuple[SegmentSet, SegmentSet]:
         """Randomly split segments into train/validation folds.
 
         Args:
@@ -2069,7 +2239,7 @@ class HyperDataset:
         joint_classes: List[str],
         min_train_samples: int,
         rng: np.random.Generator,
-    ):
+    ) -> Tuple[SegmentSet, SegmentSet]:
         """Split ensuring each joint class combination appears in both splits.
 
         Args:
@@ -2111,7 +2281,7 @@ class HyperDataset:
         val_prob: float,
         disjoint_classes: List[str],
         rng: np.random.Generator,
-    ):
+    ) -> Tuple[SegmentSet, SegmentSet]:
         """Split ensuring disjoint sets of classes between train and validation.
 
         Args:
@@ -2154,7 +2324,7 @@ class HyperDataset:
         disjoint_clases: List[str],
         min_train_samples: int,
         rng: np.random.Generator,
-    ):
+    ) -> Tuple[SegmentSet, SegmentSet]:
         """Placeholder for joint/disjoint class split logic."""
         raise NotImplementedError("I'll implement this when I need it")
         segments = self.segments()
@@ -2198,7 +2368,7 @@ class HyperDataset:
         disjoint_classes: Optional[List[str]] = None,
         min_train_samples: int = 1,
         seed: int = 11235813,
-    ):
+    ) -> Tuple["HyperDataset", "HyperDataset"]:
         """Create train/validation dataset splits with optional class constraints.
 
         Args:
@@ -2246,7 +2416,9 @@ class HyperDataset:
 
         return train_ds, val_ds
 
-    def _segments_split_folds(self, num_folds: int, rng: np.random.Generator):
+    def _segments_split_folds(
+        self, num_folds: int, rng: np.random.Generator
+    ) -> Tuple[List[SegmentSet], List[SegmentSet]]:
         """Randomly split segments into ``num_folds`` folds.
 
         Args:
@@ -2269,9 +2441,9 @@ class HyperDataset:
             else:
                 fold_idx = p[start:]
 
-            test_fold_segs = segments.filter(iiindex=fold_idx, keep=True)
+            test_fold_segs = segments.filter(iindex=fold_idx, keep=True)
             test_fold_segs.sort()
-            train_fold_segs = segments.filter(iiindex=fold_idx, keep=False)
+            train_fold_segs = segments.filter(iindex=fold_idx, keep=False)
             train_fold_segs.sort()
             test_folds.append(test_fold_segs)
             train_folds.append(train_fold_segs)
@@ -2283,7 +2455,7 @@ class HyperDataset:
         num_folds: int,
         joint_classes: List[str],
         rng: np.random.Generator,
-    ):
+    ) -> Tuple[List[SegmentSet], List[SegmentSet]]:
         """Create folds while keeping each joint class combination in every fold.
 
         Args:
@@ -2341,7 +2513,7 @@ class HyperDataset:
         num_folds: float,
         disjoint_classes: List[str],
         rng: np.random.Generator,
-    ):
+    ) -> Tuple[List[SegmentSet], List[SegmentSet]]:
         """Create folds such that class groups are disjoint across folds.
 
         Args:
@@ -2386,7 +2558,7 @@ class HyperDataset:
         joint_classes: List[str],
         disjoint_classes: List[str],
         rng: np.random.Generator,
-    ):
+    ) -> Tuple[List[SegmentSet], List[SegmentSet]]:
         """Create folds balancing both joint and disjoint class constraints."""
         segments = self.segments()
         jclasses = segments[joint_classes].apply("-".join, axis=1)
@@ -2451,7 +2623,7 @@ class HyperDataset:
         joint_classes: Optional[List[str]] = None,
         disjoint_classes: Optional[List[str]] = None,
         seed: int = 11235813,
-    ):
+    ) -> Tuple[List["HyperDataset"], List["HyperDataset"]]:
         """Create cross-validation folds with optional class constraints.
 
         Args:
@@ -2465,7 +2637,7 @@ class HyperDataset:
         """
         rng = np.random.default_rng(seed)
         if joint_classes is None and disjoint_classes is None:
-            train_segs, test_segs = self._segments_folds_split(num_folds, rng)
+            train_segs, test_segs = self._segments_split_folds(num_folds, rng)
         elif joint_classes is not None and disjoint_classes is None:
             train_segs, test_segs = self._segments_split_folds_joint_classes(
                 num_folds,
@@ -2505,7 +2677,7 @@ class HyperDataset:
         return train_folds, test_folds
 
     @classmethod
-    def merge(cls, datasets):
+    def merge(cls, datasets: List["HyperDataset"]) -> "HyperDataset":
         """Concatenate multiple HyperDataset objects into one.
 
         Args:
@@ -2621,17 +2793,23 @@ class HyperDataset:
         # Usually you don't need that
         return dataset
 
-    def add_classes_from_segments(self, class_names: Union[str, List[str]]):
+    def add_classes_from_segments(
+        self, class_names: Union[str, List[str], np.ndarray]
+    ) -> None:
         """Build ClassInfo objects from columns already present in segments.
 
         Args:
-            class_names: Column name or list of column names to convert to ClassInfo.
+            class_names: Column name or list/array of column names to convert to ClassInfo.
 
         Returns:
             None
         """
         if isinstance(class_names, str):
             class_names = [class_names]
+
+        if self._classes is None:
+            self._classes = {}
+            self._classes_paths = {}
 
         for col in class_names:
             if col not in self._classes:
@@ -2643,7 +2821,9 @@ class HyperDataset:
                 self.add_classes(col, class_info)
 
     @classmethod
-    def from_recordings(cls, recordings: Union[RecordingSet, PathLike]):
+    def from_recordings(
+        cls, recordings: Union[RecordingSet, PathLike]
+    ) -> "HyperDataset":
         """Create a dataset from recordings when no segmentation exists.
 
         Args:
@@ -2666,7 +2846,7 @@ class HyperDataset:
         segments: Union[SegmentSet, PathLike],
         recordings: Optional[Union[RecordingSet, PathLike]] = None,
         class_names: Optional[List[str]] = None,
-    ):
+    ) -> "HyperDataset":
         """Create a dataset from a SegmentSet with optional recordings and classes.
 
         Args:
@@ -2683,9 +2863,10 @@ class HyperDataset:
         if recordings is not None:
             if isinstance(recordings, (str, Path)):
                 recordings = RecordingSet.load(recordings)
-            else:
-                if "duration" not in segments:
-                    segments["duration"] = recordings.loc[segments["id"], "duration"]
+
+            if "duration" not in segments:
+                rec_ids = segments.recording()
+                segments["duration"] = recordings.loc[rec_ids, "duration"].to_numpy()
 
         classes = None
         if class_names is not None:
@@ -2706,7 +2887,7 @@ class HyperDataset:
         cuts: Optional[Union[lhotse.CutSet, PathLike]] = None,
         recordings: Optional[Union[lhotse.RecordingSet, PathLike]] = None,
         supervisions: Optional[Union[lhotse.SupervisionSet, PathLike]] = None,
-    ):
+    ) -> "HyperDataset":
         """Create a dataset from Lhotse cuts or from recordings + supervisions.
 
         Args:
@@ -2755,7 +2936,7 @@ class HyperDataset:
 
                 rec_dict = {
                     "id": cut.id,
-                    "sampling_rate": recording.sampling_rate,
+                    "sample_freq": recording.sampling_rate,
                     "duration": recording.duration,
                 }
                 source = recording.sources[0]
@@ -2772,7 +2953,7 @@ class HyperDataset:
                         seg_dict[key] = val
 
             if supervision.custom is not None:
-                for key, val in supervision.custom:
+                for key, val in supervision.custom.items():
                     if val is not None:
                         seg_dict[key] = val
 
@@ -2780,7 +2961,7 @@ class HyperDataset:
 
         recs_df = pd.DataFrame(recs_df)
         segs_df = pd.DataFrame(segs_df)
-        recordings = RecordingSet(recs_df)
+        recordings = RecordingSet(recs_df) if not recs_df.empty else None
         segments = SegmentSet(segs_df)
         class_names = ["speaker", "language", "emotion", "gender"]
         classes = {}
@@ -2799,7 +2980,7 @@ class HyperDataset:
     def from_kaldi(
         cls,
         kaldi_data_dir: PathLike,
-    ):
+    ) -> "HyperDataset":
         """Create a dataset from a Kaldi-style data directory.
 
         Args:
@@ -2814,6 +2995,7 @@ class HyperDataset:
         attributes = ["language", "duration", "text"]
 
         k_file = kaldi_data_dir / "utt2spk"
+        from .scp_list import SCPList
         from .utt2info import Utt2Info
 
         utt2spk = Utt2Info.load(k_file)
@@ -2846,9 +3028,8 @@ class HyperDataset:
         kaldi_files = ["feats.scp", "vad.scp"]
         attributes = ["feats", "vad"]
         features = None
-        from .scp_list import SCPList
 
-        for att, k_file in zip(kaldi_files, attributes):
+        for k_file, att in zip(kaldi_files, attributes):
             k_file = kaldi_data_dir / k_file
             if k_file.is_file():
                 scp = SCPList.load(k_file)
@@ -2858,7 +3039,7 @@ class HyperDataset:
                 df_feats = pd.DataFrame(feats_dict)
                 if features is None:
                     features = {}
-                features["att"] = FeatureSet(df_feats)
+                features[att] = FeatureSet(df_feats)
 
         recordings = None
         k_file = kaldi_data_dir / "wav.scp"
@@ -2886,7 +3067,7 @@ class HyperDataset:
         )
         return dataset
 
-    def append_seg_suffix(self, seg_suffix: str):
+    def append_seg_suffix(self, seg_suffix: str) -> None:
         """Append a suffix to all segment ids (and aligned manifest ids)."""
         segments = self.segments(keep_loaded=True)
         segments["id"] = segments["id"].apply(lambda x: x + seg_suffix)
@@ -2913,7 +3094,7 @@ class HyperDataset:
         group_by: Union[str, List[str]],
         max_duration: Optional[float] = None,
         inplace: bool = False,
-    ):
+    ) -> "HyperDataset":
         """Concatenate segments within groups and rebuild recordings with a sox pipe.
 
         Args:
@@ -2989,7 +3170,7 @@ class HyperDataset:
         seg_df["_cat_rec_id"] = segments.recording().values
 
         # Aggregate per-column values for concatenated segments.
-        def _agg_value(series: pd.Series, dtype):
+        def _agg_value(series: pd.Series, dtype: Union[np.dtype, object]) -> object:
             if pd.api.types.is_bool_dtype(series):
                 return series.iloc[0] if series.nunique(dropna=False) == 1 else pd.NA
             if pd.api.types.is_numeric_dtype(series):
@@ -3002,7 +3183,7 @@ class HyperDataset:
             return series.iloc[0] if series.nunique(dropna=False) == 1 else pd.NA
 
         # Ensure fields like sample_freq are constant within a concatenation group.
-        def _unique_or_error(series: pd.Series, name: str):
+        def _unique_or_error(series: pd.Series, name: str) -> object:
             values = series.dropna().unique()
             if len(values) == 0:
                 return np.nan
@@ -3245,7 +3426,9 @@ class HyperDataset:
             new_recordings_df.drop(columns=drop_rec_cols, inplace=True)
 
         # Preserve original column order where possible.
-        seg_order = [col for col in segments.df.columns if col in new_segments_df.columns]
+        seg_order = [
+            col for col in segments.df.columns if col in new_segments_df.columns
+        ]
         for col in new_segments_df.columns:
             if col not in seg_order:
                 seg_order.append(col)
@@ -3319,7 +3502,7 @@ class HyperDataset:
         seed: int = 11235813,
         rng: Optional[np.random.Generator] = None,
         inplace: bool = True,
-    ):
+    ) -> "HyperDataset":
         """Sample random subsegments for each segment and optionally apply to the dataset.
 
         Args:
@@ -3352,14 +3535,9 @@ class HyperDataset:
             new_dataset = self.clone()
 
         new_dataset._segments = segments
-        for k in new_dataset.vads_keys():
-            new_dataset.remove_vads(k)
-
-        for k in new_dataset.features_keys():
-            new_dataset.remove_features(k)
-
-        for k in new_dataset.diarizations_keys():
-            new_dataset.remove_diarizations(k)
+        new_dataset.remove_vads()
+        new_dataset.remove_features()
+        new_dataset.remove_diarizations()
 
         if seg_suffix is not None or subsegments_per_segment > 1:
             new_dataset.remove_enrollments()

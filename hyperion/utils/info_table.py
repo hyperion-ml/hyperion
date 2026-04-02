@@ -9,7 +9,18 @@ from collections import OrderedDict
 from copy import deepcopy
 from io import StringIO
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 import numpy as np
 import pandas as pd
@@ -20,6 +31,10 @@ from .list_utils import split_list, split_list_group_by_key
 from .misc import PathLike
 
 T = TypeVar("T", bound="InfoTable")
+DropLabels = Union[str, int, List[Any], np.ndarray, pd.Index, pd.Series]
+RandomStateType = Optional[
+    Union[int, np.random.RandomState, np.random.Generator, np.random.BitGenerator]
+]
 
 _NULL_SCAN_CHUNK = 1024 * 1024  # 1MB
 
@@ -83,7 +98,7 @@ class _InfoTableIndexer:
     DataFrame result is returned as an InfoTable (or subclass) instance.
     """
 
-    def __init__(self, parent: T, indexer: Any):
+    def __init__(self, parent: T, indexer: Any) -> None:
         """
         Args:
             parent (InfoTable): The InfoTable instance that owns this indexer.
@@ -128,7 +143,7 @@ class _InfoTableAtIndexer:
     and do not require wrapping.
     """
 
-    def __init__(self, parent: T, indexer: Any):
+    def __init__(self, parent: T, indexer: Any) -> None:
         """
         Args:
             parent (InfoTable): The InfoTable instance that owns this indexer.
@@ -174,7 +189,7 @@ class InfoTable:
         df (pd.DataFrame): The internal DataFrame storing the metadata.
     """
 
-    def __init__(self, df: Union[pd.DataFrame, T]):
+    def __init__(self, df: Union[pd.DataFrame, T]) -> None:
         """
         Initialize an InfoTable from a DataFrame or another InfoTable.
 
@@ -187,7 +202,8 @@ class InfoTable:
         assert "id" in df, f"info_table={df}"
         self.df = df
         self.fix_dtypes()
-        self.df.set_index("id", drop=False, inplace=True)
+        if self.df.index.name != "id":
+            self.df.set_index("id", drop=False, inplace=True)
 
     @staticmethod
     def is_valid_df(df: pd.DataFrame) -> bool:
@@ -237,32 +253,20 @@ class InfoTable:
         """
         return deepcopy(self)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         return iter(self.df)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.df)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.df)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.df)
 
-    # @property
-    # def __len__(self):
-    #     return self.df.__len__
-
-    # @property
-    # def __str__(self):
-    #     return self.df.__str__
-
-    # @property
-    # def __repr__(self):
-    #     return self.df.__repr__
-
     @property
-    def columns(self):
+    def columns(self) -> pd.Index:
         """
         Get the DataFrame columns.
 
@@ -272,7 +276,7 @@ class InfoTable:
         return self.df.columns
 
     @property
-    def loc(self):
+    def loc(self) -> "_InfoTableIndexer":
         """
         Access a group of rows and columns by label(s).
 
@@ -282,7 +286,7 @@ class InfoTable:
         return _InfoTableIndexer(self, self.df.loc)
 
     @property
-    def iloc(self):
+    def iloc(self) -> "_InfoTableIndexer":
         """
         Access a group of rows and columns by integer position(s).
 
@@ -292,7 +296,7 @@ class InfoTable:
         return _InfoTableIndexer(self, self.df.iloc)
 
     @property
-    def at(self):
+    def at(self) -> "_InfoTableAtIndexer":
         """
         Access a single value for a row/column label pair.
 
@@ -302,7 +306,7 @@ class InfoTable:
         return _InfoTableAtIndexer(self, self.df.at)
 
     @property
-    def iat(self):
+    def iat(self) -> "_InfoTableAtIndexer":
         """
         Access a single value for a row/column integer position pair.
 
@@ -348,34 +352,6 @@ class InfoTable:
         """
         return key in self.df
 
-    # @property
-    # def iat(self):
-    #     return self.df.iat
-
-    # @property
-    # def at(self):
-    #     return self.df.at
-
-    # @property
-    # def iloc(self):
-    #     return self.df.iloc
-
-    # @property
-    # def loc(self):
-    #     return self.df.loc
-
-    # @property
-    # def __getitem__(self):
-    #     return self.df.__getitem__
-
-    # @property
-    # def __setitem__(self):
-    #     return self.df.__setitem__
-
-    # @property
-    # def __contains__(self):
-    #     return self.df.__contains__
-
     @property
     def index(self) -> pd.Index:
         """
@@ -406,7 +382,7 @@ class InfoTable:
         """
         return self.df.iterrows
 
-    def dropna(self, *args, **kwargs) -> T:
+    def dropna(self, *args: Any, **kwargs: Any) -> Optional[T]:
         """
         Return a new InfoTable with missing values dropped.
 
@@ -421,7 +397,7 @@ class InfoTable:
             return None
         return self.__class__(result)
 
-    def query(self, expr: str, **kwargs) -> T:
+    def query(self, expr: str, **kwargs: Any) -> T:
         """
         Filters rows using a boolean expression string.
 
@@ -436,7 +412,11 @@ class InfoTable:
         return self.__class__(result)
 
     def xs(
-        self, key, axis: int = 0, level: Union[int, str] = None, drop_level: bool = True
+        self,
+        key: Any,
+        axis: int = 0,
+        level: Union[int, str] = None,
+        drop_level: bool = True,
     ) -> Union[T, pd.Series]:
         """
         Returns a cross-section (row or column) from the DataFrame.
@@ -479,7 +459,7 @@ class InfoTable:
         """
         return self.__class__(self.df.tail(n))
 
-    def sample(self: T, n: int = 1, random_state=None) -> T:
+    def sample(self: T, n: int = 1, random_state: RandomStateType = None) -> T:
         """
         Return a random sample of rows.
 
@@ -494,16 +474,10 @@ class InfoTable:
 
     def drop(
         self: T,
-        labels: Optional[
-            Union[str, int, List[Any], np.ndarray, pd.Index, pd.Series]
-        ] = None,
+        labels: Optional[DropLabels] = None,
         axis: Union[int, str] = 0,
-        index: Optional[
-            Union[str, int, List[Any], np.ndarray, pd.Index, pd.Series]
-        ] = None,
-        columns: Optional[
-            Union[str, int, List[Any], np.ndarray, pd.Index, pd.Series]
-        ] = None,
+        index: Optional[DropLabels] = None,
+        columns: Optional[DropLabels] = None,
         level: Optional[Union[int, str]] = None,
         inplace: bool = False,
         errors: str = "raise",
@@ -810,6 +784,9 @@ class InfoTable:
         Raises:
             AssertionError: If resulting DataFrame has duplicate IDs.
         """
+        if len(tables) == 0:
+            raise ValueError("tables must contain at least one InfoTable")
+
         df_list = [table.df for table in tables]
         df = pd.concat(df_list)
         if not df["id"].is_unique:
@@ -867,8 +844,8 @@ class InfoTable:
             if isinstance(predicate, str):
                 if not keep:
                     predicate = f"not ({predicate})"
-                    df = df.query(predicate)
 
+                df = df.query(predicate)
                 predicate = None
             else:
                 mask = predicate(df)
@@ -895,10 +872,17 @@ class InfoTable:
                 df = df.loc[mask, columns]
         elif items is not None:
             if by != "id":
-                missing = [False if v in df[by] else True for v in items]
+                by_values = df[by].values
+                by_values_set = set(by_values)
+                items_set = set(items)
+
+                missing = [False if v in by_values_set else True for v in items]
                 if any(missing) and raise_if_missing:
-                    raise Exception(f"{items[missing]} not found in table")
-                items = [True if v in items else False for v in df[by]]
+                    missing_items = [
+                        item for item, is_missing in zip(items, missing) if is_missing
+                    ]
+                    raise Exception(f"{missing_items} not found in table")
+                items = [True if v in items_set else False for v in by_values]
             elif not raise_if_missing:
                 items = [item for item in items if item in df.index]
 
@@ -1118,18 +1102,20 @@ class InfoTable:
             fig.savefig(output_path)
             plt.close(fig)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         """Equal operator"""
+        if not isinstance(other, InfoTable):
+            return False
         if self.df.shape[0] == 0 and other.df.shape[0] == 0:
             return True
         eq = self.df.equals(other.df)
         return eq
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         """Non-equal operator"""
         return not self.__eq__(other)
 
-    def __cmp__(self, other):
+    def __cmp__(self, other: Any) -> int:
         """Comparison operator"""
         if self.__eq__(other):
             return 0
@@ -1222,7 +1208,7 @@ class InfoTable:
         """
         return self.df.columns.get_loc(keys)
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         """
         Provide attribute-style access to DataFrame columns and attributes.
 
@@ -1303,14 +1289,14 @@ class InfoTable:
             return f"{value:,.2f} {unit}"
 
         # Debug print of input sizes to help diagnose memory blow-ups.
-        print(
-            "[add_columns] left_df="
-            f"{_format_bytes(_df_mem_bytes(self.df))} "
-            f"(rows={len(self.df)}, cols={len(self.df.columns)}), "
-            "right_df="
-            f"{_format_bytes(_df_mem_bytes(right_table))} "
-            f"(rows={len(right_table)}, cols={len(right_table.columns)})"
-        )
+        # print(
+        #     "[add_columns] left_df="
+        #     f"{_format_bytes(_df_mem_bytes(self.df))} "
+        #     f"(rows={len(self.df)}, cols={len(self.df.columns)}), "
+        #     "right_df="
+        #     f"{_format_bytes(_df_mem_bytes(right_table))} "
+        #     f"(rows={len(right_table)}, cols={len(right_table.columns)})"
+        # )
 
         # Optionally reduce the right table to the requested columns to save work.
         if column_names is not None:
@@ -2185,7 +2171,11 @@ class InfoTable:
         return cls(df)
 
     def replace(
-        self: T, to_replace=None, value=None, inplace: bool = False, **kwargs
+        self: T,
+        to_replace: Any = None,
+        value: Any = None,
+        inplace: bool = False,
+        **kwargs: Any,
     ) -> Optional[T]:
         """
         Replace values in the DataFrame.

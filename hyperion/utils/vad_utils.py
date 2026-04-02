@@ -11,35 +11,59 @@ from ..hyp_defs import float_cpu
 
 
 def _assert_sorted(t_start: np.ndarray) -> None:
+    """Assert that input timestamps are sorted in non-decreasing order."""
+    t_start = np.asarray(t_start)
+    if t_start.ndim != 1:
+        raise ValueError(f"timestamps must be 1-D, got shape={t_start.shape}")
+    if t_start.size <= 1:
+        return
     delta = np.diff(t_start)
-    assert np.all(delta >= 0), f"time-stamps must be sorted {t_start=} {delta=}"
+    if np.any(delta < 0):
+        raise ValueError(f"time-stamps must be sorted {t_start=} {delta=}")
 
 
 def _assert_pos_dur(t_start: np.ndarray, t_end: np.ndarray) -> None:
+    """Assert that all segments have non-negative duration."""
+    t_start = np.asarray(t_start)
+    t_end = np.asarray(t_end)
+    if t_start.ndim != 1 or t_end.ndim != 1:
+        raise ValueError(
+            f"timestamps must be 1-D, got {t_start.shape=} {t_end.shape=}"
+        )
+    if t_start.shape[0] != t_end.shape[0]:
+        raise ValueError(
+            f"t_start and t_end must have same length, got {len(t_start)} and {len(t_end)}"
+        )
     delta = t_end - t_start
-    assert np.all(
-        delta >= 0
-    ), f"segments must have positive duration {t_start=} {t_end=} {delta=}"
+    if np.any(delta < 0):
+        raise ValueError(
+            f"segments must have non-negative duration {t_start=} {t_end=} {delta=}"
+        )
 
 
 def merge_vad_timestamps(
     t_start: np.ndarray, t_end: np.ndarray, tol: float = 0.001
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Merges vad timestamps that are contiguous
+    """Merge contiguous or overlapping VAD segments.
 
     Args:
-      t_start, t_end: original time-stamps in start-time, end-time format
-      tol: tolerance, segments separted less than tol will be merged
+      t_start: Segment start timestamps in seconds.
+      t_end: Segment end timestamps in seconds.
+      tol: Merge tolerance in seconds. Segments separated by less than ``tol``
+        are merged.
+
     Returns:
-      Merged timestamps
+      Tuple ``(t_start_out, t_end_out)`` with merged timestamps.
     """
-    # if empty return the same
-    if len(t_start) == 0:
-        return t_start, t_end
+    if tol < 0:
+        raise ValueError(f"tol must be >= 0, got {tol}")
 
     # assert segments are shorted by start time, and positive dur
     _assert_sorted(t_start)
     _assert_pos_dur(t_start, t_end)
+    # if empty return the same
+    if len(t_start) == 0:
+        return t_start, t_end
     t_start_out = np.zeros_like(t_start)
     t_end_out = np.zeros_like(t_end)
     t_start_cur = t_start[0]
@@ -78,17 +102,30 @@ def bin_vad_to_timestamps(
     snip_edges: bool = False,
     merge_tol: float = 0.001,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Converts binary VAD to a list of start end time stamps
+    """Convert a binary frame-level VAD vector to time segments.
 
     Args:
-       vad: Binary VAD
-       frame_length: frame-length used to compute the VAD in ms
-       frame_shift: frame-shift used to compute the VAD in ms
-       snip_edges: if True, computing VAD used snip-edges option
-       merge_tol: tolerance to merge contiguous segments
+       vad: Boolean/0-1 VAD vector at frame resolution.
+       frame_length: Frame length in milliseconds.
+       frame_shift: Frame shift in milliseconds.
+       snip_edges: If ``True``, timestamps are computed with Kaldi-style
+         ``snip_edges=True``.
+       merge_tol: Merge tolerance in seconds for adjacent output segments.
+
     Returns:
-       VAD time stamps refered to the begining of the file
+       Tuple ``(t_start, t_end)`` in seconds, relative to the file start.
     """
+    if not isinstance(vad, np.ndarray):
+        raise TypeError("vad must be np.ndarray")
+    if vad.ndim != 1:
+        raise ValueError(f"vad must be 1-D, got shape={vad.shape}")
+    if frame_length <= 0 or frame_shift <= 0:
+        raise ValueError(
+            f"frame_length and frame_shift must be > 0, got {frame_length=} {frame_shift=}"
+        )
+    if merge_tol < 0:
+        raise ValueError(f"merge_tol must be >= 0, got {merge_tol}")
+
     frame_length = frame_length / 1000
     frame_shift = frame_shift / 1000
     if snip_edges:
@@ -113,24 +150,39 @@ def vad_timestamps_to_bin(
     duration: Optional[float] = None,
     max_frames: Optional[int] = None,
 ) -> np.ndarray:
-    """Converts VAD time-stamps to a binary vector to apply on feature frames
+    """Convert VAD timestamp segments to a frame-level binary vector.
 
     Args:
-       in_timestamps: vad timestamps
-       frame_length: frame-length used to compute the VAD in ms.
-       frame_shift: frame-shift used to compute the VAD in ms.
-       snip_edges: if True, computing VAD used snip-edges option
-       duration: total duration of the signal, if None it takes it from the last timestamp
-       max_frames: expected number of frames, if None it computes automatically
+       t_start: Segment start timestamps in seconds.
+       t_end: Segment end timestamps in seconds.
+       frame_length: Frame length in milliseconds.
+       frame_shift: Frame shift in milliseconds.
+       snip_edges: If ``True``, use Kaldi-style ``snip_edges=True`` framing.
+       duration: Signal duration in seconds. If ``None``, it is inferred from
+         the last ``t_end`` value.
+       max_frames: Optional fixed output length. Output is padded or clipped to
+         this number of frames.
+
     Returns:
-       Binary VAD np.array
+       Boolean VAD vector indexed by frame.
     """
+    if frame_length <= 0 or frame_shift <= 0:
+        raise ValueError(
+            f"frame_length and frame_shift must be > 0, got {frame_length=} {frame_shift=}"
+        )
+    if max_frames is not None and max_frames < 0:
+        raise ValueError(f"max_frames must be >= 0, got {max_frames}")
+
     _assert_pos_dur(t_start, t_end)
+    last_t_end = float(t_end[-1]) if len(t_end) > 0 else 0.0
 
     if duration is None:
-        duration = t_end[-1]
+        duration = last_t_end
     else:
-        assert duration >= t_end[-1]
+        if duration < last_t_end:
+            raise ValueError(
+                f"duration must be >= last t_end ({last_t_end}), got {duration}"
+            )
 
     frame_length = frame_length / 1000
     frame_shift = frame_shift / 1000
@@ -145,6 +197,7 @@ def vad_timestamps_to_bin(
         num_frames = int(np.round(duration / frame_shift))
         pad = -(frame_length - frame_shift) / 2
 
+    num_frames = max(0, num_frames)
     if max_frames is not None and num_frames < max_frames:
         num_frames = max_frames
 
@@ -174,34 +227,49 @@ def vad_timestamps_to_bin_samples(
     duration: Optional[float] = None,
     max_samples: Optional[int] = None,
 ) -> np.ndarray:
-    """Converts VAD time-stamps to a binary vector to apply on samples
+    """Convert VAD timestamp segments to a sample-level binary vector.
 
     Args:
-       in_timestamps: vad timestamps
-       frame_length: frame-length used to compute the VAD in ms.
-       frame_shift: frame-shift used to compute the VAD in ms.
-       snip_edges: if True, computing VAD used snip-edges option
-       duration: total duration of the signal, if None it takes it from the last timestamp
-       max_frames: expected number of frames, if None it computes automatically
+       t_start: Segment start timestamps in seconds.
+       t_end: Segment end timestamps in seconds.
+       sample_frequency: Sampling rate in Hz.
+       duration: Signal duration in seconds. If ``None``, it is inferred from
+         the last ``t_end`` value.
+       max_samples: Optional fixed output length. Output is padded or clipped to
+         this number of samples.
+
     Returns:
-       Binary VAD np.array
+       Boolean VAD vector indexed by sample.
     """
+    if sample_frequency <= 0:
+        raise ValueError(f"sample_frequency must be > 0, got {sample_frequency}")
+    if max_samples is not None and max_samples < 0:
+        raise ValueError(f"max_samples must be >= 0, got {max_samples}")
+
     _assert_pos_dur(t_start, t_end)
+    last_t_end = float(t_end[-1]) if len(t_end) > 0 else 0.0
 
     if duration is None:
-        duration = t_end[-1]
+        duration = last_t_end
     else:
-        assert duration >= t_end[-1]
+        if duration < last_t_end:
+            raise ValueError(
+                f"duration must be >= last t_end ({last_t_end}), got {duration}"
+            )
 
     num_samples = int(duration * sample_frequency)
+    num_samples = max(0, num_samples)
     if max_samples is not None:
         num_samples = max(num_samples, max_samples)
 
     sample_start = (t_start * sample_frequency).astype(int)
     sample_end = (t_end * sample_frequency + 1).astype(int)
+    sample_start = np.clip(sample_start, 0, num_samples)
+    sample_end = np.clip(sample_end, 0, num_samples)
     vad = np.zeros((num_samples,), dtype=bool)
     for i, j in zip(sample_start, sample_end):
-        vad[i:j] = True
+        if j > i:
+            vad[i:j] = True
 
     if max_samples is not None and max_samples < num_samples:
         vad = vad[:max_samples]
@@ -215,41 +283,92 @@ def timestamps_wrt_vad_to_absolute_timestamps(
     vad_t_start: np.ndarray,
     vad_t_end: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Converts time stamps relative to a signal with silence removed
-       to absoulute time stamps in the original signal
+    """Convert timestamps from VAD-compressed time to absolute time.
 
-       VAD is provided in start-end timestamps format also.
+    This implementation works directly on timestamp intervals and avoids
+    constructing dense binary vectors, which is substantially more efficient
+    for long recordings.
 
     Args:
-       t_start: start time stamps relative to a signal with silence removed
-       t_end: end time stamps relative to a signal with silence removed
-       vad_timestamps: vad timestamps used to remove silence from signal
+       t_start: Segment start timestamps in compressed (silence-removed) time.
+       t_end: Segment end timestamps in compressed (silence-removed) time.
+       vad_t_start: VAD segment starts in absolute time.
+       vad_t_end: VAD segment ends in absolute time.
 
     Returns:
-       Absolute VAD time-stamps
+       Tuple ``(t_start_abs, t_end_abs)`` in absolute time.
     """
+    _assert_pos_dur(t_start, t_end)
+    _assert_sorted(vad_t_start)
+    _assert_pos_dur(vad_t_start, vad_t_end)
 
-    bin_in = vad_timestamps_to_bin(
-        t_start, t_end, frame_length=0.001, frame_shift=0.001
-    )
-    bin_vad = vad_timestamps_to_bin(
-        vad_t_start, vad_t_end, frame_length=0.001, frame_shift=0.001
-    )
+    dtype = float_cpu()
+    if len(t_start) == 0 or len(vad_t_start) == 0:
+        empty = np.empty((0,), dtype=dtype)
+        return empty, empty
 
-    bin_out = np.zeros_like(bin_vad)
-    j = 0
-    max_j = len(bin_in)
-    for i in range(len(bin_out)):
-        if bin_vad[i]:
-            bin_out[i] = bin_in[j]
-            j += 1
-            if j == max_j:
+    # Build cumulative speech timeline produced by concatenating VAD segments.
+    vad_t_start = np.asarray(vad_t_start, dtype=dtype)
+    vad_t_end = np.asarray(vad_t_end, dtype=dtype)
+    # Merge overlaps/contiguity to avoid double-counting compressed speech time.
+    vad_t_start, vad_t_end = merge_vad_timestamps(vad_t_start, vad_t_end, tol=0.0)
+    vad_dur = vad_t_end - vad_t_start
+    cum_speech = np.concatenate(
+        (np.asarray([0], dtype=dtype), np.cumsum(vad_dur, dtype=dtype))
+    )
+    total_speech = cum_speech[-1]
+    if total_speech <= 0:
+        empty = np.empty((0,), dtype=dtype)
+        return empty, empty
+
+    # Match legacy behavior: operate on the union of input compressed segments.
+    order = np.argsort(t_start, kind="mergesort")
+    t_start = np.asarray(t_start, dtype=dtype)[order]
+    t_end = np.asarray(t_end, dtype=dtype)[order]
+    t_start, t_end = merge_vad_timestamps(t_start, t_end, tol=0.0)
+
+    # Clamp to valid compressed timeline [0, total_speech].
+    t_start = np.clip(t_start, 0, total_speech)
+    t_end = np.clip(t_end, 0, total_speech)
+    keep = t_end > t_start
+    if not np.any(keep):
+        empty = np.empty((0,), dtype=dtype)
+        return empty, empty
+    t_start = t_start[keep]
+    t_end = t_end[keep]
+
+    out_start = []
+    out_end = []
+    num_vad_segs = len(vad_dur)
+
+    for s, e in zip(t_start, t_end):
+        cur = s
+        while cur < e:
+            # Segment index on compressed timeline.
+            k = int(np.searchsorted(cum_speech, cur, side="right") - 1)
+            if k >= num_vad_segs:
                 break
 
-    out_timestamps = bin_vad_to_timestamps(
-        bin_out, frame_length=0.001, frame_shift=0.001, merge_tol=0.001
-    )
-    return out_timestamps
+            chunk_end_in_compressed = min(e, cum_speech[k + 1])
+            if chunk_end_in_compressed <= cur:
+                # Numerical boundary guard.
+                cur = cum_speech[k + 1]
+                continue
+
+            abs_start = vad_t_start[k] + (cur - cum_speech[k])
+            abs_end = abs_start + (chunk_end_in_compressed - cur)
+            out_start.append(abs_start)
+            out_end.append(abs_end)
+            cur = chunk_end_in_compressed
+
+    if len(out_start) == 0:
+        empty = np.empty((0,), dtype=dtype)
+        return empty, empty
+
+    out_start = np.asarray(out_start, dtype=dtype)
+    out_end = np.asarray(out_end, dtype=dtype)
+    out_start, out_end = merge_vad_timestamps(out_start, out_end, tol=0.0)
+    return out_start, out_end
 
 
 def timestamps_wrt_bin_vad_to_absolute_timestamps(
@@ -260,20 +379,20 @@ def timestamps_wrt_bin_vad_to_absolute_timestamps(
     frame_shift: float,
     snip_edges: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Converts time stamps relative to a signal with silence removed
-       to absoulute time stamps in the original signal
+    """Convert timestamps from VAD-compressed time to absolute time.
 
-       VAD is provided in binary format
+       VAD is provided in binary frame format.
+
     Args:
-       t_start: start time stamps relative to a signal with silence removed
-       t_end: end time stamps relative to a signal with silence removed
-       vad: Binary VAD
-       frame_length: frame-length used to compute the VAD
-       frame_shift: frame-shift used to compute the VAD
-       snip_edges: if True, computing VAD used snip-edges option
+       t_start: Segment start timestamps in compressed (silence-removed) time.
+       t_end: Segment end timestamps in compressed (silence-removed) time.
+       vad: Binary VAD at frame resolution.
+       frame_length: Frame length in milliseconds.
+       frame_shift: Frame shift in milliseconds.
+       snip_edges: If ``True``, VAD framing used ``snip_edges=True``.
 
     Returns:
-       Absolute VAD time-stamps
+       Tuple ``(t_start_abs, t_end_abs)`` in absolute time.
     """
     vad_t_start, vad_t_end = bin_vad_to_timestamps(
         vad, frame_length, frame_shift, snip_edges
@@ -289,30 +408,41 @@ def intersect_segment_timestamps_with_vad(
     t_vad_start: np.ndarray,
     t_vad_end: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Intersects a list of segment timestamps with a VAD time-stamps
-        It returns only the segments that contain speech modifying
-        the start and end times to remove silence from the segments.
+    """Intersect input segments with VAD segments.
+
+    The function keeps only voiced portions of each input segment.
 
     Args:
-       t_start, t_end: time stamps of a list of segments refered to time 0.
-       t_vad_start, t_vad_end: vad timestamps
+       t_start: Input segment starts in seconds.
+       t_end: Input segment ends in seconds.
+       t_vad_start: VAD segment starts in seconds.
+       t_vad_end: VAD segment ends in seconds.
 
     Returns:
-       Boolean array indicating which input segments contain speech
-       Array of output segments with silence removed
-       Array of indices, one index for each output segment indicating to which
-        input speech segment correspond to. The index correspond to input segments
-        after removing input segments that only contain silence.
+       ``speech_idx``: Boolean vector indicating which input segments contain
+       speech.
+       ``out_timestamps``: ``(N, 2)`` array with voiced output segments.
+       ``out_timestamps2speech_segs``: For each output segment, index of the
+       corresponding speech-containing input segment after dropping silent ones.
     """
-    # if empty return the same
-    if t_start.shape[0] == 0:
-        return t_start, t_end
+    if not isinstance(t_start, np.ndarray) or not isinstance(t_end, np.ndarray):
+        raise TypeError("t_start and t_end must be np.ndarray")
+    if not isinstance(t_vad_start, np.ndarray) or not isinstance(t_vad_end, np.ndarray):
+        raise TypeError("t_vad_start and t_vad_end must be np.ndarray")
 
     # assert segments are shorted by start time, and positive dur
     _assert_sorted(t_start)
     _assert_pos_dur(t_start, t_end)
     _assert_sorted(t_vad_start)
     _assert_pos_dur(t_vad_start, t_vad_end)
+
+    # if empty return the same
+    if t_start.shape[0] == 0:
+        return (
+            np.empty((0,), dtype=bool),
+            np.empty((0, 2), dtype=float_cpu()),
+            np.empty((0,), dtype=int),
+        )
 
     num_vad_segs = len(t_vad_start)
     speech_idx = np.zeros((t_start.shape[0],), dtype=bool)
@@ -366,7 +496,10 @@ def intersect_segment_timestamps_with_vad(
         if is_speech:
             count_speech += 1
 
-    out_timestamps = np.asarray(out_timestamps)
+    if len(out_timestamps) > 0:
+        out_timestamps = np.asarray(out_timestamps, dtype=float_cpu())
+    else:
+        out_timestamps = np.empty((0, 2), dtype=float_cpu())
     out_timestamps2speech_segs = np.asarray(out_timestamps2speech_segs, dtype=int)
 
     return speech_idx, out_timestamps, out_timestamps2speech_segs

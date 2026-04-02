@@ -3,16 +3,18 @@ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import copy
 import logging
-import os.path as path
+from typing import Union
 
 import numpy as np
 import pandas as pd
 
 from ..hyp_defs import float_cpu
+from .misc import PathLike
 from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
+
+TrialIndex = Union[TrialKey, TrialNdx]
 
 
 class TrialStats:
@@ -26,15 +28,15 @@ class TrialStats:
 
     """
 
-    def __init__(self, df_stats):
+    def __init__(self, df_stats: pd.DataFrame) -> None:
         self.df_stats = df_stats
         assert "modelid" in df_stats.columns
         assert "segmentid" in df_stats.columns
         self.df_stats.set_index(["modelid", "segmentid"], inplace=True)
-        self._stats_mats = dict()
+        self._stats_mats: dict[tuple[str, int], np.ndarray] = {}
 
     @classmethod
-    def load(cls, file_path):
+    def load(cls, file_path: PathLike) -> "TrialStats":
         """Loads stats file
 
         Args:
@@ -46,7 +48,7 @@ class TrialStats:
         df = pd.read_csv(file_path)
         return cls(df)
 
-    def save_h5(self, file_path):
+    def save(self, file_path: PathLike) -> None:
         """Saves object to file.
 
         Args:
@@ -54,7 +56,12 @@ class TrialStats:
         """
         self.df_stats.to_csv(file_path)
 
-    def get_stats_mat(self, stat_name, ndx, raise_missing=True):
+    def get_stats_mat(
+        self,
+        stat_name: str,
+        ndx: TrialIndex,
+        raise_missing: bool = True,
+    ) -> np.ndarray:
         """Returns a matrix of trial statistics sorted to match a give Ndx or Key object
 
         Args:
@@ -64,8 +71,12 @@ class TrialStats:
         Returns:
           Stat matrix (n_models x n_tests)
         """
-        if stat_name in self._stats_mats:
-            return self._stats_mats[stat_name]
+        if stat_name not in self.df_stats.columns:
+            raise KeyError(f"stat '{stat_name}' not found in trial stats table")
+
+        cache_key = (stat_name, id(ndx))
+        if cache_key in self._stats_mats:
+            return self._stats_mats[cache_key]
 
         if isinstance(ndx, TrialKey):
             trial_mask = np.logical_or(ndx.tar, ndx.non)
@@ -75,25 +86,19 @@ class TrialStats:
         for i in range(stats_mat.shape[0]):
             for j in range(stats_mat.shape[1]):
                 if trial_mask[i, j]:
+                    model_id = ndx.model_set[i]
+                    seg_id = ndx.seg_set[j]
                     try:
-                        stats_mat[i, j] = self.df_stats.loc[
-                            ndx.model_set[i], ndx.seg_set[j]
-                        ][stat_name]
-                    except:
-                        err_str = "%s not found for %s-%s" % (
-                            stat_name,
-                            ndx.model_set[i],
-                            ndx.seg_set[j],
-                        )
+                        stats_mat[i, j] = self.df_stats.at[(model_id, seg_id), stat_name]
+                    except KeyError:
+                        err_str = f"{stat_name} not found for {model_id}-{seg_id}"
                         if raise_missing:
-                            raise Exception(err_str)
-                        else:
-                            logging.warning(err_str)
+                            raise KeyError(err_str)
+                        logging.warning(err_str)
 
-        self._stats_mats[stat_name] = stats_mat
+        self._stats_mats[cache_key] = stats_mat
         return stats_mat
 
-    def reset_stats_mats(self):
+    def reset_stats_mats(self) -> None:
 
-        for k in list(self._stats_mats.keys()):
-            del self._stats_mats[k]
+        self._stats_mats.clear()

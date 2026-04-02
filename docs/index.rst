@@ -29,6 +29,9 @@ including:
    metrics
    io
    utils
+   info_tables
+   hyper_dataset
+   trials
    data_prep
    text_norm
    cli

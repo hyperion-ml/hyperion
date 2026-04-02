@@ -2,6 +2,7 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import typing
 from pathlib import Path
 
 try:
@@ -152,7 +153,7 @@ def add_sos(ragged: k2.RaggedTensor, sos_id: int) -> k2.RaggedTensor:
     return concat(ragged, sos_id, direction="left")
 
 
-def read_text(text_file: str):
+def read_text(text_file: str) -> typing.Any:
     # assert check_argument_types()
     text_file = Path(text_file)
 

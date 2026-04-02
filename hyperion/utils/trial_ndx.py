@@ -2,9 +2,9 @@
 Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 import copy
 from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
 import h5py
 import numpy as np
@@ -12,6 +12,9 @@ import pandas as pd
 
 # from .list_utils import *
 from .list_utils import intersect, ismember, list2ndarray, sort, split_list
+from .misc import PathLike
+
+StrArrayLike = Union[np.ndarray, List[str]]
 
 
 class TrialNdx:
@@ -21,9 +24,28 @@ class TrialNdx:
       model_set: List of model names.
       seg_set: List of test segment names.
       trial_mask: Boolean matrix with the trials to execute to True (num_models x num_segments).
+
+    Examples:
+      >>> import numpy as np
+      >>> from hyperion.utils.trial_ndx import TrialNdx
+      >>> ndx = TrialNdx(
+      ...     model_set=["m1", "m2"],
+      ...     seg_set=["s1", "s2", "s3"],
+      ...     trial_mask=np.array([[1, 0, 1], [0, 1, 1]], dtype=bool),
+      ... )
+      >>> ndx.num_models, ndx.num_tests
+      (2, 3)
+      >>> ndx_part = ndx.split(1, 2, 1, 1)
+      >>> ndx_part.trial_mask.shape
+      (1, 3)
     """
 
-    def __init__(self, model_set=None, seg_set=None, trial_mask=None):
+    def __init__(
+        self,
+        model_set: Optional[StrArrayLike] = None,
+        seg_set: Optional[StrArrayLike] = None,
+        trial_mask: Optional[np.ndarray] = None,
+    ) -> None:
         self.model_set = model_set
         self.seg_set = seg_set
         self.trial_mask = trial_mask
@@ -31,24 +53,24 @@ class TrialNdx:
             self.validate()
 
     @property
-    def num_models(self):
+    def num_models(self) -> int:
         return len(self.model_set)
 
     @property
-    def num_tests(self):
+    def num_tests(self) -> int:
         return len(self.seg_set)
 
-    def copy(self):
+    def copy(self) -> "TrialNdx":
         """Makes a copy of the object"""
         return copy.deepcopy(self)
 
-    def sort(self):
+    def sort(self) -> None:
         """Sorts the object by model and test segment names."""
         self.model_set, m_idx = sort(self.model_set, return_index=True)
         self.seg_set, s_idx = sort(self.seg_set, return_index=True)
         self.trial_mask = self.trial_mask[np.ix_(m_idx, s_idx)]
 
-    def save(self, file_path, sep=None):
+    def save(self, file_path: PathLike, sep: Optional[str] = None) -> None:
         """Saves object to txt/h5 file.
 
         Args:
@@ -63,7 +85,7 @@ class TrialNdx:
         else:
             self.save_table(file_path, sep=sep)
 
-    def save_h5(self, file_path):
+    def save_h5(self, file_path: PathLike) -> None:
         """Saves object to h5 file.
 
         Args:
@@ -76,7 +98,7 @@ class TrialNdx:
             f.create_dataset("ID/column_ids", data=seg_set)
             f.create_dataset("trial_mask", data=self.trial_mask.astype("uint8"))
 
-    def save_txt(self, file_path):
+    def save_txt(self, file_path: PathLike) -> None:
         """Saves object to txt file.
 
         Args:
@@ -87,7 +109,7 @@ class TrialNdx:
             for item in zip(idx[0], idx[1]):
                 f.write("%s %s\n" % (self.model_set[item[1]], self.seg_set[item[0]]))
 
-    def save_table(self, file_path, sep=None):
+    def save_table(self, file_path: PathLike, sep: Optional[str] = None) -> None:
         """Saves object to pandas tabnle file.
 
         Args:
@@ -99,13 +121,13 @@ class TrialNdx:
             sep = "\t" if ".tsv" in ext else ","
 
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(f"modelid{sep}segmentid{sep}\n")
+            f.write(f"modelid{sep}segmentid\n")
             I, J = self.trial_mask.nonzero()
             for i, j in zip(I, J):
                 f.write(f"{self.model_set[i]}{sep}{self.seg_set[j]}\n")
 
     @classmethod
-    def load(cls, file_path, sep=None):
+    def load(cls, file_path: PathLike, sep: Optional[str] = None) -> "TrialNdx":
         """Loads object from txt/h5 file
 
         Args:
@@ -124,7 +146,7 @@ class TrialNdx:
             return cls.load_table(file_path, sep)
 
     @classmethod
-    def load_h5(cls, file_path):
+    def load_h5(cls, file_path: PathLike) -> "TrialNdx":
         """Loads object from h5 file
 
         Args:
@@ -140,7 +162,7 @@ class TrialNdx:
         return cls(model_set, seg_set, trial_mask)
 
     @classmethod
-    def load_txt(cls, file_path):
+    def load_txt(cls, file_path: PathLike) -> "TrialNdx":
         """Loads object from txt file
 
         Args:
@@ -149,10 +171,19 @@ class TrialNdx:
         Returns:
           TrialNdx object.
         """
+        rows = []
         with open(file_path, "r") as f:
-            fields = [line.split() for line in f]
-        models = [i[0] for i in fields]
-        segments = [i[1] for i in fields]
+            for line_num, line in enumerate(f, 1):
+                parts = line.split()
+                if len(parts) == 0:
+                    continue
+                if len(parts) < 2:
+                    raise ValueError(
+                        f"Malformed line {line_num} in ndx file: expected at least 2 columns"
+                    )
+                rows.append((parts[0], parts[1]))
+        models = [r[0] for r in rows]
+        segments = [r[1] for r in rows]
         model_set, _, model_idx = np.unique(
             models, return_index=True, return_inverse=True
         )
@@ -165,7 +196,7 @@ class TrialNdx:
         return cls(model_set, seg_set, trial_mask)
 
     @classmethod
-    def load_table(cls, file_path, sep=None):
+    def load_table(cls, file_path: PathLike, sep: Optional[str] = None) -> "TrialNdx":
         """Loads object from pandas table file
 
         Args:
@@ -195,15 +226,20 @@ class TrialNdx:
         return cls(model_set, seg_set, trial_mask)
 
     @classmethod
-    def merge(cls, ndx_list):
+    def merge(cls, ndx_list: List["TrialNdx"]) -> "TrialNdx":
         """Merges several index objects.
 
         Args:
-          key_list: List of TrialNdx objects.
+          ndx_list: List of TrialNdx objects.
 
         Returns:
           Merged TrialNdx object.
         """
+        if len(ndx_list) == 0:
+            raise ValueError("ndx_list must contain at least one TrialNdx")
+        if len(ndx_list) == 1:
+            return ndx_list[0].copy()
+
         num_ndx = len(ndx_list)
         model_set = ndx_list[0].model_set
         seg_set = ndx_list[0].seg_set
@@ -241,7 +277,12 @@ class TrialNdx:
         return cls(model_set, seg_set, trial_mask)
 
     @staticmethod
-    def parse_eval_set(ndx, enroll, test=None, eval_set="enroll-test"):
+    def parse_eval_set(
+        ndx: "TrialNdx",
+        enroll: object,
+        test: Optional[object] = None,
+        eval_set: str = "enroll-test",
+    ) -> Tuple["TrialNdx", object]:
         """Prepares the data structures required for evaluation.
 
         Args:
@@ -249,7 +290,7 @@ class TrialNdx:
           enroll: Utt2Info where key are file_ids and second column are model names
           test: Utt2Info of where key are test segments names.
                 Needed in the cases enroll-coh and coh-coh.
-          eval_test: Type of of evaluation
+          eval_set: Type of evaluation
             enroll-test: main evaluation of enrollment vs test segments.
             enroll-coh: enrollment vs cohort segments.
             coh-test: cohort vs test segments.
@@ -259,18 +300,31 @@ class TrialNdx:
           ndx: TrialNdx object
           enroll: SCPList
         """
+        valid_eval_sets = {"enroll-test", "enroll-coh", "coh-test", "coh-coh"}
+        if eval_set not in valid_eval_sets:
+            raise ValueError(f"Unsupported eval_set='{eval_set}'")
+
+        if eval_set in {"enroll-coh", "coh-coh"} and test is None:
+            raise ValueError(f"test must be provided for eval_set='{eval_set}'")
+
         if eval_set == "enroll-test":
             enroll = enroll.filter_info(ndx.model_set)
-        if eval_set == "enroll-coh":
+        elif eval_set == "enroll-coh":
             ndx = TrialNdx(ndx.model_set, test.file_path)
             enroll = enroll.filter_info(ndx.model_set)
-        if eval_set == "coh-test":
+        elif eval_set == "coh-test":
             ndx = TrialNdx(enroll.key, ndx.seg_set)
-        if eval_set == "coh-coh":
+        else:  # eval_set == "coh-coh"
             ndx = TrialNdx(enroll.key, test.file_path)
         return ndx, enroll
 
-    def filter(self, model_set, seg_set, keep=True, raise_missing=True):
+    def filter(
+        self,
+        model_set: StrArrayLike,
+        seg_set: StrArrayLike,
+        keep: bool = True,
+        raise_missing: bool = True,
+    ) -> "TrialNdx":
         """Removes elements from TrialNdx object.
 
         Args:
@@ -288,13 +342,17 @@ class TrialNdx:
 
         f, mod_idx = ismember(model_set, self.model_set)
         if raise_missing:
-            assert np.all(f)
+            if not np.all(f):
+                missing_models = np.asarray(model_set)[~f]
+                raise ValueError(f"models not found: {missing_models.tolist()}")
         else:
             mod_idx = mod_idx[f]
 
         f, seg_idx = ismember(seg_set, self.seg_set)
         if raise_missing:
-            assert np.all(f)
+            if not np.all(f):
+                missing_segs = np.asarray(seg_set)[~f]
+                raise ValueError(f"segments not found: {missing_segs.tolist()}")
         else:
             seg_idx = seg_idx[f]
 
@@ -303,7 +361,12 @@ class TrialNdx:
         trial_mask = self.trial_mask[np.ix_(mod_idx, seg_idx)]
         return TrialNdx(model_set, seg_set, trial_mask)
 
-    def filter_by_model(self, model_set, keep=True, raise_missing=True):
+    def filter_by_model(
+        self,
+        model_set: StrArrayLike,
+        keep: bool = True,
+        raise_missing: bool = True,
+    ) -> "TrialNdx":
         """Removes elements from TrialNdx object.
 
         Args:
@@ -319,7 +382,9 @@ class TrialNdx:
 
         f, mod_idx = ismember(model_set, self.model_set)
         if raise_missing:
-            assert np.all(f)
+            if not np.all(f):
+                missing_models = np.asarray(model_set)[~f]
+                raise ValueError(f"models not found: {missing_models.tolist()}")
         else:
             mod_idx = mod_idx[f]
 
@@ -327,7 +392,9 @@ class TrialNdx:
         trial_mask = self.trial_mask[mod_idx]
         return TrialNdx(model_set, self.seg_set, trial_mask)
 
-    def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
+    def split(
+        self, model_idx: int, num_model_parts: int, seg_idx: int, num_seg_parts: int
+    ) -> "TrialNdx":
         """Splits the TrialNdx into num_model_parts x num_seg_parts and returns part
            (model_idx, seg_idx).
 
@@ -345,21 +412,27 @@ class TrialNdx:
         trial_mask = self.trial_mask[np.ix_(model_idx1, seg_idx1)]
         return TrialNdx(model_set, seg_set, trial_mask)
 
-    def validate(self):
-        """Validates the attributes of the TrialKey object."""
+    def validate(self) -> None:
+        """Validates the attributes of the TrialNdx object."""
         self.model_set = list2ndarray(self.model_set)
         self.seg_set = list2ndarray(self.seg_set)
 
-        assert len(np.unique(self.model_set)) == len(self.model_set)
-        assert len(np.unique(self.seg_set)) == len(self.seg_set)
+        if len(np.unique(self.model_set)) != len(self.model_set):
+            raise ValueError("model_set must contain unique entries")
+        if len(np.unique(self.seg_set)) != len(self.seg_set):
+            raise ValueError("seg_set must contain unique entries")
         if self.trial_mask is None:
             self.trial_mask = np.ones(
                 (len(self.model_set), len(self.seg_set)), dtype="bool"
             )
         else:
-            assert self.trial_mask.shape == (len(self.model_set), len(self.seg_set))
+            expected_shape = (len(self.model_set), len(self.seg_set))
+            if self.trial_mask.shape != expected_shape:
+                raise ValueError(
+                    f"trial_mask shape {self.trial_mask.shape} does not match {expected_shape}"
+                )
 
-    def apply_segmentation_to_test(self, segment_list):
+    def apply_segmentation_to_test(self, segment_list: object) -> "TrialNdx":
         """Splits test segment into multiple sub-segments
         Useful to create ndx for spk diarization or tracking.
 
@@ -383,8 +456,10 @@ class TrialNdx:
         new_mask = np.concatenate(tuple(new_mask), axis=-1)
         return TrialNdx(self.model_set, new_segset, new_mask)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Equal operator"""
+        if not isinstance(other, TrialNdx):
+            return False
         eq = self.model_set.shape == other.model_set.shape
         eq = eq and np.all(self.model_set == other.model_set)
         eq = eq and (self.seg_set.shape == other.seg_set.shape)
@@ -392,17 +467,17 @@ class TrialNdx:
         eq = eq and np.all(self.trial_mask == other.trial_mask)
         return eq
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         """Non-equal operator"""
         return not self.__eq__(other)
 
-    def __cmp__(self, other):
+    def __cmp__(self, other: object) -> int:
         """Comparison operator"""
         if self.__eq__(other):
             return 0
         return 1
 
-    def test(ndx_file="core-core_det5_ndx.h5"):
+    def test(ndx_file: PathLike = "core-core_det5_ndx.h5") -> None:
 
         ndx1 = TrialNdx.load(ndx_file)
         ndx1.sort()

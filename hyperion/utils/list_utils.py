@@ -32,7 +32,7 @@ def ismember(a: np.ndarray, b: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 
       Also returns an array LOC containing the
       lowest absolute index in B for each element in A which is a member of
-      B and 0 if there is no such index.
+      B and `np.iinfo(np.int32).min` if there is no such index.
     """
     bad_idx = np.iinfo(np.int32).min
     d = {}
@@ -116,6 +116,11 @@ def split_list(
     Returns:
        A sublist of a.
     """
+    if num_parts <= 0:
+        raise ValueError(f"num_parts must be > 0, got {num_parts}")
+    if idx <= 0 or idx > num_parts:
+        raise ValueError(f"idx must satisfy 1 <= idx <= num_parts, got {idx}")
+
     if not (isinstance(a, np.ndarray)):
         a = np.asarray(a)
     n = float(len(a))
@@ -143,11 +148,21 @@ def split_list_group_by_key(
     Returns:
        A sublist of a.
     """
+    if num_parts <= 0:
+        raise ValueError(f"num_parts must be > 0, got {num_parts}")
+    if idx <= 0 or idx > num_parts:
+        raise ValueError(f"idx must satisfy 1 <= idx <= num_parts, got {idx}")
 
     if not (isinstance(a, np.ndarray)):
         a = np.asarray(a)
     if key is None:
         key = a
+    elif not isinstance(key, np.ndarray):
+        key = np.asarray(key)
+
+    if len(key) != len(a):
+        raise ValueError(f"len(key)={len(key)} must match len(a)={len(a)}")
+
     _, ids = np.unique(key, return_inverse=True)
     n = float(ids.max() + 1)
     idx_1 = int(np.floor((idx - 1) * n / num_parts))

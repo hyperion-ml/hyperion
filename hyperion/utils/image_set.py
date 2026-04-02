@@ -2,9 +2,9 @@
  Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 import logging
 from pathlib import Path
+from typing import TypeVar, Union
 
 import numpy as np
 import pandas as pd
@@ -13,9 +13,34 @@ from .info_table import InfoTable
 
 # import torchvision
 
+T = TypeVar("T", bound="ImageSet")
+
 
 class ImageSet(InfoTable):
-    def __init__(self, df):
+    """
+    InfoTable specialization for image manifests.
+
+    The table must contain ``id`` and ``storage_path`` columns.
+
+    Examples:
+        >>> import pandas as pd
+        >>> from hyperion.utils.image_set import ImageSet
+        >>> df = pd.DataFrame({"id": ["img1"], "storage_path": ["a/b/c.jpg"]})
+        >>> images = ImageSet(df)
+        >>> images.df.loc["img1", "storage_path"]
+        'a/b/c.jpg'
+        >>> images2 = images.filter(items=["img1"])
+        >>> list(images2.index)
+        ['img1']
+    """
+
+    def __init__(self, df: Union[pd.DataFrame, T]) -> None:
+        """
+        Initialize an image set.
+
+        Args:
+            df (pd.DataFrame or ImageSet): Input metadata table.
+        """
         super().__init__(df)
         assert "storage_path" in df
 

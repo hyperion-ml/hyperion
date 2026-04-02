@@ -67,7 +67,7 @@ def invert_pdmat(
         invA = fh(np.eye(A.shape[0]))
         r.append(invA)
 
-    return r
+    return tuple(r)
 
 
 def invert_trimat(
@@ -102,10 +102,10 @@ def invert_trimat(
     else:
         fh = lambda x: la.solve_triangular(A, x, lower=lower)
 
-    if return_logdet or return_inv:
-        r = [fh]
-    else:
-        r = fh
+    if not (return_logdet or return_inv):
+        return fh
+
+    r = [fh]
 
     if return_logdet:
         logdet = np.sum(np.log(np.diag(A)))
@@ -115,7 +115,7 @@ def invert_trimat(
         invA = fh(np.eye(A.shape[0]))
         r.append(invA)
 
-    return r
+    return tuple(r)
 
 
 def softmax(r: np.ndarray, axis: int = -1) -> np.ndarray:
@@ -144,10 +144,11 @@ def logsigmoid(x: np.ndarray) -> np.ndarray:
     Returns:
       y = \log(sigmoid(x))
     """
-    e = np.exp(-x)
-    f = x < -100
-    log_p = -np.log(1 + np.exp(-x))
-    log_p[f] = x[f]
+    x = np.asarray(x)
+    log_p = np.empty_like(x, dtype=float_cpu())
+    pos = x >= 0
+    log_p[pos] = -np.log1p(np.exp(-x[pos]))
+    log_p[~pos] = x[~pos] - np.log1p(np.exp(x[~pos]))
     return log_p
 
 
@@ -156,10 +157,11 @@ def neglogsigmoid(x: np.ndarray) -> np.ndarray:
     Returns:
       y = -\log(sigmoid(x))
     """
-    e = np.exp(-x)
-    f = x < -100
-    log_p = np.log(1 + np.exp(-x))
-    log_p[f] = -x[f]
+    x = np.asarray(x)
+    log_p = np.empty_like(x, dtype=float_cpu())
+    pos = x >= 0
+    log_p[pos] = np.log1p(np.exp(-x[pos]))
+    log_p[~pos] = -x[~pos] + np.log1p(np.exp(x[~pos]))
     return log_p
 
 
@@ -168,10 +170,12 @@ def sigmoid(x: np.ndarray) -> np.ndarray:
     Returns:
       y = sigmoid(x)
     """
-    e = np.exp(-x)
-    f = x < -100
-    p = 1 / (1 + np.exp(-x))
-    p[f] = 0
+    x = np.asarray(x)
+    p = np.empty_like(x, dtype=float_cpu())
+    pos = x >= 0
+    p[pos] = 1.0 / (1.0 + np.exp(-x[pos]))
+    ex = np.exp(x[~pos])
+    p[~pos] = ex / (1.0 + ex)
     return p
 
 
@@ -371,18 +375,51 @@ def int2onehot(class_ids: np.ndarray, num_classes: Optional[int] = None) -> np.n
     Returns:
       1-hot Numpy array.
     """
+    class_ids = np.asarray(class_ids)
+    if class_ids.ndim != 1:
+        raise ValueError(f"class_ids must be 1D, got shape {class_ids.shape}")
+    if not np.issubdtype(class_ids.dtype, np.integer):
+        raise ValueError(f"class_ids must be integer dtype, got {class_ids.dtype}")
+    if np.any(class_ids < 0):
+        raise ValueError("class_ids must be >= 0")
 
     if num_classes is None:
-        num_classes = np.max(class_ids) + 1
+        num_classes = int(np.max(class_ids) + 1) if class_ids.size > 0 else 0
+    if num_classes < 0:
+        raise ValueError(f"num_classes must be >= 0, got {num_classes}")
+    if class_ids.size > 0 and np.any(class_ids >= num_classes):
+        raise ValueError(
+            "class_ids contain values >= num_classes "
+            f"(max class id {int(np.max(class_ids))}, num_classes {num_classes})"
+        )
 
     p = np.zeros((len(class_ids), num_classes), dtype=float_cpu())
-    p[np.arange(len(class_ids)), class_ids] = 1
+    if class_ids.size > 0:
+        p[np.arange(len(class_ids)), class_ids] = 1
     return p
 
 
 def average_vectors(x: np.ndarray, ids: np.ndarray) -> np.ndarray:
-    assert x.shape[0] == len(ids)
-    num_ids = np.max(ids) + 1
+    ids = np.asarray(ids)
+    if ids.ndim != 1:
+        raise ValueError(f"ids must be 1D, got shape {ids.shape}")
+    if x.shape[0] != len(ids):
+        raise ValueError(f"x.shape[0]={x.shape[0]} must equal len(ids)={len(ids)}")
+    if not np.issubdtype(ids.dtype, np.integer):
+        raise ValueError(f"ids must be integer dtype, got {ids.dtype}")
+    if np.any(ids < 0):
+        raise ValueError("ids must be >= 0")
+    if ids.size == 0:
+        return np.zeros((0, x.shape[1]), dtype=x.dtype)
+
+    num_ids = int(np.max(ids) + 1)
+    counts = np.bincount(ids, minlength=num_ids)
+    if np.any(counts == 0):
+        raise ValueError(
+            "ids must contain all classes in [0, max(ids)] with no gaps "
+            "(found empty class ids)"
+        )
+
     x_avg = np.zeros((num_ids, x.shape[1]), dtype=x.dtype)
     for i in range(num_ids):
         mask = ids == i

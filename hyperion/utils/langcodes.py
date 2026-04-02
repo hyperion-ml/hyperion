@@ -31,7 +31,7 @@ def _standardize(identifier: str) -> Optional[str]:
         return None
 
 
-def _pycountry_lookup(identifier: str):
+def _pycountry_lookup(identifier: str) -> Optional[object]:
     """Run pycountry lookup with graceful failure handling."""
     # pycountry raises LookupError on misses; convert that into a `None`.
     try:
@@ -40,7 +40,7 @@ def _pycountry_lookup(identifier: str):
         return None
 
 
-def _pycountry_language_for_alpha3(code: str):
+def _pycountry_language_for_alpha3(code: str) -> Optional[object]:
     """Return a pycountry record for ISO 639-3 terminology or bibliographic code."""
     # Handle both ISO 639-3 terminology (alpha_3) and bibliographic codes.
     lower = code.lower()
@@ -49,7 +49,7 @@ def _pycountry_language_for_alpha3(code: str):
     )
 
 
-def _alpha3_from_record(record) -> Optional[str]:
+def _alpha3_from_record(record: Optional[object]) -> Optional[str]:
     """Extract an ISO 639-3 code string from a pycountry language record."""
     if record is None:
         return None
@@ -62,7 +62,7 @@ def _alpha3_from_record(record) -> Optional[str]:
 
 
 def _language_name(
-    record, alpha2: Optional[str], alpha3: Optional[str]
+    record: Optional[object], alpha2: Optional[str], alpha3: Optional[str]
 ) -> Optional[str]:
     """Return the best human-readable language name from available metadata."""
     for code in (alpha2, alpha3):

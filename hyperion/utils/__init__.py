@@ -22,6 +22,7 @@ from .scp_list import SCPList
 from .segment_list import SegmentList
 from .segment_set import SegmentSet
 from .sparse_trial_key import SparseTrialKey
+from .sparse_trial_ndx import SparseTrialNdx
 from .sparse_trial_scores import SparseTrialScores
 from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
