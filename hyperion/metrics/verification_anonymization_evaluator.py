@@ -431,6 +431,29 @@ class VerificationAnonymizationEvaluator:
 
         df["num_targets"] = ntar
         df["num_nontargets"] = nnon
+        tar_mean = np.mean(tar)
+        tar_std = np.std(tar)
+        sem = stats.sem(tar)  # standard error of the mean
+        tar_ci = stats.t.interval(0.95, len(tar) - 1, loc=0, scale=sem)
+        df["tar_mean"] = tar_mean
+        df["tar_mean_ci_95"] = tar_ci[1]
+        df["tar_std"] = tar_std
+
+        non_mean = np.mean(non)
+        non_std = np.std(non)
+        sem = stats.sem(non)  # standard error of the mean
+        non_ci = stats.t.interval(0.95, len(non) - 1, loc=0, scale=sem)
+        df["non_mean"] = non_mean
+        df["non_mean_ci_95"] = non_ci[1]
+        df["non_std"] = non_std
+
+        if self.calibrate_on_orig:
+            df["tar_mean_non_cal"] = (tar_mean - self.lr.b[0]) / self.lr.A[0, 0]
+            df["tar_mean_ci_95_non_cal"] = tar_ci[1] / self.lr.A[0, 0]
+            df["tar_std_non_cal"] = tar_std / self.lr.A[0, 0]
+            df["non_mean_non_cal"] = (non_mean - self.lr.b[0]) / self.lr.A[0, 0]
+            df["non_mean_ci_95_non_cal"] = non_ci[1] / self.lr.A[0, 0]
+            df["non_std_non_cal"] = non_std / self.lr.A[0, 0]
         return df
 
     def compute_privacy_dcf_eer(self):
@@ -528,15 +551,27 @@ class VerificationAnonymizationEvaluator:
 
         tar, non = self.scores_anon_anon.get_tar_non(self.key_cons_div)
         df_cons_div = self._compute_dcf_eer(
-            tar, non, self.key_name, self.score_name, "Cons/Div Intra+Inter"
+            tar,
+            non,
+            self.key_name,
+            self.score_name,
+            "Cons/Div T(anon-anon) N(anon-anon)-Intra+Inter",
         )
         tar, non = self.scores_anon_anon.get_tar_non(self.key_cons_div_intra)
         df_cons_div_intra = self._compute_dcf_eer(
-            tar, non, self.key_name, self.score_name, "Cons/Div Intra"
+            tar,
+            non,
+            self.key_name,
+            self.score_name,
+            "Cons/Div T(anon-anon) N(anon-anon)-Intra",
         )
         tar, non = self.scores_anon_anon.get_tar_non(self.key_cons_div_inter)
         df_cons_div_inter = self._compute_dcf_eer(
-            tar, non, self.key_name, self.score_name, "Cons/Div Inter"
+            tar,
+            non,
+            self.key_name,
+            self.score_name,
+            "Cons/Div T(anon-anon) N(anon-anon)-Inter",
         )
 
         dfs = [df_cons_div, df_cons_div_intra, df_cons_div_inter]
@@ -550,7 +585,7 @@ class VerificationAnonymizationEvaluator:
         """Compute DCF/EER for reference-vs-anonymized (voice cloning) trials.
 
         Returns:
-            Single-row DataFrame with voice-cloning metrics, or ``None`` if
+            DataFrame with one row per voice-cloning case, or ``None`` if
             reference key/scores are not provided.
         """
         if self.ref_key is None or self.scores_ref_anon is None:
@@ -565,21 +600,20 @@ class VerificationAnonymizationEvaluator:
             self.score_name,
             "Voice Cloning T(ref-anon) N(ref-anon)",
         )
-        tar_mean = np.mean(tar_ref_anon)
-        tar_std = np.std(tar_ref_anon)
-        sem = stats.sem(tar_ref_anon)  # standard error of the mean
-        ci = stats.t.interval(0.95, len(tar_ref_anon) - 1, loc=0, scale=sem)
-        df_tar_ra_non_ra["tar_mean"] = tar_mean
-        df_tar_ra_non_ra["tar_mean_ci_95"] = ci[1]
-        df_tar_ra_non_ra["tar_std"] = tar_std
-        if self.calibrate_on_orig:
-            df_tar_ra_non_ra["tar_mean_non_cal"] = (
-                tar_mean - self.lr.b[0]
-            ) / self.lr.A[0, 0]
-            df_tar_ra_non_ra["tar_mean_ci_95_non_cal"] = ci[1] / self.lr.A[0, 0]
-            df_tar_ra_non_ra["tar_std_non_cal"] = tar_std / self.lr.A[0, 0]
-
-        return df_tar_ra_non_ra
+        _, non_orig_orig = self.scores_orig_orig.get_tar_non(self.key)
+        df_tar_ra_non_oo = self._compute_dcf_eer(
+            tar_ref_anon,
+            non_orig_orig,
+            self.key_name,
+            self.score_name,
+            "Voice Cloning T(ref-anon) N(orig-orig)",
+        )
+        dfs = [df_tar_ra_non_ra, df_tar_ra_non_oo]
+        dfs = [df for df in dfs if df is not None]
+        if not dfs:
+            logging.warning("No voice cloning cases found, returning None")
+            return None
+        return pd.concat(dfs, ignore_index=True)
 
     def compute_dcf_eer(self):
         """Compute and merge all enabled anonymization evaluation tables.
@@ -698,7 +732,7 @@ class VerificationAnonymizationEvaluator:
             {
                 "scores": [self.score_name],
                 "key": [self.key_name],
-                "anon_case": ["Cons/Div Intra+Inter"],
+                "anon_case": ["Cons/Div T(anon-anon) N(anon-anon)-Intra+Inter"],
                 "gain_distinctness": [gain],
             }
         )
