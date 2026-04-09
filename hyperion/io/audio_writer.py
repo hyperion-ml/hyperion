@@ -56,16 +56,31 @@ subtype_to_scale = {
 }
 
 
-class AudioWriter(object):
-    """Abstract base class to write audio files.
+class AudioWriter:
+    """Write audio arrays to disk and optionally create an output manifest.
 
     Attributes:
-      output_path: output data file path.
-      script_path: optional output kaldi .scp or pandas .csv file.
-      audio_format:   audio file format
-      audio_subtype: subtype of audio in [PCM_16, PCM_32, FLOAT, DOUBLE, ...],
-               if None, it uses soundfile defaults (recommended)
-      wav_scale: scale of the input waveform
+      output_path: Directory where audio files are saved.
+      script_path: Optional output Kaldi ``.scp`` or table file (``.csv``/``.tsv``).
+      audio_format: Output audio container format.
+      audio_subtype: Audio encoding subtype (e.g., ``PCM_16``, ``FLOAT``).
+      wav_scale: Scale of the input waveform.
+      channels_first: If True, interprets 2-D inputs as ``(channels, num_samples)``.
+      always_2d: If True, always writes 2-channel output audio.
+
+    Example:
+      >>> import numpy as np
+      >>> with AudioWriter(
+      ...     "./audio_out",
+      ...     script_path="./audio_out/recordings.csv",
+      ...     audio_format="wav",
+      ...     audio_subtype="pcm_16",
+      ...     channels_first=True,
+      ... ) as w:
+      ...     x = np.random.randn(1, 16000).astype("float32")  # (channels, samples)
+      ...     files = w.write("utt1", x, 16000)
+      >>> files[0]
+      './audio_out/utt1.wav'
     """
 
     def __init__(
@@ -75,6 +90,8 @@ class AudioWriter(object):
         audio_format: str = "wav",
         audio_subtype: Optional[str] = None,
         wav_scale: float = 1.0,
+        channels_first: bool = True,
+        always_2d: bool = False,
     ):
         self.output_path = Path(output_path)
         self.script_path = Path(script_path) if script_path is not None else None
@@ -91,6 +108,8 @@ class AudioWriter(object):
         self._dtype = subtype_to_npdtype[self.subtype]
 
         self.wav_scale = wav_scale
+        self.channels_first = channels_first
+        self.always_2d = always_2d
         # we multiply the audio for this number before saving it.
         self._output_wav_scale = subtype_to_scale[self.subtype] / wav_scale
 
@@ -116,7 +135,7 @@ class AudioWriter(object):
         """Function required when entering contructions of type
 
         with AudioWriter('./path') as f:
-           f.write(key, data)
+           f.write(key, data, fs)
         """
         return self
 
@@ -124,7 +143,7 @@ class AudioWriter(object):
         """Function required when exiting from contructions of type
 
         with AudioWriter('./path') as f:
-           f.write(key, data)
+           f.write(key, data, fs)
         """
         self.close()
 
@@ -139,18 +158,42 @@ class AudioWriter(object):
         data: Union[np.array, List[np.array]],
         fs: Union[int, float, List[int], List[float], np.array],
     ):
-        """Writes waveform to audio file.
+        """Write one or more waveforms to audio files.
 
         Args:
-          key: List of recodings names.
-          data: List of waveforms
-          fs:
+          keys: Recording key or list of recording keys.
+          data: Single waveform array or list of waveform arrays.
+          fs: Sample rate scalar or list of sample rates aligned with ``keys``.
+
+        Returns:
+          List with the output file paths written for each key.
+
+        Raises:
+          ValueError: If key/data/fs lengths are inconsistent.
         """
         if isinstance(keys, str):
             keys = [keys]
-            data = [data]
+        else:
+            keys = list(keys)
 
-        fs_is_list = isinstance(fs, (list, np.ndarray))
+        if isinstance(data, np.ndarray):
+            if len(keys) != 1:
+                raise ValueError(
+                    "data is a single audio array but keys contains multiple items"
+                )
+            data = [data]
+        else:
+            data = list(data)
+
+        if isinstance(fs, (int, float, np.integer, np.floating)):
+            fs = [int(fs)] * len(keys)
+        else:
+            fs = [int(v) for v in fs]
+
+        if not (len(keys) == len(data) == len(fs)):
+            raise ValueError(
+                f"keys/data/fs length mismatch: {len(keys)}/{len(data)}/{len(fs)}"
+            )
 
         output_files = []
         for i, key_i in enumerate(keys):
@@ -161,8 +204,9 @@ class AudioWriter(object):
                 file_basename,
                 self.audio_format,
             )
-            fs_i = int(fs[i]) if fs_is_list else fs
-            data_i = (self._output_wav_scale * data[i]).astype(self._dtype, copy=False)
+            fs_i = fs[i]
+            data_i = self._prepare_audio(data[i])
+            data_i = (self._output_wav_scale * data_i).astype(self._dtype, copy=False)
             sf.write(output_file, data_i, fs_i, subtype=self.subtype)
 
             output_files.append(output_file)
@@ -171,7 +215,7 @@ class AudioWriter(object):
                 if self.script_is_scp:
                     self.f_script.write(f"{key_i} {output_file}\n")
                 else:
-                    duration_i = data_i.shape[-1] / fs_i
+                    duration_i = data_i.shape[0] / fs_i
                     if self.script_sep in key_i:
                         key_i = '"' + key_i + '"'
 
@@ -185,12 +229,41 @@ class AudioWriter(object):
 
         return output_files
 
+    def _prepare_audio(self, x: np.array) -> np.array:
+        """Convert input waveform to soundfile layout.
+
+        Returns audio as either ``(num_samples,)`` or ``(num_samples, channels)``,
+        honoring ``channels_first`` and ``always_2d``.
+        """
+        x = np.asarray(x)
+        if x.ndim == 1:
+            pass
+        elif x.ndim == 2:
+            if self.channels_first:
+                x = x.T
+        else:
+            raise ValueError(
+                f"Audio tensor for writing must be 1-D or 2-D, got shape={x.shape}"
+            )
+
+        if self.always_2d:
+            if x.ndim == 1:
+                x = np.stack((x, x), axis=1)
+            elif x.shape[1] == 1:
+                x = np.repeat(x, 2, axis=1)
+            elif x.shape[1] > 2:
+                x = x[:, :2]
+
+        return x
+
     @staticmethod
     def filter_args(**kwargs):
         valid_args = (
             "wav_scale",
             "audio_format",
             "audio_subtype",
+            "channels_first",
+            "always_2d",
         )
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
@@ -220,6 +293,18 @@ class AudioWriter(object):
                 type=float,
                 default=1.0,
                 help=("input waveform scale wrt 1"),
+            )
+            parser.add_argument(
+                "--channels-first",
+                default=True,
+                action=ActionYesNo,
+                help=("if true, interpret 2-D input as (channels, num_samples)"),
+            )
+            parser.add_argument(
+                "--always-2d",
+                default=False,
+                action=ActionYesNo,
+                help=("if true, force saved waveform to have exactly 2 channels"),
             )
         except:
             pass

@@ -162,10 +162,8 @@ def eval_verification_anonymization_metrics(
                 class_column=class_column,
                 anon_class_column=anon_class_column,
                 sparse=sparse,
-                ref_key=ref_key_file if key_name == key_names[0] else None,
-                scores_ref_anon=(
-                    score_ref_anon_file if key_name == key_names[0] else None
-                ),
+                ref_key=ref_key_file,
+                scores_ref_anon=score_ref_anon_file,
             )
             df_ij = evaluator.compute_dcf_eer()
             if df_ij is not None:

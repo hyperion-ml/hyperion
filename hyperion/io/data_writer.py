@@ -3,16 +3,29 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os
 from abc import ABCMeta, abstractmethod
-from typing import Union, Optional, List, Dict
 from pathlib import Path
+from types import TracebackType
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, Union
+
 import numpy as np
 import pandas as pd
+
 from ..utils import PathLike
 
+if TYPE_CHECKING:
+    from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
 
-class DataWriter:
+WriteKeys = Union[str, List[str], np.ndarray]
+WriteDataItem = Union[np.ndarray, "KaldiMatrix", "KaldiCompressedMatrix"]
+WriteData = Union[np.ndarray, List[WriteDataItem]]
+MetadataValue = Union[object, List[object], np.ndarray]
+MetadataDict = Dict[str, MetadataValue]
+MetadataArg = Optional[Union[pd.DataFrame, MetadataDict]]
+StandardizedMetadata = Optional[List[List[object]]]
+
+
+class DataWriter(metaclass=ABCMeta):
     """Abstract base class to write Ark or hdf5 feature files.
 
     Attributes:
@@ -24,9 +37,8 @@ class DataWriter:
                           {auto (default), speech_feat,
                            2byte-auto, 2byte-signed-integer,
                            1byte-auto, 1byte-unsigned-integer, 1byte-0-1}.
+      metadata_columns: Optional metadata columns to export to non-scp script files.
     """
-
-    __metaclass__ = ABCMeta
 
     def __init__(
         self,
@@ -36,7 +48,8 @@ class DataWriter:
         compress: bool = False,
         compression_method: str = "auto",
         metadata_columns: Optional[List[str]] = None,
-    ):
+    ) -> None:
+        """Initialize writer configuration and output files."""
         self.archive_path = Path(archive_path)
         self.script_path = Path(script_path) if script_path is not None else None
         self._flush = flush
@@ -61,8 +74,8 @@ class DataWriter:
                 self.script_sep = "," if script_ext == ".csv" else "\t"
                 self.f_script = open(self.script_path, "w", encoding="utf-8")
 
-    def __enter__(self):
-        """Function required when entering contructions of type
+    def __enter__(self) -> "DataWriter":
+        """Function required when entering constructions of type
 
         with DataWriter('file.h5') as f:
            f.write(key, data)
@@ -70,8 +83,13 @@ class DataWriter:
         return self
 
     @abstractmethod
-    def __exit__(self, exc_type, exc_value, traceback):
-        """Function required when exiting from contructions of type
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        """Function required when exiting from constructions of type
 
         with DataWriter('file.h5') as f:
            f.write(key, data)
@@ -79,55 +97,118 @@ class DataWriter:
         pass
 
     @abstractmethod
-    def close(self):
-        """Closes the output file"""
+    def close(self) -> None:
+        """Close the output files."""
         pass
 
     @abstractmethod
-    def flush(self):
-        """Flushes the file"""
+    def flush(self) -> None:
+        """Flush buffered output data."""
         pass
 
     def standardize_write_args(
         self,
-        keys: Union[str, List[str], np.array],
-        data: Union[np.array, List[np.array]],
-        metadata: Optional[Union[pd.DataFrame, Dict]] = None,
-    ):
-        if isinstance(keys, str):
+        keys: WriteKeys,
+        data: WriteData,
+        metadata: MetadataArg = None,
+    ) -> Tuple[List[str], List[WriteDataItem], StandardizedMetadata]:
+        """Normalize write arguments to list form and validate list lengths."""
+        if isinstance(keys, np.ndarray):
+            keys = [keys.item()] if keys.ndim == 0 else keys.tolist()
+        elif isinstance(keys, str):
             keys = [keys]
-            data = [data]
+        else:
+            keys = list(keys)
 
+        num_items = len(keys)
+
+        if isinstance(data, np.ndarray):
+            if num_items == 1:
+                data = [data]
+            else:
+                if data.ndim == 0:
+                    raise ValueError(
+                        f"data is a scalar array but {num_items} keys were provided"
+                    )
+                if data.shape[0] != num_items:
+                    raise ValueError(
+                        f"data has {data.shape[0]} items but {num_items} keys were provided"
+                    )
+                if data.ndim < 2:
+                    raise ValueError(
+                        "for multiple keys, ndarray data must have at least 2 dimensions"
+                    )
+                data = [d for d in data]
+        else:
+            data = list(data)
+            if len(data) != num_items:
+                raise ValueError(
+                    f"data has {len(data)} items but {num_items} keys were provided"
+                )
+
+        metadata_out = None
         if metadata is not None:
             if isinstance(metadata, pd.DataFrame):
-                metadata = metadata.to_dict()
+                metadata = metadata.to_dict(orient="list")
+            else:
+                metadata = dict(metadata)
 
-            metadata_list = []
+            if self.metadata_columns is None:
+                raise ValueError(
+                    "metadata_columns must be provided when metadata is passed"
+                )
+
+            metadata_out = []
             for c in self.metadata_columns:
+                if c not in metadata:
+                    raise KeyError(f"metadata column '{c}' is missing")
+
                 m_c = metadata[c]
-                if not isinstance(m_c, (list, np.ndarray)):
-                    m_c = [m_c]
-                metadata_list.append(m_c)
+                if isinstance(m_c, np.ndarray):
+                    values = [m_c.item()] if m_c.ndim == 0 else m_c.tolist()
+                elif isinstance(m_c, list):
+                    values = m_c
+                else:
+                    values = [m_c]
 
-            metadata = metadata_list
+                if len(values) != num_items:
+                    raise ValueError(
+                        f"metadata column '{c}' has {len(values)} items but {num_items} keys were provided"
+                    )
 
-        return keys, data, metadata
+                metadata_out.append(values)
+
+        return keys, data, metadata_out
+
+    @staticmethod
+    def _escape_script_field(value: object, sep: Optional[str]) -> str:
+        """Escape a value written to a CSV/TSV-like script row."""
+        text = str(value)
+        if sep is None:
+            return text
+
+        needs_quotes = sep in text or '"' in text or "\n" in text or "\r" in text
+        if '"' in text:
+            text = text.replace('"', '""')
+        if needs_quotes:
+            text = f'"{text}"'
+        return text
 
     @abstractmethod
     def write(
         self,
-        keys: Union[str, List[str], np.array],
-        data: Union[np.array, List[np.array]],
-        metadata: Optional[Union[pd.DataFrame, Dict]] = None,
-    ):
+        keys: WriteKeys,
+        data: WriteData,
+        metadata: MetadataArg = None,
+    ) -> None:
         """Writes data to file.
 
         Args:
-          key: List of recodings names.
+          keys: List of recording names.
           data: List of Feature matrices or vectors.
                 If all the matrices have the same dimension
                 it can be a 3D numpy array.
                 If they are vectors, it can be a 2D numpy array.
-          metadata: dictionary/DataFrame with metadata
+          metadata: Dictionary/DataFrame with metadata values.
         """
         pass

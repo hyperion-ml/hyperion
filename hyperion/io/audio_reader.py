@@ -10,7 +10,7 @@ import os
 import subprocess
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -239,14 +239,16 @@ class AudioReader:
         Raises:
             Exception: If the specifier points to an unsupported format.
         """
-        wavspecifier = wavspecifier.strip()
+        wavspecifier = str(wavspecifier).strip()
+        if len(wavspecifier) == 0:
+            raise Exception("Empty wavspecifier")
         if wavspecifier[-1] == "|":
             wavspecifier = wavspecifier[:-1]
             return AudioReader.read_pipe(
                 wavspecifier, scale, time_offset, time_dur, channels_first, always_2d
             )
 
-        ext = os.path.splitext(wavspecifier)[1]
+        ext = os.path.splitext(wavspecifier)[1].lower()
         if ext in valid_ext:
             return AudioReader.read_file(
                 wavspecifier, scale, time_offset, time_dur, channels_first, always_2d
@@ -284,6 +286,9 @@ class AudioReader:
         Raises:
             Exception: If the pipe command returns a non-zero exit status.
         """
+        wavspecifier = str(wavspecifier).strip()
+        if len(wavspecifier) == 0:
+            raise Exception("Empty wavspecifier")
         if wavspecifier[-1] == "|":
             wavspecifier = wavspecifier[:-1]
 
@@ -296,17 +301,14 @@ class AudioReader:
             )
         x, fs = sf.read(io.BytesIO(pipe), dtype=float_cpu())
         x *= scale
-        if time_offset == 0 and time_dur == 0:
-            return x, fs
-
-        start_sample = int(math.floor(time_offset * fs))
-        num_samples = int(math.floor(time_dur * fs))
-        if num_samples == 0:
-            return x[start_sample:], fs
-
-        end_sample = start_sample + num_samples
-        assert end_sample <= len(x)
-        x = x[start_sample:end_sample]
+        if time_offset != 0 or time_dur != 0:
+            start_sample = int(math.floor(time_offset * fs))
+            num_samples = int(math.floor(time_dur * fs))
+            if num_samples == 0:
+                x = x[start_sample:]
+            else:
+                end_sample = start_sample + num_samples
+                x = x[start_sample:end_sample]
         if always_2d and len(x.shape) == 1:
             x = x[:, np.newaxis]
 
@@ -633,7 +635,7 @@ class AudioReader:
         channels_first: bool = True,
         always_2d: bool = False,
         return_all_channels: bool = False,
-    ) -> Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, Optional[int]]]:
+    ) -> Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, int]]:
         """Load a recording defined in the recordings table.
 
         Args:
@@ -653,9 +655,8 @@ class AudioReader:
             Tuple[np.ndarray, int]: Waveform and sampling rate when a single
             channel is returned.
 
-            Tuple[np.ndarray, int, Optional[int]]: Waveform, sampling rate, and
-            optional selected channel index when ``return_all_channels`` is
-            ``True``.
+            Tuple[np.ndarray, int, int]: Waveform, sampling rate, and selected
+            channel index when ``return_all_channels`` is ``True``.
         """
         if return_all_channels:
             always_2d = True
@@ -685,7 +686,7 @@ class AudioReader:
             if pd.notna(channel):
                 channel = self.channel_name_to_idx(channel, num_channels)
 
-        if channel is None and num_channels == 1:
+        if channel is None:
             channel = 0
 
         if not return_all_channels and num_channels > 1 and channel is not None:
@@ -726,7 +727,7 @@ class AudioReader:
         channels_first: bool = True,
         always_2d: bool = False,
         return_all_channels: bool = False,
-    ) -> Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, Optional[int]]]:
+    ) -> Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, int]]:
         """Load a segment defined in the segments table.
 
         Args:
@@ -747,17 +748,29 @@ class AudioReader:
             Tuple[np.ndarray, int]: Waveform and sampling rate when a single
             channel is returned.
 
-            Tuple[np.ndarray, int, Optional[int]]: Waveform, sampling rate, and
-            optional selected channel index when ``return_all_channels`` is
-            ``True``.
+            Tuple[np.ndarray, int, int]: Waveform, sampling rate, and selected
+            channel index when ``return_all_channels`` is ``True``.
         """
         recording_id = segment["recording"] if "recording" in segment else segment["id"]
+        segment_dur = float(segment["duration"])
+        if time_offset >= segment_dur:
+            raise ValueError(
+                f"time_offset={time_offset} must be smaller than segment duration={segment_dur}"
+            )
+
         t_start = segment["start"] if "start" in segment else 0.0
         t_start = t_start + time_offset
+        rem_dur = segment_dur - time_offset
         if time_dur > 0:
-            t_dur = min(time_dur, segment["duration"] - time_offset)
+            t_dur = min(time_dur, rem_dur)
         else:
-            t_dur = segment["duration"] - time_offset
+            t_dur = rem_dur
+
+        if t_dur <= 0:
+            raise ValueError(
+                f"Computed non-positive segment duration t_dur={t_dur}, "
+                f"segment duration={segment_dur}, time_offset={time_offset}, time_dur={time_dur}"
+            )
         recording = self.recordings.loc[recording_id]
         if "channel" in segment:
             channel = segment["channel"]
@@ -811,6 +824,24 @@ class SequentialAudioReader(AudioReader):
         return_all_channels (bool): Whether to return every channel for
             multi-channel audio.
         cur_item (int): Index of the next item to read.
+
+    Examples:
+        >>> with SequentialAudioReader(recordings="recordings.csv") as reader:
+        ...     keys, wavs, fs = reader.read(num_records=2)
+        >>> for key, wav, fs in SequentialAudioReader(recordings="recordings.csv"):
+        ...     process(key, wav, fs)
+        >>> reader = SequentialAudioReader(
+        ...     recordings="recordings.csv",
+        ...     return_all_channels=True,
+        ...     always_2d=True,
+        ... )
+        >>> keys, wavs, fs, channels = reader.read(num_records=1)
+        >>> seg_reader = SequentialAudioReader(
+        ...     recordings="recordings.csv",
+        ...     segments="segments.csv",
+        ...     target_sample_freq=16000,
+        ... )
+        >>> keys, wavs, fs = seg_reader.read(num_records=4, time_offset=0.0, time_durs=1.5)
     """
 
     def __init__(
@@ -856,7 +887,7 @@ class SequentialAudioReader(AudioReader):
 
     def __next__(self) -> Union[
         Tuple[str, np.ndarray, int],
-        Tuple[str, np.ndarray, int, Optional[int]],
+        Tuple[str, np.ndarray, int, int],
     ]:
         """Return the next sequential item.
 
@@ -864,8 +895,8 @@ class SequentialAudioReader(AudioReader):
             Tuple[str, np.ndarray, int]: Key, waveform, and sampling rate when a
             single channel is returned.
 
-            Tuple[str, np.ndarray, int, Optional[int]]: Key, waveform, sampling
-            rate, and channel index when ``return_all_channels`` is ``True``.
+            Tuple[str, np.ndarray, int, int]: Key, waveform, sampling rate, and
+            channel index when ``return_all_channels`` is ``True``.
 
         Raises:
             StopIteration: When the reader is exhausted.
@@ -880,7 +911,7 @@ class SequentialAudioReader(AudioReader):
 
     def next(self) -> Union[
         Tuple[str, np.ndarray, int],
-        Tuple[str, np.ndarray, int, Optional[int]],
+        Tuple[str, np.ndarray, int, int],
     ]:
         """Python 2 compatibility alias for :meth:`__next__`."""
         return self.__next__()
@@ -902,11 +933,11 @@ class SequentialAudioReader(AudioReader):
     def read(
         self,
         num_records: int = 0,
-        time_offset: Union[float, Sequence[float], np.ndarray] = 0,
-        time_durs: Union[float, Sequence[float], np.ndarray] = 0,
+        time_offset: Union[float, List[float], np.ndarray] = 0,
+        time_durs: Union[float, List[float], np.ndarray] = 0,
     ) -> Union[
         Tuple[List[str], List[np.ndarray], List[int]],
-        Tuple[List[str], List[np.ndarray], List[int], List[Optional[int]]],
+        Tuple[List[str], List[np.ndarray], List[int], List[int]],
     ]:
         """Read the next group of recordings or segments.
 
@@ -922,21 +953,36 @@ class SequentialAudioReader(AudioReader):
             Tuple[List[str], List[np.ndarray], List[int]]: Keys, waveforms, and
             sampling rates when returning a single channel per item.
 
-            Tuple[List[str], List[np.ndarray], List[int], List[Optional[int]]]:
+            Tuple[List[str], List[np.ndarray], List[int], List[int]]:
             Keys, waveforms, sampling rates, and channel indices when
             ``return_all_channels`` is ``True``.
         """
         channels_first = self.channels_first
         always_2d = self.always_2d
         return_all_channels = self.return_all_channels
+        if self.with_segments:
+            remaining = len(self.segments) - self.cur_item
+        else:
+            remaining = len(self.recordings) - self.cur_item
         if num_records == 0:
-            if self.with_segments:
-                num_records = len(self.segments) - self.cur_item
-            else:
-                num_records = len(self.recordings) - self.cur_item
+            num_records = remaining
+        else:
+            num_records = min(num_records, remaining)
 
         offset_is_list = isinstance(time_offset, (list, np.ndarray))
         dur_is_list = isinstance(time_durs, (list, np.ndarray))
+        if isinstance(time_offset, np.ndarray) and time_offset.ndim == 0:
+            offset_is_list = False
+        if isinstance(time_durs, np.ndarray) and time_durs.ndim == 0:
+            dur_is_list = False
+        if offset_is_list and len(time_offset) < num_records:
+            raise ValueError(
+                f"time_offset has {len(time_offset)} items but {num_records} are required"
+            )
+        if dur_is_list and len(time_durs) < num_records:
+            raise ValueError(
+                f"time_durs has {len(time_durs)} items but {num_records} are required"
+            )
 
         keys = []
         x = []
@@ -1078,6 +1124,22 @@ class RandomAccessAudioReader(AudioReader):
         always_2d (bool): Whether mono audio retains a channel axis.
         return_all_channels (bool): Whether queries return every channel rather
             than a single mixdown.
+
+    Examples:
+        >>> reader = RandomAccessAudioReader(recordings="recordings.csv")
+        >>> wavs, fs = reader.read(["utt1", "utt2"], time_offset=[0.0, 0.5], time_durs=1.0)
+        >>> wav, fs = reader.read("utt1")
+        >>> seg_reader = RandomAccessAudioReader(
+        ...     recordings="recordings.csv",
+        ...     segments="segments.csv",
+        ... )
+        >>> wavs, fs = seg_reader.read(["seg1", "seg2"], time_durs=[0.8, 1.2])
+        >>> ch_reader = RandomAccessAudioReader(
+        ...     recordings="recordings.csv",
+        ...     return_all_channels=True,
+        ...     always_2d=True,
+        ... )
+        >>> wavs, fs, channels = ch_reader.read("utt1")
     """
 
     def __init__(
@@ -1104,37 +1166,27 @@ class RandomAccessAudioReader(AudioReader):
 
     def read(
         self,
-        keys: Union[str, Sequence[str]],
-        time_offset: Union[float, Sequence[float], np.ndarray] = 0,
-        time_durs: Union[float, Sequence[float], np.ndarray] = 0,
-        channels_first: bool = True,
-        always_2d: bool = False,
-        return_all_channels: bool = False,
+        keys: Union[str, List[str]],
+        time_offset: Union[float, List[float], np.ndarray] = 0,
+        time_durs: Union[float, List[float], np.ndarray] = 0,
     ) -> Union[
         Tuple[List[np.ndarray], List[int]],
-        Tuple[List[np.ndarray], List[int], List[Optional[int]]],
+        Tuple[List[np.ndarray], List[int], List[int]],
     ]:
         """Fetch the waveforms for the requested keys.
 
         Args:
-            keys (Union[str, Sequence[str]]): Recording or segment identifiers.
+            keys (Union[str, List[str]]): Recording or segment identifiers.
             time_offset (float): Scalar or per-item offsets in seconds.
             time_durs (float): Scalar or per-item durations in seconds. ``0``
                 reads until the end of each item.
-            channels_first (bool): If ``True`` returns waveforms as
-                ``(channels, num_samples)``.
-            always_2d (bool): Forces single-channel audio to retain a channel
-                dimension.
-            return_all_channels (bool): If ``True`` returns every channel
-                available.
 
         Returns:
             Tuple[List[np.ndarray], List[int]]: Waveforms and sampling rates
             when returning a single channel per item.
 
-            Tuple[List[np.ndarray], List[int], List[Optional[int]]]: Waveforms,
-            sampling rates, and channel indices when ``return_all_channels`` is
-            ``True``.
+            Tuple[List[np.ndarray], List[int], List[int]]: Waveforms, sampling
+            rates, and channel indices when ``return_all_channels`` is ``True``.
 
         Raises:
             Exception: If a requested key is not found.
@@ -1147,6 +1199,19 @@ class RandomAccessAudioReader(AudioReader):
 
         offset_is_list = isinstance(time_offset, (list, np.ndarray))
         dur_is_list = isinstance(time_durs, (list, np.ndarray))
+        if isinstance(time_offset, np.ndarray) and time_offset.ndim == 0:
+            offset_is_list = False
+        if isinstance(time_durs, np.ndarray) and time_durs.ndim == 0:
+            dur_is_list = False
+        num_keys = len(keys)
+        if offset_is_list and len(time_offset) < num_keys:
+            raise ValueError(
+                f"time_offset has {len(time_offset)} items but {num_keys} are required"
+            )
+        if dur_is_list and len(time_durs) < num_keys:
+            raise ValueError(
+                f"time_durs has {len(time_durs)} items but {num_keys} are required"
+            )
 
         x = []
         fs = []
@@ -1207,7 +1272,7 @@ class RandomAccessAudioReader(AudioReader):
         Returns:
             Dict[str, Any]: Subset containing only recognized reader arguments.
         """
-        valid_args = ("wav_scale",)
+        valid_args = ("wav_scale", "target_sample_freq")
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
@@ -1228,6 +1293,12 @@ class RandomAccessAudioReader(AudioReader):
             default=1.0,
             type=float,
             help=("multiplicative factor for waveform"),
+        )
+        parser.add_argument(
+            "--target-sample-freq",
+            default=None,
+            type=int,
+            help=("resample input audio to target frequency"),
         )
         if prefix is not None:
             outer_parser.add_argument(

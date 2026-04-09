@@ -32,11 +32,6 @@ from .h5_merger import H5Merger
 from .hyp_data_reader import HypDataReader
 from .hyp_data_writer import HypDataWriter
 from .kaldi_data_reader import KaldiDataReader
-from .packed_audio_reader import (
-    RandomAccessPackedAudioReader,
-    SequentialPackedAudioReader,
-)
-from .packed_audio_writer import PackedAudioWriter
 from .segment_vad_reader import SegmentVADReader
 from .table_vad_reader import TableVADReader
 from .vad_rw_factory import VADReaderFactory

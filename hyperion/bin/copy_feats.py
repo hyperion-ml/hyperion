@@ -7,11 +7,6 @@
 
 import argparse
 import logging
-import os
-import sys
-import time
-
-import numpy as np
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import CopyFeats as CF
@@ -37,12 +32,6 @@ def main() -> None:
         dest="output_spec",
         required=True,
         help="output feature wspecifier/path",
-    )
-    parser.add_argument(
-        "--write-num-frames",
-        dest="write_num_frames",
-        default=None,
-        help="optional output file to write number of frames per utterance",
     )
     parser.add_argument(
         "-v",

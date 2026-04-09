@@ -3,16 +3,18 @@ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Dict, List, Optional, Union
+from types import TracebackType
+from typing import Optional, Type, Union
 
 import numpy as np
-import pandas as pd
 
 from ..hyp_defs import float_save
 from ..utils import PathLike
 from ..utils.kaldi_io_funcs import init_kaldi_output_stream, is_token, write_token
 from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
-from .data_writer import DataWriter
+from .data_writer import DataWriter, MetadataArg, WriteData, WriteKeys
+
+ArkWriteData = Union[WriteData, KaldiMatrix, KaldiCompressedMatrix]
 
 
 class ArkDataWriter(DataWriter):
@@ -37,7 +39,7 @@ class ArkDataWriter(DataWriter):
         script_path: Optional[PathLike] = None,
         binary: bool = True,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(archive_path, script_path, **kwargs)
         self.binary = binary
 
@@ -53,8 +55,13 @@ class ArkDataWriter(DataWriter):
             row = self.script_sep.join(columns)
             self.f_script.write(f"{row}\n")
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        """Function required when exiting from contructions of type
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        """Function required when exiting from constructions of type
 
            with ArkDataWriter('file.h5') as f:
               f.write(key, data)
@@ -63,30 +70,43 @@ class ArkDataWriter(DataWriter):
         """
         self.close()
 
-    def close(self):
-        """Closes the output file"""
+    def close(self) -> None:
+        """Close output files."""
         self.f.close()
         if self.f_script is not None:
             self.f_script.close()
 
-    def flush(self):
-        """Flushes the file"""
+    def flush(self) -> None:
+        """Flush buffered output data."""
         self.f.flush()
         if self.f_script is not None:
             self.f_script.flush()
 
-    def _convert_data(self, data: np.array):
+    def _convert_data(
+        self, data: Union[np.ndarray, KaldiMatrix, KaldiCompressedMatrix]
+    ) -> Union[KaldiMatrix, KaldiCompressedMatrix]:
         """Converts the feature matrix from numpy array to KaldiMatrix
         or KaldiCompressedMatrix.
+
+        Compression is only applied to 2D arrays/matrices.
         """
         if isinstance(data, np.ndarray):
+            if data.ndim not in (1, 2):
+                raise ValueError(
+                    f"ArkDataWriter expects 1D or 2D arrays, got ndim={data.ndim}"
+                )
             data = data.astype(float_save(), copy=False)
-            if self.compress:
+            if self.compress and data.ndim == 2:
                 return KaldiCompressedMatrix.compress(data, self.compression_method)
             return KaldiMatrix(data)
 
         if isinstance(data, KaldiMatrix):
-            if self.compress:
+            if data.data.ndim not in (1, 2):
+                raise ValueError(
+                    "ArkDataWriter expects KaldiMatrix with 1D or 2D data, "
+                    f"got ndim={data.data.ndim}"
+                )
+            if self.compress and data.data.ndim == 2:
                 return KaldiCompressedMatrix.compress(data, self.compression_method)
             return data
 
@@ -99,23 +119,28 @@ class ArkDataWriter(DataWriter):
 
     def write(
         self,
-        keys: Union[str, List[str], np.array],
-        data: Union[np.array, List[np.array]],
-        metadata: Optional[Union[pd.DataFrame, Dict]] = None,
-    ):
+        keys: WriteKeys,
+        data: ArkWriteData,
+        metadata: MetadataArg = None,
+    ) -> None:
         """Writes data to file.
 
         Args:
-          key: List of recodings names.
+          keys: List of recording names.
           data: List of Feature matrices or vectors.
                 If all the matrices have the same dimension
                 it can be a 3D numpy array.
                 If they are vectors, it can be a 2D numpy array.
+                It also accepts KaldiMatrix/KaldiCompressedMatrix objects.
+          metadata: Dictionary/DataFrame with metadata values.
         """
+        if isinstance(data, (KaldiMatrix, KaldiCompressedMatrix)):
+            data = [data]
         keys, data, metadata = self.standardize_write_args(keys, data, metadata)
 
         for i, key_i in enumerate(keys):
-            assert is_token(key_i), "Token %s not valid" % key_i
+            if not is_token(key_i):
+                raise ValueError(f"Token {key_i} not valid")
             write_token(self.f, self.binary, key_i)
 
             pos = self.f.tell()
@@ -128,12 +153,19 @@ class ArkDataWriter(DataWriter):
                 if self.script_is_scp:
                     self.f_script.write(f"{key_i} {self.archive_path}:{pos}\n")
                 else:
-                    if self.script_sep in key_i:
-                        key_i = '"' + key_i + '"'
-
-                    columns = [key_i, str(self.archive_path), str(pos)]
-                    if metadata is not None:
-                        metadata_i = [str(m[i]) for m in metadata]
+                    columns = [
+                        self._escape_script_field(key_i, self.script_sep),
+                        self._escape_script_field(self.archive_path, self.script_sep),
+                        str(pos),
+                    ]
+                    if self.metadata_columns is not None:
+                        if metadata is not None:
+                            metadata_i = [
+                                self._escape_script_field(m[i], self.script_sep)
+                                for m in metadata
+                            ]
+                        else:
+                            metadata_i = [""] * len(self.metadata_columns)
                         columns += metadata_i
                     row = self.script_sep.join(columns)
                     self.f_script.write(f"{row}\n")

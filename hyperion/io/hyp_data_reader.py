@@ -1,6 +1,9 @@
 """
 Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+
+Deprecated:
+    This module is deprecated and will be removed in a future release.
 """
 
 import sys
@@ -14,7 +17,10 @@ from ..utils.list_utils import ismember, list2ndarray
 
 class HypDataReader:
     """
-    Class to read data from hdf5 files (deprecated).
+    Class to read data from hdf5 files.
+
+    Deprecated:
+        This class is deprecated and will be removed in a future release.
     """
 
     def __init__(self, file_path):

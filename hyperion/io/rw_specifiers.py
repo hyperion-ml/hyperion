@@ -1,15 +1,18 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
- Functions to write and read kaldi files
+Functions to write and read kaldi files
 """
 
 import re
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
+
+from ..utils.misc import PathLike
 
 
 class ArchiveType(Enum):
@@ -85,7 +88,7 @@ class WSpecType(Enum):
     BOTH = 3  # Specifier contains Ark/hdf5 file and scp file.
 
 
-class WSpecifier(object):
+class WSpecifier:
     """Class to parse Kaldi style write specifier.
 
     Attributes:
@@ -107,14 +110,14 @@ class WSpecifier(object):
 
     def __init__(
         self,
-        spec_type,
-        archive,
-        script,
-        archive_type=ArchiveType.H5,
-        binary=True,
-        flush=False,
-        permissive=False,
-    ):
+        spec_type: WSpecType,
+        archive: Optional[PathLike],
+        script: Optional[PathLike],
+        archive_type: Optional[ArchiveType] = ArchiveType.H5,
+        binary: bool = True,
+        flush: bool = False,
+        permissive: bool = False,
+    ) -> None:
         self.archive = archive
         self.script = script
         self.spec_type = spec_type
@@ -124,7 +127,7 @@ class WSpecifier(object):
         self.permissive = permissive
 
     @classmethod
-    def create(cls, wspecifier):
+    def create(cls, wspecifier: str) -> "WSpecifier":
         """Creates WSpecifier object from string.
 
         Args:
@@ -178,8 +181,8 @@ class WSpecifier(object):
                     archive_type = ArchiveType.AUDIO
                     archive = archives[cur_archive]
                     cur_archive += 1
-                elif option == "csv":
-                    assert script is None, "Repeated csv in wspecifier %s" % script
+                elif option in ["csv", "tsv"]:
+                    assert script is None, "Repeated csv/tsv in wspecifier %s" % script
                     assert len(archives) > cur_archive
                     script = archives[cur_archive]
                     cur_archive += 1
@@ -235,8 +238,10 @@ class WSpecifier(object):
                 "Two many fields (%d>2) in wspecifier %s" % (len(fields), wspecifier)
             )
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Equal operator."""
+        if not isinstance(other, WSpecifier):
+            return False
         eq = self.archive == other.archive
         eq = eq and self.script == other.script
         eq = eq and self.spec_type == other.spec_type
@@ -246,11 +251,11 @@ class WSpecifier(object):
         eq = eq and self.permissive == other.permissive
         return eq
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         """Non-equal operator."""
         return not self.__eq__(other)
 
-    def __cmp__(self, other):
+    def __cmp__(self, other: object) -> int:
         """Comparison operator."""
         if self.__eq__(other):
             return 0
@@ -303,18 +308,18 @@ class RSpecType(Enum):
     SCRIPT = 2
 
 
-class RSpecifier(object):
+class RSpecifier:
     def __init__(
         self,
-        spec_type,
-        archive,
-        archive_type=ArchiveType.H5,
-        once=False,
-        is_sorted=False,
-        called_sorted=False,
-        permissive=False,
-        background=False,
-    ):
+        spec_type: RSpecType,
+        archive: PathLike,
+        archive_type: Optional[ArchiveType] = ArchiveType.H5,
+        once: bool = False,
+        is_sorted: bool = False,
+        called_sorted: bool = False,
+        permissive: bool = False,
+        background: bool = False,
+    ) -> None:
 
         self.spec_type = spec_type
         self.archive = Path(archive)
@@ -326,11 +331,11 @@ class RSpecifier(object):
         self.background = background
 
     @property
-    def script(self):
+    def script(self) -> Path:
         return self.archive
 
     @classmethod
-    def create(cls, rspecifier):
+    def create(cls, rspecifier: str) -> "RSpecifier":
         fields = rspecifier.strip().split(":")
         if len(fields) == 1:
             assert len(fields[0]) > 0
@@ -441,7 +446,9 @@ class RSpecifier(object):
                 "Two many fields (%d>2) in wspecifier %s" % (len(fields), rspecifier)
             )
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, RSpecifier):
+            return False
         eq = self.spec_type == other.spec_type
         eq = eq and self.archive == other.archive
         eq = eq and self.archive_type == other.archive_type
@@ -452,5 +459,5 @@ class RSpecifier(object):
         eq = eq and self.background == other.background
         return eq
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)

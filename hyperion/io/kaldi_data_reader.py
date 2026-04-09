@@ -1,6 +1,9 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+
+Deprecated:
+    This module is deprecated and will be removed in a future release.
 """
 
 import gzip
@@ -15,8 +18,12 @@ from ..hyp_defs import float_cpu
 from ..utils.scp_list import SCPList
 
 
-class KaldiDataReader(object):
-    """Class to read features from .ark files."""
+class KaldiDataReader:
+    """Read features from ``.ark`` files.
+
+    Deprecated:
+        This class is deprecated and will be removed in a future release.
+    """
 
     def __init__(self, file_path, input_dir=None, sep=" "):
         self.file_path = file_path

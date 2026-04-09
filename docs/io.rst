@@ -4,8 +4,8 @@ IO Utilities
 Overview
 --------
 
-``hyperion.io`` provides unified readers/writers for features, audio, VAD, and
-packed data formats used across scripts and recipes.
+``hyperion.io`` provides unified readers/writers for features, audio, and VAD
+formats used across scripts and recipes.
 
 Factories and specifiers
 ------------------------
@@ -43,15 +43,6 @@ Audio IO
    :members:
 
 .. automodule:: hyperion.io.audio_writer
-   :members:
-
-Packed audio IO
----------------
-
-.. automodule:: hyperion.io.packed_audio_reader
-   :members:
-
-.. automodule:: hyperion.io.packed_audio_writer
    :members:
 
 VAD IO
