@@ -1,13 +1,15 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import json
 import logging
-import os
+import pickle
 from copy import deepcopy
 from importlib import import_module
 from pathlib import Path
+from typing import Any, ClassVar, Dict, Mapping, Optional, Sequence, Type, Union
 
 import h5py
 import numpy as np
@@ -16,46 +18,64 @@ from ..hyp_defs import float_cpu, float_save
 from ..utils.misc import PathLike
 
 
-class HyperNPModel(object):
+class HyperNPModel:
     """Base class for machine learning models based on numpy.
 
     Attributes:
       name: optional identifier for the model.
     """
 
-    registry = {}
+    registry: ClassVar[Dict[str, Type["HyperNPModel"]]] = {}
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         HyperNPModel.registry[cls.__name__] = cls
 
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name: Optional[str] = None, **kwargs: Any) -> None:
+        """Initialize base model metadata.
+
+        Args:
+          name: Optional identifier for the model instance. If ``None``, the
+            class name is used.
+          **kwargs: Reserved for subclass compatibility.
+        """
         if name is None:
             name = self.__class__.__name__
         self.name = name
         self._is_init = False
 
-    def copy(self):
+    def copy(self) -> "HyperNPModel":
         """Returns a clone of the model."""
         return deepcopy(self)
 
-    def clone(self):
+    def clone(self) -> "HyperNPModel":
         """Returns a clone of the model."""
         return deepcopy(self)
 
     @property
-    def is_init(self):
+    def is_init(self) -> bool:
         """Returns True if the model has been initialized."""
         return self._is_init
 
-    def init_to_false(self):
+    def init_to_false(self) -> None:
         """Sets the model as non initialized."""
         self._is_init = False
 
-    def initialize(self):
+    def initialize(self) -> None:
+        """Initialize model parameters/state.
+
+        Subclasses can override this method when they have lazy initialization
+        logic.
+        """
         pass
 
-    def fit(self, x, sample_weight=None, x_val=None, sample_weight_val=None):
+    def fit(
+        self,
+        x: np.ndarray,
+        sample_weight: Optional[np.ndarray] = None,
+        x_val: Optional[np.ndarray] = None,
+        sample_weight_val: Optional[np.ndarray] = None,
+    ) -> None:
         """Trains the model.
 
         Args:
@@ -63,43 +83,61 @@ class HyperNPModel(object):
           sample_weight: weight of each sample in the training loss shape (num_samples,).
           x_val: validation data matrix with shape (num_val_samples, x_dim).
           sample_weight_val: weight of each sample in the val. loss.
+
+        Raises:
+          NotImplementedError: If not implemented by a subclass.
         """
         raise NotImplementedError()
 
-    def fit_generator(self, x, x_val=None):
+    def fit_generator(self, x: Any, x_val: Optional[Any] = None) -> None:
         """Trains the model from a data generator function.
 
         Args:
           x: train data generation function.
           x_val: validation data generation function.
+
+        Raises:
+          NotImplementedError: If not implemented by a subclass.
         """
         raise NotImplementedError()
 
-    def save(self, file_path):
+    def save(self, file_path: PathLike) -> None:
         """Saves the model to file.
 
         Args:
           file_path: filename path.
         """
-        file_dir = os.path.dirname(file_path)
-        if not (os.path.isdir(file_dir)):
-            os.makedirs(file_dir, exist_ok=True)
+        file_path = Path(file_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        if file_path.suffix.lower() == ".pkl":
+            with file_path.open("wb") as f:
+                pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+            return
+
         with h5py.File(file_path, "w") as f:
             config = self.to_json()
             f.create_dataset("config", data=np.array(config, dtype="S"))
             self.save_params(f)
 
-    def save_params(self, f):
+    def save_params(self, f: h5py.File) -> None:
         """Saves the model paramters into the file.
 
         Args:
           f: file handle.
+
+        Raises:
+          NotImplementedError: If not implemented by a subclass.
         """
         raise NotImplementedError(
             f"save_params method not defined for {self.__class__.__name__}"
         )
 
-    def _save_params_from_dict(self, f, params, dtypes=None):
+    def _save_params_from_dict(
+        self,
+        f: h5py.File,
+        params: Mapping[str, Any],
+        dtypes: Optional[Union[type, Mapping[str, Any]]] = None,
+    ) -> None:
         """Saves a dictionary of model parameters into the file.
 
         Args:
@@ -125,7 +163,7 @@ class HyperNPModel(object):
             f.create_dataset(p_name, data=v.astype(dtypes[k], copy=False))
 
     @classmethod
-    def load_config(cls, file_path):
+    def load_config(cls, file_path: PathLike) -> Dict[str, Any]:
         """Loads the model configuration from file.
 
         Args:
@@ -134,16 +172,26 @@ class HyperNPModel(object):
         Returns:
           Dictionary containing the model configuration.
         """
+        file_path = Path(file_path)
+        if file_path.suffix.lower() == ".pkl":
+            with file_path.open("rb") as f:
+                model = pickle.load(f)
+            if not isinstance(model, HyperNPModel):
+                raise TypeError(
+                    f"Expected HyperNPModel in pickle, got {type(model).__name__}"
+                )
+            return model.get_config()
+
         try:
             with h5py.File(file_path, "r") as f:
                 json_str = str(np.asarray(f["config"]).astype("U"))
                 return cls.load_config_from_json(json_str)
-        except:
-            with open(file_path, "r") as f:
+        except OSError:
+            with file_path.open("r", encoding="utf-8") as f:
                 return cls.load_config_from_json(f.read())
 
     @classmethod
-    def load(cls, file_path):
+    def load(cls, file_path: PathLike) -> "HyperNPModel":
         """Loads the model from file.
 
         Args:
@@ -152,13 +200,23 @@ class HyperNPModel(object):
         Returns:
           Model object.
         """
+        file_path = Path(file_path)
+        if file_path.suffix.lower() == ".pkl":
+            with file_path.open("rb") as f:
+                model = pickle.load(f)
+            if not isinstance(model, cls):
+                raise TypeError(
+                    f"Expected {cls.__name__} in pickle, got {type(model).__name__}"
+                )
+            return model
+
         with h5py.File(file_path, "r") as f:
             json_str = str(np.asarray(f["config"]).astype("U"))
             config = cls.load_config_from_json(json_str)
             return cls.load_params(f, config)
 
     @classmethod
-    def load_params(cls, f, config):
+    def load_params(cls, f: h5py.File, config: Dict[str, Any]) -> "HyperNPModel":
         """Initializes the model from the configuration and loads the model
         parameters from file.
 
@@ -172,7 +230,12 @@ class HyperNPModel(object):
         return cls(name=config["name"])
 
     @staticmethod
-    def _load_params_to_dict(f, name, params, dtypes=None):
+    def _load_params_to_dict(
+        f: h5py.File,
+        name: Optional[str],
+        params: Sequence[str],
+        dtypes: Optional[Union[type, Mapping[str, Any]]] = None,
+    ) -> Dict[str, Optional[np.ndarray]]:
         """Loads the model parameters from file to a dictionary.
 
         Args:
@@ -205,15 +268,22 @@ class HyperNPModel(object):
                 param_dict[k] = None
         return param_dict
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         """Returns the model configuration dict."""
         config = {"class_name": self.__class__.__name__, "name": self.name}
         return config
 
-    def to_json(self, **kwargs):
-        """Returns model config as json string."""
+    def to_json(self, **kwargs: Any) -> str:
+        """Return model configuration serialized as JSON.
 
-        def get_json_type(obj):
+        Args:
+          **kwargs: Extra keyword arguments forwarded to :func:`json.dumps`.
+
+        Returns:
+          JSON string with model configuration.
+        """
+
+        def get_json_type(obj: Any) -> Any:
             # if obj is a np list of strings
             if isinstance(obj, np.ndarray) and obj.ndim == 1:
                 if isinstance(obj[0], str):
@@ -234,12 +304,12 @@ class HyperNPModel(object):
         return json.dumps(config, default=get_json_type, **kwargs)
 
     @staticmethod
-    def load_config_from_json(json_str):
-        """Converts json string into dict."""
+    def load_config_from_json(json_str: str) -> Dict[str, Any]:
+        """Convert JSON configuration string to dictionary."""
         return json.loads(json_str)
 
     @staticmethod
-    def _bootstrap_registry():
+    def _bootstrap_registry() -> None:
         """Import common NP subpackages so subclasses register themselves."""
         module_names = (
             "hyperion.np.pdfs",
@@ -258,8 +328,15 @@ class HyperNPModel(object):
                 )
 
     @staticmethod
-    def _find_module_for_class_name(class_name: str):
-        """Find class module by scanning NP source files."""
+    def _find_module_for_class_name(class_name: str) -> Optional[str]:
+        """Find module path for a registered class name by scanning NP sources.
+
+        Args:
+          class_name: Target class name to locate.
+
+        Returns:
+          Dotted module path if found, otherwise ``None``.
+        """
         np_dir = Path(__file__).resolve().parent
         search_dirs = (
             np_dir / "pdfs",
@@ -293,7 +370,36 @@ class HyperNPModel(object):
         return None
 
     @staticmethod
-    def auto_load(file_path: PathLike, extra_objs: dict = {}):
+    def auto_load(
+        file_path: PathLike,
+        extra_objs: Optional[Dict[str, Type["HyperNPModel"]]] = None,
+    ) -> "HyperNPModel":
+        """Auto-load a serialized model based on the saved ``class_name``.
+
+        Args:
+          file_path: Path to model file.
+          extra_objs: Optional mapping from class name to class object used as a
+            fallback when class is not yet registered.
+
+        Returns:
+          Instantiated model loaded from ``file_path``.
+
+        Raises:
+          Exception: If the class cannot be resolved/imported.
+        """
+        file_path = Path(file_path)
+        if file_path.suffix.lower() == ".pkl":
+            with file_path.open("rb") as f:
+                model = pickle.load(f)
+            if not isinstance(model, HyperNPModel):
+                raise TypeError(
+                    f"Expected HyperNPModel in pickle, got {type(model).__name__}"
+                )
+            return model
+
+        if extra_objs is None:
+            extra_objs = {}
+
         class_name = HyperNPModel.load_config(file_path)["class_name"]
         if class_name not in HyperNPModel.registry:
             HyperNPModel._bootstrap_registry()
