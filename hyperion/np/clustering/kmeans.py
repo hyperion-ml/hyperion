@@ -6,8 +6,9 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
+import h5py
 import numpy as np
 
 from ...hyp_defs import float_cpu
@@ -102,7 +103,37 @@ class KMeans(HyperNPModel):
         self.verbose = verbose
         self.num_workers = num_workers
         self.init_method = init_method
+        self.rng_seed = rng_seed
         self.rng: np.random.Generator = np.random.default_rng(seed=rng_seed)
+
+    def get_config(self) -> Dict[str, Any]:
+        """Returns the model configuration dict."""
+        config = {
+            "num_clusters": self.num_clusters,
+            "rtol": self.rtol,
+            "epochs": self.epochs,
+            "init_method": self.init_method.value,
+            "num_workers": self.num_workers,
+            "verbose": self.verbose,
+            "rng_seed": self.rng_seed,
+        }
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def save_params(self, f: h5py.File) -> None:
+        """Saves model parameters to HDF5."""
+        self._save_params_from_dict(f, {"mu": self.mu})
+
+    @classmethod
+    def load_params(cls, f: h5py.File, config: Dict[str, Any]) -> "KMeans":
+        """Loads model parameters from HDF5 and returns model instance."""
+        init_kwargs = dict(config)
+        init_kwargs.pop("class_name", None)
+        name = init_kwargs.pop("name", None)
+        kmeans = cls(name=name, **init_kwargs)
+        params = cls._load_params_to_dict(f, kmeans.name, ["mu"])
+        kmeans.mu = params["mu"]
+        return kmeans
 
     def fit(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Performs the clustering.

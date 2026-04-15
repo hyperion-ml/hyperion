@@ -1060,13 +1060,28 @@ class SequentialAudioReader(AudioReader):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument(
-            "--wav-scale",
-            default=1.0,
-            # default=2 ** 15 - 1,
-            type=float,
-            help=("multiplicative factor for waveform"),
+        has_wav_scale = any(
+            getattr(action, "dest", None) == "wav_scale" for action in parser._actions
         )
+        if not has_wav_scale:
+            parser.add_argument(
+                "--wav-scale",
+                default=1.0,
+                # default=2 ** 15 - 1,
+                type=float,
+                help=("multiplicative factor for waveform"),
+            )
+        has_target_sample_freq = any(
+            getattr(action, "dest", None) == "target_sample_freq"
+            for action in parser._actions
+        )
+        if not has_target_sample_freq:
+            parser.add_argument(
+                "--target-sample-freq",
+                default=None,
+                type=int,
+                help=("resample input audio to target frequency"),
+            )
         try:
             parser.add_argument(
                 "--part-idx",
@@ -1288,18 +1303,27 @@ class RandomAccessAudioReader(AudioReader):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument(
-            "--wav-scale",
-            default=1.0,
-            type=float,
-            help=("multiplicative factor for waveform"),
+        has_wav_scale = any(
+            getattr(action, "dest", None) == "wav_scale" for action in parser._actions
         )
-        parser.add_argument(
-            "--target-sample-freq",
-            default=None,
-            type=int,
-            help=("resample input audio to target frequency"),
+        if not has_wav_scale:
+            parser.add_argument(
+                "--wav-scale",
+                default=1.0,
+                type=float,
+                help=("multiplicative factor for waveform"),
+            )
+        has_target_sample_freq = any(
+            getattr(action, "dest", None) == "target_sample_freq"
+            for action in parser._actions
         )
+        if not has_target_sample_freq:
+            parser.add_argument(
+                "--target-sample-freq",
+                default=None,
+                type=int,
+                help=("resample input audio to target frequency"),
+            )
         if prefix is not None:
             outer_parser.add_argument(
                 "--" + prefix,

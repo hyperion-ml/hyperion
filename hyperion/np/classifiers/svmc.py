@@ -4,8 +4,8 @@
 """
 
 import logging
-import os
 import pickle
+from pathlib import Path
 
 import numpy as np
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -13,7 +13,7 @@ from sklearn.svm import SVC
 
 from ...hyp_defs import float_cpu
 from ...utils.math_funcs import softmax
-from ...utils.misc import filter_func_args
+from ...utils.misc import PathLike, filter_func_args
 from ..hyper_np_model import HyperNPModel
 
 
@@ -167,37 +167,42 @@ class SVMC(HyperNPModel):
         if self.svm.fit_status_:
             logging.warning("SVM did not converge")
 
-    def save(self, file_path):
+    @staticmethod
+    def _normalize_pickle_path(file_path: PathLike) -> Path:
+        path = Path(file_path)
+        if path.suffix.lower() != ".pkl":
+            path = path.with_suffix(".pkl")
+        return path
+
+    def save(self, file_path: PathLike) -> None:
         """Saves the model to file.
 
         Args:
-          file_path: filename path.
+          file_path: Filename path. If it has no ``.pkl`` suffix, the suffix is
+            replaced with ``.pkl``.
         """
-        file_dir = os.path.dirname(file_path)
-        if not (os.path.isdir(file_dir)):
-            os.makedirs(file_dir, exist_ok=True)
-        split_path = os.path.splitext(file_path)
-        if not split_path[-1] == "sav":
-            file_path = "".join(split_path[0] + ".sav")
-        with open(file_path, "wb") as f:
+        file_path = self._normalize_pickle_path(file_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with file_path.open("wb") as f:
             self.save_params(f)
 
     @classmethod
-    def load(cls, file_path):
+    def load(cls, file_path: PathLike) -> "SVMC":
         """Loads the model from file.
 
         Args:
-          file_path: path to the file where the model is stored.
+          file_path: Path to the file where the model is stored. If it has no
+            ``.pkl`` suffix, the suffix is replaced with ``.pkl``.
 
         Returns:
-          Model object.
+          Loaded ``SVMC`` model object.
         """
-        split_path = os.path.splitext(file_path)
-        if not split_path[-1] == "pkl":
-            file_path = "".join(split_path[0] + ".pkl")
-
-        with open(file_path, "rb") as f:
-            return pickle.load(f)
+        file_path = cls._normalize_pickle_path(file_path)
+        with file_path.open("rb") as f:
+            model = pickle.load(f)
+        if not isinstance(model, cls):
+            raise TypeError(f"Expected {cls.__name__} in pickle, got {type(model).__name__}")
+        return model
 
     def save_params(self, f):
         pickle.dump(self, f)

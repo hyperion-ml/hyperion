@@ -644,6 +644,18 @@ class AudioDataset(Dataset):
             help="random seed",
         )
 
-        AR.add_class_args(parser)
+        parser.add_argument(
+            "--wav-scale",
+            default=1.0,
+            type=float,
+            help=("multiplicative factor for waveform"),
+        )
+
+        parser.add_argument(
+            "--target-sample-freq",
+            default=None,
+            type=int,
+            help=("resample input audio to target frequency"),
+        )
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

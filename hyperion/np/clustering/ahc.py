@@ -4,7 +4,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from copy import copy
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import h5py
 import numpy as np
@@ -49,6 +49,12 @@ class AHC(HyperNPModel):
         self.metric = metric
         self.Z: Optional[np.ndarray] = None
         self.flat_clusters: Optional[np.ndarray] = None
+
+    def get_config(self) -> Dict[str, Any]:
+        """Returns the model configuration dict."""
+        config = {"method": self.method, "metric": self.metric}
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
 
     def fit(self, x: np.ndarray, mask: Optional[np.ndarray] = None) -> None:
         """Performs the clustering.

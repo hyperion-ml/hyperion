@@ -4,7 +4,7 @@
 """
 
 import numpy as np
-from typing import Any
+from typing import Any, Dict
 
 from ..hyper_np_model import HyperNPModel
 
@@ -30,3 +30,9 @@ class ScoreNorm(HyperNPModel):
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Overloads predict function."""
         return self.predict(*args, **kwargs)
+
+    def get_config(self) -> Dict[str, Any]:
+        """Returns the model configuration dict."""
+        config = {"norm_var": self.norm_var, "std_floor": self.std_floor}
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))

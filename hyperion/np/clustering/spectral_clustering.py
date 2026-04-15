@@ -155,6 +155,21 @@ class SpectralClustering(HyperNPModel):
         self.kmeans_init_method = KMeansInitMethod(kmeans_init_method)
         self.num_workers = num_workers
 
+    def get_config(self) -> Dict[str, Any]:
+        """Returns the model configuration dict."""
+        config = {
+            "laplacian": self.laplacian.value,
+            "num_clusters": self.num_clusters,
+            "max_num_clusters": self.max_num_clusters,
+            "criterion": self.criterion.value,
+            "thr_eigengap": self.thr_eigengap,
+            "kmeans_epochs": self.kmeans_epochs,
+            "kmeans_init_method": self.kmeans_init_method.value,
+            "num_workers": self.num_workers,
+        }
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
     def spectral_embedding(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Computes graph spectral embedding.
 

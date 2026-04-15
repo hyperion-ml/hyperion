@@ -4,7 +4,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import math
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import h5py
 import numpy as np
@@ -73,6 +73,16 @@ class AdaptSNorm(ScoreNorm):
         self.nbest = nbest
         self.nbest_discard = nbest_discard
         self.nbest_sel_method = nbest_sel_method
+
+    def get_config(self) -> Dict[str, Any]:
+        """Returns the model configuration dict."""
+        config = {
+            "nbest": self.nbest,
+            "nbest_discard": self.nbest_discard,
+            "nbest_sel_method": self.nbest_sel_method,
+        }
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
 
     def __call__(
         self,

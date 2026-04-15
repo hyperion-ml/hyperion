@@ -120,17 +120,14 @@ class HyperNPModel:
             self.save_params(f)
 
     def save_params(self, f: h5py.File) -> None:
-        """Saves the model paramters into the file.
+        """Saves model parameters into the file.
 
         Args:
           f: file handle.
-
-        Raises:
-          NotImplementedError: If not implemented by a subclass.
         """
-        raise NotImplementedError(
-            f"save_params method not defined for {self.__class__.__name__}"
-        )
+        # Default behavior for config-only models: nothing to save besides
+        # the ``config`` JSON dataset written by ``save``.
+        return None
 
     def _save_params_from_dict(
         self,
@@ -227,7 +224,11 @@ class HyperNPModel:
         Returns:
           Model object.
         """
-        return cls(name=config["name"])
+        # Default behavior for config-only models: construct directly from
+        # configuration and ignore HDF5 parameter payload.
+        init_kwargs = dict(config)
+        init_kwargs.pop("class_name", None)
+        return cls(**init_kwargs)
 
     @staticmethod
     def _load_params_to_dict(
