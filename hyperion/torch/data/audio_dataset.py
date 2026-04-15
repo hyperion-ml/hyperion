@@ -651,11 +651,5 @@ class AudioDataset(Dataset):
             help=("multiplicative factor for waveform"),
         )
 
-        parser.add_argument(
-            "--target-sample-freq",
-            default=None,
-            type=int,
-            help=("resample input audio to target frequency"),
-        )
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
