@@ -23,7 +23,7 @@ class RIRNormType(str, Enum):
     ENERGY = "energy"
 
 
-class SingleReverbAugment(object):
+class SingleReverbAugment:
     """Augments speech with reverberation from a single RIR category.
 
     Attributes:
@@ -233,12 +233,12 @@ class SingleReverbAugment(object):
         self.rng = np.random.default_rng(seed=seed)
 
 
-class ReverbAugment(object):
+class ReverbAugment:
     """Augments speech with reverberation sampled from multiple RIR categories.
 
     Attributes:
       reverb_prob: Probability of applying reverberation to an input utterance.
-      max_reverb_context: Required left-context (in samples) for convolution.
+      max_reverb_context: Required left-context (in seconds) for convolution.
       weights: Sampling weights associated with ``augmenters``.
       augmenters: Per-RIR-type augmenters.
       rng: Random number generator used for augmentation decisions.
@@ -248,7 +248,7 @@ class ReverbAugment(object):
         self,
         reverb_prob: float,
         rir_types: Dict[str, Dict[str, Any]],
-        max_reverb_context: int = 0,
+        max_reverb_context: float = 0.0,
         random_seed: int = 112358,
         rng: Optional[np.random.Generator] = None,
     ) -> None:
@@ -257,7 +257,7 @@ class ReverbAugment(object):
         Args:
           reverb_prob: Probability of applying reverberation.
           rir_types: Dictionary from RIR type name to configuration dictionary.
-          max_reverb_context: Required left-context (in samples) for convolution.
+          max_reverb_context: Required left-context (in seconds) for convolution.
           random_seed: Seed used when creating a new random generator.
           rng: Optional pre-created random generator.
 
@@ -281,15 +281,16 @@ class ReverbAugment(object):
         if len(rir_types) == 0:
             raise ValueError("rir_types must contain at least one RIR type")
 
-        if not isinstance(max_reverb_context, (int, np.integer)):
+        if not np.isscalar(max_reverb_context):
             raise TypeError(
-                "max_reverb_context must be an integer number of samples, "
+                "max_reverb_context must be a scalar duration in seconds, "
                 f"got {type(max_reverb_context)}"
             )
-        max_reverb_context = int(max_reverb_context)
-        if max_reverb_context < 0:
+        max_reverb_context = float(max_reverb_context)
+        if not np.isfinite(max_reverb_context) or max_reverb_context < 0:
             raise ValueError(
-                f"max_reverb_context must be >= 0, got {max_reverb_context}"
+                "max_reverb_context must be a finite value >= 0 seconds, "
+                f"got {max_reverb_context}"
             )
 
         self.reverb_prob = reverb_prob
@@ -376,7 +377,7 @@ class ReverbAugment(object):
         return cls(
             reverb_prob=cfg["reverb_prob"],
             rir_types=cfg["rir_types"],
-            max_reverb_context=cfg.get("max_reverb_context", 0),
+            max_reverb_context=cfg.get("max_reverb_context", 0.0),
             random_seed=random_seed,
             rng=rng,
         )
@@ -442,7 +443,9 @@ class ReverbAugment(object):
     def reseed(self, seed: Union[int, np.random.SeedSequence]) -> None:
         """Reseeds this augmenter and all child augmenters."""
         root_seed = (
-            seed if isinstance(seed, np.random.SeedSequence) else np.random.SeedSequence(seed)
+            seed
+            if isinstance(seed, np.random.SeedSequence)
+            else np.random.SeedSequence(seed)
         )
         child_seeds = root_seed.spawn(len(self.augmenters) + 1)
         self.rng = np.random.default_rng(seed=child_seeds[0])
