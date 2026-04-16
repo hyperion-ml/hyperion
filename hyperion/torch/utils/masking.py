@@ -217,7 +217,10 @@ def seq_lengths_to_self_attn_mask(
         )
 
     max_kv_length = max_length + cache_length
-    masked_value = True if dtype == torch.bool else torch.finfo(dtype).min
+    if dtype == torch.bool:
+        masked_value = True
+    else:
+        masked_value = torch.finfo(dtype).min
     if lengths is None or torch.all(lengths == max_length):
         # we create a broadcastable mask of size (1, 1, max_q_length, max_kv_length)
         # zero means valid position, -inf means invalid position"
