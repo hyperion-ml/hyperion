@@ -156,7 +156,11 @@ class LegacyAudioDataset(Dataset):
 
         self.target_sample_freq = target_sample_freq
         # self.resamplers = {}
-        self.resampler = ResamplerToTargetFreq(target_sample_freq)
+        self.resampler = (
+            None
+            if target_sample_freq is None
+            else ResamplerToTargetFreq(target_sample_freq)
+        )
 
         # prepare enable codecs conditions
         self.enable_tel_codecs_if = enable_tel_codecs_if
