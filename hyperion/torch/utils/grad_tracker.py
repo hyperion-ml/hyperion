@@ -3,7 +3,6 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
 import math
 
 import torch.distributed as dist
@@ -24,15 +23,12 @@ class GradNormTracker:
         self.spikes = {}
         self.decay = decay
         self.spike_threshold = spike_threshold
-        try:
+        if dist.is_available() and dist.is_initialized():
             rank = dist.get_rank()
-            world_size = dist.get_world_size()
-        except:
+        else:
             rank = 0
-            world_size = 1
 
         self.rank = rank
-        self.world_size = world_size
 
     @property
     def grad_ema(self) -> dict:
@@ -60,12 +56,15 @@ class GradNormTracker:
                 self.spikes[name] = value
                 continue
 
-            if name not in self.ema:
+            had_ema = name in self.ema
+            if not had_ema:
                 self.ema[name] = value
             else:
+                prev_ema = self.ema[name]
                 self.ema[name] = self.decay * self.ema[name] + (1 - self.decay) * value
 
-            if value > self.ema[name] * self.spike_threshold:
+            ema_for_spike = prev_ema if had_ema else self.ema[name]
+            if value > ema_for_spike * self.spike_threshold:
                 # logging.warning(f"⚠️ Gradient spike detected for {name}: {value:.4f} (EMA: {self.ema[name]:.4f})")
                 spike_detected = True
                 self.spikes[name] = value
