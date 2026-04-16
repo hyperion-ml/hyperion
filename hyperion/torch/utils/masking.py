@@ -10,15 +10,25 @@ import torch.nn as nn
 
 
 def scale_seq_lengths(
-    lengths: Union[torch.Tensor, None],
+    lengths: Optional[torch.Tensor],
     max_out_length: int,
     max_in_length: Optional[int] = None,
-):
+) -> Optional[torch.Tensor]:
+    """Scale sequence lengths to a different maximum length using floor division.
+
+    Args:
+      lengths: Sequence lengths with shape ``(batch,)``. If ``None``, returns ``None``.
+      max_out_length: Target maximum length after scaling.
+      max_in_length: Source maximum length. If ``None``, uses ``lengths.max()``.
+
+    Returns:
+      Scaled lengths tensor with the same shape as ``lengths`` or ``None``.
+    """
     if lengths is None:
         return None
 
     if max_in_length is None:
-        max_in_length = lengths.max()
+        max_in_length = int(lengths.max().item())
 
     if max_in_length == max_out_length:
         return lengths
@@ -27,13 +37,13 @@ def scale_seq_lengths(
 
 
 def seq_lengths_to_mask(
-    lengths: Union[torch.Tensor, None],
+    lengths: Optional[torch.Tensor],
     max_length: Optional[int] = None,
     dtype: Optional[torch.dtype] = None,
     time_dim: int = 1,
     ndim: Optional[int] = None,
     none_if_all_max: bool = False,
-):
+) -> Optional[torch.Tensor]:
     """Creates a binary masks indicating the valid values in a sequence.
 
     Args:
@@ -57,7 +67,7 @@ def seq_lengths_to_mask(
     assert lengths.dim() == 1, f"lengths must be a 1D tensor, got {lengths.dim()}D"
 
     if max_length is None:
-        max_length = lengths.max()
+        max_length = int(lengths.max().item())
 
     if none_if_all_max and torch.all(lengths == max_length):
         return None
@@ -85,7 +95,7 @@ def seq_lengths_to_mask(
 
 
 def need_attn_mask(
-    lengths: Union[torch.Tensor, None],
+    lengths: Optional[torch.Tensor],
     max_length: Optional[int] = None,
     cache_length: int = 0,
     look_ahead: int = 0,
@@ -93,7 +103,7 @@ def need_attn_mask(
     is_torch_sdp_attn: bool = False,
     is_hf_flash_attn: bool = False,
     none_if_all_max: bool = True,
-):
+) -> bool:
     """Checks if we need to create an attention mask from sequence lengths.
 
     Args:
@@ -102,7 +112,7 @@ def need_attn_mask(
       cache_length: length of the cache for decoder self-attention.
       look_ahead: number of look-ahead steps for non-causal attention.
       is_causal: whether the attention is causal.
-      is_flash_attn: whether we are using flash attention.
+      is_hf_flash_attn: whether we are using Hugging Face flash attention.
       is_torch_sdp_attn: whether we are using torch scaled dot-product attention.
       none_if_all_max: if True and all lengths are equal to max. length, it returns None
 
@@ -113,14 +123,14 @@ def need_attn_mask(
         look_ahead == 0 or not is_causal
     ), "look_ahead is only valid for non-causal attention"
     assert (
-        look_ahead == 0 and not is_hf_flash_attn
+        look_ahead == 0 or not is_hf_flash_attn
     ), "look_ahead is not supported with HF flash attention"
 
     if look_ahead > 0:
         return True
 
     if max_length is None and lengths is not None:
-        max_length = lengths.max()
+        max_length = int(lengths.max().item())
 
     if lengths is None or (none_if_all_max and torch.all(lengths == max_length)):
         if is_causal:
@@ -137,34 +147,42 @@ def need_attn_mask(
 
 
 def seq_lengths_to_self_attn_mask(
-    lengths: Union[torch.Tensor, None],
+    lengths: Optional[torch.Tensor],
     max_length: Optional[int] = None,
     cache_length: int = 0,
     look_ahead: int = 0,
     is_causal: bool = False,
-    is_flash_attn: bool = False,
+    is_hf_flash_attn: bool = False,
     is_torch_sdp_attn: bool = False,
     dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
     none_if_all_max: bool = True,
-):
-    """Creates a binary masks indicating the valid values in self-attention.
+) -> Optional[torch.Tensor]:
+    """Create a self-attention mask from sequence lengths.
 
     Args:
-      lengths: sequence lengths with shape=(batch,). If None, it returns None
-      max_length: maximum length of the sequence.
-      dtype: dtype for the mask.
-      none_if_all_max: if True and all lengths are equal to max. length, it returns None
+      lengths: Sequence lengths with shape ``(batch,)``. ``None`` means full-length sequences.
+      max_length: Maximum query length. If ``None``, inferred from ``lengths``.
+      cache_length: Number of cached key/value frames prepended to current frames.
+      look_ahead: Number of future steps allowed in non-causal attention.
+      is_causal: Whether to apply a causal mask.
+      is_hf_flash_attn: Whether to return a Hugging Face FlashAttention-compatible padding mask.
+      is_torch_sdp_attn: Whether the caller uses torch scaled dot-product attention.
+      dtype: Output mask dtype.
+      device: Device where the mask is created. Defaults to ``lengths.device`` or CPU.
+      none_if_all_max: If ``True`` and no mask is needed, return ``None``.
 
     Returns:
-      Binary mask with shape=(batch,...,max_length,...) or None
+      If ``is_hf_flash_attn`` is ``True``, a padding mask of shape ``(batch, max_length)``.
+      Otherwise, a mask broadcastable to ``(batch_or_1, 1, max_q_length, max_kv_length)``,
+      or ``None`` when masking is unnecessary.
     """
 
     assert (
         lengths is None or lengths.dim() == 1
     ), f"lengths must be a 1D tensor, got {lengths.dim()}D"
     if max_length is None and lengths is not None:
-        max_length = lengths.max()
+        max_length = int(lengths.max().item())
 
     need_mask = need_attn_mask(
         lengths,
@@ -173,12 +191,14 @@ def seq_lengths_to_self_attn_mask(
         look_ahead,
         is_causal,
         is_torch_sdp_attn,
-        is_flash_attn,
+        is_hf_flash_attn,
         none_if_all_max,
     )
 
     if not need_mask:
         return None
+    if max_length is None:
+        raise ValueError("max_length must be provided when lengths is None and a mask is required.")
 
     device = (
         device
@@ -186,8 +206,8 @@ def seq_lengths_to_self_attn_mask(
         else lengths.device if lengths is not None else "cpu"
     )
 
-    if is_flash_attn:
-        """HF Flash attention expects padding mask with shape (batch, seq_length)"""
+    if is_hf_flash_attn:
+        # HF FlashAttention expects a padding mask with shape (batch, seq_length).
         return seq_lengths_to_mask(
             lengths,
             max_length,
@@ -197,7 +217,7 @@ def seq_lengths_to_self_attn_mask(
         )
 
     max_kv_length = max_length + cache_length
-    masked_value = True if mask.dtype == torch.bool else torch.finfo(mask.dtype).min
+    masked_value = True if dtype == torch.bool else torch.finfo(dtype).min
     if lengths is None or torch.all(lengths == max_length):
         # we create a broadcastable mask of size (1, 1, max_q_length, max_kv_length)
         # zero means valid position, -inf means invalid position"
@@ -318,7 +338,9 @@ def seq_lengths_to_cross_attn_mask(
                     "max_kv_cache_length is smaller than the maximum value in kv_cache_lengths."
                 )
     else:
-        max_kv_cache_length = 0 if max_kv_cache_length is None else int(max_kv_cache_length)
+        max_kv_cache_length = (
+            0 if max_kv_cache_length is None else int(max_kv_cache_length)
+        )
 
     effective_kv_length = max_kv_length + max_kv_cache_length
 
@@ -402,14 +424,23 @@ def seq_lengths_to_cross_attn_mask(
     return mask
 
 
-def make_attn_mask_causal(mask: torch.Tensor):
-    """Make  causal mask for decoder self-attention."""
+def make_attn_mask_causal(mask: torch.Tensor) -> torch.Tensor:
+    """Apply a lower-triangular causal constraint to an attention mask."""
     size = mask.size(-1)
     causal_mask = torch.ones(size, size, device=mask.device, dtype=torch.bool)
     torch.tril(causal_mask, out=causal_mask)
     return mask & causal_mask
 
 
-def make_dec_causal_att_mask(y: torch.Tensor, padding_idx: int):
+def make_dec_causal_att_mask(y: torch.Tensor, padding_idx: int) -> torch.Tensor:
+    """Create a causal decoder attention mask from token ids and padding index.
+
+    Args:
+      y: Decoder token ids with shape ``(batch, time)``.
+      padding_idx: Token id used for padding.
+
+    Returns:
+      Boolean mask that combines padding and causal constraints.
+    """
     mask = (y != padding_idx).unsqueeze(-2)
     return make_attn_mask_causal(mask)
