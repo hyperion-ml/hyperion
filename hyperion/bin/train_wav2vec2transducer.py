@@ -113,7 +113,7 @@ def train_model(gpu_id, args):
     torch.backends.cudnn.enabled = False
 
     ddp_args = ddp.filter_ddp_args(**kwargs)
-    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    device, rank, world_size = ddp.ddp_init(**ddp_args)
     kwargs["rank"] = rank
 
     # # for Debug

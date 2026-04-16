@@ -181,7 +181,7 @@ def train_xvec(gpu_id, args):
     set_float_cpu("float32")
 
     ddp_args = ddp.filter_ddp_args(**kwargs)
-    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    device, rank, world_size = ddp.ddp_init(**ddp_args)
     # use_gpu = ddp_args['num_gpus'] > 0
     # kwargs['use_gpu'] = use_gpu
     kwargs["rank"] = rank

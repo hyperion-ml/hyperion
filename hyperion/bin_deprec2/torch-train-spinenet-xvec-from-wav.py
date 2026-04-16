@@ -103,7 +103,7 @@ def train_xvec(gpu_id, args):
     set_float_cpu("float32")
 
     ddp_args = ddp.filter_ddp_args(**kwargs)
-    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    device, rank, world_size = ddp.ddp_init(**ddp_args)
     kwargs["rank"] = rank
     train_loader, test_loader = init_data(**kwargs)
     feat_extractor = init_feats(**kwargs)

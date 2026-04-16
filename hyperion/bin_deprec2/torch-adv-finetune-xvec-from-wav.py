@@ -123,7 +123,7 @@ def train_xvec(gpu_id, args):
     train_mode = kwargs["train_mode"]
 
     ddp_args = ddp.filter_ddp_args(**kwargs)
-    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    device, rank, world_size = ddp.ddp_init(**ddp_args)
     kwargs["rank"] = rank
 
     train_loader, test_loader = init_data(**kwargs)

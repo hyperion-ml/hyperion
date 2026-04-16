@@ -121,7 +121,7 @@ def train_qvector(gpu_id: int, args: Any) -> None:
     set_float_cpu("float32")
 
     ddp_args = ddp.filter_ddp_args(**kwargs)
-    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    device, rank, world_size = ddp.ddp_init(**ddp_args)
     kwargs["rank"] = rank
 
     train_loader = init_data(partition="train", **kwargs)
