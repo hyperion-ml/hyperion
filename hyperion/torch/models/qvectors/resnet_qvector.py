@@ -186,6 +186,19 @@ class ResNetQVector(QVector):
     def set_adapters_in_train_mode(self):
         pass
 
+    def change_config(self, encoder_dropout: Optional[float] = None, **kwargs):
+        """Change model configuration at runtime.
+
+        Args:
+            encoder_dropout: Optional dropout rate to apply in the ResNet encoder during fine-tuning.
+            **kwargs: Additional keyword arguments forwarded to the base class method for reconfiguration.
+        """
+
+        if encoder_dropout is not None:
+            self.resnet_encoder.change_config(dropout=encoder_dropout)
+
+        super().change_config(**kwargs)
+
     def forward_backbone(
         self,
         x: torch.Tensor,
@@ -368,7 +381,7 @@ class ResNetQVector(QVector):
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Return only keyword args that match the constructor signature."""
-        return filter_func_args(ResNetQVector, kwargs)
+        return filter_func_args(ResNetQVector.__init__, kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -389,42 +402,26 @@ class ResNetQVector(QVector):
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
-    # @staticmethod
-    # def filter_finetune_args(**kwargs):
-    #     base_args = XVector.filter_finetune_args(**kwargs)
-    #     child_args = RNF.filter_finetune_args(**kwargs)
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        base_args = QVector.filter_finetune_args(**kwargs)
+        child_args = filter_func_args(ResNetQVector.change_config, kwargs)
+        base_args.update(child_args)
+        return base_args
 
-    #     base_args.update(child_args)
-    #     return base_args
+    @staticmethod
+    def add_finetune_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
-    # @staticmethod
-    # def add_finetune_args(parser, prefix=None):
-    #     if prefix is not None:
-    #         outer_parser = parser
-    #         parser = ArgumentParser(prog="")
+        parser.add_argument(
+            "--encoder_dropout",
+            type=float,
+            default=None,
+            help="Optional dropout rate to apply in the ResNet encoder during fine-tuning.",
+        )
+        QVector.add_finetune_args(parser)
 
-    #     XVector.add_finetune_args(parser)
-    #     RNF.add_finetune_args(parser)
-
-    #     if prefix is not None:
-    #         outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-
-    # @staticmethod
-    # def filter_dino_teacher_args(**kwargs):
-    #     base_args = XVector.filter_dino_teacher_args(**kwargs)
-    #     child_args = RNF.filter_finetune_args(**kwargs)
-
-    #     base_args.update(child_args)
-    #     return base_args
-
-    # @staticmethod
-    # def add_dino_teacher_args(parser, prefix=None):
-    #     if prefix is not None:
-    #         outer_parser = parser
-    #         parser = ArgumentParser(prog="")
-
-    #     XVector.add_dino_teacher_args(parser)
-    #     RNF.add_finetune_args(parser)
-
-    #     if prefix is not None:
-    #         outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

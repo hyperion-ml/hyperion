@@ -263,73 +263,88 @@ class HydraClassifHead(HydraHead):
                 reduction=reduction, label_smoothing=label_smoothing
             )
 
-    def rebuild_head(
+    @property
+    def head_type(self) -> HydraHeadType:
+        """Return the head type identifier for this head instance."""
+        return HydraHeadType.CLASSIF
+
+    def reconfig_or_create(
         self,
-        num_classes: int,
-        loss_type: HydraClassifLossType,
-        cos_scale: float,
-        margin: float,
-        margin_warmup_steps: int,
+        in_feats: int,
+        num_classes: Optional[int] = None,
+        loss_type: HydraClassifLossType = HydraClassifLossType.ARC_SOFTMAX,
+        cos_scale: float = 64.0,
+        margin: float = 0.3,
+        margin_warmup_steps: int = 0,
         intertop_k: int = 5,
         intertop_margin: float = 0.0,
         num_subcenters: int = 2,
-    ) -> None:
-        """Recreate the output layer and loss configuration with new settings.
+        enable_loss: bool = True,
+        reduction: str = "mean",
+        label_smoothing: float = 0.0,
+    ) -> "HydraClassifHead":
+        """Reconfigure the head or create a new one when structural settings change.
 
         Args:
-            num_classes: New number of output classes.
-            loss_type: Replacement loss variant.
-            cos_scale: Replacement cosine scale.
-            margin: Replacement margin value.
-            margin_warmup_steps: Replacement warmup step count for the margin.
-            intertop_k: Replacement InterTopK count.
-            intertop_margin: Replacement InterTopK penalty.
-            num_subcenters: Replacement number of sub-centres.
+            in_feats: Input feature dimension.
+            num_classes: Number of output classes.
+            loss_type: Loss variant used to compute logits.
+            cos_scale: Scale applied by cosine-based losses.
+            margin: Margin applied by cosine-based losses.
+            margin_warmup_steps: Training steps spent annealing the margin.
+            intertop_k: Number of hardest negatives in the InterTopK penalty.
+            intertop_margin: Penalty applied by the InterTopK term.
+            num_subcenters: Number of sub-centres for sub-centre arc losses.
+            enable_loss: When True, compute cross-entropy loss in `forward`.
+            reduction: Reduction strategy for cross-entropy loss.
+            label_smoothing: Label smoothing factor for cross-entropy loss.
+        Returns:
+            HydraClassifHead: Updated head instance.
         """
-        self.num_classes = num_classes
-        self.loss_type = loss_type
-        self.cos_scale = cos_scale
-        self.margin = margin
-        self.margin_warmup_steps = margin_warmup_steps
-        self.intertop_margin = intertop_margin
-        self.num_subcenters = num_subcenters
+        if num_classes is None:
+            num_classes = self.num_classes
 
-        if loss_type == HydraClassifLossType.SOFTMAX:
-            self.output = Linear(self.in_feats, num_classes)
-        elif loss_type == HydraClassifLossType.COS_SOFTMAX:
-            self.output = CosLossOutput(
-                self.in_feats,
-                num_classes,
+        if (
+            in_feats != self.in_feats
+            or num_classes != self.num_classes
+            or loss_type != self.loss_type
+            or num_subcenters != self.num_subcenters
+        ):
+            logging.info("Rebuilding HydraClassifHead with new configuration.")
+            return HydraClassifHead(
+                in_feats=in_feats,
+                num_classes=num_classes,
+                loss_type=loss_type,
                 cos_scale=cos_scale,
                 margin=margin,
-                margin_warmup_epochs=0,
                 margin_warmup_steps=margin_warmup_steps,
                 intertop_k=intertop_k,
                 intertop_margin=intertop_margin,
+                num_subcenters=num_subcenters,
+                enable_loss=enable_loss,
+                reduction=reduction,
+                label_smoothing=label_smoothing,
             )
-        elif loss_type == HydraClassifLossType.ARC_SOFTMAX:
-            self.output = ArcLossOutput(
-                self.in_feats,
-                num_classes,
-                cos_scale=cos_scale,
-                margin=margin,
-                margin_warmup_epochs=0,
-                margin_warmup_steps=margin_warmup_steps,
-                intertop_k=intertop_k,
-                intertop_margin=intertop_margin,
+
+        self.set_margin(margin)
+        self.set_margin_warmup_steps(margin_warmup_steps)
+        self.set_cos_scale(cos_scale)
+        self.set_intertop_k(intertop_k)
+        self.set_intertop_margin(intertop_margin)
+        if self.enable_loss:
+            if enable_loss:
+                self.loss.reduction = reduction
+                self.loss.label_smoothing = label_smoothing
+            else:
+                del self.loss
+        elif enable_loss:
+            self.loss = nn.CrossEntropyLoss(
+                reduction=reduction, label_smoothing=label_smoothing
             )
-        elif loss_type == HydraClassifLossType.SUBCENTER_ARC_SOFTMAX:
-            self.output = SubCenterArcLossOutput(
-                self.in_feats,
-                num_classes,
-                num_subcenters,
-                cos_scale=cos_scale,
-                margin=margin,
-                margin_warmup_epochs=0,
-                margin_warmup_steps=margin_warmup_steps,
-                intertop_k=intertop_k,
-                intertop_margin=intertop_margin,
-            )
+
+        self.reduction = reduction
+        self.enable_loss = enable_loss
+        return self
 
     def set_margin(self, margin: float) -> None:
         """Update the margin parameter for cosine-based losses.
@@ -535,14 +550,6 @@ class HydraClassifHead(HydraHead):
         """
         skip = skip or set()
 
-        if "loss_type" not in skip:
-            parser.add_argument(
-                "--loss-type",
-                default=HydraClassifLossType.ARC_SOFTMAX.value,
-                choices=HydraClassifLossType.choices(),
-                help="loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax",
-            )
-
         if "cos_scale" not in skip:
             parser.add_argument(
                 "--cos-scale", default=64, type=float, help="scale for arcface"
@@ -623,6 +630,17 @@ class HydraClassifHead(HydraHead):
 
         skip = skip or set()
 
+        if "loss_type" not in skip:
+            parser.add_argument(
+                "--loss-type",
+                default=HydraClassifLossType.ARC_SOFTMAX.value,
+                choices=HydraClassifLossType.choices(),
+                help="loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax",
+            )
+        if "num_classes" not in skip:
+            parser.add_argument(
+                "--num-classes", type=int, default=None, help="number of output classes"
+            )
         HydraClassifHead.add_large_margin_loss_args(parser, skip=skip)
         HydraClassifHead.add_cross_entropy_loss_args(parser, skip=skip)
         HydraHead.add_class_args(parser, prefix=None, skip=skip)

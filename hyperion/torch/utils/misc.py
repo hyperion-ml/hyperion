@@ -3,23 +3,22 @@ Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Tuple
+from typing import Literal, Optional, Tuple, Union, overload
 
 import torch
 import torch.amp as amp
-import torch.nn as nn
 
 
-def l2_norm(x, dim=1, axis=None):
-    """Applies length normalization to vectors.
+def l2_norm(x: torch.Tensor, dim: int = 1, axis: Optional[int] = None) -> torch.Tensor:
+    """Apply L2 normalization along a given dimension.
 
     Args:
-      x: input tensor.
-      dim: dimension along which normalize the vectors.
-      axis: same as dim (deprecated).
+      x: Input tensor.
+      dim: Dimension used for normalization.
+      axis: Deprecated alias for ``dim``.
 
-      Returns:
-        Normalized tensor.
+    Returns:
+      L2-normalized tensor with the same shape as ``x``.
     """
     if axis is not None:
         dim = axis
@@ -30,17 +29,19 @@ def l2_norm(x, dim=1, axis=None):
     return y
 
 
-def compute_snr(x, n, dim=1, axis=None):
-    """Computes SNR (dB)
+def compute_snr(
+    x: torch.Tensor, n: torch.Tensor, dim: int = 1, axis: Optional[int] = None
+) -> torch.Tensor:
+    """Compute signal-to-noise ratio (SNR) in dB.
 
     Args:
-      x: tensor with clean signal.
-      n: tensor with noisy signal
-      dim: dimension along which normalize power.
-      axis: same as dim (deprecated).
+      x: Tensor with signal values.
+      n: Tensor with noise values.
+      dim: Dimension along which power is averaged.
+      axis: Deprecated alias for ``dim``.
 
     Returns:
-      Tensor with SNR(dB)
+      Tensor with SNR values in dB.
     """
     if axis is not None:
         dim = axis
@@ -50,22 +51,28 @@ def compute_snr(x, n, dim=1, axis=None):
     return P_x - P_n
 
 
-def compute_stats_adv_attack(x, x_adv):
-    """Compute statistics of adversarial attack sample.
+def compute_stats_adv_attack(
+    x: torch.Tensor, x_adv: torch.Tensor
+) -> Tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    """Compute per-sample attack statistics from clean and adversarial inputs.
 
     Args:
-      x: benign signal tensor.
-      x_adv: adversarial signal tensor.
+      x: Clean signal tensor of shape ``(B, ...)``.
+      x_adv: Adversarial signal tensor with same shape as ``x``.
 
     Returns:
-      SNR (dB).
-      Power of x.
-      Power of n.
-      L2 norm of x.
-      Linf norm of x.
-      L0 norm of n.
-      L2 norm of n.
-      Linf norm of n.
+      Tuple containing:
+      ``(snr, p_x, p_n, x_l2, x_max, n_l0, n_l2, n_max)``.
+      Inputs are flattened to shape ``(B, T)`` when ``x.dim() > 2``.
     """
 
     if x.dim() > 2:
@@ -78,26 +85,41 @@ def compute_stats_adv_attack(x, x_adv):
     snr = P_x - P_n
     # x_l1 = torch.sum(torch.abs(x), dim=-1)
     x_l2 = torch.norm(x, dim=-1)
-    x_linf = torch.max(x, dim=-1)[0]
+    x_linf = torch.max(torch.abs(x), dim=-1)[0]
     abs_n = torch.abs(noise)
     n_l0 = torch.sum(abs_n > 0, dim=-1).float()
     # n_l1 = torch.sum(abs_n, dim=-1)
     n_l2 = torch.norm(noise, dim=-1)
-    n_linf = torch.max(noise, dim=-1)[0]
+    n_linf = torch.max(abs_n, dim=-1)[0]
     return snr, P_x, P_n, x_l2, x_linf, n_l0, n_l2, n_linf
 
 
-def get_selfsim_tarnon(y, return_mask=False):
-    """Computes ground truth selfsimilarity matrix given
-       integer class labels.
+@overload
+def get_selfsim_tarnon(
+    y: torch.Tensor, return_mask: Literal[False] = False
+) -> torch.Tensor: ...
+
+
+@overload
+def get_selfsim_tarnon(
+    y: torch.Tensor, return_mask: Literal[True]
+) -> Tuple[torch.Tensor, torch.Tensor]: ...
+
+
+def get_selfsim_tarnon(
+    y: torch.Tensor, return_mask: bool = False
+) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    """Compute target/non-target self-similarity from integer class labels.
 
     Args:
-      y: integer tensor with class labels of shape (batch,).
-      return_mask: If True, it returns upper triangular mask with zero diagonal.
+      y: Integer label tensor of shape ``(B,)``.
+      return_mask: If ``True``, also return the strict upper-triangular mask.
 
     Returns:
-      Self-similarity binary matrix wiht shape=(batch, batch).
-      Upper triangular mask.
+      If ``return_mask`` is ``False``, a float matrix of shape ``(B, B)`` with
+      ones for same-class pairs and zeros otherwise.
+      If ``return_mask`` is ``True``, returns ``(selfsim, mask)``, where ``mask``
+      is a boolean upper-triangular matrix (zero diagonal).
     """
     y_bin = y.unsqueeze(-1) - y.unsqueeze(0) + 1
     y_bin[y_bin != 1] = 0
@@ -116,18 +138,19 @@ def slice_segments(
     dim: int = 1,
     permissive: int = 0,
 ) -> torch.Tensor:
-    """
-    Slices segments from the input tensor along a specified dimension using start indices.
+    """Slice fixed-length segments per batch item along ``dim``.
 
     Args:
-        x (torch.Tensor): Input tensor of shape (B, ..., T, ...).
-        start_idx (torch.Tensor): Tensor of shape (B,) with start indices per batch.
-        segment_length (int): Length of the segment to slice.
-        dim (int): Dimension along which to slice (default=1).
-        permissive (int):
+        x: Input tensor of shape ``(B, ..., T, ...)``.
+        start_idx: Start indices of shape ``(B,)`` (one per batch element).
+        segment_length: Length of each extracted segment.
+        dim: Dimension along which to slice.
+        permissive: Allowed right overflow. If a segment exceeds the tensor by at
+            most this value, the window is shifted left to fit; otherwise raises.
 
     Returns:
-        torch.Tensor: Tensor with sliced segments, same shape as x but sliced along `dim`.
+        Tensor with same shape as ``x`` except length ``segment_length`` along
+        ``dim``. If ``segment_length > x.size(dim)``, returns ``x`` unchanged.
     """
     if dim < 0:
         dim = x.dim() + dim
@@ -163,23 +186,24 @@ def slice_segments(
 
 def rand_slice_segments(
     x: torch.Tensor,
-    x_lengths: torch.Tensor,
+    x_lengths: Optional[torch.Tensor],
     segment_length: int,
     dim: int = 1,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Randomly slices segments from the input tensor along a specified dimension.
+    """Randomly slice fixed-length segments along a target dimension.
 
     Args:
-        x (torch.Tensor): Input tensor of shape (B, ..., T, ...).
-        x_lengths (torch.Tensor): Tensor of shape (B,) containing the valid lengths along `dim`.
-        segment_length (int): Length of the segment to slice.
-        dim (int): Dimension along which to slice (default: 1).
+        x: Input tensor of shape ``(B, ..., T, ...)``.
+        x_lengths: Optional valid lengths along ``dim`` with shape ``(B,)``.
+            If ``None``, full length ``T`` is used for every batch item.
+        segment_length: Segment length to extract.
+        dim: Dimension along which to slice.
 
     Returns:
-        Tuple[torch.Tensor, torch.Tensor]:
-            - Sliced tensor of shape similar to `x` but with length `segment_size` along `dim`.
-            - Tensor of shape (B,) with the starting indices of the slices.
+        Tuple ``(segments, start_idx)`` where:
+        - ``segments`` has the same shape as ``x`` except length
+          ``segment_length`` along ``dim``.
+        - ``start_idx`` is a ``(B,)`` tensor of sampled start indices.
     """
     b = x.size(0)
     t = x.size(dim)
@@ -187,7 +211,7 @@ def rand_slice_segments(
         return x, torch.zeros(b, dtype=torch.long, device=x.device)
 
     if x_lengths is None:
-        x_lengths = t
+        x_lengths = torch.full((b,), t, dtype=torch.long, device=x.device)
 
     max_start = x_lengths - segment_length
     start_idx = (
@@ -201,27 +225,24 @@ def rand_slice_segments(
 
 def rand_slice_feat_segments(
     feats: torch.Tensor,
-    feat_lengths: torch.Tensor,
+    feat_lengths: Optional[torch.Tensor],
     segment_duration: float,
     sample_freq: int,
     frame_shift: int,
     dim: int = 1,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Randomly slices fixed-duration segments from feature sequences.
+    """Randomly slice fixed-duration segments from feature sequences.
 
     Args:
-        feats (torch.Tensor): Feature tensor of shape (B, ..., T, ...).
-        feat_lengths (torch.Tensor): Tensor of shape (B,) with valid lengths in frames.
-        segment_duration (float): Desired segment length in seconds.
-        sample_freq (int): Sampling rate in Hz.
-        frame_shift (int): Frame shift in samples (e.g., 160 for 10 ms @ 16 kHz).
-        dim (int): Dimension along which to slice (default: 1).
+        feats: Feature tensor of shape ``(B, ..., T, ...)``.
+        feat_lengths: Optional valid frame lengths of shape ``(B,)``.
+        segment_duration: Segment duration in seconds.
+        sample_freq: Sampling rate in Hz.
+        frame_shift: Frame shift in samples.
+        dim: Dimension along which to slice.
 
     Returns:
-        Tuple[torch.Tensor, torch.Tensor]:
-            - Sliced feature tensor with segment length along `dim`.
-            - Tensor of shape (B,) with start indices for each slice.
+        Tuple ``(segments, start_idx)`` from :func:`rand_slice_segments`.
     """
     segment_size = int(segment_duration * sample_freq / frame_shift)
     return rand_slice_segments(feats, feat_lengths, segment_size, dim=dim)
@@ -229,25 +250,22 @@ def rand_slice_feat_segments(
 
 def rand_slice_audio_segments(
     audios: torch.Tensor,
-    audio_lengths: torch.Tensor,
+    audio_lengths: Optional[torch.Tensor],
     segment_duration: float,
     sample_freq: int,
     dim: int = -1,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Randomly slices fixed-duration segments from raw audio waveforms.
+    """Randomly slice fixed-duration segments from audio waveforms.
 
     Args:
-        audios (torch.Tensor): Audio tensor of shape (B, ..., T, ...).
-        audio_lengths (torch.Tensor): Tensor of shape (B,) with audio lengths in samples.
-        segment_duration (float): Desired segment length in seconds.
-        sample_freq (int): Sampling rate in Hz.
-        dim (int): Dimension along which to slice (default: -1).
+        audios: Audio tensor of shape ``(B, ..., T, ...)``.
+        audio_lengths: Optional valid lengths in samples with shape ``(B,)``.
+        segment_duration: Segment duration in seconds.
+        sample_freq: Sampling rate in Hz.
+        dim: Dimension along which to slice.
 
     Returns:
-        Tuple[torch.Tensor, torch.Tensor]:
-            - Sliced audio tensor with segment length along `dim`.
-            - Tensor of shape (B,) with start indices for each slice.
+        Tuple ``(segments, start_idx)`` from :func:`rand_slice_segments`.
     """
     segment_size = int(segment_duration * sample_freq)
     return rand_slice_segments(audios, audio_lengths, segment_size, dim=dim)

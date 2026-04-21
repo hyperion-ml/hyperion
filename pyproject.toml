@@ -61,6 +61,7 @@ hyperion-extract-xvectors-slidwin-from-wav = "hyperion.bin.extract_xvectors_slid
 hyperion-finetune-wav2vec2transducer = "hyperion.bin.finetune_wav2vec2transducer:main"
 hyperion-finetune-wav2vec2xvector = "hyperion.bin.finetune_wav2vec2xvector:main"
 hyperion-finetune-wav2xvector = "hyperion.bin.finetune_wav2xvector:main"
+hyperion-finetune-qvector = "hyperion.bin.finetune_qvector:main"
 hyperion-finetune-xvector-dfr-from-feats = "hyperion.bin.finetune_xvector_dfr_from_feats:main"
 hyperion-finetune-xvector-dfr-from-wav = "hyperion.bin.finetune_xvector_dfr_from_wav:main"
 hyperion-finetune-xvector-from-feats = "hyperion.bin.finetune_xvector_from_feats:main"

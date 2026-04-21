@@ -3,24 +3,34 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Optional, Tuple
+
 import torch
 import torch.nn as nn
 
 from .collation import collate_seqs_nd
 
 
-def remove_silence(x, vad, x_lengths=None, time_dim=1, tol=0):
+def remove_silence(
+    x: torch.Tensor,
+    vad: torch.Tensor,
+    x_lengths: Optional[torch.Tensor] = None,
+    time_dim: int = 1,
+    tol: int = 0,
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """Remove silence samples/frames.
 
     Args:
-        x: input signal/spectrogram of shape=(batch,...,time,...).
-        vad: binary voice activity detection mask of shape=(batch, time).
-        x_lenghts: lengths of each sequence in x.
-        time_dim: which dimension in x is time.
-        tol: tolerance for the difference between time dimensions in x and vad.
+        x: Input tensor of shape ``(batch, ..., time, ...)``.
+        vad: Binary VAD mask of shape ``(batch, time)``.
+        x_lengths: Optional valid lengths for each sequence in ``x``.
+        time_dim: Time dimension index in ``x``.
+        tol: Allowed difference between ``x`` and ``vad`` time lengths.
 
     Returns:
-        x without silence samples/frames.
+        Tuple ``(y, y_lengths)`` where ``y`` is ``x`` with silent frames removed
+        and padded across the batch, and ``y_lengths`` contains the resulting
+        per-sample lengths.
     """
 
     # we make x and vad time dimensions of the same size.
@@ -33,7 +43,7 @@ def remove_silence(x, vad, x_lengths=None, time_dim=1, tol=0):
         f"vad_length({vad_max_length}) > tol ({tol})"
     )
     if length_err > 0:
-        vad = nn.functional.pad(vad, (0, length_err), model="constant", value=0)
+        vad = nn.functional.pad(vad, (0, length_err), mode="constant", value=0)
     elif length_err < 0:
         vad = vad[:, :x_max_length]
 
@@ -43,8 +53,11 @@ def remove_silence(x, vad, x_lengths=None, time_dim=1, tol=0):
         for i in range(x.size(0)):
             vad[i, x_lengths[i] :] = 0
 
+    if time_dim < 0:
+        time_dim = x.dim() + time_dim
+
     trans = False
-    if time_dim != 1 or time_dim != 1 - x.dim():
+    if time_dim != 1:
         x = x.transpose(1, time_dim)
         trans = True
 
@@ -54,6 +67,6 @@ def remove_silence(x, vad, x_lengths=None, time_dim=1, tol=0):
 
     y, y_lengths = collate_seqs_nd(y, pad_dim=0)
     if trans:
-        y = y.transpose(1, time_dim).contigous()
+        y = y.transpose(1, time_dim).contiguous()
 
     return y, y_lengths

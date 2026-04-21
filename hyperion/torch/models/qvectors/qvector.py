@@ -17,6 +17,7 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
+from ...hyper_torch_model import HyperTorchModel
 from ...narchs import (
     HydraClassifHeadOutput,
     HydraHead,
@@ -26,7 +27,6 @@ from ...narchs import (
     QFormerV2,
     QProjHead,
 )
-from ...hyper_torch_model import HyperTorchModel
 
 
 @dataclass
@@ -1128,7 +1128,7 @@ class QVector(HyperTorchModel):
             constructor (along with subclass-specific backbone parameters).
         """
         head = self.head.get_config(no_class_name=True)
-        head["head_type"] = HydraHeadType.from_instance(self.head)
+        head["head_type"] = self.head.head_type
         hidden_feats_agg_qformer = (
             self.hidden_feats_agg_qformer.get_config(no_class_name=True)
             if self.hidden_feats_agg_qformer is not None
@@ -1154,18 +1154,45 @@ class QVector(HyperTorchModel):
         base_config.update(config)
         return base_config
 
-    # @classmethod
-    # def load(cls, file_path=None, cfg=None, state_dict=None):
-    #     cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
-    #     encoder_net = TorchNALoader.load_from_cfg(cfg=cfg["encoder_cfg"])
-    #     for k in "encoder_cfg":
-    #         del cfg[k]
+    def change_config(
+        self,
+        qvector_dim: Optional[int] = None,
+        override_head: bool = False,
+        head: Union[Dict[str, Any], HydraHead] = None,
+        bias_weight_decay: Optional[float] = None,
+    ):
+        """Change the model configuration on the fly."""
+        if qvector_dim is not None and qvector_dim != self.qvector_dim:
+            logging.info(f"overriding qvector dim with new value: {qvector_dim}")
+            self.qvector_dim = qvector_dim
+            self.proj_head = QProjHead(
+                in_feats=self.qmatrix_shape[1] * self.qmatrix_shape[0],
+                out_feats=self.qvector_dim,
+                use_norm=self.proj_head.use_norm,
+                norm_layer=self.proj_head.norm_layer,
+            )
+            if not override_head:
+                logging.info("rebuilding head to accommodate new qvector dim")
+                head = self.head.get_config(no_class_name=True)
+                head["in_feats"] = self.qvector_dim
+                head_class = type(self.head)
+                self.head = head_class(**head)
 
-    #     model = cls(encoder_net, **cfg)
-    #     if state_dict is not None:
-    #         model.load_state_dict(state_dict)
+        if override_head:
+            if head is None:
+                raise ValueError("head must be provided when override_head=True")
+            logging.info("overriding head with new config")
+            if isinstance(head, HydraHead):
+                self.head = head
+            else:
+                head["in_feats"] = self.qvector_dim
+                self.head = HydraHeadFactory.reconfig_or_create(self.head, **head)
 
-    #     return model
+        if bias_weight_decay is not None:
+            logging.info(
+                f"overriding bias weight decay with new value: {bias_weight_decay}"
+            )
+            self.bias_weight_decay = bias_weight_decay
 
     # def change_config(
     #     self,
@@ -1460,7 +1487,6 @@ class QVector(HyperTorchModel):
     @staticmethod
     def filter_args(**kwargs):
         return filter_func_args(QVector.__init__)
-        raise NotImplementedError()
 
     @staticmethod
     def add_class_args(
@@ -1543,80 +1569,61 @@ class QVector(HyperTorchModel):
         if outer_parser is not None and prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
-    # @staticmethod
-    # def filter_finetune_args(**kwargs):
-    #     args = filter_func_args(QVector.change_config, kwargs)
-    #     return args
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        args = filter_func_args(QVector.change_config, kwargs)
+        return args
 
-    # @staticmethod
-    # def add_finetune_args(parser, prefix=None):
-    #     if prefix is not None:
-    #         outer_parser = parser
-    #         parser = ArgumentParser(prog="")
+    @staticmethod
+    def add_finetune_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """Register CLI/configuration arguments for QVector models.
 
-    #     parser.add_argument(
-    #         "--override-output",
-    #         default=False,
-    #         action=ActionYesNo,
-    #         help="changes the config of the output layer",
-    #     )
+        Args:
+            parser: Target parser where the options will be registered.
+            prefix: Optional namespace prefix for the registered arguments.
+            skip: Optional set of argument names that should be omitted.
+        """
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+        else:
+            outer_parser = None
 
-    #     parser.add_argument(
-    #         "--loss-type",
-    #         default="arc-softmax",
-    #         choices=["softmax", "arc-softmax", "cos-softmax", "subcenter-arc-softmax"],
-    #         help="loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax",
-    #     )
+        skip = set(skip) if skip is not None else set()
 
-    #     parser.add_argument(
-    #         "--cos-scale", default=64, type=float, help="scale for arcface"
-    #     )
+        if "qvector_dim" not in skip:
+            parser.add_argument(
+                "--qvector-dim",
+                type=int,
+                default=256,
+                help="final q-vector embedding dimension",
+            )
 
-    #     parser.add_argument(
-    #         "--margin", default=0.3, type=float, help="margin for arcface, cosface,..."
-    #     )
+        if "bias_weight_decay" not in skip:
+            parser.add_argument(
+                "--bias-weight-decay",
+                type=float,
+                default=None,
+                help="optional bias-only weight decay value",
+            )
 
-    #     parser.add_argument(
-    #         "--margin-warmup-epochs",
-    #         default=10,
-    #         type=float,
-    #         help="number of epoch until we set the final margin",
-    #     )
+        parser.add_argument(
+            "--override-head",
+            default=False,
+            action=ActionYesNo,
+            help="whether to override the head configuration (implies rebuilding the head with the new qvector_dim if it changes and override_head is False)",
+        )
 
-    #     parser.add_argument(
-    #         "--intertop-k", default=5, type=int, help="K for InterTopK penalty"
-    #     )
-    #     parser.add_argument(
-    #         "--intertop-margin",
-    #         default=0.0,
-    #         type=float,
-    #         help="margin for InterTopK penalty",
-    #     )
+        if "head" not in skip:
+            HydraHeadFactory.add_class_args(
+                parser,
+                prefix="head",
+                skip=skip,
+            )
 
-    #     parser.add_argument(
-    #         "--num-subcenters",
-    #         default=2,
-    #         type=int,
-    #         help="number of subcenters in subcenter losses",
-    #     )
-
-    #     try:
-    #         parser.add_argument(
-    #             "--override-dropouts",
-    #             default=False,
-    #             action=ActionYesNo,
-    #             help=(
-    #                 "whether to use the dropout probabilities passed in the "
-    #                 "arguments instead of the defaults in the pretrained model."
-    #             ),
-    #         )
-    #     except:
-    #         pass
-
-    #     try:
-    #         parser.add_argument("--dropout-rate", default=0, type=float, help="dropout")
-    #     except:
-    #         pass
-
-    #     if prefix is not None:
-    #         outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+        if outer_parser is not None and prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

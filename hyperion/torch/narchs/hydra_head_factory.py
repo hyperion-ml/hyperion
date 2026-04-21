@@ -7,25 +7,25 @@ from typing import Optional, Type
 
 from jsonargparse import ActionParser, ArgumentParser
 
-from .hydra_heads import HydraClassifHead, HydraHead
+from .hydra_heads import HydraClassifHead, HydraHead, HydraHeadType
 
-_HYDRA_HEAD_REGISTRY: dict[str, Type[HydraHead]] = {
-    "classif": HydraClassifHead,
+_HYDRA_HEAD_REGISTRY: dict[HydraHeadType, Type[HydraHead]] = {
+    HydraHeadType.CLASSIF: HydraClassifHead,
 }
 
 
 class HydraHeadFactory:
     """Factory class for Hydra head modules."""
 
-    DEFAULT_TYPE = "classif"
+    DEFAULT_TYPE = HydraHeadType.CLASSIF
 
     @staticmethod
     def supported_types() -> list[str]:
         """Return available head identifiers."""
-        return list(_HYDRA_HEAD_REGISTRY.keys())
+        return HydraHeadType.choices()
 
     @staticmethod
-    def create(head_type: str = DEFAULT_TYPE, **kwargs) -> HydraHead:
+    def create(head_type: HydraHeadType = DEFAULT_TYPE, **kwargs) -> HydraHead:
         """Instantiate a Hydra head of the requested type.
 
         Args:
@@ -49,6 +49,25 @@ class HydraHeadFactory:
         params.pop("head_type", None)
         params = head_class.filter_args(**params)
         return head_class(**params)
+
+    @staticmethod
+    def reconfig_or_create(head: HydraHead, **kwargs) -> HydraHead:
+        """Reconfigure an existing head or create a new one if necessary.
+
+        Args:
+            head: Existing head instance to reconfigure
+            **kwargs: Keyword arguments forwarded to the head constructor or reconfiguration method.
+        Returns:
+            HydraHead: Reconfigured or newly created head instance.
+        """
+        cur_head_type = head.head_type
+        new_head_type = kwargs.get("head_type", cur_head_type)
+        if new_head_type != cur_head_type:
+            return HydraHeadFactory.create(**kwargs)
+        else:
+            if "head_type" in kwargs:
+                kwargs.pop("head_type")
+            return head.reconfig_or_create(**kwargs)
 
     @staticmethod
     def add_class_args(
@@ -77,7 +96,7 @@ class HydraHeadFactory:
             parser.add_argument(
                 "--head-type",
                 choices=HydraHeadFactory.supported_types(),
-                default=HydraHeadFactory.DEFAULT_TYPE,
+                default=HydraHeadFactory.DEFAULT_TYPE.value,
                 help="Type of Hydra head to instantiate.",
             )
 
