@@ -7,7 +7,12 @@ from typing import Optional, Type
 
 from jsonargparse import ActionParser, ArgumentParser
 
-from .hydra_heads import HydraClassifHead, HydraHead, HydraHeadType
+from .hydra_heads import (
+    HydraClassifHead,
+    HydraClassifLossType,
+    HydraHead,
+    HydraHeadType,
+)
 
 _HYDRA_HEAD_REGISTRY: dict[HydraHeadType, Type[HydraHead]] = {
     HydraHeadType.CLASSIF: HydraClassifHead,
@@ -104,6 +109,13 @@ class HydraHeadFactory:
         # the arguments of every registered head. If additional heads introduce
         # conflicting options we can scope them under dedicated prefixes.
         HydraHead.add_class_args(parser, prefix=None, skip=skip)
+        if "loss_type" not in skip:
+            parser.add_argument(
+                "--loss-type",
+                default=HydraClassifLossType.ARC_SOFTMAX.value,
+                choices=HydraClassifLossType.choices(),
+                help="loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax",
+            )
         HydraClassifHead.add_large_margin_loss_args(parser, skip=skip)
         HydraClassifHead.add_cross_entropy_loss_args(parser, skip=skip)
 

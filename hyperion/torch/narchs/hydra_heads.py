@@ -602,6 +602,10 @@ class HydraClassifHead(HydraHead):
             skip: Optional set of argument names to omit.
         """
         skip = skip or set()
+        if "num_classes" not in skip:
+            parser.add_argument(
+                "--num-classes", type=int, default=None, help="number of output classes"
+            )
 
         if "label_smoothing" not in skip:
             parser.add_argument(
@@ -636,10 +640,6 @@ class HydraClassifHead(HydraHead):
                 default=HydraClassifLossType.ARC_SOFTMAX.value,
                 choices=HydraClassifLossType.choices(),
                 help="loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax",
-            )
-        if "num_classes" not in skip:
-            parser.add_argument(
-                "--num-classes", type=int, default=None, help="number of output classes"
             )
         HydraClassifHead.add_large_margin_loss_args(parser, skip=skip)
         HydraClassifHead.add_cross_entropy_loss_args(parser, skip=skip)
