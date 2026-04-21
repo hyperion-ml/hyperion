@@ -195,7 +195,7 @@ class ResNetQVector(QVector):
         """
 
         if encoder_dropout is not None:
-            self.resnet_encoder.change_config(dropout=encoder_dropout)
+            self.resnet_encoder.change_dropouts(dropout=encoder_dropout)
 
         super().change_config(**kwargs)
 

@@ -143,7 +143,7 @@ class HyperTorchModel(nn.Module):
 
         return False
 
-    def change_dropouts(self, dropout_rate):
+    def change_dropouts(self, dropout_rate: float):
         """Changes all dropout rates of the model."""
         for module in self.modules():
             if isinstance(module, nn.modules.dropout._DropoutNd):
