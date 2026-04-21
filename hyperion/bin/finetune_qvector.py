@@ -240,7 +240,8 @@ def make_parser(qvec_class: Type[HyperTorchModel]) -> ArgumentParser:
         help="input model checkpoint path used as fine-tuning starting point",
     )
     Trainer.add_class_args(
-        parser, prefix="trainer", train_modes=qvec_class.valid_train_modes()
+        parser,
+        prefix="trainer",
     )
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
