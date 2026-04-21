@@ -186,16 +186,16 @@ class ResNetQVector(QVector):
     def set_adapters_in_train_mode(self):
         pass
 
-    def change_config(self, encoder_dropout: Optional[float] = None, **kwargs):
+    def change_config(self, encoder_dropout_rate: Optional[float] = None, **kwargs):
         """Change model configuration at runtime.
 
         Args:
-            encoder_dropout: Optional dropout rate to apply in the ResNet encoder during fine-tuning.
+            encoder_dropout_rate: Optional dropout rate to apply in the ResNet encoder during fine-tuning.
             **kwargs: Additional keyword arguments forwarded to the base class method for reconfiguration.
         """
 
-        if encoder_dropout is not None:
-            self.resnet_encoder.change_dropouts(dropout=encoder_dropout)
+        if encoder_dropout_rate is not None:
+            self.resnet_encoder.change_dropouts(dropout_rate=encoder_dropout_rate)
 
         super().change_config(**kwargs)
 
@@ -416,7 +416,7 @@ class ResNetQVector(QVector):
             parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            "--encoder_dropout",
+            "--encoder-dropout-rate",
             type=float,
             default=None,
             help="Optional dropout rate to apply in the ResNet encoder during fine-tuning.",
