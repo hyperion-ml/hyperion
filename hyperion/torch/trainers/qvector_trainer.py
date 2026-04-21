@@ -11,12 +11,12 @@ import torch
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import PathLike, filter_func_args
+from ..hyper_torch_model import HyperTorchModel
 from ..loggers import LoggerList
 from ..lr_schedulers import LRScheduler as LRS
 from ..metrics import CategoricalAccuracy
 from ..models.qvectors import QVectorTrainMode
 from ..narchs.hydra_heads import HydraClassifHeadOutput
-from ..hyper_torch_model import HyperTorchModel
 from ..wd_schedulers import WDScheduler as WDS
 from .single_model_trainer import SingleModelTrainer
 from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
@@ -87,7 +87,9 @@ class QVectorTrainer(SingleModelTrainer):
         grad_acc_steps: int = 1,
         eff_batch_size: Optional[int] = None,
         val_steps: Optional[int] = None,
+        val_hours: Optional[float] = None,
         save_steps: Optional[int] = None,
+        save_hours: Optional[float] = None,
         device: Union[torch.device, int, None] = None,
         loggers: Optional[LoggerList] = None,
         ddp: bool = False,
@@ -103,12 +105,14 @@ class QVectorTrainer(SingleModelTrainer):
         log_interval: int = 1000,
         use_tensorboard: bool = False,
         use_wandb: bool = False,
-        wandb: Dict[str, str] = {},
+        wandb: Optional[Dict[str, str]] = None,
         grad_clip: float = 0,
         grad_clip_norm: Union[str, int] = 2,
         swa_start: int = 0,
-        swa_lr: int = 1e-3,
+        swa_lr: float = 1e-3,
+        swa_update_steps: int = 50000,
         swa_anneal_steps: int = 50000,
+        bn_update_steps: int = 5000,
         input_key: str = "audio",
         target_key: str = "speaker",
     ) -> None:
@@ -131,7 +135,9 @@ class QVectorTrainer(SingleModelTrainer):
             grad_acc_steps (int): Gradient accumulation steps.
             eff_batch_size (Optional[int]): Reference effective batch size.
             val_steps (Optional[int]): Steps between validations.
+            val_hours (Optional[float]): Wall-clock hours between validation passes.
             save_steps (Optional[int]): Steps between checkpoint saves.
+            save_hours (Optional[float]): Wall-clock hours between checkpoint saves.
             device (Union[torch.device, int, None]): Device to train on.
             loggers (Optional[LoggerList]): Logger collection.
             ddp (bool): Enables DDP training when True.
@@ -150,8 +156,10 @@ class QVectorTrainer(SingleModelTrainer):
             grad_clip (float): Gradient clipping threshold (<=0 disables).
             grad_clip_norm (Union[str, int]): Norm used for clipping.
             swa_start (int): Step at which to start SWA averaging.
-            swa_lr (int): SWA learning rate.
+            swa_lr (float): SWA learning rate.
+            swa_update_steps (int): Steps between SWA weight updates.
             swa_anneal_steps (int): Steps to anneal the SWA LR.
+            bn_update_steps (int): Steps used to refresh BatchNorm statistics after SWA.
             input_key (str): Batch key used for the audio tensor.
             target_key (str): Batch key used for label tensors.
 
@@ -284,7 +292,8 @@ class QVectorTrainer(SingleModelTrainer):
         Args:
             parser (ArgumentParser): Parser that will receive the arguments.
             prefix (Optional[str]): Optional namespace prefix (Hydra-style).
-            skip (Set[str]): Unused placeholder for API compatibility.
+            skip (Optional[Set[str]]): Argument names to skip when registering
+                trainer, optimizer, IO-key, and train-mode options.
 
         Returns:
             None

@@ -52,11 +52,11 @@ from torch.utils.data import DataLoader
 
 from ...utils import PathLike
 from ...utils.misc import filter_func_args
+from ..hyper_torch_model import HyperTorchModel
 from ..loggers import CSVLogger, LoggerList, ProgLogger, TensorBoardLogger, WAndBLogger
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..optim import OptimizerFactory as OF
-from ..hyper_torch_model import HyperTorchModel
 from ..utils import MetricAcc, TorchDDP
 from ..utils.grad_tracker import GradNormTracker
 from ..wd_schedulers import WDScheduler as WDS
@@ -212,8 +212,8 @@ class TorchTrainerBase:
         grad_clip_norm (str or int): Norm type for gradient clipping (e.g., 1, 2, or 'inf').
         swa_start (int): Step at which to begin Stochastic Weight Averaging (SWA).
         swa_lr (float): Learning rate to use during SWA phase.
-        swa_anneal_steps (int): Number of steps over which to anneal SWA LR.
         swa_update_steps (int): Number of steps between averaging model weights in SWA.
+        swa_anneal_steps (int): Number of steps over which to anneal SWA LR.
         bn_update_steps (int): Max number of batches to use for batchnorm statistics update after SWA.
     """
 
@@ -250,9 +250,9 @@ class TorchTrainerBase:
         grad_clip: float = 0,
         grad_clip_norm: Union[str, int] = 2,
         swa_start: int = 0,
-        swa_lr: int = 1e-3,
-        swa_anneal_steps: int = 50000,
+        swa_lr: float = 1e-3,
         swa_update_steps: int = 5000,
+        swa_anneal_steps: int = 50000,
         bn_update_steps: int = 5000,
     ) -> None:
         """
@@ -1235,6 +1235,7 @@ class TorchTrainerBase:
             self.cur_batch = batch_idx
             self.cur_step += 1
             grad_norms = self.update_models()
+            self.update_swa_model()
             self.grad_tracker.update(grad_norms)
             grad_logs = self.grad_tracker.grad_spikes
             self.zero_grad_optimizers()
@@ -1295,11 +1296,11 @@ class TorchTrainerBase:
         """Batch normalization update loop"""
         metric_acc = MetricAcc(self.device)
         self.on_bn_update_loop_begin()
-        for batch_idx, batch_data in enumerate(self.val_data):
+        for batch_idx, batch_data in enumerate(self.train_data):
+            if batch_idx >= self.bn_update_steps:
+                break
             batch_size, batch_metrics = self.bn_update_step(batch_data)
             metric_acc.update(batch_metrics, batch_size)
-            if batch_idx > self.bn_update_steps:
-                break
 
         logs = self.make_train_logs(metric_acc.metrics)
         return logs
@@ -1737,6 +1738,9 @@ class TorchTrainerBase:
         Returns:
             bool: True if validation conditions are met, False otherwise.
         """
+        if self.val_data is None:
+            return False
+
         if self.val_hours is not None:
             t = time.time() / 3600
             dt = t - self.last_val_time
@@ -1759,9 +1763,9 @@ class TorchTrainerBase:
         Determines whether the training process should stop based on max_steps.
 
         Returns:
-            bool: True if current step exceeds max_steps, False otherwise.
+            bool: True if current step reaches or exceeds max_steps, False otherwise.
         """
-        return self.max_steps is not None and self.cur_step > self.max_steps
+        return self.max_steps is not None and self.cur_step >= self.max_steps
 
     def save_model_checkpoint_to_file(
         self,

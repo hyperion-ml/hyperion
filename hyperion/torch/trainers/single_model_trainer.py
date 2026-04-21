@@ -12,11 +12,11 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import PathLike, filter_func_args
+from ..hyper_torch_model import HyperTorchModel
 from ..loggers import LoggerList
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..optim import OptimizerFactory as OF
-from ..hyper_torch_model import HyperTorchModel
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
 from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
@@ -85,7 +85,9 @@ class SingleModelTrainer(TorchTrainerBase):
         grad_acc_steps: int = 1,
         eff_batch_size: Optional[int] = None,
         val_steps: Optional[int] = None,
+        val_hours: Optional[float] = None,
         save_steps: Optional[int] = None,
+        save_hours: Optional[float] = None,
         device: Union[torch.device, int, None] = None,
         loggers: Optional[LoggerList] = None,
         ddp: bool = False,
@@ -101,12 +103,14 @@ class SingleModelTrainer(TorchTrainerBase):
         log_interval: int = 1000,
         use_tensorboard: bool = False,
         use_wandb: bool = False,
-        wandb: Dict[str, str] = {},
+        wandb: Optional[Dict[str, str]] = None,
         grad_clip: float = 0,
         grad_clip_norm: Union[str, int] = 2,
         swa_start: int = 0,
-        swa_lr: int = 1e-3,
+        swa_lr: float = 1e-3,
+        swa_update_steps: int = 50000,
         swa_anneal_steps: int = 50000,
+        bn_update_steps: int = 5000,
         input_key="x",
         target_key: str = "class_id",
     ) -> None:
@@ -128,7 +132,9 @@ class SingleModelTrainer(TorchTrainerBase):
             grad_acc_steps (int): Gradient accumulation steps per optimizer update.
             eff_batch_size (Optional[int]): Reference effective batch size.
             val_steps (Optional[int]): Number of steps between validations.
+            val_hours (Optional[float]): Max wall-clock hours between validations.
             save_steps (Optional[int]): Number of steps between checkpoint saves.
+            save_hours (Optional[float]): Max wall-clock hours between checkpoint saves.
             device (Union[torch.device, int, None]): Device on which to run the model.
             loggers (Optional[LoggerList]): Collection of loggers to receive events.
             ddp (bool): Whether to wrap the model in DistributedDataParallel.
@@ -147,8 +153,10 @@ class SingleModelTrainer(TorchTrainerBase):
             grad_clip (float): Gradient norm threshold (<=0 disables clipping).
             grad_clip_norm (Union[str, int]): Norm type for gradient clipping.
             swa_start (int): Step at which to start SWA averaging (0 disables).
-            swa_lr (int): Learning rate to use during SWA.
+            swa_lr (float): Learning rate to use during SWA.
             swa_anneal_steps (int): Steps for annealing SWA learning rate.
+            swa_update_steps (int): Steps between SWA weight updates.
+            bn_update_steps (int): Steps used to refresh BatchNorm statistics after SWA.
             input_key (str): Key used to extract model inputs from the dataloader.
             target_key (str): Key used to extract supervision targets.
 
@@ -685,7 +693,8 @@ class SingleModelTrainer(TorchTrainerBase):
             parser (ArgumentParser): Parser receiving the arguments.
             prefix (Optional[str]): Optional prefix for grouped arguments.
             train_modes (Optional[List[str]]): Allowed model train modes.
-            skip (Set[str]): Currently unused (kept for API parity).
+            skip (Optional[Set[str]]): Argument names to skip when registering
+                trainer, optimizer, IO-key, and train-mode options.
 
         Returns:
             None
