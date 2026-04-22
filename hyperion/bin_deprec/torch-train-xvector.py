@@ -20,7 +20,8 @@ from hyperion.torch.helpers import TorchNALoader
 from hyperion.torch.layers import GlobalPool1dFactory as PF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.seq_embed import XVector, XVectorTrainer
+from hyperion.torch.models.xvectors.xvector import XVector
+from hyperion.torch.trainers.xvector_trainer import XVectorTrainer
 from hyperion.torch.torch_defs import float_torch
 from hyperion.torch.utils import open_device
 from torch.utils.data import DataLoader

@@ -304,13 +304,33 @@ class HydraClassifHead(HydraHead):
         if num_classes is None:
             num_classes = self.num_classes
 
+        old_cfg = self.get_config(no_class_name=True)
+        new_cfg = {
+            "in_feats": in_feats,
+            "num_classes": num_classes,
+            "loss_type": loss_type,
+            "cos_scale": cos_scale,
+            "margin": margin,
+            "margin_warmup_steps": margin_warmup_steps,
+            "intertop_k": intertop_k,
+            "intertop_margin": intertop_margin,
+            "num_subcenters": num_subcenters,
+            "enable_loss": enable_loss,
+            "reduction": reduction,
+            "label_smoothing": label_smoothing,
+        }
+
         if (
             in_feats != self.in_feats
             or num_classes != self.num_classes
             or loss_type != self.loss_type
             or num_subcenters != self.num_subcenters
         ):
-            logging.info("Rebuilding HydraClassifHead with new configuration.")
+            logging.info(
+                "Rebuilding HydraClassifHead with configuration change old=%s new=%s",
+                old_cfg,
+                new_cfg,
+            )
             return HydraClassifHead(
                 in_feats=in_feats,
                 num_classes=num_classes,
@@ -325,6 +345,12 @@ class HydraClassifHead(HydraHead):
                 reduction=reduction,
                 label_smoothing=label_smoothing,
             )
+
+        logging.info(
+            "Updating HydraClassifHead with configuration change old=%s new=%s",
+            old_cfg,
+            new_cfg,
+        )
 
         self.set_margin(margin)
         self.set_margin_warmup_steps(margin_warmup_steps)
