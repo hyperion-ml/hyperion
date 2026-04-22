@@ -47,7 +47,6 @@ class HypSampler(Sampler):
         self.init_batch = 0
         self.shuffle = shuffle
         self.seed = seed
-        self.max_batches_per_epoch = max_batches_per_epoch
 
         # Detect distributed environment
         if dist.is_available() and dist.is_initialized():
@@ -60,6 +59,19 @@ class HypSampler(Sampler):
 
         self.rank = rank
         self.world_size = world_size
+
+        self.max_batches_per_epoch = (
+            None
+            if max_batches_per_epoch is None
+            else max_batches_per_epoch // self.world_size
+        )
+        if self.max_batches_per_epoch is not None and self.max_batches_per_epoch <= 0:
+            raise ValueError(
+                f"max_batches_per_epoch={max_batches_per_epoch} is too small for "
+                f"world_size={self.world_size}. It must be >= world_size to yield "
+                "at least one batch per rank."
+            )
+
         # Random number generator (used if shuffling)
         self.rng = torch.Generator()
 

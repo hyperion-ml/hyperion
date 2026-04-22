@@ -1599,7 +1599,7 @@ class QVector(HyperTorchModel):
             parser.add_argument(
                 "--qvector-dim",
                 type=int,
-                default=256,
+                default=None,
                 help="final q-vector embedding dimension",
             )
 
