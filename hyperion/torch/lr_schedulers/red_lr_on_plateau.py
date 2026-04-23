@@ -4,13 +4,9 @@
 """
 
 import logging
+from math import inf
 from functools import partial
 from typing import Any, Callable, Mapping, Optional
-
-try:
-    from torch import inf
-except Exception:
-    from torch._six import inf
 
 import torch.optim as optim
 

@@ -1,9 +1,10 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -14,21 +15,48 @@ from .carlini_wagner import CarliniWagner
 
 
 class CarliniWagnerL0(CarliniWagner):
+    """Carlini-Wagner L0 attack.
+
+    Attributes:
+      reduce_c: Whether to decrease ``c`` after successful inner optimization.
+      c_incr_factor: Multiplicative factor to increase ``c`` on failure.
+      indep_channels: Whether to prune dimensions independently per channel.
+    """
+
     def __init__(
         self,
-        model,
-        confidence=0.0,
-        lr=1e-2,
-        max_iter=10000,
-        abort_early=True,
-        initial_c=1e-3,
-        reduce_c=False,
-        c_incr_factor=2,
-        indep_channels=False,
-        targeted=False,
-        range_min=None,
-        range_max=None,
-    ):
+        model: nn.Module,
+        confidence: float = 0.0,
+        lr: float = 1e-2,
+        max_iter: int = 10000,
+        abort_early: bool = True,
+        initial_c: float = 1e-3,
+        reduce_c: bool = False,
+        c_incr_factor: float = 2,
+        indep_channels: bool = False,
+        targeted: bool = False,
+        range_min: Optional[float] = None,
+        range_max: Optional[float] = None,
+    ) -> None:
+        """Initialize CW-L0 attack.
+
+        Args:
+          model: Model under attack.
+          confidence: Confidence margin in the objective.
+          lr: Optimizer learning rate.
+          max_iter: Maximum optimization steps.
+          abort_early: Whether to stop optimization early.
+          initial_c: Initial weight for classification objective.
+          reduce_c: Whether to reduce ``c`` after successful steps.
+          c_incr_factor: Multiplicative increase for ``c`` on failure.
+          indep_channels: Whether to treat channels independently in pruning.
+          targeted: Whether the attack is targeted.
+          range_min: Optional minimum clamp value.
+          range_max: Optional maximum clamp value.
+
+        Returns:
+          None.
+        """
 
         super().__init__(
             model,
@@ -41,12 +69,24 @@ class CarliniWagnerL0(CarliniWagner):
             range_min=range_min,
             range_max=range_max,
         )
+        if c_incr_factor <= 1:
+            raise ValueError(
+                f"cw-l0 requires c_incr_factor > 1, got c_incr_factor={c_incr_factor}"
+            )
         self.reduce_c = reduce_c
         self.c_incr_factor = c_incr_factor
         self.indep_channels = indep_channels
 
     @property
-    def attack_info(self):
+    def attack_info(self) -> Dict[str, Any]:
+        """Return attack metadata.
+
+        Args:
+          None.
+
+        Returns:
+          Dictionary describing CW-L0 configuration.
+        """
         info = super().attack_info
         new_info = {
             "reduce_c": self.reduce_c,
@@ -58,13 +98,33 @@ class CarliniWagnerL0(CarliniWagner):
         info.update(new_info)
         return info
 
-    def _attack_l2(self, x, target, valid, start_adv, c):
+    def _attack_l2(
+        self,
+        x: torch.Tensor,
+        target: torch.Tensor,
+        valid: torch.Tensor,
+        start_adv: torch.Tensor,
+        c: float,
+    ) -> Optional[Tuple[torch.Tensor, torch.Tensor, float]]:
+        """Run inner L2-optimized step for current valid-mask/pruning state.
+
+        Args:
+          x: Single input sample batch (size 1).
+          target: Target label tensor (size 1).
+          valid: Binary mask of dimensions still allowed to change.
+          start_adv: Starting adversarial point.
+          c: Current classification-term weight.
+
+        Returns:
+          ``(x_adv, grad, c)`` on success, else ``None``.
+        """
 
         w_start = self.w_x(start_adv).detach()
         c_step = 0
         modifier = 1e-3 * torch.randn_like(w_start).detach()
         modifier.requires_grad = True
         opt = optim.Adam([modifier], lr=self.lr)
+        log_interval = max(1, self.max_iter // 10)
         while c < 2e6:
             step_success = False
             for opt_step in range(self.max_iter):
@@ -84,7 +144,7 @@ class CarliniWagnerL0(CarliniWagner):
 
                 # if the attack is successful f(x+delta)==0
                 step_success = f < 1e-4
-                if opt_step % (self.max_iter // 10) == 0:
+                if opt_step % log_interval == 0:
                     logging.info(
                         "--------carlini-wagner-l0--l2-optim c_step={0:d} opt-step={1:d} c={2:f} "
                         "loss={3:.2f} d_norm={4:.2f} cf={5:.5f} success={6}".format(
@@ -111,7 +171,16 @@ class CarliniWagnerL0(CarliniWagner):
 
         return None
 
-    def _generate_one(self, x, target):
+    def _generate_one(self, x: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Generate one CW-L0 adversarial example.
+
+        Args:
+          x: Single clean example.
+          target: Single target label.
+
+        Returns:
+          One adversarial example.
+        """
 
         x = x.unsqueeze(dim=0)
         target = target.unsqueeze(dim=0)
@@ -134,7 +203,7 @@ class CarliniWagnerL0(CarliniWagner):
             x_adv, dy_x, c = res
             if torch.sum(valid) == 0:
                 # if no pixels changed, return
-                return x
+                return x[0]
 
             if self.reduce_c:
                 c /= 2
@@ -157,7 +226,7 @@ class CarliniWagnerL0(CarliniWagner):
                     valid = torch.flatten(valid)
                     valid_all = valid
                 else:
-                    total_change = torch.sum(torch.abs(dy_x, dim=1)) * torch.sum(
+                    total_change = torch.sum(torch.abs(dy_x), dim=1) * torch.sum(
                         d_x, dim=1
                     )
                     valid = valid.view(x.shape[1], x.shape[2] * x.shape[3])
@@ -217,7 +286,16 @@ class CarliniWagnerL0(CarliniWagner):
             best_adv = x_adv
             cur_it += 1
 
-    def generate(self, input, target):
+    def generate(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Generate CW-L0 adversarial examples.
+
+        Args:
+          input: Clean input batch.
+          target: Labels or attack targets.
+
+        Returns:
+          Adversarial batch.
+        """
 
         if self.is_binary is None:
             # run the model to know weather is binary classification problem or multiclass
@@ -225,7 +303,7 @@ class CarliniWagnerL0(CarliniWagner):
             if z.shape[-1] == 1:
                 self.is_binary = True
             else:
-                self.is_binary = None
+                self.is_binary = False
             del z
 
         x_adv = input.clone()

@@ -4,6 +4,7 @@
 """
 import logging
 import math
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -14,22 +15,49 @@ from .carlini_wagner import CarliniWagner
 
 
 class CarliniWagnerL2(CarliniWagner):
+    """Carlini-Wagner L2 (or SNR) attack.
+
+    Attributes:
+      binary_search_steps: Number of binary-search steps for ``c``.
+      repeat: Whether to repeat last search step with upper bound.
+    """
+
     def __init__(
         self,
-        model,
-        confidence=0.0,
-        lr=1e-2,
-        binary_search_steps=9,
-        max_iter=10000,
-        abort_early=True,
-        initial_c=1e-3,
-        norm_time=False,
-        time_dim=None,
-        use_snr=False,
-        targeted=False,
-        range_min=None,
-        range_max=None,
-    ):
+        model: nn.Module,
+        confidence: float = 0.0,
+        lr: float = 1e-2,
+        binary_search_steps: int = 9,
+        max_iter: int = 10000,
+        abort_early: bool = True,
+        initial_c: float = 1e-3,
+        norm_time: bool = False,
+        time_dim: Optional[int] = None,
+        use_snr: bool = False,
+        targeted: bool = False,
+        range_min: Optional[float] = None,
+        range_max: Optional[float] = None,
+    ) -> None:
+        """Initialize CW-L2 attack.
+
+        Args:
+          model: Model under attack.
+          confidence: Confidence margin in the objective.
+          lr: Optimizer learning rate.
+          binary_search_steps: Number of binary-search steps for ``c``.
+          max_iter: Maximum optimization steps per search step.
+          abort_early: Whether to stop each inner optimization early.
+          initial_c: Initial weight for classification objective.
+          norm_time: Whether to normalize norms by time length.
+          time_dim: Time-axis index used by ``norm_time``.
+          use_snr: Whether to optimize SNR-based objective.
+          targeted: Whether the attack is targeted.
+          range_min: Optional minimum clamp value.
+          range_max: Optional maximum clamp value.
+
+        Returns:
+          None.
+        """
 
         super().__init__(
             model,
@@ -50,7 +78,15 @@ class CarliniWagnerL2(CarliniWagner):
         self.repeat = binary_search_steps >= 10
 
     @property
-    def attack_info(self):
+    def attack_info(self) -> Dict[str, Any]:
+        """Return attack metadata.
+
+        Args:
+          None.
+
+        Returns:
+          Dictionary describing CW-L2 configuration.
+        """
         info = super().attack_info
         if self.use_snr:
             threat = "snr"
@@ -65,10 +101,31 @@ class CarliniWagnerL2(CarliniWagner):
         return info
 
     @staticmethod
-    def _compute_negsnr(x_norm, d_norm):
+    def _compute_negsnr(x_norm: torch.Tensor, d_norm: torch.Tensor) -> torch.Tensor:
+        """Compute negative SNR objective in dB.
+
+        Args:
+          x_norm: Input norm term.
+          d_norm: Perturbation norm term.
+
+        Returns:
+          Negative SNR tensor.
+        """
+        floor = 1e-12
+        d_norm = torch.clamp(d_norm, min=floor)
+        x_norm = torch.clamp(x_norm, min=floor)
         return 20 * (torch.log10(d_norm) - torch.log10(x_norm))
 
-    def generate(self, input, target):
+    def generate(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Generate CW-L2 adversarial examples.
+
+        Args:
+          input: Clean input batch.
+          target: Labels or attack targets.
+
+        Returns:
+          Adversarial batch.
+        """
 
         if self.is_binary is None:
             # run the model to know weather is binary classification problem or multiclass
@@ -76,13 +133,18 @@ class CarliniWagnerL2(CarliniWagner):
             if z.shape[-1] == 1:
                 self.is_binary = True
             else:
-                self.is_binary = None
+                self.is_binary = False
             del z
 
         norm_dim = tuple([i for i in range(1, input.dim())])
 
         if self.use_snr:
             x_norm = torch.norm(input, dim=norm_dim)
+        elif self.norm_time:
+            if not (-input.dim() <= self.time_dim < input.dim()):
+                raise ValueError(
+                    f"cw-l2 time_dim={self.time_dim} out of range for input.dim={input.dim()}"
+                )
 
         w0 = self.w_x(input).detach()  # transform x into tanh space
 
@@ -111,6 +173,7 @@ class CarliniWagnerL2(CarliniWagner):
             loss_prev = 1e10
             best_norm = 1e10 * torch.ones(batch_size, device=w0.device)
             success = torch.zeros(batch_size, dtype=torch.bool, device=w0.device)
+            log_interval = max(1, self.max_iter // 10)
             for opt_step in range(self.max_iter):
 
                 opt.zero_grad()
@@ -153,7 +216,7 @@ class CarliniWagnerL2(CarliniWagner):
                 global_success[improv_idx] = 1
                 best_adv[improv_idx] = x_adv[improv_idx]
 
-                if opt_step % (self.max_iter // 10) == 0:
+                if opt_step % log_interval == 0:
                     logging.info(
                         "----carlini-wagner bin-search-step={0:d}, "
                         "opt-step={1:d}/{2:d} "
