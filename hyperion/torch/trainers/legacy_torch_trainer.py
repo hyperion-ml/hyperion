@@ -291,8 +291,11 @@ class LegacyTorchTrainer:
         if self.do_swa and self.cur_epoch >= self.swa_start:
             self.in_swa = True
 
+        final_logs = {}
         val_logs = {}
-        self.loggers.on_train_begin(epochs=self.epochs)
+        self.loggers.on_train_begin(
+            epochs=self.epochs, epoch=self.cur_epoch, step=self.global_step
+        )
         for epoch in range(self.cur_epoch, self.epochs):
             self.set_epoch(train_data, self.cur_batch)
             self.loggers.on_epoch_begin(epoch, batches=len(train_data))
@@ -325,6 +328,7 @@ class LegacyTorchTrainer:
                     self.wd_scheduler.on_epoch_end()
 
             self.save_checkpoint(logs)
+            final_logs = logs
 
         if self.in_swa:
             self.loggers.on_epoch_begin(self.cur_epoch, batches=len(train_data))
@@ -338,6 +342,9 @@ class LegacyTorchTrainer:
             self.cur_epoch += 1
             self.loggers.on_epoch_end(logs)
             self.save_swa_model(logs)
+            final_logs = logs
+
+        self.loggers.on_train_end(logs=final_logs)
 
     def set_train_mode(self):
         self.model.set_train_mode(self.train_mode)
@@ -375,6 +382,7 @@ class LegacyTorchTrainer:
             if (batch + 1) % self.grad_acc_steps == 0:
                 self.cur_batch = batch + 1
                 self.update_model()
+                self.loggers.on_model_update(self.global_step)
                 self.save_checkpoint(partial=True)
 
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps

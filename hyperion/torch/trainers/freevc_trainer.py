@@ -21,6 +21,7 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import PathLike, filter_func_args
+from ..hyper_torch_model import HyperTorchModel
 from ..loggers import LoggerList
 from ..losses import (
     AudioDiscriminatorAdvLoss,
@@ -35,7 +36,6 @@ from ..models.audio_discrimitator.audio_multi_discriminator import (
 from ..models.freevc.freevc import FreeVCFwdMode, FreeVCTrainMode
 from ..narchs.audio_feats_mvn import AudioFeatsMVN
 from ..optim import OptimizerFactory as OF
-from ..hyper_torch_model import HyperTorchModel
 from ..utils.misc import rand_slice_audio_segments, slice_segments
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
@@ -281,7 +281,7 @@ class FreeVCTrainer(TorchTrainerBase):
 
         for sch in [self.vc_lr_scheduler, self.discrim_lr_scheduler]:
             if sch is not None:
-                sch.on_epoch_begin(self.cur_epoch, epoch_updates=self.save_steps)
+                sch.on_epoch_begin(self.cur_epoch, save_steps=self.save_steps)
 
         for sch in [self.vc_wd_scheduler, self.discrim_wd_scheduler]:
             if sch is not None:
@@ -298,11 +298,11 @@ class FreeVCTrainer(TorchTrainerBase):
 
         for sch in [self.vc_lr_scheduler, self.discrim_lr_scheduler]:
             if sch is not None:
-                sch.on_epoch_end(self.cur_epoch)
+                sch.on_epoch_end(logs)
 
         for sch in [self.vc_wd_scheduler, self.discrim_wd_scheduler]:
             if sch is not None:
-                sch.on_epoch_end(self.cur_epoch)
+                sch.on_epoch_end()
 
     def on_swa_epoch_begin(self):
         """Called at the beginning of an SWA epoch.

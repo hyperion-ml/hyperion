@@ -1,7 +1,8 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from jsonargparse import ActionParser, ArgumentParser
 
 from .carlini_wagner_l0 import CarliniWagnerL0
@@ -14,7 +15,7 @@ from .rand_fgsm_attack import RandFGSMAttack
 from .snr_fgsm_attack import SNRFGSMAttack
 
 
-class AttackFactory(object):
+class AttackFactory:
     @staticmethod
     def create(
         model,

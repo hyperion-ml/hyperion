@@ -1,14 +1,13 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import torch
 import torch.nn as nn
 
-# from ..utils import TorchDataParallel
 
-
-class AdvAttack(object):
+class AdvAttack:
     def __init__(self, model, loss=None, targeted=True, range_min=None, range_max=None):
         self.model = model
         if loss is None:

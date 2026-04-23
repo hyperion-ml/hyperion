@@ -1,6 +1,6 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import numpy as np
@@ -23,7 +23,7 @@ def make_4d_hook(func):
     return wrapper
 
 
-class ARTAttackFactory(object):
+class ARTAttackFactory:
     @staticmethod
     def create(
         model,

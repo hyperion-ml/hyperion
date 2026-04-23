@@ -4,41 +4,55 @@
 """
 import logging
 import math
+import torch.optim as optim
 
 from .invpow_lr import InvPowLR
-
-# import torch
-
+from .lr_scheduler import MinLR
 
 
 class NoamLR(InvPowLR):
-    """Optimizer used for Transformers in
-    Attention is all You Need: https://arxiv.org/pdf/1706.03762.pdf
+    """Noam learning-rate schedule from *Attention Is All You Need*.
 
     This is Inverse Power Law decay scheduler with parameters that depend on
     the transformer hidden dimension.
 
     Attributes:
-      optimizer: Pytorch optimizer object.
-      d_model: hidden dimension of transformer model.
-      lr_factor: multiplies the Noam lr by this number.
-      min_lr: minimum learning rate.
-      warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
-      epoch: initial training training epoch, this is needed to restart the model
-             training.
-      step: initial training step, this is needed to restart the model training.
-
+      optimizer: Wrapped optimizer.
+      power: Exponent controlling inverse-power decay (inherited).
+      hold_steps: Number of steps to hold base LR before decaying (inherited).
+      min_lrs: Per-parameter-group minimum learning rates.
+      base_lrs: Per-parameter-group base learning rates.
+      warmup_steps: Number of optimization steps used for linear warmup.
+      epoch: Current epoch index.
+      step: Current optimization-step index.
+      update_lr_on_opt_step: Whether LR updates happen per optimizer step.
     """
+
     def __init__(
         self,
-        optimizer,
-        d_model,
-        lr_factor=1,
-        min_lr=0,
-        warmup_steps=0,
-        epoch=0,
-        step=0,
-    ):
+        optimizer: optim.Optimizer,
+        d_model: int,
+        lr_factor: float = 1,
+        min_lr: MinLR = 0,
+        warmup_steps: int = 1,
+        epoch: int = 0,
+        step: int = 0,
+    ) -> None:
+        """Initialize Noam scheduler and rescale optimizer group LRs.
+
+        Args:
+            optimizer: Wrapped optimizer.
+            d_model: Transformer hidden size.
+            lr_factor: Global multiplier for Noam peak LR.
+            min_lr: Scalar or per-group lower LR bound.
+            warmup_steps: Warmup duration in optimizer steps.
+            epoch: Initial epoch index.
+            step: Initial optimization-step index.
+        """
+        if d_model is None or d_model <= 0:
+            raise ValueError(f"d_model must be > 0 for NoamLR, got {d_model}")
+        if warmup_steps <= 0:
+            raise ValueError(f"warmup_steps must be > 0 for NoamLR, got {warmup_steps}")
         lr = lr_factor / math.sqrt(d_model * warmup_steps)
         logging.info("Noam lr=%f", lr)
         # we scale the lr taking account the relative
@@ -48,6 +62,10 @@ class NoamLR(InvPowLR):
         max_lr = 0
         for group in optimizer.param_groups:
             max_lr = max(group["lr"], max_lr)
+        if max_lr <= 0:
+            raise ValueError(
+                "NoamLR requires at least one optimizer param_group lr > 0"
+            )
         for group in optimizer.param_groups:
             group["lr"] = lr * group["lr"] / max_lr
         super().__init__(

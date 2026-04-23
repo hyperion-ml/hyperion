@@ -4,18 +4,16 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-import os
 import re
 
 try:
     import wandb
-except:
-    pass
+except Exception:
+    wandb = None
 
-import re
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,7 +24,7 @@ except:
     pynvml = None
 
 import torch
-import wandb
+import torch.distributed as dist
 from PIL import Image
 from torch import nn
 
@@ -45,7 +43,7 @@ class WAndBLogger(Logger):
         mode: str = "online",
         interval: int = 1000,
         gpu_usage: bool = False,
-    ):
+    ) -> None:
         """
         Args:
             project (str): WandB project name.
@@ -56,11 +54,18 @@ class WAndBLogger(Logger):
             interval (int): Number of steps between logging batches.
         """
         super().__init__()
+        if wandb is None:
+            raise ImportError(
+                "WAndBLogger requires the optional dependency 'wandb'. "
+                "Install wandb or remove WAndBLogger from the logger list."
+            )
         self.project = project
         self.path = Path(path) if path is not None else None
         self.name = name
         self.group = group
         self.mode = mode
+        if interval <= 0:
+            raise ValueError("WAndBLogger requires interval > 0")
         self.interval = interval
         self.batches = 0
         self.cur_epoch = 0
@@ -72,15 +77,28 @@ class WAndBLogger(Logger):
             gpu_usage = False
 
         self.gpu_usage = gpu_usage
+        self._nvml_initialized = False
+        self._last_batch_logged_step = -1
 
-    def on_train_begin(self, logs: Dict[str, Any] = None, **kwargs):
-        """Initializes the wandb run."""
+    def on_train_begin(
+        self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> None:
+        """Initializes the wandb run.
+
+        Args:
+            logs: Optional training logs.
+            kwargs: Additional callback arguments.
+        """
         super().on_train_begin(logs, **kwargs)
+        if self.gpu_usage:
+            try:
+                pynvml.nvmlInit()
+                self._nvml_initialized = True
+            except pynvml.NVMLError as err:
+                logging.warning("[WAndBLogger] NVML init error: %s", err)
+
         if self.rank != 0:
             return
-
-        if self.gpu_usage:
-            pynvml.nvmlInit()
 
         if self.path is not None:
             self.path.mkdir(parents=True, exist_ok=True)
@@ -94,26 +112,52 @@ class WAndBLogger(Logger):
             reinit=True,
         )
 
-    def on_epoch_begin(self, epoch: int, logs: Dict[str, Any] = None, **kwargs):
-        """Updates the current epoch and batch count."""
+    def on_epoch_begin(
+        self, epoch: int, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> None:
+        """Updates the current epoch and batch count.
+
+        Args:
+            epoch: Zero-based epoch index.
+            logs: Optional logs dictionary.
+            kwargs: Additional callback arguments such as ``batches``.
+        """
         if self.rank != 0:
             return
         self.cur_epoch = epoch
         self.batches = kwargs.get("batches", 0)
         self.cur_batch = 0
 
-    def on_batch_end(self, logs: Dict[str, Any] = None, **kwargs):
-        """Logs batch metrics at specified intervals."""
+    def on_batch_end(
+        self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> None:
+        """Logs batch metrics at specified intervals.
+
+        Args:
+            logs: Optional metric dictionary for the current update.
+            kwargs: Additional callback arguments.
+        """
         if self.rank != 0:
             return
 
-        if self.cur_step % self.interval == 0:
+        if (
+            self.cur_step % self.interval == 0
+            and self.cur_step != self._last_batch_logged_step
+        ):
             logs = {f"train/{k}": v for k, v in (logs or {}).items()}
             logs["batch"] = self.cur_step
             wandb.log(logs, step=self.cur_step)
+            self._last_batch_logged_step = self.cur_step
 
-    def on_epoch_end(self, logs: Dict[str, Any] = None, **kwargs):
-        """Logs epoch-level metrics."""
+    def on_epoch_end(
+        self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> None:
+        """Logs epoch-level metrics.
+
+        Args:
+            logs: Optional epoch metric dictionary.
+            kwargs: Additional callback arguments.
+        """
         if self.rank != 0:
             return
 
@@ -122,7 +166,7 @@ class WAndBLogger(Logger):
         logs["epoch"] = self.cur_epoch + 1
         wandb.log(logs, step=self.cur_step)
 
-    def on_val_end(self, logs=None, **kwargs):
+    def on_val_end(self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any) -> None:
         """At the end of validation
 
         Args:
@@ -130,17 +174,36 @@ class WAndBLogger(Logger):
         """
         self.on_epoch_end(logs, **kwargs)
 
-    def on_train_end(self, logs: Dict[str, Any] = None, **kwargs):
-        """Finalizes the wandb run."""
+    def on_train_end(
+        self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> None:
+        """Finalizes the wandb run.
+
+        Args:
+            logs: Optional final training logs.
+            kwargs: Additional callback arguments.
+        """
+        if self.gpu_usage and self._nvml_initialized:
+            try:
+                pynvml.nvmlShutdown()
+            except pynvml.NVMLError as err:
+                logging.warning("[WAndBLogger] NVML shutdown error: %s", err)
+            finally:
+                self._nvml_initialized = False
+
         if self.rank != 0:
             return
-
-        if self.gpu_usage:
-            pynvml.nvmlShutdown()
         wandb.finish()
 
-    def log_model_weights_histograms(self, model: nn.Module, pattern: str = ".*"):
-        """Logs histograms of model weights matching a regex pattern."""
+    def log_model_weights_histograms(
+        self, model: nn.Module, pattern: str = ".*"
+    ) -> None:
+        """Logs histograms of model weights matching a regex pattern.
+
+        Args:
+            model: Model whose parameters will be logged.
+            pattern: Regex used to filter parameter names.
+        """
         if self.rank != 0:
             return
         regex = re.compile(pattern)
@@ -151,8 +214,15 @@ class WAndBLogger(Logger):
                     step=self.cur_step,
                 )
 
-    def log_model_gradients_histograms(self, model: nn.Module, pattern: str = ".*"):
-        """Logs histograms of model gradients matching a regex pattern."""
+    def log_model_gradients_histograms(
+        self, model: nn.Module, pattern: str = ".*"
+    ) -> None:
+        """Logs histograms of model gradients matching a regex pattern.
+
+        Args:
+            model: Model whose gradients will be logged.
+            pattern: Regex used to filter parameter names.
+        """
         if self.rank != 0:
             return
         regex = re.compile(pattern)
@@ -169,7 +239,7 @@ class WAndBLogger(Logger):
 
     def log_audio(
         self, tag: str, audio: torch.Tensor, sample_freq: int, phase: str = "val"
-    ):
+    ) -> None:
         """Logs an audio sample.
 
         Args:
@@ -200,7 +270,7 @@ class WAndBLogger(Logger):
         cmap: str = "plasma",
         apply_log: bool = False,
         phase: str = "val",
-    ):
+    ) -> None:
         """Logs a spectrogram image.
 
         Args:
@@ -245,38 +315,35 @@ class WAndBLogger(Logger):
         self,
         tag: str,
         image: Union[np.ndarray, torch.Tensor, Image.Image],
-        step: Optional[int] = None,
         dataformats: str = "HWC",
         phase: str = "val",
-    ):
+    ) -> None:
         """Logs a single image.
 
         Args:
             tag (str): Image tag.
             image (ndarray | Tensor | Image): Input image.
-            step (int): Optional step override.
             dataformats (str): "HWC" or "CHW".
             phase (str): "train" or "val".
         """
         if self.rank != 0:
             return
-        step = self.cur_step if step is None else step
         if isinstance(image, Image.Image):
             image = np.array(image)
         if isinstance(image, torch.Tensor):
             image = image.detach().cpu().numpy()
         if image.ndim == 2 and dataformats == "HWC":
             image = np.stack([image] * 3, axis=-1)
-        wandb.log({f"{phase}/image/{tag}": wandb.Image(image)}, step=step)
+        wandb.log({f"{phase}/image/{tag}": wandb.Image(image)}, step=self.cur_step)
 
     def log_attention(
         self,
         tag: str,
         attn: torch.Tensor,
-        head_labels: Optional[list] = None,
+        head_labels: Optional[List[str]] = None,
         max_heads: int = 8,
         phase: str = "val",
-    ):
+    ) -> None:
         """Logs Transformer attention maps.
 
         Args:
@@ -319,42 +386,92 @@ class WAndBLogger(Logger):
                 step=self.cur_step,
             )
 
-    def log_gpu_usage(self, device_index: Optional[int] = None):
+    def log_gpu_usage(self, device_index: Optional[int] = None) -> None:
         """Logs GPU usage stats: memory, utilization, temperature.
 
         Args:
-            device_index (int): Index to monitor. If None, logs all GPUs.
+            device_index (int): Local GPU index to monitor; if None each rank logs
+                only its current CUDA device.
         """
-        if self.rank != 0:
+        if not self.gpu_usage:
             return
         if self.cur_step % self.interval != 0:
             return
 
+        local_payload: Dict[str, Any] = {"rank": self.rank, "gpus": [], "error": None}
         try:
-            indexes = (
-                [device_index] if device_index is not None else range(self.world_size)
-            )
-            for i in indexes:
-                handle = pynvml.nvmlDeviceGetHandleByIndex(i)
-                mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                temp = pynvml.nvmlDeviceGetTemperature(
-                    handle, pynvml.NVML_TEMPERATURE_GPU
-                )
-                wandb.log(
-                    {
-                        f"gpu/{i}/memory_used_MB": mem.used / 1024**2,
-                        f"gpu/{i}/memory_total_MB": mem.total / 1024**2,
-                        f"gpu/{i}/utilization_percent": util.gpu,
-                        f"gpu/{i}/temperature_C": temp,
-                    },
-                    step=self.cur_step,
-                )
-        except pynvml.NVMLError as err:
-            print(f"[WAndBLogger] NVML error: {err}")
+            num_devices = pynvml.nvmlDeviceGetCount()
+            if num_devices <= 0:
+                local_payload["error"] = "no_visible_gpus"
+            else:
+                local_device = device_index
+                if local_device is None:
+                    local_device = (
+                        torch.cuda.current_device() if torch.cuda.is_available() else 0
+                    )
 
-    def on_model_update(self, step, logs=None, **kwargs):
+                if local_device < 0 or local_device >= num_devices:
+                    logging.warning(
+                        "[WAndBLogger] Invalid local GPU index %d (available=%d)",
+                        local_device,
+                        num_devices,
+                    )
+                    local_payload["error"] = "invalid_device_index"
+                else:
+                    handle = pynvml.nvmlDeviceGetHandleByIndex(local_device)
+                    mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                    util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                    temp = pynvml.nvmlDeviceGetTemperature(
+                        handle, pynvml.NVML_TEMPERATURE_GPU
+                    )
+                    local_payload["gpus"].append(
+                        {
+                            "device_index": local_device,
+                            "memory_used_MB": mem.used / 1024**2,
+                            "memory_total_MB": mem.total / 1024**2,
+                            "utilization_percent": util.gpu,
+                            "temperature_C": temp,
+                        }
+                    )
+        except pynvml.NVMLError as err:
+            logging.warning("[WAndBLogger] NVML error: %s", err)
+            local_payload["error"] = str(err)
+
+        payloads: List[Dict[str, Any]] = [local_payload]
+        if self.world_size > 1 and dist.is_available() and dist.is_initialized():
+            payloads = [None for _ in range(self.world_size)]
+            dist.all_gather_object(payloads, local_payload)
+
+        if self.rank != 0:
+            return
+
+        logs = {}
+        for p in payloads:
+            if not p:
+                continue
+            rank = p["rank"]
+            for gpu in p.get("gpus", []):
+                prefix = f"gpu/rank_{rank}/device_{gpu['device_index']}"
+                logs[f"{prefix}/memory_used_MB"] = gpu["memory_used_MB"]
+                logs[f"{prefix}/memory_total_MB"] = gpu["memory_total_MB"]
+                logs[f"{prefix}/utilization_percent"] = gpu["utilization_percent"]
+                logs[f"{prefix}/temperature_C"] = gpu["temperature_C"]
+        if logs:
+            wandb.log(logs, step=self.cur_step)
+
+    def on_model_update(
+        self, step: int, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> None:
+        """Logs update-level metrics and refreshes current global step.
+
+        Args:
+            step: Global optimizer step.
+            logs: Optional update-level metrics.
+            kwargs: Additional callback arguments.
+        """
         super().on_model_update(step, logs, **kwargs)
+        if self.gpu_usage:
+            self.log_gpu_usage()
         if self.rank != 0 or not logs:
             return
 

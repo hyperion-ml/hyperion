@@ -255,9 +255,7 @@ class SingleModelTrainer(TorchTrainerBase):
 
         if self.lr_scheduler is not None:
             # this is needed by cosine scheduler
-            self.lr_scheduler.on_epoch_begin(
-                self.cur_epoch, epoch_updates=self.save_steps
-            )
+            self.lr_scheduler.on_epoch_begin(self.cur_epoch, save_steps=self.save_steps)
 
         if self.wd_scheduler is not None:
             self.wd_scheduler.on_epoch_begin(self.cur_epoch)

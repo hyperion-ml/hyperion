@@ -4,11 +4,11 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import csv
-import os
 from collections import OrderedDict as ODict
+from pathlib import Path
+from typing import Any, Dict, List, Optional, TextIO
 
-import numpy as np
-
+from ...utils import PathLike
 from .logger import Logger
 
 
@@ -17,41 +17,65 @@ class CSVLogger(Logger):
        at the end of each epoch
 
     Attributes:
-       file_path: filenane of csv file.
+       file_path: filename of csv file.
        sep: column separator for csv file
        append: False, overwrite existing file, True, appends.
     """
 
-    def __init__(self, file_path, sep=",", append=False):
+    def __init__(
+        self, file_path: PathLike, sep: str = ",", append: bool = False
+    ) -> None:
+        """Initializes the CSV logger.
+
+        Args:
+            file_path: Path to the output CSV file.
+            sep: Delimiter used between columns.
+            append: If True, append to an existing file when possible.
+        """
         super().__init__()
-        self.file_path = file_path
+        self.file_path = Path(file_path)
         self.sep = sep
         self.append = append
-        self.csv_writer = None
-        self.csv_file = None
+        self.csv_writer: Optional[csv.DictWriter] = None
+        self.csv_file: Optional[TextIO] = None
         self.append_header = True
-        self.log_keys = None
+        self.log_keys: Optional[List[str]] = None
 
-    def on_train_begin(self, logs=None, **kwargs):
+    def on_train_begin(
+        self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> None:
+        """Opens the CSV file before training starts.
+
+        Args:
+            logs: Optional training logs.
+            kwargs: Additional callback arguments.
+        """
         super().on_train_begin(logs, **kwargs)
         if self.rank != 0:
             return
 
-        file_dir = os.path.dirname(self.file_path)
-        if not os.path.exists(file_dir):
-            os.makedirs(file_dir)
+        file_dir = self.file_path.parent
+        file_dir.mkdir(parents=True, exist_ok=True)
 
         if self.append:
-            if os.path.exists(self.file_path):
-                with open(self.file_path, "r") as f:
+            if self.file_path.exists():
+                with self.file_path.open("r") as f:
                     self.append_header = len(f.readline()) == 0
 
         if self.append_header:
-            self.csv_file = open(self.file_path, "w")
+            self.csv_file = self.file_path.open("w")
         else:
-            self.csv_file = open(self.file_path, "a")
+            self.csv_file = self.file_path.open("a")
 
-    def on_epoch_end(self, logs=None, **kwargs):
+    def on_epoch_end(
+        self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> None:
+        """Writes one row of epoch metrics to the CSV file.
+
+        Args:
+            logs: Metric dictionary for the current epoch.
+            kwargs: Additional callback arguments.
+        """
         if self.rank != 0:
             return
         logs = logs or {}
@@ -91,7 +115,7 @@ class CSVLogger(Logger):
         self.csv_writer.writerow(row)
         self.csv_file.flush()
 
-    def on_val_end(self, logs=None, **kwargs):
+    def on_val_end(self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any) -> None:
         """At the end of validation
 
         Args:
@@ -99,9 +123,19 @@ class CSVLogger(Logger):
         """
         self.on_epoch_end(logs, **kwargs)
 
-    def on_train_end(self, logs=None, **kwargs):
+    def on_train_end(
+        self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> None:
+        """Closes the CSV file when training ends.
+
+        Args:
+            logs: Optional final training logs.
+            kwargs: Additional callback arguments.
+        """
         if self.rank != 0:
             return
 
-        self.csv_file.close()
-        self.writer = None
+        if self.csv_file is not None:
+            self.csv_file.close()
+        self.csv_file = None
+        self.csv_writer = None

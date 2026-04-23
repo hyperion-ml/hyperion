@@ -1,18 +1,17 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import math
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
+from jsonargparse import ActionParser, ArgumentParser
 
 from .attack_factory import AttackFactory as AF
 
 
-class RandomAttackFactory(object):
+class RandomAttackFactory:
     def __init__(
         self,
         attack_types,

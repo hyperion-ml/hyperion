@@ -5,14 +5,17 @@
 
 import logging
 import math
+from typing import Any, Dict, List, Optional
 
-import torch
+import torch.optim as optim
 
-from .lr_scheduler import LRScheduler
+from .lr_scheduler import LRScheduler, MinLR
 
 
 class TriangularLR(LRScheduler):
-    r"""Sets cyclid triangular learning rate schedule as proposed in
+    r"""Cyclic triangular learning-rate scheduler.
+
+    Implements the schedule proposed in:
     .. Cyclical Learning Rates for Training Neural Networks:
     https://arxiv.org/abs/1506.01186
 
@@ -22,37 +25,37 @@ class TriangularLR(LRScheduler):
         \eta_t = \eta_{min} + (\eta_{max} - \eta_{min})\max(0, 1-x)
 
     Attributes:
-      optimizer: Pytorch optimizer object.
-      T: period of the cycle.
-      T_mul: period multiplier, after each cycle the period is multiplied by T_mul.
-      hold_steps: number of steps until the lr starts decaying.
-      min_lr: minimum learning rate.
-      warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
-      gamma: after each period, the maximum lr is multiplied by gamma.
-      last_restart: what is the step when the last restart happened, , this is used
-                    to restart the training from a checkpoint.
-      num_restarts: how many restarts, we have done, this is used to restart the
-                    training from a checkpoint.
-      epoch: initial training training epoch, this is needed to restart the model
-             training.
-      step: initial training step, this is needed to restart the model training.
-      update_lr_on_opt_step: if True, updates the lr each time we update the model,
-        otherwise after each epoch.
+      optimizer: Wrapped optimizer.
+      T: Current cycle length.
+      T_mul: Cycle-length multiplier after each restart.
+      min_lrs: Per-parameter-group minimum learning rates.
+      base_lrs: Per-parameter-group base learning rates.
+      gamma: Multiplicative factor applied to max LR after each restart.
+      last_restart: Step index of the last restart.
+      num_restarts: Number of completed restarts.
+      epoch: Current epoch index.
+      step: Current optimization-step index.
+      update_lr_on_opt_step: Whether LR updates happen per optimizer step.
     """
 
     def __init__(
         self,
-        optimizer,
-        T,
-        T_mul=1,
-        min_lr=0,
-        gamma=1,
-        last_restart=0,
-        num_restarts=0,
-        epoch=0,
-        step=0,
-        update_lr_on_opt_step=True,
-    ):
+        optimizer: optim.Optimizer,
+        T: int,
+        T_mul: int = 1,
+        min_lr: MinLR = 0,
+        gamma: float = 1,
+        last_restart: int = 0,
+        num_restarts: int = 0,
+        epoch: int = 0,
+        step: int = 0,
+        update_lr_on_opt_step: bool = True,
+    ) -> None:
+        """Initialize triangular scheduler."""
+        if T <= 0:
+            raise ValueError(f"T must be > 0, got {T}")
+        if T_mul <= 0:
+            raise ValueError(f"T_mul must be > 0, got {T_mul}")
         super().__init__(optimizer, min_lr, 0, epoch, step, update_lr_on_opt_step)
         self.T = T
         self.T_mul = T_mul
@@ -60,22 +63,32 @@ class TriangularLR(LRScheduler):
         self.num_restarts = num_restarts
         self.gamma = gamma
 
-    def load_state_dict(self, state_dict):
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        """Load scheduler state while preserving current ``gamma`` and ``T_mul``."""
         # we want to be able to change gamma and T_mul in the middle of training
         del state_dict["gamma"]
         del state_dict["T_mul"]
         super().load_state_dict(state_dict)
 
-    def on_epoch_begin(self, epoch=None, save_steps=1, **kwargs):
+    def on_epoch_begin(
+        self,
+        epoch: Optional[int] = None,
+        save_steps: int = 1,
+        **kwargs: Any,
+    ) -> None:
+        """Optionally align cycle length to an integer number of epochs."""
         super().on_epoch_begin(epoch)
         if self.update_lr_on_opt_step and save_steps is not None:
+            if save_steps <= 0:
+                raise ValueError(f"save_steps must be > 0, got {save_steps}")
             # T has to correspond to an integer number of epochs
             T = int(math.ceil(self.T / save_steps) * save_steps)
             if self.T != T:
                 logging.info("readjusting triangular_lr T %d -> %d", self.T, T)
                 self.T = T
 
-    def get_lr(self, step):
+    def get_lr(self, step: int) -> List[float]:
+        """Return per-group triangular-cycle learning rates."""
         x = step - self.last_restart
 
         if x >= self.T:

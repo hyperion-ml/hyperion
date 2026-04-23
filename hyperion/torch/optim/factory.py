@@ -3,43 +3,75 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
+from typing import Any, Dict, Iterable, Optional, Type, Union
 
 import torch
 import torch.optim as optim
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_args, filter_func_args
-from .radam import RAdam
 
 
 class OptimizerFactory:
-    """Factory class to create different types of optimizers."""
+    """Build torch optimizers from a normalized set of keyword arguments.
+
+    The factory accepts a superset of optimizer hyperparameters and forwards only
+    the ones used by the selected optimizer type.
+    """
 
     @staticmethod
     def create(
-        params,
-        opt_type,
-        lr,
-        momentum=0,
-        beta1=0.9,
-        beta2=0.99,
-        rho=0.9,
-        eps=1e-8,
-        weight_decay=0,
-        amsgrad=False,
-        nesterov=False,
-        lambd=0.0001,
-        asgd_alpha=0.75,
-        t0=1000000.0,
-        rmsprop_alpha=0.99,
-        centered=False,
-        lr_decay=0,
-        init_acc_val=0,
-        max_iter=20,
-    ):
+        params: Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]],
+        opt_type: str,
+        lr: float,
+        momentum: float = 0,
+        beta1: float = 0.9,
+        beta2: float = 0.99,
+        rho: float = 0.9,
+        eps: float = 1e-8,
+        weight_decay: float = 0,
+        amsgrad: bool = False,
+        nesterov: bool = False,
+        lambd: float = 0.0001,
+        asgd_alpha: float = 0.75,
+        t0: float = 1000000.0,
+        rmsprop_alpha: float = 0.99,
+        centered: bool = False,
+        lr_decay: float = 0,
+        init_acc_val: float = 0,
+        max_iter: int = 20,
+    ) -> optim.Optimizer:
+        """Create an optimizer instance.
+
+        Args:
+            params: Iterable of model parameters or parameter-group dicts.
+            opt_type: Optimizer name (e.g., ``"adam"``, ``"sgd"``, ``"radam"``).
+            lr: Learning rate.
+            momentum: SGD/RMSProp momentum.
+            beta1: First moment coefficient for Adam-family optimizers.
+            beta2: Second moment coefficient for Adam-family optimizers.
+            rho: Adadelta decay factor.
+            eps: Numerical-stability constant for adaptive optimizers.
+            weight_decay: L2 weight decay.
+            amsgrad: Use AMSGrad variant for Adam/AdamW.
+            nesterov: Enable Nesterov momentum for SGD.
+            lambd: ASGD decay term.
+            asgd_alpha: ASGD power for eta update.
+            t0: ASGD averaging start point.
+            rmsprop_alpha: RMSProp smoothing constant.
+            centered: Use centered RMSProp.
+            lr_decay: AdaGrad learning-rate decay.
+            init_acc_val: AdaGrad initial accumulator value.
+            max_iter: Maximum iterations for LBFGS.
+
+        Returns:
+            Instantiated ``torch.optim.Optimizer``.
+
+        Raises:
+            ValueError: If ``opt_type`` is not recognized.
+        """
         kwargs = locals()
-        base_opt = None
+        base_opt: Optional[Type[optim.Optimizer]] = None
         if opt_type == "sgd":
             valid_args = ("lr", "momentum", "weight_decay", "nesterov")
             opt_args = filter_args(valid_args, kwargs)
@@ -48,53 +80,53 @@ class OptimizerFactory:
             # return optim.SGD(params, lr, momentum=momentum, dampening=0,
             #                  weight_decay=weight_decay, nesterov=nesterov)
 
-        if opt_type == "adam":
+        elif opt_type == "adam":
             betas = (beta1, beta2)
             valid_args = ("lr", "eps", "weight_decay", "amsgrad")
             opt_args = filter_args(valid_args, kwargs)
             opt_args["betas"] = betas
             base_opt = optim.Adam
 
-        if opt_type == "adamw":
+        elif opt_type == "adamw":
             betas = (beta1, beta2)
             valid_args = ("lr", "eps", "weight_decay", "amsgrad")
             opt_args = filter_args(valid_args, kwargs)
             opt_args["betas"] = betas
             base_opt = optim.AdamW
 
-        if opt_type == "radam":
+        elif opt_type == "radam":
             betas = (beta1, beta2)
             valid_args = ("lr", "eps", "weight_decay")
             opt_args = filter_args(valid_args, kwargs)
             opt_args["betas"] = betas
-            base_opt = RAdam
+            base_opt = optim.RAdam
 
-        if opt_type == "adadelta":
+        elif opt_type == "adadelta":
             valid_args = ("lr", "eps", "weight_decay", "rho")
             opt_args = filter_args(valid_args, kwargs)
             base_opt = optim.Adadelta
 
-        if opt_type == "adagrad":
+        elif opt_type == "adagrad":
             valid_args = ("lr", "lr_decay", "weight_decay")
             opt_args = filter_args(valid_args, kwargs)
             opt_args["initial_accumulator_value"] = init_acc_val
             base_opt = optim.Adagrad
 
-        if opt_type == "sparse_adam":
+        elif opt_type == "sparse_adam":
             betas = (beta1, beta2)
             valid_args = ("lr", "eps")
             opt_args = filter_args(valid_args, kwargs)
             opt_args["betas"] = betas
             base_opt = optim.SparseAdam
 
-        if opt_type == "adamax":
+        elif opt_type == "adamax":
             betas = (beta1, beta2)
             valid_args = ("lr", "eps", "weight_decay")
             opt_args = filter_args(valid_args, kwargs)
             opt_args["betas"] = betas
             base_opt = optim.Adamax
 
-        if opt_type == "asgd":
+        elif opt_type == "asgd":
             valid_args = ("lr", "lambd", "t0", "weight_decay")
             opt_args = filter_args(valid_args, kwargs)
             opt_args["alpha"] = asgd_alpha
@@ -102,32 +134,39 @@ class OptimizerFactory:
             # return optim.ASGD(params, lr, lambd=lambd, alpha=asgd_alpha, t0=t0,
             #                   weight_decay=weight_decay)
 
-        if opt_type == "lbfgs":
+        elif opt_type == "lbfgs":
             valid_args = ("lr", "max_iter")
             opt_args = filter_args(valid_args, kwargs)
             base_opt = optim.LBFGS
 
-        if opt_type == "rmsprop":
+        elif opt_type == "rmsprop":
             valid_args = ("lr", "eps", "momentum", "weight_decay", "centered")
             opt_args = filter_args(valid_args, kwargs)
             opt_args["alpha"] = rmsprop_alpha
             base_opt = optim.RMSprop
 
-        if opt_type == "rprop":
+        elif opt_type == "rprop":
             opt_args = {"lr": lr, "etas": (0.5, 1.2), "step_sizes": (1e-06, 50)}
             base_opt = optim.Rprop
 
         if base_opt is None:
-            raise Exception("unknown optimizer %s" % opt_type)
+            raise ValueError("unknown optimizer %s" % opt_type)
 
         return base_opt(params, **opt_args)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter a raw kwargs dictionary to arguments accepted by ``create``."""
         return filter_func_args(OptimizerFactory.create, kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register optimizer configuration arguments in a parser.
+
+        Args:
+            parser: Destination argument parser.
+            prefix: Optional nested prefix used to add optimizer args as a group.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -152,7 +191,7 @@ class OptimizerFactory:
             ],
             help=(
                 "Optimizers: SGD, Adam, AdaDelta, AdaGrad, SparseAdam "
-                "AdaMax, ASGD, LFGS, RMSprop, Rprop"
+                "AdaMax, ASGD, LBFGS, RMSprop, Rprop"
             ),
         )
         parser.add_argument(
@@ -268,7 +307,7 @@ class OptimizerFactory:
         )
 
         parser.add_argument(
-            "--max-iter", default=20, type=int, help=("max iterations in LBGS")
+            "--max-iter", default=20, type=int, help=("max iterations in LBFGS")
         )
 
         if prefix is not None:

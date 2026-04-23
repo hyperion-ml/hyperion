@@ -3,43 +3,59 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
 import math
-from typing import Sequence, Union
+from typing import List
 
 import torch
 
-from .wd_scheduler import WDScheduler
+from .wd_scheduler import InitialWD, WDScheduler
 
 
 class CosineWD(WDScheduler):
-    r"""Set the weight decay of each parameter group using a cosine
+    r"""Cosine warmup schedule for weight decay.
+
+    For each parameter group, the weight decay transitions from ``initial_wd``
+    to ``final_wd`` during warmup:
+
+    .. math::
+        wd_t = wd_{final} + (wd_{init} - wd_{final})
+        \frac{1 + \cos(\pi t / T_{warmup})}{2}
 
     Attributes:
-      optimizer: Pytorch optimizer object.
-      initial_wd: initial value of the weight decay.
-      warmup_steps: number of warm up steps to get the the weight decay to its final value.
-      epoch: initial training training epoch, this is needed to restart the model
-             training.
-      step: initial training step, this is needed to restart the model training.
-      update_wd_on_opt_step: if True, updates the weight decay each time we update the model,
-        otherwise after each epoch.
+      optimizer: Wrapped optimizer.
+      initial_wds: Per-parameter-group initial weight decays.
+      final_wds: Per-parameter-group final/target weight decays.
+      warmup_steps: Number of optimizer steps for cosine transition.
+      epoch: Current epoch index.
+      step: Current optimization-step index.
+      update_wd_on_opt_step: Whether WD updates happen per optimizer step.
     """
 
     def __init__(
         self,
         optimizer: torch.optim.Optimizer,
-        initial_wd: Union[float, Sequence[float]] = 0,
+        initial_wd: InitialWD = 1e-5,
         warmup_steps: int = 0,
         epoch: int = 0,
         step: int = 0,
         update_wd_on_opt_step: bool = False,
     ) -> None:
+        """Initialize cosine weight-decay scheduler.
+
+        Args:
+            optimizer: Wrapped optimizer.
+            initial_wd: Scalar or per-group initial weight decay.
+            warmup_steps: Steps for cosine transition to final WDs.
+            epoch: Initial epoch index.
+            step: Initial optimization-step index.
+            update_wd_on_opt_step: Whether to update WD every optimizer step.
+        """
         super().__init__(
             optimizer, initial_wd, warmup_steps, epoch, step, update_wd_on_opt_step
         )
 
-    def get_wd(self, step: int) -> Sequence[float]:
+    def get_wd(self, step: int) -> List[float]:
+        """Return per-group weight decays for the provided step."""
         if step >= self.warmup_steps:
             return self.final_wds
 

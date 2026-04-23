@@ -1078,6 +1078,7 @@ class TorchTrainerBase:
         self.last_save_step = self.cur_step
         self.last_val_step = self.cur_step
         self.on_train_begin()
+        final_logs: Dict[str, Any] = {}
         val_logs = {}
         for epoch in range(self.cur_epoch, self.num_epochs):
             self.set_data_epoch(train_data, self.cur_epoch, self.cur_batch)
@@ -1092,6 +1093,7 @@ class TorchTrainerBase:
             self.cur_epoch += 1
             self.on_epoch_end(logs)
             self.save_checkpoint(logs)
+            final_logs = logs
             if self.finish_now():
                 break
 
@@ -1109,6 +1111,9 @@ class TorchTrainerBase:
             self.cur_epoch += 1
             self.on_swa_epoch_end(logs)
             self.save_swa_model(logs)
+            final_logs = logs
+
+        self.loggers.on_train_end(logs=final_logs)
 
     def training_loop(self) -> Dict[str, Any]:
         """
@@ -1239,7 +1244,7 @@ class TorchTrainerBase:
             self.grad_tracker.update(grad_norms)
             grad_logs = self.grad_tracker.grad_spikes
             self.zero_grad_optimizers()
-            self.loggers.on_model_update(self.cur_step, log=grad_logs)
+            self.loggers.on_model_update(self.cur_step, logs=grad_logs)
 
     @torch.no_grad()
     def validation_loop(self) -> Dict[str, Any]:

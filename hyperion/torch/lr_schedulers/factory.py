@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Union
 
 import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -18,6 +18,9 @@ from .triangular_lr import TriangularLR
 
 
 class LRSchedulerFactory:
+    """Factory for creating configured learning-rate schedulers."""
+
+    @staticmethod
     def create(
         optimizer: torch.optim.Optimizer,
         lrsch_type: str,
@@ -38,57 +41,44 @@ class LRSchedulerFactory:
         cooldown: int = 0,
         eps: float = 1e-8,
         min_lr: Union[float, Sequence[float]] = 0,
-        warmup_steps: int = 0,
+        warmup_steps: Optional[int] = None,
         d_model: Optional[int] = None,
         lr_factor: float = 1,
         update_lr_on_opt_step: bool = True,
     ) -> Optional[LRScheduler]:
-        """Creates a  learning rate scheduler object.
+        """Create a learning-rate scheduler instance.
 
         Args:
-          optimizer: Pytorch optimizer object.
-          lrsched_type: type of scheduler in ["none", "exp_lr", "invpow_lr",
-                "cos_lr", "adamcos_lr", "red_lr_on_plateau", "noam_lr",
-                        "triangular_lr"].
-          decay_rate: the lr is multiplied by `decay_rate` after `decay_ste.ps`
-          decay_steps: number of decay steps.
-          power: the step/epoch number is ellebated to this power to compute the decay.
-          hold_steps: number of steps until the lr starts decaying.
-          t: period of the cycle.
-          t_mul: period multiplier, after each cycle the period is multiplied by T_mul.
-          warm_restarts: whether or not to do warm restarts.
-          gamma: after each period, the maximum lr is multiplied by gamma, in cyclid schedulers.
-          monitor: which metric to monitor in RedLROnPlateau scheduler.
-          mode (str): One of `min`, `max`. In `min` mode, lr will
-                be reduced when the quantity monitored has stopped
-                decreasing; in `max` mode it will be reduced when the
-                quantity monitored has stopped increasing. Default: 'min'.
-          factor (float): Factor by which the learning rate will be
-                reduced. new_lr = lr * factor. Default: 0.1.
-          patience (int): Number of epochs with no improvement after
-                which learning rate will be reduced. For example, if
-                `patience = 2`, then we will ignore the first 2 epochs
-                with no improvement, and will only decrease the LR after the
-                3rd epoch if the loss still hasn't improved then.
-          threshold (float): Threshold for measuring the new optimum,
-                to only focus on significant changes. Default: 1e-4.
-          threshold_mode (str): One of `rel`, `abs`. In `rel` mode,
-                dynamic_threshold = best * ( 1 + threshold ) in 'max'
-                 mode or best * ( 1 - threshold ) in `min` mode.
-                 In `abs` mode, dynamic_threshold = best + threshold in
-                 `max` mode or best - threshold in `min` mode. Default: 'rel'.
-          cooldown (int): Number of epochs to wait before resuming
-                normal operation after lr has been reduced. Default: 0.
-          eps (float): Minimal decay applied to lr. If the difference
-                between new and old lr is smaller than eps, the update is
-                ignored. Default: 1e-8.
-                d_model: hidden dimension of transformer model.
-          min_lr: minimum learning rate.
-          warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
-          d_model: hidden dimension of transformer model.
-          lr_factor: multiplies the Noam lr by this number.
-          update_lr_on_opt_step: if True, updates the lr each time we update the model,
-                otherwise after each epoch.
+            optimizer: Wrapped optimizer.
+            lrsch_type: Scheduler type identifier.
+            decay_rate: Exponential decay factor.
+            decay_steps: Number of steps associated with one exponential decay.
+            power: Inverse-power decay exponent.
+            hold_steps: Steps to hold initial LR before decay.
+            t: Base cycle length for cyclic schedulers.
+            t_mul: Cycle-length multiplier after each restart.
+            warm_restarts: Enable warm restarts for cosine schedule.
+            gamma: Max-LR multiplier after each restart.
+            monitor: Metric key for plateau scheduler.
+            mode: ``"min"`` or ``"max"`` for plateau scheduler.
+            factor: LR reduction factor for plateau scheduler.
+            patience: Patience (epochs) for plateau scheduler.
+            threshold: Improvement threshold for plateau scheduler.
+            threshold_mode: ``"rel"`` or ``"abs"`` threshold semantics.
+            cooldown: Cooldown epochs for plateau scheduler.
+            eps: Minimum effective LR change for plateau scheduler.
+            min_lr: Scalar or per-group lower LR bound.
+            warmup_steps: Linear warmup duration in optimizer steps. Uses
+                scheduler-specific defaults when omitted.
+            d_model: Transformer hidden size for Noam schedule.
+            lr_factor: Scale factor for Noam schedule.
+            update_lr_on_opt_step: Whether to update LR on optimizer steps.
+
+        Returns:
+            Scheduler instance, or ``None`` when ``lrsch_type == "none"``.
+
+        Raises:
+            ValueError: If ``lrsch_type`` is unknown.
         """
 
         if lrsch_type == "none":
@@ -101,7 +91,7 @@ class LRSchedulerFactory:
                 decay_steps,
                 hold_steps,
                 min_lr=min_lr,
-                warmup_steps=warmup_steps,
+                warmup_steps=0 if warmup_steps is None else warmup_steps,
                 update_lr_on_opt_step=update_lr_on_opt_step,
             )
 
@@ -111,7 +101,7 @@ class LRSchedulerFactory:
                 power,
                 hold_steps,
                 min_lr=min_lr,
-                warmup_steps=warmup_steps,
+                warmup_steps=0 if warmup_steps is None else warmup_steps,
                 update_lr_on_opt_step=update_lr_on_opt_step,
             )
 
@@ -121,7 +111,7 @@ class LRSchedulerFactory:
                 d_model,
                 lr_factor,
                 min_lr=min_lr,
-                warmup_steps=warmup_steps,
+                warmup_steps=1 if warmup_steps is None else warmup_steps,
             )
 
         if lrsch_type == "cos_lr":
@@ -130,13 +120,13 @@ class LRSchedulerFactory:
                 t,
                 t_mul,
                 min_lr=min_lr,
-                warmup_steps=warmup_steps,
+                warmup_steps=0 if warmup_steps is None else warmup_steps,
                 warm_restarts=warm_restarts,
                 gamma=gamma,
                 update_lr_on_opt_step=update_lr_on_opt_step,
             )
 
-        if lrsch_type == "triangular":
+        if lrsch_type in ("triangular_lr", "triangular"):
             return TriangularLR(
                 optimizer,
                 t,
@@ -151,7 +141,7 @@ class LRSchedulerFactory:
                 optimizer,
                 t,
                 t_mul,
-                warmup_steps=warmup_steps,
+                warmup_steps=0 if warmup_steps is None else warmup_steps,
                 warm_restarts=warm_restarts,
                 gamma=gamma,
                 update_lr_on_opt_step=update_lr_on_opt_step,
@@ -168,14 +158,15 @@ class LRSchedulerFactory:
                 threshold_mode=threshold_mode,
                 cooldown=cooldown,
                 min_lr=min_lr,
-                warmup_steps=warmup_steps,
+                warmup_steps=0 if warmup_steps is None else warmup_steps,
                 eps=eps,
             )
 
         raise ValueError(f"invalid lrsch_type={lrsch_type}")
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter a kwargs dictionary to args accepted by :meth:`create`."""
         valid_args = (
             "lrsch_type",
             "decay_rate",
@@ -204,7 +195,10 @@ class LRSchedulerFactory:
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(
+        parser: ArgumentParser, prefix: Optional[str] = None
+    ) -> None:
+        """Register LR scheduler CLI arguments in an argument parser."""
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -340,7 +334,7 @@ class LRSchedulerFactory:
 
         parser.add_argument(
             "--warmup-steps",
-            default=0,
+            default=None,
             type=int,
             help=("Steps to linearly warm up lr from 0 to the base value."),
         )

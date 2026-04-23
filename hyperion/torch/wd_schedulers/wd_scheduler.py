@@ -3,35 +3,49 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
-import torch
 import torch.optim as optim
+
+InitialWD = Union[float, Sequence[float]]
 
 
 class WDScheduler:
     """Base class for weight decay schedulers.
 
+    This scheduler supports per-parameter-group weight decay scheduling either
+    on optimizer steps or on epoch boundaries.
+
     Attributes:
-      optimizer: Pytorch optimizer object.
-      initial_wd: initial value of the weight decay.
-      warmup_steps: number of warm up steps to get the the weight decay to its final value.
-      epoch: initial training training epoch, this is needed to restart the model
-             training.
-      step: initial training step, this is needed to restart the model training.
-      update_wd_on_opt_step: if True, updates the weight decay each time we update the model,
-        otherwise after each epoch.
+      optimizer: Wrapped optimizer.
+      initial_wds: Per-parameter-group initial weight decays.
+      final_wds: Per-parameter-group final/target weight decays.
+      warmup_steps: Number of warmup steps used by scheduler-specific policies.
+      epoch: Current epoch index.
+      step: Current optimization-step index.
+      update_wd_on_opt_step: If ``True``, update WD on optimizer steps; otherwise
+        on epoch boundaries.
     """
 
     def __init__(
         self,
         optimizer: optim.Optimizer,
-        initial_wd: Union[float, Sequence[float]] = 0,
+        initial_wd: InitialWD = 1e-5,
         warmup_steps: int = 0,
         epoch: int = 0,
         step: int = 0,
         update_wd_on_opt_step: bool = False,
     ) -> None:
+        """Initialize scheduler state.
+
+        Args:
+            optimizer: Wrapped optimizer.
+            initial_wd: Scalar or per-group initial weight decay.
+            warmup_steps: Number of warmup steps used by scheduler policy.
+            epoch: Initial epoch index (for checkpoint resume).
+            step: Initial optimization-step index (for checkpoint resume).
+            update_wd_on_opt_step: Whether to update WD every optimizer step.
+        """
         if not isinstance(optimizer, optim.Optimizer):
             raise TypeError("%s is not an Optimizer" % (type(optimizer).__name__))
         self.optimizer: optim.Optimizer = optimizer
@@ -47,7 +61,7 @@ class WDScheduler:
                         "in param_groups[{}] when resuming an optimizer".format(i)
                     )
 
-        self.final_wds: Sequence[float] = list(
+        self.final_wds: List[float] = list(
             map(lambda group: group["final_wd"], optimizer.param_groups)
         )
 
@@ -61,6 +75,10 @@ class WDScheduler:
             self.initial_wds = list(initial_wd)
         else:
             max_wd = max([group["final_wd"] for group in optimizer.param_groups])
+            if max_wd == 0:
+                raise ValueError(
+                    "max final_wd across optimizer param groups is 0; cannot scale initial_wd"
+                )
             self.initial_wds = [
                 initial_wd * group["final_wd"] / max_wd
                 for group in optimizer.param_groups
@@ -77,31 +95,36 @@ class WDScheduler:
 
     @property
     def in_warmup(self) -> bool:
+        """Whether the scheduler is currently in warmup."""
         return self.step < self.warmup_steps
 
     def state_dict(self) -> Dict[str, Any]:
-        """Returns the state of the scheduler as a :class:`dict`.
+        """Return scheduler state for checkpointing.
 
-        It contains an entry for every variable in self.__dict__ which
-        is not the optimizer.
+        The optimizer object itself is excluded.
         """
         return {
             key: value for key, value in self.__dict__.items() if key != "optimizer"
         }
 
-    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        """Loads the schedulers state.
+    def load_state_dict(self, state_dict: Mapping[str, Any]) -> None:
+        """Load scheduler state from :meth:`state_dict`.
 
-        Arguments:
-            state_dict (dict): scheduler state. Should be an object returned
-                from a call to :meth:`state_dict`.
+        Args:
+            state_dict: Serialized scheduler state.
         """
         self.__dict__.update(state_dict)
 
-    def get_wd(self, step: int) -> Sequence[float]:
+    def get_wd(self, step: int) -> List[float]:
+        """Compute per-group weight decays for a given step/epoch index.
+
+        Args:
+            step: Current scheduler index (step or epoch depending on usage).
+        """
         raise NotImplementedError
 
     def on_epoch_begin(self, epoch: Optional[int] = None, **kwargs: Any) -> None:
+        """Update WDs at epoch start when configured for epoch updates."""
         if epoch is not None:
             self.epoch = epoch
 
@@ -113,10 +136,12 @@ class WDScheduler:
         ):
             param_group["weight_decay"] = wd
 
-    def on_epoch_end(self, metrics: Optional[Dict[str, Any]] = None) -> None:
+    def on_epoch_end(self, metrics: Optional[Mapping[str, Any]] = None) -> None:
+        """Advance epoch counter at epoch end."""
         self.epoch += 1
 
     def on_opt_step(self) -> None:
+        """Update WDs after an optimization step."""
         if self.update_wd_on_opt_step:
             for param_group, wd in zip(
                 self.optimizer.param_groups, self.get_wd(self.step)
