@@ -4,8 +4,10 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import re
+from typing import Any
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+import torch.nn as nn
 
 from ...np.feats.filter_banks import FilterBankFactory as FBF
 from .audio_feats import *
@@ -27,37 +29,37 @@ class AudioFeatsFactory:
 
     @staticmethod
     def create(
-        audio_feat,
-        sample_frequency=16000,
-        frame_length=25,
-        frame_shift=10,
-        fft_length=512,
-        remove_dc_offset=True,
-        preemphasis_coeff=0.97,
-        window_type="povey",
-        use_fft_mag=False,
-        dither=1,
-        fb_type="mel_kaldi",
-        low_freq=20,
-        high_freq=0,
-        num_filters=23,
-        norm_filters=False,
-        num_ceps=13,
-        snip_edges=True,
-        center=False,
-        cepstral_lifter=22,
-        energy_floor=0,
-        raw_energy=True,
-        use_energy=True,
-    ):
+        audio_feat: str,
+        sample_frequency: int = 16000,
+        frame_length: float = 25,
+        frame_shift: float = 10,
+        fft_length: int = 512,
+        remove_dc_offset: bool = True,
+        preemphasis_coeff: float = 0.97,
+        window_type: str = "povey",
+        use_fft_mag: bool = False,
+        dither: float = 1.0 / 2**15,
+        fb_type: str = "mel_kaldi",
+        low_freq: int = 20,
+        high_freq: int = 0,
+        num_filters: int = 23,
+        norm_filters: bool = False,
+        num_ceps: int = 13,
+        snip_edges: bool = True,
+        center: bool = False,
+        cepstral_lifter: float = 22,
+        energy_floor: float = 0,
+        raw_energy: bool = True,
+        use_energy: bool = True,
+    ) -> nn.Module:
         """
-        Method that creates  acoustic features layers like
+        Creates acoustic feature extractor layers like
         FFT, Spectrogram, log-Spectrogram, log-filter-bank, MFCC.
 
         Args:
           audio_feat:        Type of feature extractor in ["fft", "spec", "log_spec",
                              "logfb", "mfcc", "kanbayashi_logfb"]. "kanbayashi_logfb"
-                             should produce features compatible with WaveGAN repository.
+                             should produce features compatible with ParallelWaveGAN.
           sample_frequency:  Waveform data sample frequency (must match the waveform
                              file, if specified there) (default = 16000)
           frame_length:      Frame length in milliseconds (default = 25)
@@ -66,10 +68,11 @@ class AudioFeatsFactory:
           remove_dc_offset:  Subtract mean from waveform on each frame (default = True)
           preemphasis_coeff: Coefficient for use in signal preemphasis (default = 0.97)
           window_type:       Type of window ["hamming"|"hanning"|"povey"|"rectangular"|
-                             "blackmann"] (default = 'povey')
+                             "blackman"] (default = 'povey')
           use_fft_mag:       If false, it uses |X(f)|^2, if true, it uses |X(f)|,
                              (default = False)
-          dither:            Dithering constant (0.0 means no dither) (default = 1)
+          dither:            Dithering constant (0.0 means no dither)
+                             (default = 1/2**15)
           fb_type:           Filter-bank type in ["mel_kaldi", "mel_etsi",
                              "mel_librosa", "mel_librosa_htk", "linear"]
                              (default = 'mel_kaldi')
@@ -87,8 +90,8 @@ class AudioFeatsFactory:
                              If false, the number of frames depends only on the
                              frame-shift, and we reflect the data at the ends.
                              (default = True)
-          center:            If true, if puts the center of the frame at t*window_shift, starting at t=0,
-                             If overwrides snip_edges and set it to False
+          center:            If true, puts the center of the frame at t*window_shift,
+                             starting at t=0. It overrides snip_edges and sets it to False.
           cepstral_lifter:   Constant that controls scaling of MFCCs (default = 22)
           energy_floor:      Floor on energy (absolute, not relative) in MFCC computation
                              (default = 0)
@@ -96,6 +99,8 @@ class AudioFeatsFactory:
                              windowing (default = True)
           use_energy:        Use energy (not C0) in MFCC computation (default = True)
 
+        Returns:
+          Feature extraction module.
         """
 
         if audio_feat == FFT:
@@ -211,12 +216,13 @@ class AudioFeatsFactory:
                 high_freq=high_freq,
                 num_filters=num_filters,
                 snip_edges=snip_edges,
+                center=center,
             )
 
         raise ValueError(f"unknown feature type {audio_feat}")
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> dict[str, Any]:
         """Filters feature extractor args from arguments dictionary.
 
         Args:
@@ -233,7 +239,6 @@ class AudioFeatsFactory:
             "remove_dc_offset",
             "preemphasis_coeff",
             "window_type",
-            "blackman_coeff",
             "use_fft_mag",
             "dither",
             "fb_type",
@@ -251,16 +256,19 @@ class AudioFeatsFactory:
             "audio_feat",
         )
 
-        d = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        d = {k: kwargs[k] for k in valid_args if k in kwargs}
         return d
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: str | None = None) -> None:
         """Adds feature extractor options to parser.
 
         Args:
           parser: Arguments parser
           prefix: Options prefix.
+
+        Returns:
+          None.
         """
         if prefix is not None:
             outer_parser = parser
@@ -310,7 +318,7 @@ class AudioFeatsFactory:
             choices=["hamming", "hanning", "povey", "rectangular", "blackman"],
             help=(
                 'Type of window ("hamming"|"hanning"|"povey"|'
-                '"rectangular"|"blackmann")'
+                '"rectangular"|"blackman")'
             ),
         )
 
@@ -356,7 +364,7 @@ class AudioFeatsFactory:
             action=ActionYesNo,
             help=(
                 "If true, puts the center of the frame at t*frame_shift, "
-                "it over-wrides snip-edges and set it to false"
+                "it overrides snip-edges and sets it to false"
             ),
         )
 

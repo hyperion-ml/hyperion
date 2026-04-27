@@ -26,6 +26,7 @@ else:
     _SDPBackendEnum = SDPBackend
 
 SDPBackendReturn = Union[_SDPBackendEnum, List[_SDPBackendEnum]]
+CacheState = Dict[str, Union[torch.Tensor, int]]
 
 
 class SDPBackendType(str, Enum):
@@ -136,6 +137,9 @@ class ScaledDotProdAttV2(nn.Module):
             is_causal (bool): Whether the module should behave causally (see class docstring for details).
             sliding_window (Optional[int]): Sliding-window size for Flash Attention kernels.
             model_parallel (bool): If `True`, use tensor-parallel linear layers built on PyTorch collectives.
+
+        Returns:
+            None: This constructor initializes the module in place.
         """
         super().__init__()
         self.num_heads = num_heads
@@ -148,6 +152,7 @@ class ScaledDotProdAttV2(nn.Module):
         self.rope = rope
         self.is_causal = is_causal
         self.sliding_window = sliding_window
+        self._warned_qkv_cast_from_fp32 = False
 
         if model_parallel:
             model_parallel_size = get_tensor_parallel_world_size()
@@ -210,6 +215,11 @@ class ScaledDotProdAttV2(nn.Module):
 
     def _assert_args(self):
         assert self.sliding_window is None, "Base class does not support sliding_window"
+        if self.num_local_heads % self.num_local_kv_heads != 0:
+            raise ValueError(
+                f"num_local_heads ({self.num_local_heads}) must be divisible by "
+                f"num_local_kv_heads ({self.num_local_kv_heads})"
+            )
 
     @torch.no_grad()
     def init_state(
@@ -218,7 +228,7 @@ class ScaledDotProdAttV2(nn.Module):
         max_cache_length: int,
         device: Optional[torch.device] = None,
         dtype: Optional[torch.dtype] = None,
-    ) -> Dict[str, Union[torch.Tensor, int]]:
+    ) -> CacheState:
         """Allocate zero-initialized caches for streaming/key-value reuse.
 
         Args:
@@ -228,7 +238,11 @@ class ScaledDotProdAttV2(nn.Module):
             dtype (Optional[torch.dtype]): Target dtype. Defaults to projection weight dtype.
 
         Returns:
-            Dict[str, torch.Tensor]: Dictionary with keys `k`, `v`, and `cache_length`.
+            CacheState: Dictionary with keys:
+                - ``key``: key cache tensor
+                - ``value``: value cache tensor
+                - ``cache_length``: cached valid length
+                - ``cache_offset``: absolute position for cache index 0
         """
 
         if device is None:
@@ -282,7 +296,8 @@ class ScaledDotProdAttV2(nn.Module):
             query (torch.Tensor): Query tensor of shape `(batch, seq_len_q, heads, head_dim)`.
             key (torch.Tensor): Key tensor of shape `(batch, seq_len_k, kv_heads, head_dim)`.
             value (torch.Tensor): Value tensor matching the key shape.
-            mask (Optional[torch.Tensor]): Broadcastable additive mask.
+            mask (Optional[torch.Tensor]): Optional mask. Supports broadcastable additive
+                float masks and boolean keep masks (`True` keeps, `False` masks).
 
         Returns:
             torch.Tensor: Attention output of shape `(batch, seq_len_q, num_feats)`.
@@ -290,21 +305,81 @@ class ScaledDotProdAttV2(nn.Module):
         assert (
             not self.is_causal or mask is not None
         ), "Causality must be enforced via the mask in the base implementation."
-        bsz, q_length, num_heads, head_dim = query.size()
-        query = query.transpose(1, 2)  # (bsz, heads, query_len head_dim)
-        key = key.transpose(1, 2)  # (bs, heads, cache_len + key_len, head_dim)
-        value = value.transpose(1, 2)  # (bs, heads, cache_len + key_len, head_dim)
-        scores = torch.matmul(query, key.transpose(2, 3)) / math.sqrt(self.head_dim)
+        bsz, q_length, num_heads, _ = query.size()
+        k_length = key.size(1)
+        kv_heads = key.size(2)
+        attn_mask = None
         if mask is not None:
-            scores = scores + mask  # (bs, n_local_heads, seqlen, cache_len + seqlen)
+            if mask.dim() == 2:
+                assert mask.shape[0] == bsz, (
+                    f"mask batch axis ({mask.shape[0]}) must match batch size ({bsz})"
+                )
+                assert mask.shape[-1] >= k_length, (
+                    f"mask key axis ({mask.shape[-1]}) must be >= k_length ({k_length})"
+                )
+                attn_mask = mask[:, None, None, :k_length]
+            else:
+                assert mask.dim() >= 2, "mask must have at least 2 dimensions"
+                assert mask.shape[-2] >= q_length, (
+                    f"mask query axis ({mask.shape[-2]}) must be >= q_length ({q_length})"
+                )
+                assert mask.shape[-1] >= k_length, (
+                    f"mask key axis ({mask.shape[-1]}) must be >= k_length ({k_length})"
+                )
+                attn_mask = mask[..., :q_length, :k_length]
+            if attn_mask.dtype == torch.bool:
+                min_value = torch.finfo(query.dtype).min
+                attn_mask = torch.zeros_like(attn_mask, dtype=query.dtype).masked_fill(
+                    ~attn_mask, min_value
+                )
+            else:
+                assert torch.is_floating_point(attn_mask), (
+                    "ScaledDotProdAttV2 expects float additive masks or bool masks."
+                )
 
-        scores = nn.functional.softmax(scores.float(), dim=-1).type_as(query)
-        if self.dropout_rate > 0.0:
-            scores = nn.functional.dropout(
-                scores, p=self.dropout_rate, training=self.training
+        query = query.transpose(1, 2)  # (bsz, q_heads, query_len, head_dim)
+        key = key.transpose(1, 2)  # (bs, kv_heads, key_len, head_dim)
+        value = value.transpose(1, 2)  # (bs, kv_heads, key_len, head_dim)
+
+        if num_heads == kv_heads:
+            scores = torch.matmul(query, key.transpose(2, 3)) / math.sqrt(self.head_dim)
+            if attn_mask is not None:
+                scores = scores + attn_mask
+            scores = nn.functional.softmax(scores.float(), dim=-1).type_as(query)
+            if self.dropout_rate > 0.0:
+                scores = nn.functional.dropout(
+                    scores, p=self.dropout_rate, training=self.training
+                )
+            output = torch.matmul(scores, value)
+        else:
+            if num_heads % kv_heads != 0:
+                raise ValueError(
+                    f"num_heads ({num_heads}) must be divisible by kv_heads ({kv_heads})"
+                )
+            num_rep = num_heads // kv_heads
+            query = query.reshape(bsz, kv_heads, num_rep, q_length, self.head_dim)
+            # scores = torch.einsum("bgrqd,bgkd->bgrqk", query, key) / math.sqrt(
+            #     self.head_dim
+            # )
+            scores = torch.matmul(query, key.transpose(2, 3).unsqueeze(2)) / math.sqrt(
+                self.head_dim
             )
+            # scores = (bsz, kv_heads, num_rep, query_len, key_len)
+            if attn_mask is not None:
+                while attn_mask.dim() < scores.dim():
+                    attn_mask = attn_mask.unsqueeze(1)
+                scores = scores + attn_mask
+            scores = nn.functional.softmax(scores.float(), dim=-1).type_as(query)
+            if self.dropout_rate > 0.0:
+                scores = nn.functional.dropout(
+                    scores, p=self.dropout_rate, training=self.training
+                )
+            # output = torch.einsum("bgrqk,bgkd->bgrqd", scores, value)
+            output = torch.matmul(
+                scores, value.unsqueeze(2)
+            )  # (bsz, kv_heads, num_rep, query_len, head_dim)
+            output = output.reshape(bsz, num_heads, q_length, self.head_dim)
 
-        output = torch.matmul(scores, value)  # (bs, n_local_heads, seqlen, head_dim)
         return output.transpose(1, 2).contiguous().view(bsz, q_length, -1)
 
     def forward(
@@ -315,22 +390,24 @@ class ScaledDotProdAttV2(nn.Module):
         mask: Optional[torch.Tensor] = None,
         query_start_pos: int = 0,
         key_start_pos: int = 0,
-        state: Optional[Dict[str, torch.Tensor]] = None,
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
+        state: Optional[CacheState] = None,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, CacheState]]:
         """Project inputs, optionally apply RoPE, and compute attention.
 
         Args:
             query (torch.Tensor): Query states `(batch, seq_len_q, num_feats)`.
             key (torch.Tensor): Key states `(batch, seq_len_k, num_feats or num_kv_feats)`.
             value (torch.Tensor): Value states sharing shape with `key`.
-            mask (Optional[torch.Tensor]): Broadcastable additive mask.
+            mask (Optional[torch.Tensor]): Optional mask forwarded to `compute_attention`.
+                Supports additive float masks and boolean keep masks.
             query_start_pos (int, optional): Starting offset for query rope rotation. Defaults to 0.
             key_start_pos (int, optional): Starting offset for key rope rotation. Defaults to 0.
-            state (Optional[Dict[str, torch.Tensor]]): External cache with `k`, `v`, and `cache_length`.
+            state (Optional[CacheState]): External cache with ``key``, ``value``,
+                ``cache_length``, and ``cache_offset``.
 
         Returns:
-            torch.Tensor or Tuple[torch.Tensor, Dict[str, torch.Tensor]]: Attention output and updated cache
-                when ``state`` is provided.
+            torch.Tensor or Tuple[torch.Tensor, CacheState]: Attention output and
+                updated cache when ``state`` is provided.
         """
         bsz, q_length, _ = query.size()
         _, k_length, _ = key.size()
@@ -346,7 +423,9 @@ class ScaledDotProdAttV2(nn.Module):
             query = self.rope(query, query_start_pos)
             key = self.rope(key, key_start_pos)
 
-        new_state: Optional[Dict[str, torch.Tensor]] = None
+        query, key, value = self._cast_qkv_for_attention(query, key, value)
+
+        new_state: Optional[CacheState] = None
         if state is not None:
             key, value, new_state = self._update_cache(
                 key,
@@ -355,22 +434,60 @@ class ScaledDotProdAttV2(nn.Module):
                 start_pos=key_start_pos,
             )
 
-        key = self._repeat_kv(key)  # (bsz, key_len, heads, head_dim)
-        value = self._repeat_kv(value)
         output = self.compute_attention(query, key, value, mask)
         output = self.o_proj(output)
         if new_state is not None:
             return output, new_state
         return output
 
+    def _cast_qkv_for_attention(
+        self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Cast Q/K/V from fp32 to the active low-precision compute dtype when available.
+
+        Args:
+            query (torch.Tensor): Query tensor with shape `(batch, q_len, heads, head_dim)`.
+            key (torch.Tensor): Key tensor with shape `(batch, k_len, kv_heads, head_dim)`.
+            value (torch.Tensor): Value tensor with shape `(batch, k_len, kv_heads, head_dim)`.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Possibly cast query, key, and value tensors.
+        """
+        if query.dtype != torch.float32:
+            return query, key, value
+        if torch.is_autocast_enabled():
+            target_dtype = torch.get_autocast_gpu_dtype()
+        else:
+            target_dtype = self.q_proj.weight.dtype
+        if target_dtype == torch.float32:
+            return query, key, value
+        if not self._warned_qkv_cast_from_fp32:
+            logging.warning(
+                "The input hidden states seem to be silently casted in float32, this might be related to "
+                "upcasted embedding or layer norm layers in float32. We will cast back the input to %s.",
+                target_dtype,
+            )
+            self._warned_qkv_cast_from_fp32 = True
+        return query.to(target_dtype), key.to(target_dtype), value.to(target_dtype)
+
     def _update_cache(
         self,
         key: torch.Tensor,
         value: torch.Tensor,
-        state: Dict[str, torch.Tensor],
+        state: CacheState,
         start_pos: int,
-    ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
-        """Align device/dtype and write projections into the external cache."""
+    ) -> Tuple[torch.Tensor, torch.Tensor, CacheState]:
+        """Align device/dtype and write projections into the external cache.
+
+        Args:
+            key (torch.Tensor): Incoming key tensor `(batch, seq_len, kv_heads, head_dim)`.
+            value (torch.Tensor): Incoming value tensor `(batch, seq_len, kv_heads, head_dim)`.
+            state (CacheState): Cache dictionary with tensors and scalar metadata.
+            start_pos (int): Absolute write start position of the incoming chunk.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor, CacheState]: Visible cached key/value tensors and updated cache state.
+        """
 
         batch_size = key.size(0)
         cache_k = state["key"]
@@ -391,6 +508,16 @@ class ScaledDotProdAttV2(nn.Module):
 
         current_offset = cache_offset
         current_length = cache_length
+        current_end = current_offset + current_length
+
+        # Enforce contiguous updates based on the original incoming start position.
+        # This check must happen before we drop tokens that fall outside the cache window.
+        if start_pos > current_end:
+            raise ValueError(
+                "Non-contiguous cache update: "
+                f"start_pos ({start_pos}) exceeds current KV cache end "
+                f"({current_end})."
+            )
 
         # Determine the absolute window to keep (last `cache_capacity` positions) without rewinding.
         new_offset = max(current_offset, end_pos - cache_capacity)
@@ -402,12 +529,6 @@ class ScaledDotProdAttV2(nn.Module):
 
         write_len = key.size(1)
         write_start = start_pos - new_offset
-        if start_pos > cache_offset + cache_length:
-            logging.warning(
-                "start_pos (%d) exceeds current KV cache end (%d); introducing a gap in the cache window.",
-                start_pos,
-                cache_offset + cache_length,
-            )
 
         # Shift existing cache contents to discard old entries.
         shift = max(0, new_offset - current_offset)
@@ -465,6 +586,9 @@ class TorchScaledDotProdAttV2(ScaledDotProdAttV2):
         Args:
             sdp_backend (SDPBackendType): Preferred sequence of SDP kernels to attempt when
                 calling `torch.nn.functional.scaled_dot_product_attention`.
+
+        Returns:
+            None: This constructor initializes the module in place.
         """
 
         super().__init__(*args, **kwargs)
@@ -478,39 +602,78 @@ class TorchScaledDotProdAttV2(ScaledDotProdAttV2):
         value: torch.Tensor,
         mask: Optional[torch.Tensor],
     ) -> torch.Tensor:
-        """Delegate to PyTorch's `scaled_dot_product_attention` implementation."""
-        # Input q, k, v = (batch, length, num_heads, head_dim)
-        bsz, q_length, _, _ = query.size()
-        query = query.transpose(1, 2)  # (bsz, heads, query_len head_dim)
-        key = key.transpose(1, 2)  # (bs, heads, cache_len + key_len, head_dim)
-        value = value.transpose(1, 2)  # (bs, heads, cache_len + key_len, head_dim)
+        """Delegate to PyTorch's `scaled_dot_product_attention` implementation.
 
-        # don't know if we need this that is in hf implementation
-        causal_mask = mask
-        if mask is not None:
-            causal_mask = causal_mask[:, :, :, : key.shape[-2]]
+        This implementation uses `enable_gqa` when `num_heads != num_kv_heads`,
+        which requires PyTorch 2.5 or newer.
+
+        Args:
+            query (torch.Tensor): Query tensor of shape `(batch, q_len, heads, head_dim)`.
+            key (torch.Tensor): Key tensor of shape `(batch, k_len, kv_heads, head_dim)`.
+            value (torch.Tensor): Value tensor of shape `(batch, k_len, kv_heads, head_dim)`.
+            mask (Optional[torch.Tensor]): Optional attention mask. Supports
+                `(batch, k_len)` key-padding masks or broadcastable attention masks,
+                in either boolean or floating-point form.
+
+        Returns:
+            torch.Tensor: Attention output of shape `(batch, q_len, num_feats)`.
+        """
+        # Input q, k, v = (batch, length, num_heads, head_dim)
+        bsz, q_length, num_heads, _ = query.size()
+        k_length = key.size(1)
+        kv_heads = key.size(2)
+        query = query.transpose(1, 2)  # (bsz, heads, query_len head_dim)
+        key = key.transpose(1, 2)  # (bs, kv_heads, cache_len + key_len, head_dim)
+        value = value.transpose(1, 2)  # (bs, kv_heads, cache_len + key_len, head_dim)
+
+        attn_mask = mask
+        if attn_mask is not None:
+            if attn_mask.dim() == 2:
+                assert attn_mask.shape[0] == bsz, (
+                    f"mask batch axis ({attn_mask.shape[0]}) must match batch size ({bsz})"
+                )
+                assert attn_mask.shape[-1] >= k_length, (
+                    f"mask key axis ({attn_mask.shape[-1]}) must be >= k_length ({k_length})"
+                )
+                attn_mask = attn_mask[:, None, None, :k_length]
+            else:
+                assert attn_mask.dim() >= 2, "mask must have at least 2 dimensions"
+                assert attn_mask.shape[-2] >= q_length, (
+                    f"mask query axis ({attn_mask.shape[-2]}) must be >= q_length ({q_length})"
+                )
+                assert attn_mask.shape[-1] >= k_length, (
+                    f"mask key axis ({attn_mask.shape[-1]}) must be >= k_length ({k_length})"
+                )
+                attn_mask = attn_mask[..., :q_length, :k_length]
 
         # SDPA with memory-efficient backend is currently (torch==2.1.2) bugged with non-contiguous inputs with custom attn_mask,
         # Reference: https://github.com/pytorch/pytorch/issues/112577.
-        if query.device.type == "cuda" and mask is not None:
+        if query.device.type == "cuda" and attn_mask is not None:
             query = query.contiguous()
             key = key.contiguous()
             value = value.contiguous()
 
-        assert not self.is_causal or q_length == key.size(-2) or mask is not None, (
+        assert (
+            not self.is_causal or q_length == key.size(-2) or attn_mask is not None
+        ), (
             "Causality must be enforced via the mask when the key length differs from "
             "the query length in the TorchScaledDotProdAttV2 implementation."
         )
-        is_causal = self.is_causal if causal_mask is None and q_length > 1 else False
+        if num_heads % kv_heads != 0:
+            raise ValueError(
+                f"num_heads ({num_heads}) must be divisible by kv_heads ({kv_heads})"
+            )
+        is_causal = self.is_causal if attn_mask is None and q_length > 1 else False
 
         with sdpa_kernel(self._sdp_backends):
             output = nn.functional.scaled_dot_product_attention(
                 query,
                 key,
                 value,
-                attn_mask=mask,
+                attn_mask=attn_mask,
                 dropout_p=self.dropout_rate if self.training else 0.0,
                 is_causal=is_causal,
+                enable_gqa=(num_heads != kv_heads),
             )
         return output.transpose(1, 2).contiguous().view(bsz, q_length, -1)
 
@@ -519,10 +682,23 @@ class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
     """Scaled dot-product attention dispatched to Flash Attention kernels."""
 
     def __init__(self, *args, **kwargs):
+        """Create a HuggingFace Flash Attention-backed layer.
+
+        Args:
+            *args: Positional arguments forwarded to `ScaledDotProdAttV2`.
+            **kwargs: Keyword arguments forwarded to `ScaledDotProdAttV2`.
+
+        Returns:
+            None: This constructor initializes the module in place.
+        """
         super().__init__(*args, **kwargs)
 
     def _assert_args(self):
-        pass
+        if self.num_local_heads % self.num_local_kv_heads != 0:
+            raise ValueError(
+                f"num_local_heads ({self.num_local_heads}) must be divisible by "
+                f"num_local_kv_heads ({self.num_local_kv_heads})"
+            )
 
     def compute_attention(
         self,
@@ -531,45 +707,51 @@ class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
         value: torch.Tensor,
         mask: Optional[torch.Tensor],
     ) -> torch.Tensor:
-        """Use Flash Attention kernels via HuggingFace utilities."""
+        """Use Flash Attention kernels via HuggingFace utilities.
+
+        This path keeps key/value heads unexpanded and relies on backend GQA support.
+
+        Args:
+            query (torch.Tensor): Query tensor of shape `(batch, q_len, heads, head_dim)`.
+            key (torch.Tensor): Key tensor of shape `(batch, k_len, kv_heads, head_dim)`.
+            value (torch.Tensor): Value tensor of shape `(batch, k_len, kv_heads, head_dim)`.
+            mask (Optional[torch.Tensor]): Optional key-padding mask with shape `(batch, k_len)`
+                where boolean masks are interpreted as keep masks, and numeric masks
+                use non-negative values as valid tokens.
+
+        Returns:
+            torch.Tensor: Attention output of shape `(batch, q_len, num_feats)`.
+        """
         # Input q, k, v = (batch, length, num_heads, head_dim)
         # Flash Attention requires the layout [batch_size, sequence_length, num_heads, head_dim]
-        bsz, q_length, _, _ = query.size()
-
-        # This was copied from HuggingFace's Flash Attention implementation
-        # In PEFT, usually we cast the layer norms in float32 for training stability reasons
-        # therefore the input hidden states gets silently casted in float32. Hence, we need
-        # cast them back in the correct dtype just to be sure everything works as expected.
-        # This might slowdown training & inference so it is recommended to not cast the LayerNorms
-        # in fp32. (LlamaRMSNorm handles it correctly)
-
-        input_dtype = query.dtype
-        if input_dtype == torch.float32:
-            if torch.is_autocast_enabled():
-                target_dtype = torch.get_autocast_gpu_dtype()
-            # Handle the case where the model is quantized
-            # elif hasattr(self.config, "_pre_quantization_dtype"):
-            #     target_dtype = self.config._pre_quantization_dtype
-            else:
-                target_dtype = self.q_proj.weight.dtype
-
-            if target_dtype != torch.float32:
-                logging.warning(
-                    f"The input hidden states seems to be silently casted in float32, this might be related to"
-                    f" the fact you have upcasted embedding or layer norm layers in float32. We will cast back the input in"
-                    f" {target_dtype}."
-                )
-
-            query = query.to(target_dtype)
-            key = key.to(target_dtype)
-            value = value.to(target_dtype)
+        bsz, q_length, num_heads, _ = query.size()
+        k_length = key.size(1)
+        kv_heads = key.size(2)
+        if num_heads % kv_heads != 0:
+            raise ValueError(
+                f"num_heads ({num_heads}) must be divisible by kv_heads ({kv_heads})"
+            )
+        attn_mask = None
+        if mask is not None:
+            assert (
+                mask.dim() == 2
+            ), "HFFlashScaledDotProdAttV2 expects mask with shape (batch, k_len)."
+            assert mask.shape[0] == bsz, (
+                f"mask batch axis ({mask.shape[0]}) must match batch size ({bsz})"
+            )
+            assert mask.shape[-1] >= k_length, (
+                f"mask key axis ({mask.shape[-1]}) must be >= k_length ({k_length})"
+            )
+            attn_mask = mask[:, :k_length]
+            if attn_mask.dtype != torch.bool:
+                attn_mask = attn_mask >= 0
 
         dropout_rate = self.dropout_rate if self.training else 0.0
         output = _flash_attention_forward(
             query,
             key,
             value,
-            mask,
+            attn_mask,
             q_length,
             dropout=dropout_rate,
             sliding_window=self.sliding_window,

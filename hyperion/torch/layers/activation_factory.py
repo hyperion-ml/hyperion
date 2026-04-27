@@ -5,12 +5,19 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 #
 
+from typing import Any, Callable, Dict, Mapping, Optional, Union
+
 import torch.nn as nn
 
 from .snake import Snake1d
 from .swish import DoubleSwish, DoubleSwish6, Swish, Swish6
 
-act_dict = {
+ActivationConfig = Dict[str, Any]
+ActivationCtor = Callable[..., nn.Module]
+ActivationSpec = Optional[Union[str, Mapping[str, Any], Callable[..., nn.Module]]]
+
+
+act_dict: Dict[str, ActivationCtor] = {
     "elu": nn.ELU,
     "hardshrink": nn.Hardshrink,
     "hardtanh": nn.Hardtanh,
@@ -44,22 +51,24 @@ act_dict = {
 }
 
 
-class ActivationFactory(object):
+class ActivationFactory:
+    """Factory utilities for constructing and serializing activation modules."""
+
     @staticmethod
-    def create(activation, **kwargs):
-        """Creates a non-linear activation object
+    def create(activation: ActivationSpec, **kwargs: Any) -> Optional[nn.Module]:
+        """Creates an activation module from a flexible specification.
 
         Args:
-           activation: String with activation type,
-                       dictionary with name field indicating the activation type,
-                       and extra activation arguments
-                       None, then it returns None,
-                       Activation constructor
+            activation: Activation specification. Supported values are:
+                - ``None``: returns ``None``.
+                - ``str``: activation name key in :data:`act_dict`.
+                - mapping: configuration with ``"name"`` plus constructor kwargs.
+                - callable: constructor returning an ``nn.Module``.
+            **kwargs: Extra constructor kwargs used when ``activation`` is a string.
 
-           **kwargs: Extra arguments for activation constructor
-
-        Return:
-           Non-linear activation object
+        Returns:
+            Instantiated activation module, or ``None`` when ``activation`` is
+            ``None``.
         """
 
         if activation is None:
@@ -68,26 +77,29 @@ class ActivationFactory(object):
         if isinstance(activation, str):
             return ActivationFactory.create_from_str(activation, **kwargs)
 
-        if isinstance(activation, dict):
+        if isinstance(activation, Mapping):
             name = activation["name"]
-            kwargs = activation.copy()
+            kwargs = dict(activation)
             del kwargs["name"]
             return ActivationFactory.create_from_str(name, **kwargs)
 
-        activation = activation()
-
-        return activation
+        return activation(**kwargs)
 
     @staticmethod
-    def create_from_str(activation_name, **kwargs):
-        """Creates a non-linear activation object from string
+    def create_from_str(activation_name: str, **kwargs: Any) -> nn.Module:
+        """Creates an activation module from its registered name.
 
         Args:
-           activation: str with activation type,
-           **kwargs: extra arguments for activation constructor
+            activation_name: Activation name key in :data:`act_dict`.
+            **kwargs: Extra arguments forwarded to the activation constructor.
 
-        Return:
-           Non-linear activation object
+        Returns:
+            Instantiated activation module.
+
+        Notes:
+            If ``inplace`` is not provided, the factory first tries to call the
+            constructor with ``inplace=True`` and silently retries without it if
+            unsupported. For ``leakyrelu``, ``negative_slope`` defaults to ``0.1``.
         """
 
         if "inplace" not in kwargs:
@@ -95,8 +107,10 @@ class ActivationFactory(object):
             kwargs["inplace"] = True
             try:
                 return act_dict[activation_name](**kwargs)
-            except:
-                # activation didn't have inplace option
+            except TypeError as e:
+                # Retry without inplace only when the constructor rejects it.
+                if "inplace" not in str(e):
+                    raise
                 del kwargs["inplace"]
 
         if activation_name == "leakyrelu":
@@ -107,7 +121,16 @@ class ActivationFactory(object):
         return act_dict[activation_name](**kwargs)
 
     @staticmethod
-    def get_config(activation):
+    def get_config(activation: nn.Module) -> Optional[ActivationConfig]:
+        """Returns a serializable configuration for a known activation module.
+
+        Args:
+            activation: Instantiated activation module.
+
+        Returns:
+            A configuration dictionary compatible with :meth:`create` input when
+            the activation type is recognized, otherwise ``None``.
+        """
         if isinstance(activation, nn.ELU):
             return {
                 "name": "elu",
@@ -157,7 +180,7 @@ class ActivationFactory(object):
                 "inplace": activation.inplace,
             }
         if isinstance(activation, nn.Sigmoid):
-            return {"name": "simoid"}
+            return {"name": "sigmoid"}
         if isinstance(activation, nn.Softplus):
             return {
                 "name": "softplus",
@@ -165,9 +188,9 @@ class ActivationFactory(object):
                 "threshold": activation.threshold,
             }
         if isinstance(activation, nn.Softshrink):
-            return {"name": "softshrink"}
+            return {"name": "softshrink", "lambd": activation.lambd}
         if isinstance(activation, nn.Softsign):
-            return {"name": "softsign", "lambd": activation.lambd}
+            return {"name": "softsign"}
         if isinstance(activation, nn.Tanh):
             return {"name": "tanh"}
         if isinstance(activation, nn.Tanhshrink):
@@ -189,10 +212,10 @@ class ActivationFactory(object):
             return {"name": "logsoftmax", "dim": activation.dim}
         if isinstance(activation, nn.AdaptiveLogSoftmaxWithLoss):
             return {
-                "name": "asoftmax",
+                "name": "alogsoftmax",
                 "in_features": activation.in_features,
                 "n_classes": activation.n_classes,
-                "cutoffs": activation.cutoffs,
+                "cutoffs": activation.cutoffs[:-1],
                 "div_value": activation.div_value,
                 "head_bias": activation.head_bias,
             }
@@ -206,10 +229,12 @@ class ActivationFactory(object):
             return {"name": "double_swish6"}
 
         if isinstance(activation, nn.GELU):
-            return {"name": "gelu"}
+            return {"name": "gelu", "approximate": activation.approximate}
 
         if isinstance(activation, nn.SiLU):
-            return {"name": "silu"}
+            return {"name": "silu", "inplace": activation.inplace}
 
         if isinstance(activation, Snake1d):
             return {"name": "snake1d", "channels": activation.alpha.shape[1]}
+
+        return None
