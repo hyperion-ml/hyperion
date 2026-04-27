@@ -9,6 +9,7 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from ...utils.misc import filter_func_args
 from .feat_fusers import (
     CatFeatFuser,
+    FeatFuser,
     LastFeatFuser,
     LinearFeatFuser,
     WeightedAvgFeatFuser,
@@ -23,7 +24,11 @@ FUSER_TYPES = [LAST_FUSER, WAVG_FUSER, LINEAR_FUSER, CAT_FUSER]
 
 
 class FeatFuserFactory:
-    """Factory class to create feature fusers for Wav2Vec style hidden features."""
+    """Factory for creating feature fusers from configuration values.
+
+    Attributes:
+      None.
+    """
 
     @staticmethod
     def create(
@@ -32,7 +37,25 @@ class FeatFuserFactory:
         feat_dim: Optional[int] = None,
         proj_dim: Optional[int] = None,
         proj_bias: bool = True,
-    ):
+    ) -> FeatFuser:
+        """Builds a feature fuser module from the requested type.
+
+        Args:
+          fuser_type: Fuser type string, one of ``FUSER_TYPES``.
+          num_feats: Number of feature tensors to fuse for multi-input fusers.
+          feat_dim: Input feature dimension per tensor.
+          proj_dim: Optional output projection dimension.
+          proj_bias: Whether projection layers include a bias term.
+
+        Returns:
+          Instantiated feature fuser module.
+        """
+        if fuser_type in (WAVG_FUSER, LINEAR_FUSER, CAT_FUSER) and num_feats is None:
+            raise ValueError(f"num_feats is required for fuser_type={fuser_type}")
+
+        if fuser_type == CAT_FUSER and feat_dim is None:
+            raise ValueError("feat_dim is required for fuser_type=cat")
+
         if fuser_type == WAVG_FUSER:
             return WeightedAvgFeatFuser(
                 num_feats, feat_dim=feat_dim, proj_dim=proj_dim, proj_bias=proj_bias
@@ -54,25 +77,27 @@ class FeatFuserFactory:
 
     @staticmethod
     def filter_args(**kwargs):
-        """Filters arguments correspondin to Feature Fuser
-            from args dictionary
+        """Filters keyword arguments accepted by :meth:`create`.
 
         Args:
-          kwargs: args dictionary
+          kwargs: Candidate keyword arguments.
 
         Returns:
-          args dictionary
+          Dictionary containing only keys supported by :meth:`create`.
         """
         args = filter_func_args(FeatFuserFactory.create, kwargs)
         return args
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        """Adds feature extractor options to parser.
+        """Adds feature fuser options to an argument parser.
 
         Args:
-          parser: Arguments parser
+          parser: Argument parser object to extend.
           prefix: Options prefix.
+
+        Returns:
+          None.
         """
         if prefix is not None:
             outer_parser = parser
