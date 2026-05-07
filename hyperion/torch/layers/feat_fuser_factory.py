@@ -26,6 +26,17 @@ FUSER_TYPES = [LAST_FUSER, WAVG_FUSER, LINEAR_FUSER, CAT_FUSER]
 class FeatFuserFactory:
     """Factory for creating feature fusers from configuration values.
 
+    Examples:
+      >>> fuser = FeatFuserFactory.create(
+      ...     fuser_type="weighted-avg", num_feats=3, feat_dim=256, proj_dim=128
+      ... )
+      >>> fuser = FeatFuserFactory.create(
+      ...     fuser_type="last", feat_dim=256, proj_dim=128, proj_bias=False
+      ... )
+      >>> fuser = FeatFuserFactory.create(
+      ...     fuser_type="cat", num_feats=4, feat_dim=64, proj_dim=128
+      ... )
+
     Attributes:
       None.
     """

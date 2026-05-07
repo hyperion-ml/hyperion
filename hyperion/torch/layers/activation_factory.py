@@ -52,7 +52,21 @@ act_dict: Dict[str, ActivationCtor] = {
 
 
 class ActivationFactory:
-    """Factory utilities for constructing and serializing activation modules."""
+    """Factory utilities for constructing and serializing activation modules.
+
+    Examples:
+        >>> act = ActivationFactory.create("relu")
+        >>> isinstance(act, nn.ReLU)
+        True
+
+        >>> act = ActivationFactory.create({"name": "leakyrelu", "negative_slope": 0.2})
+        >>> float(act.negative_slope)
+        0.2
+
+        >>> cfg = ActivationFactory.get_config(nn.SiLU(inplace=False))
+        >>> cfg["name"], cfg["inplace"]
+        ('silu', False)
+    """
 
     @staticmethod
     def create(activation: ActivationSpec, **kwargs: Any) -> Optional[nn.Module]:

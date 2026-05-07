@@ -1067,21 +1067,20 @@ class SequentialAudioReader(AudioReader):
             parser.add_argument(
                 "--wav-scale",
                 default=1.0,
-                # default=2 ** 15 - 1,
                 type=float,
                 help=("multiplicative factor for waveform"),
             )
-        has_target_sample_freq = any(
-            getattr(action, "dest", None) == "target_sample_freq"
-            for action in parser._actions
-        )
-        if not has_target_sample_freq:
-            parser.add_argument(
-                "--target-sample-freq",
-                default=None,
-                type=int,
-                help=("resample input audio to target frequency"),
-            )
+        # has_target_sample_freq = any(
+        #     getattr(action, "dest", None) == "target_sample_freq"
+        #     for action in parser._actions
+        # )
+        # if not has_target_sample_freq:
+        #     parser.add_argument(
+        #         "--target-sample-freq",
+        #         default=None,
+        #         type=int,
+        #         help=("resample input audio to target frequency"),
+        #     )
         try:
             parser.add_argument(
                 "--part-idx",

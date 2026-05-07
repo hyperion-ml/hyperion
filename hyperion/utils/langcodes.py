@@ -198,15 +198,10 @@ def language_to_alpha3(identifier: str) -> str:
     except LookupError:
         langcodes_result = None
     if langcodes_result:
-        lang_part = langcodes_result.split("-", 1)[0]
         try:
-            return langcodes.Language.get(lang_part).to_alpha3().lower()
+            return langcodes_result.to_alpha3().lower()
         except (LookupError, ValueError):
-            # Last attempt with pycountry if langcodes lacks the mapping.
-            record = pycountry.languages.get(alpha_2=lang_part.lower())
-            alpha3 = _alpha3_from_record(record)
-            if alpha3:
-                return alpha3
+            pass  # fallback to pycountry below
 
     record = _pycountry_lookup(query)
     alpha3 = _alpha3_from_record(record)

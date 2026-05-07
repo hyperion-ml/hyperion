@@ -31,7 +31,21 @@ vq_dict = {
 
 
 class VectorQuantizerFactory:
-    """Factory class for vector quantizers."""
+    """Factory class for vector quantizers.
+
+    Examples:
+        >>> vq = VectorQuantizerFactory.create(
+        ...     "nn_vq", in_feats=128, codebook_size=512, distance_metric="l2"
+        ... )
+        >>> isinstance(vq, NNVectorQuantizer)
+        True
+
+        >>> em_vq = VectorQuantizerFactory.create(
+        ...     "adaptive_rd_em_vq", in_feats=80, codebook_size=64, split_steps=200
+        ... )
+        >>> isinstance(em_vq, AdaptiveRateDistortionEMVectorQuantizer)
+        True
+    """
 
     @staticmethod
     def create(

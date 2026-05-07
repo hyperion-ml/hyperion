@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -136,6 +136,12 @@ class _GlobalPool1d(nn.Module):
             num_frames = int(
                 math.floor((x.size(-1) - win_length + win_shift) / win_shift)
             )
+            if num_frames < 1:
+                raise ValueError(
+                    f"num_frames must be >= 1, got {num_frames} "
+                    f"(length={x.size(-1)}, win_length={win_length}, "
+                    f"win_shift={win_shift}, snip_edges={snip_edges})"
+                )
             return nnf.pad(x, (1, 0), mode="constant"), num_frames
 
         assert (
@@ -143,6 +149,12 @@ class _GlobalPool1d(nn.Module):
         ), "if win_length < win_shift snip-edges should be false"
 
         num_frames = int(round(x.size(-1) / win_shift))
+        if num_frames < 1:
+            raise ValueError(
+                f"num_frames must be >= 1, got {num_frames} "
+                f"(length={x.size(-1)}, win_length={win_length}, "
+                f"win_shift={win_shift}, snip_edges={snip_edges})"
+            )
         len_x = (num_frames - 1) * win_shift + win_length
         dlen_x = round(len_x - x.size(-1))
         pad_left = int(math.floor((win_length - win_shift) / 2))
@@ -286,14 +298,20 @@ class GlobalAvgPool1d(_GlobalPool1d):
           Tensor of per-window means.
         """
         c_x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
+        num_frames = out_shape[-1]
+        end = c_x[:, win_length : win_length + num_frames * win_shift : win_shift]
+        start = c_x[:, : num_frames * win_shift : win_shift]
+        m_x = (end - start) / win_length
 
-        m_x = (c_x[:, win_shift:] - c_x[:, :-win_shift]) / win_length
-
-        m_x = self._post_slid_win(m_x, out_shape)
+        m_x = self._post_slidwin(m_x, out_shape)
         return m_x
 
     def _forward_slidwin_float(
-        self, x: torch.Tensor, win_length: WindowArg, win_shift: WindowArg, snip_edges: bool
+        self,
+        x: torch.Tensor,
+        win_length: WindowArg,
+        win_shift: WindowArg,
+        snip_edges: bool,
     ) -> torch.Tensor:
         """Sliding-window mean using rounded float boundaries.
 
@@ -319,7 +337,7 @@ class GlobalAvgPool1d(_GlobalPool1d):
             m_x[:, i] = (c_x[:, k2] - c_x[:, k1]) / (k2 - k1)
             k += win_shift
 
-        m_x = self._post_slid_win(m_x, out_shape)
+        m_x = self._post_slidwin(m_x, out_shape)
         return m_x
 
 
@@ -482,19 +500,29 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
           Tensor of per-window concatenated mean/std statistics.
         """
         x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
-
+        num_frames = out_shape[-1]
         c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
-        m_x = (c_x[:, win_shift:] - c_x[:, :-win_shift]) / win_length
+        end = c_x[:, win_length : win_length + num_frames * win_shift : win_shift]
+        start = c_x[:, : num_frames * win_shift : win_shift]
+        m_x = (end - start) / win_length
+        del c_x
 
-        c_x = torch.cumsum(x**2, dim=-1).view(-1, x.shape[-1])
-        m_x2 = (c_x[:, win_shift:] - c_x[:, :-win_shift]) / win_length
-        s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=SQRT_EPS)
+        c_x2 = torch.cumsum(x**2, dim=-1).view(-1, x.shape[-1])
+        end2 = c_x2[:, win_length : win_length + num_frames * win_shift : win_shift]
+        start2 = c_x2[:, : num_frames * win_shift : win_shift]
+        m_x2 = (end2 - start2) / win_length
+        del c_x2
+        s_x = torch.sqrt((m_x2 - m_x**2).clamp(min=SQRT_EPS))
 
         mus = self._post_slidwin(m_x, s_x, out_shape)
         return mus
 
     def _forward_slidwin_float(
-        self, x: torch.Tensor, win_length: WindowArg, win_shift: WindowArg, snip_edges: bool
+        self,
+        x: torch.Tensor,
+        win_length: WindowArg,
+        win_shift: WindowArg,
+        snip_edges: bool,
     ) -> torch.Tensor:
         """Sliding-window mean/std using rounded float boundaries.
 
@@ -661,19 +689,30 @@ class GlobalMeanLogVarPool1d(_GlobalPool1d):
         """
         weights = self._standardize_weights(x, x_lengths, weights)
         if weights is None:
-            mu = torch.mean(x, dim=self.dim, keepdim=self.keepdim)
-            x2bar = torch.mean(x**2, dim=self.dim, keepdim=self.keepdim)
-            logvar = torch.log(x2bar - mu * mu + 1e-5)  # for stability in case var=0
-            return torch.cat((mu, logvar), dim=-1)
+            mu = torch.mean(x, dim=self.dim, keepdim=True)
+            x2bar = torch.mean(x**2, dim=self.dim, keepdim=True)
+            logvar = torch.log((x2bar - mu * mu).clamp(min=SQRT_EPS))
+            mu = mu.squeeze(self.dim)
+            logvar = logvar.squeeze(self.dim)
+            mulv = torch.cat((mu, logvar), dim=1)
+            if self.keepdim:
+                mulv = mulv.unsqueeze(self.dim)
+            return mulv
 
-        xbar = torch.mean(weights * x, dim=self.dim, keepdim=self.keepdim)
-        wbar = torch.mean(weights, dim=self.dim, keepdim=self.keepdim)
+        xbar = torch.mean(weights * x, dim=self.dim, keepdim=True)
+        wbar = torch.mean(weights, dim=self.dim, keepdim=True)
         mu = xbar / wbar
-        x2bar = torch.mean(weights * x**2, dim=self.dim, keepdim=self.keepdim) / wbar
-        var = (x2bar - mu * mu).clamp(min=1e-5)
+        x2bar = torch.mean(weights * x**2, dim=self.dim, keepdim=True) / wbar
+        var = (x2bar - mu * mu).clamp(min=SQRT_EPS)
         logvar = torch.log(var)
 
-        return torch.cat((mu, logvar), dim=-1)
+        mu = mu.squeeze(self.dim)
+        logvar = logvar.squeeze(self.dim)
+        mulv = torch.cat((mu, logvar), dim=1)
+        if self.keepdim:
+            mulv = mulv.unsqueeze(self.dim)
+
+        return mulv
 
 
 class LDEPool1d(_GlobalPool1d):
@@ -777,7 +816,17 @@ class LDEPool1d(_GlobalPool1d):
             )
 
         if weights.dim() == x.dim():
-            return weights.traspose(1, self.dim)
+            if self.dim != 1 and self.dim != -2:
+                weights = weights.transpose(1, self.dim)
+
+            # LDE uses frame-level posteriors r with shape (batch, time, num_comp),
+            # so weights must collapse to (batch, time).
+            if weights.size(2) != 1:
+                raise ValueError(
+                    "LDEPool1d expects frame-level weights with shape (batch, time) "
+                    "or (batch, time, 1) after standardization."
+                )
+            return weights.squeeze(2)
 
         assert weights.dim() == 2
         return weights
@@ -802,8 +851,9 @@ class LDEPool1d(_GlobalPool1d):
           Pooled representation of shape ``(batch, num_comp * in_feats)`` or with
           an extra singleton dimension when ``keepdim=True``.
         """
+        assert x.dim() == 3, "LDEPool1d only works for 3-D tensors"
         weights = self._standardize_weights(x, x_lengths, weights)
-        if self.dim != 1 or self.dim != -2:
+        if self.dim != 1 and self.dim != -2:
             x = x.transpose(1, self.dim)  # (batch, time, feat_dim)
 
         x = torch.unsqueeze(x, dim=2)  # (batch, time, 1, feat_dim)
@@ -948,7 +998,16 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
             )
 
         if weights.dim() == x.dim():
-            return weights.traspose(1, self.dim)
+            if self.dim != 1 and self.dim != -2:
+                weights = weights.transpose(1, self.dim)
+
+            # Attention masking is time-wise, so weights must be (batch, time).
+            if weights.size(2) != 1:
+                raise ValueError(
+                    "ScaledDotProdAttV1Pool1d expects frame-level weights with "
+                    "shape (batch, time) or (batch, time, 1) after standardization."
+                )
+            return weights.squeeze(2)
 
         assert weights.dim() == 2
         return weights
@@ -1021,7 +1080,7 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
                 )  # (batch, 1, d_model)
             else:
                 x = x.view(
-                    batch_size, 1, self.num_heads * self.d_v
+                    batch_size, self.num_heads * self.d_v, 1
                 )  # (batch, d_model, 1)
         else:
             x = x.view(batch_size, self.num_heads * self.d_v)  # (batch, d_model)
@@ -1202,8 +1261,8 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
             global_mus = self.stats_pool(x, weights=weights)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
 
-        if not torch.all(torch.isfinite(global_mus)):
-            logging.warning("non-finite global-mus-avg=%f", torch.mean(global_mus))
+            if not torch.all(torch.isfinite(global_mus)):
+                logging.warning("non-finite global-mus-avg=%f", torch.mean(global_mus))
         if not torch.all(torch.isfinite(x_inner)):
             logging.warning("non-finite x-inner-avg=%f", torch.mean(x_inner))
         # attn = self.conv2(
@@ -1214,16 +1273,13 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         attn = self.conv2(a2)
         if not torch.all(torch.isfinite(attn)):
             logging.warning(
-                "non-finite attn-avg=%f %f %f %f %f %f %f %f %f %s %s",
+                "non-finite attn-avg=%f %f %f %f %f %f %s %s",
                 torch.mean(attn),
                 torch.mean(a1),
                 torch.mean(a2),
                 torch.mean(x_inner),
                 torch.max(x_inner),
                 torch.min(x_inner),
-                torch.mean(global_mus),
-                torch.max(global_mus),
-                torch.min(global_mus),
                 str(x_inner.dtype),
                 str(attn.dtype),
             )

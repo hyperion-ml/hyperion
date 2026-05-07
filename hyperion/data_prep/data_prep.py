@@ -6,8 +6,11 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
+import numpy as np
+import numpy.typing as npt
+import pandas as pd
 from jsonargparse import ActionYesNo, ArgumentParser
 from tqdm import tqdm
 
@@ -96,6 +99,40 @@ class DataPrep:
 
         recording_set["duration"] = durations
         recording_set["sample_freq"] = fss
+
+    @staticmethod
+    def _age_to_arts_age_group(values: npt.ArrayLike) -> pd.Series:
+        """
+        Map numeric ages to ARTS age buckets used across this recipe.
+
+        Args:
+            values: Input ages, typically numeric or castable to numeric.
+
+        Returns:
+            Pandas categorical series with ARTS age-group labels.
+        """
+        bins = [-np.inf, 25, 35, 45, 55, np.inf]
+        labels = ["young", "young-adult", "adult", "adult-senior", "senior"]
+        ages = pd.to_numeric(values, errors="coerce")
+        return pd.cut(ages, bins=bins, labels=labels, right=False)
+
+    @staticmethod
+    def _language_to_alpha3(values: Union[pd.Series, npt.ArrayLike]) -> pd.Series:
+        """
+        Convert language names to ISO 639-3 alpha-3 codes.
+
+        Args:
+            values: Input language names, typically strings.
+
+        Returns:
+            Pandas series with ISO 639-3 alpha-3 language codes.
+        """
+        from ..utils.langcodes import language_to_alpha3
+
+        if not isinstance(values, pd.Series):
+            values = pd.Series(values)
+
+        return values.apply(language_to_alpha3)
 
     @staticmethod
     def add_class_args(parser: ArgumentParser) -> None:

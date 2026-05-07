@@ -5,7 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import math
 from enum import Enum
-from typing import List, Optional, Tuple, Union
+from typing import Any, List, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -15,11 +15,11 @@ from .vq import VectorQuantizerOutput, VQDistanceType
 from .vq_factory import VectorQuantizerFactory, vq_dict
 
 
-class ParallelVectorQuantizer(nn.Module):
+class GroupVectorQuantizer(nn.Module):
     """
-    Parallel Vector Quantizer (PVQ).
+    Group Vector Quantizer (GVQ).
 
-    Runs multiple vector quantizers in parallel on disjoint channel partitions
+    Runs multiple vector quantizers on disjoint channel partitions
     of the input. Each stage receives a slice of the feature dimension and
     quantizes it independently; the outputs are concatenated back along the
     same feature dimension.
@@ -30,7 +30,7 @@ class ParallelVectorQuantizer(nn.Module):
 
     Attributes:
         in_feats (int): Input feature dimension (D_in).
-        num_quantizers (int): Number of parallel quantizers (M).
+        num_quantizers (int): Number of grouped quantizers (M).
         codebook_sizes (List[int]): Codebook size per stage (length M).
         codebook_dims (List[Optional[int]]): Codebook dim per stage (length M).
         quantizers (nn.ModuleList): Instantiated per-stage quantizers.
@@ -45,13 +45,13 @@ class ParallelVectorQuantizer(nn.Module):
         codebook_dims: Union[int, List[int], None] = None,
         base_vq_type: str = "nn_vq",
         **kwargs,
-    ):
+    ) -> None:
         """
-        Initializes a bank of parallel vector quantizers.
+        Initializes a bank of grouped vector quantizers.
 
         Args:
             in_feats (int): Input feature dimension (D_in).
-            num_quantizers (int): Number of parallel quantizers (M).
+            num_quantizers (int): Number of grouped quantizers (M).
             codebook_sizes (int | List[int]): Single K (broadcasted) or list of length M.
             codebook_dims (int | List[int] | None): Single D (broadcasted), list of
                 length M, or None to use `in_feats` per stage.
@@ -98,16 +98,16 @@ class ParallelVectorQuantizer(nn.Module):
             ]
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = f"{self.__class__.__name__}({self.in_feats}, {self.num_quantizers}, {self.codebook_sizes}, {self.codebook_dims})"
         for i, q in enumerate(self.quantizers):
             s += f"\n  [{i}] " + q.__str__().replace("\n", "\n      ")
         return s
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def get_config(self):
+    def get_config(self) -> dict[str, Any]:
         """Returns module configuration for serialization."""
         cfg = {
             "in_feats": self.in_feats,
@@ -130,9 +130,9 @@ class ParallelVectorQuantizer(nn.Module):
         z_lengths: torch.Tensor | None = None,
         z_mask: torch.Tensor | None = None,
         return_codes: bool = False,
-    ):
+    ) -> VectorQuantizerOutput:
         """
-        Runs M parallel quantizers on channel partitions and concatenates outputs.
+        Runs M grouped quantizers on channel partitions and concatenates outputs.
 
         Args:
             z (Tensor): Input of shape (B, ..., D_in). If the per-stage quantizers
@@ -199,7 +199,7 @@ class ParallelVectorQuantizer(nn.Module):
     @staticmethod
     def add_class_args(
         parser: ArgumentParser, prefix: Optional[str] = None, skip: Optional[set] = None
-    ):
+    ) -> None:
         """
         Register  CLI arguments.
 
@@ -231,7 +231,7 @@ class ParallelVectorQuantizer(nn.Module):
             "--num-quantizers",
             type=int,
             required=True,
-            help="Number of parallel quantizers (M) in the parallel vector quantizer",
+            help="Number of quantizers (M) in the grouped vector quantizer",
         )
         parser.add_argument(
             "--base-vq-type",

@@ -5,12 +5,13 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 
 class GradientReversalFunction(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, x, scale):
+    def forward(ctx: torch.autograd.function.FunctionCtx, x: Tensor, scale: float) -> Tensor:
         """
         In the forward pass, we just pass through the input.
         ctx is used to store context information for the backward pass.
@@ -20,7 +21,9 @@ class GradientReversalFunction(torch.autograd.Function):
         return x.clone()  # Return the input as it is
 
     @staticmethod
-    def backward(ctx, grad_output):
+    def backward(
+        ctx: torch.autograd.function.FunctionCtx, grad_output: Tensor
+    ) -> tuple[Tensor, None]:
         """
         In the backward pass, we reverse the gradients by multiplying with -scale.
         """
@@ -42,5 +45,5 @@ class GradientReversalLayer(nn.Module):
         super().__init__()
         self.scale = scale
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         return GradientReversalFunction.apply(x, self.scale)

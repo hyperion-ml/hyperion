@@ -41,6 +41,7 @@ from .global_pool import (
 )
 from .grad_rev_layer import GradientReversalLayer
 from .grn import GRN1d, GRN2d
+from .group_vq import GroupVectorQuantizer
 from .interpolate import Interpolate
 from .lora import LoRAFactory
 from .loudness_norm import LoudnessNorm
@@ -48,7 +49,6 @@ from .margin_losses import ArcLossOutput, CosLossOutput, SubCenterArcLossOutput
 from .mvn import MeanVarianceNorm
 from .norm_layer_factory import NormLayer1dFactory, NormLayer2dFactory
 from .norm_layers import RMSNorm
-from .parallel_vq import ParallelVectorQuantizer
 from .pool_factory import GlobalPool1dFactory
 from .pos_encoder import (
     ConvPosEncoder,

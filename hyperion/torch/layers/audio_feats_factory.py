@@ -25,6 +25,32 @@ FEAT_TYPES = [FFT, SPEC, LOG_SPEC, LOG_FB, MFCC, KAN_BAYASHI]
 class AudioFeatsFactory:
     """Factory class to create acoustic features layers like
     FFT, Spectrogram, log-Spectrogram, log-filter-bank, MFCC.
+
+    Examples:
+        >>> feat_extractor = AudioFeatsFactory.create("logfb")
+        >>> isinstance(feat_extractor, Wav2LogFilterBank)
+        True
+
+        >>> feat_extractor = AudioFeatsFactory.create(
+        ...     "mfcc", sample_frequency=8000, num_filters=30, num_ceps=20
+        ... )
+        >>> isinstance(feat_extractor, Wav2MFCC)
+        True
+
+        >>> feat_extractor = AudioFeatsFactory.create(
+        ...     "kanbayashi_logfb", frame_length=50, frame_shift=12.5
+        ... )
+        >>> isinstance(feat_extractor, Wav2KanBayashiLogFilterBank)
+        True
+
+        >>> args = {
+        ...     "audio_feat": "log_spec",
+        ...     "sample_frequency": 16000,
+        ...     "frame_length": 20,
+        ...     "unused_option": 10,
+        ... }
+        >>> AudioFeatsFactory.filter_args(**args)
+        {'sample_frequency': 16000, 'frame_length': 20, 'audio_feat': 'log_spec'}
     """
 
     @staticmethod

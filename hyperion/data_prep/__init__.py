@@ -3,6 +3,7 @@ Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from .arts_phase1_eval3_british import ARTSPhase1Eval3BritishDataPrep
 from .asvspoof2015 import ASVSpoof2015DataPrep
 from .asvspoof2017 import ASVSpoof2017DataPrep
 from .asvspoof2019 import ASVSpoof2019DataPrep
