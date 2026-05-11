@@ -261,6 +261,9 @@ class QVector(HyperTorchModel):
         num_output_feats_queries: int,
         qvector_dim: int,
         head: Union[Dict[str, Any], HydraHead],
+        qformer_weight_decay: Optional[float] = None,
+        proj_head_weight_decay: Optional[float] = None,
+        head_weight_decay: Optional[float] = None,
         bias_weight_decay: Optional[float] = None,
     ):
         """Initialize the q-vector model components.
@@ -277,6 +280,12 @@ class QVector(HyperTorchModel):
                 backbone features.
             qvector_dim: Dimensionality of the projected q-vector embedding.
             head: Keyword arguments used to instantiate the downstream Hydra head.
+            qformer_weight_decay: Optional weight-decay override applied to both
+                hidden/output Q-former parameters.
+            proj_head_weight_decay: Optional weight-decay override applied to
+                projection-head parameters.
+            head_weight_decay: Optional weight-decay override applied to downstream
+                head parameters.
             bias_weight_decay: Optional weight-decay value applied only to bias
                 parameters when building optimizer parameter groups.
         """
@@ -371,6 +380,10 @@ class QVector(HyperTorchModel):
         self._output_feats_agg_context = contextlib.nullcontext()
         self._init_queries()
         self.register_buffer("max_input_length", torch.tensor(0, dtype=torch.long))
+
+        self.head_weight_decay = head_weight_decay
+        self.proj_head_weight_decay = proj_head_weight_decay
+        self.qformer_weight_decay = qformer_weight_decay
 
     def _init_queries(self):
         """Initialise the learnable query tensors using a truncated normal draw."""
@@ -473,6 +486,71 @@ class QVector(HyperTorchModel):
             return self.head.loss_type
         else:
             raise ValueError("head has no loss_type attribute")
+
+    def has_param_groups(self):
+        return (
+            super().has_param_groups()
+            or self.qformer_weight_decay is not None
+            or self.proj_head_weight_decay is not None
+            or self.head_weight_decay is not None
+        )
+
+    def trainable_param_groups(self):
+        """Return parameter groups with custom weight decay for different model components."""
+        if (
+            self.qformer_weight_decay is None
+            and self.proj_head_weight_decay is None
+            and self.head_weight_decay is None
+        ):
+            return super().trainable_param_groups()
+
+        qformer = []
+        proj_head = []
+        head = []
+        other = []
+        bias = []
+        for name, param in self.trainable_named_parameters():
+            # we do not regularize biases nor Norm parameters
+            if self.bias_weight_decay is not None and (
+                name.endswith(".bias") or len(param.shape) == 1
+            ):
+                bias.append(param)
+            else:
+                if self.qformer_weight_decay is not None and (
+                    name.startswith("hidden_feats_agg_qformer")
+                    or name.startswith("output_feats_agg_qformer")
+                ):
+                    qformer.append(param)
+                elif self.proj_head_weight_decay is not None and name.startswith(
+                    "proj_head"
+                ):
+                    proj_head.append(param)
+                elif self.head_weight_decay is not None and name.startswith("head"):
+                    head.append(param)
+                else:
+                    other.append(param)
+
+        trainable_params = []
+        if other:
+            trainable_params.append({"params": other})
+        if qformer:
+            trainable_params.append(
+                {"params": qformer, "weight_decay": self.qformer_weight_decay}
+            )
+        if proj_head:
+            trainable_params.append(
+                {"params": proj_head, "weight_decay": self.proj_head_weight_decay}
+            )
+        if head:
+            trainable_params.append(
+                {"params": head, "weight_decay": self.head_weight_decay}
+            )
+        if bias:
+            trainable_params.append(
+                {"params": bias, "weight_decay": self.bias_weight_decay}
+            )
+
+        return trainable_params
 
     def update_train_length(self, input_length: int):
         """Update the maximum input length seen during training.
@@ -1147,6 +1225,9 @@ class QVector(HyperTorchModel):
             "num_output_feats_queries": self.num_output_feats_queries,
             "qvector_dim": self.qvector_dim,
             "head": head,
+            "qformer_weight_decay": self.qformer_weight_decay,
+            "proj_head_weight_decay": self.proj_head_weight_decay,
+            "head_weight_decay": self.head_weight_decay,
             "bias_weight_decay": self.bias_weight_decay,
         }
 
@@ -1159,6 +1240,9 @@ class QVector(HyperTorchModel):
         qvector_dim: Optional[int] = None,
         override_head: bool = False,
         head: Union[Dict[str, Any], HydraHead] = None,
+        qformer_weight_decay: Optional[float] = None,
+        proj_head_weight_decay: Optional[float] = None,
+        head_weight_decay: Optional[float] = None,
         bias_weight_decay: Optional[float] = None,
     ):
         """Change the model configuration on the fly."""
@@ -1193,6 +1277,24 @@ class QVector(HyperTorchModel):
                 f"overriding bias weight decay with new value: {bias_weight_decay}"
             )
             self.bias_weight_decay = bias_weight_decay
+
+        if qformer_weight_decay is not None:
+            logging.info(
+                f"overriding qformer weight decay with new value: {qformer_weight_decay}"
+            )
+            self.qformer_weight_decay = qformer_weight_decay
+
+        if proj_head_weight_decay is not None:
+            logging.info(
+                f"overriding proj head weight decay with new value: {proj_head_weight_decay}"
+            )
+            self.proj_head_weight_decay = proj_head_weight_decay
+
+        if head_weight_decay is not None:
+            logging.info(
+                f"overriding head weight decay with new value: {head_weight_decay}"
+            )
+            self.head_weight_decay = head_weight_decay
 
     # def change_config(
     #     self,
@@ -1540,6 +1642,27 @@ class QVector(HyperTorchModel):
                 default=None,
                 help="optional bias-only weight decay value",
             )
+        if "qformer_weight_decay" not in skip:
+            parser.add_argument(
+                "--qformer-weight-decay",
+                type=float,
+                default=None,
+                help="optional weight decay override for hidden/output qformer parameters",
+            )
+        if "proj_head_weight_decay" not in skip:
+            parser.add_argument(
+                "--proj-head-weight-decay",
+                type=float,
+                default=None,
+                help="optional weight decay override for projection-head parameters",
+            )
+        if "head_weight_decay" not in skip:
+            parser.add_argument(
+                "--head-weight-decay",
+                type=float,
+                default=None,
+                help="optional weight decay override for downstream head parameters",
+            )
 
         if "hidden_feats_agg_qformer" not in skip:
             hidden_skip = {"multilayer_input"}
@@ -1609,6 +1732,27 @@ class QVector(HyperTorchModel):
                 type=float,
                 default=None,
                 help="optional bias-only weight decay value",
+            )
+        if "qformer_weight_decay" not in skip:
+            parser.add_argument(
+                "--qformer-weight-decay",
+                type=float,
+                default=None,
+                help="optional weight decay override for hidden/output qformer parameters",
+            )
+        if "proj_head_weight_decay" not in skip:
+            parser.add_argument(
+                "--proj-head-weight-decay",
+                type=float,
+                default=None,
+                help="optional weight decay override for projection-head parameters",
+            )
+        if "head_weight_decay" not in skip:
+            parser.add_argument(
+                "--head-weight-decay",
+                type=float,
+                default=None,
+                help="optional weight decay override for downstream head parameters",
             )
 
         parser.add_argument(

@@ -62,6 +62,13 @@ class ResNetQVector(QVector):
         num_output_feats_queries: int,
         qvector_dim: int,
         head: Union[Dict[str, Any], HydraHead],
+        resnet_lr: Optional[float] = None,
+        resnet_weight_decay: Optional[float] = None,
+        adapter_lr: Optional[float] = None,
+        adapter_weight_decay: Optional[float] = None,
+        qformer_weight_decay: Optional[float] = None,
+        proj_head_weight_decay: Optional[float] = None,
+        head_weight_decay: Optional[float] = None,
         bias_weight_decay: Optional[float] = None,
     ) -> None:
         """Initialise the ResNet-backed q-vector model.
@@ -75,6 +82,20 @@ class ResNetQVector(QVector):
             num_output_feats_queries: Number of output queries.
             qvector_dim: Size of the final q-vector embedding.
             head: Hydra head configuration or module.
+            resnet_lr: Optional learning-rate override for backbone
+                ``resnet_encoder`` parameters.
+            resnet_weight_decay: Optional weight-decay override for backbone
+                ``resnet_encoder`` parameters.
+            adapter_lr: Optional learning-rate override for adapter parameters
+                (``hidden_feats_adapter`` and ``output_feats_adapter``).
+            adapter_weight_decay: Optional weight-decay override for adapter
+                parameters (``hidden_feats_adapter`` and ``output_feats_adapter``).
+            qformer_weight_decay: Optional weight-decay override applied to both
+                hidden/output Q-former parameters.
+            proj_head_weight_decay: Optional weight-decay override applied to
+                projection-head parameters.
+            head_weight_decay: Optional weight-decay override applied to downstream
+                head parameters.
             bias_weight_decay: Optional weight decay applied only to bias parameters.
         """
         if isinstance(acoustic_feats, dict):
@@ -99,11 +120,18 @@ class ResNetQVector(QVector):
             num_output_feats_queries=num_output_feats_queries,
             qvector_dim=qvector_dim,
             head=head,
+            qformer_weight_decay=qformer_weight_decay,
+            proj_head_weight_decay=proj_head_weight_decay,
+            head_weight_decay=head_weight_decay,
             bias_weight_decay=bias_weight_decay,
         )
         self.acoustic_feats: AudioFeatsMVN = acoustic_feats
         self.resnet_encoder: ResNet = resnet_encoder
         self.resnet_type: str = resnet_type
+        self.resnet_lr = resnet_lr
+        self.resnet_weight_decay = resnet_weight_decay
+        self.adapter_lr = adapter_lr
+        self.adapter_weight_decay = adapter_weight_decay
         self._acoustic_feats_context = torch.no_grad()
         self.backbone_layers: Optional[List[int]] = None
         self.backbone_return_output: bool = False
@@ -111,6 +139,98 @@ class ResNetQVector(QVector):
         self.output_feats_adapter: Optional[nn.Linear] = None
         self._infer_backbone_layer_indices()
         self._make_adapters()
+
+    def has_param_groups(self):
+        return (
+            super().has_param_groups()
+            or self.resnet_weight_decay is not None
+            or self.resnet_lr is not None
+            or self.adapter_weight_decay is not None
+            or self.adapter_lr is not None
+        )
+
+    def trainable_param_groups(self):
+        if (
+            self.resnet_weight_decay is None
+            and self.resnet_lr is None
+            and self.adapter_weight_decay is None
+            and self.adapter_lr is None
+        ):
+            return super().trainable_param_groups()
+
+        resnet = []
+        adapters = []
+        qformer = []
+        proj_head = []
+        head = []
+        other = []
+        bias = []
+        for name, param in self.trainable_named_parameters():
+            # we do not regularize biases nor Norm parameters
+            if self.bias_weight_decay is not None and (
+                name.endswith(".bias") or len(param.shape) == 1
+            ):
+                bias.append(param)
+            else:
+                if name.startswith("resnet_encoder"):
+                    resnet.append(param)
+                elif name.startswith("hidden_feats_adapter") or name.startswith(
+                    "output_feats_adapter"
+                ):
+                    adapters.append(param)
+                elif self.qformer_weight_decay is not None and (
+                    name.startswith("hidden_feats_agg_qformer")
+                    or name.startswith("output_feats_agg_qformer")
+                ):
+                    qformer.append(param)
+                elif self.proj_head_weight_decay is not None and name.startswith(
+                    "proj_head"
+                ):
+                    proj_head.append(param)
+                elif self.head_weight_decay is not None and name.startswith("head"):
+                    head.append(param)
+                else:
+                    other.append(param)
+
+        trainable_params = []
+        if resnet:
+            resnet_params = {"params": resnet}
+            if self.resnet_lr is not None:
+                resnet_params["lr"] = self.resnet_lr
+            if self.resnet_weight_decay is not None:
+                resnet_params["weight_decay"] = self.resnet_weight_decay
+
+            trainable_params.append(resnet_params)
+
+        if adapters:
+            adapter_params = {"params": adapters}
+            if self.adapter_lr is not None:
+                adapter_params["lr"] = self.adapter_lr
+            if self.adapter_weight_decay is not None:
+                adapter_params["weight_decay"] = self.adapter_weight_decay
+
+            trainable_params.append(adapter_params)
+
+        if other:
+            trainable_params.append({"params": other})
+        if qformer:
+            trainable_params.append(
+                {"params": qformer, "weight_decay": self.qformer_weight_decay}
+            )
+        if proj_head:
+            trainable_params.append(
+                {"params": proj_head, "weight_decay": self.proj_head_weight_decay}
+            )
+        if head:
+            trainable_params.append(
+                {"params": head, "weight_decay": self.head_weight_decay}
+            )
+        if bias:
+            trainable_params.append(
+                {"params": bias, "weight_decay": self.bias_weight_decay}
+            )
+
+        return trainable_params
 
     @property
     def sample_frequency(self) -> int:
@@ -186,16 +306,60 @@ class ResNetQVector(QVector):
     def set_adapters_in_train_mode(self):
         pass
 
-    def change_config(self, encoder_dropout_rate: Optional[float] = None, **kwargs):
+    def change_config(
+        self,
+        encoder_dropout_rate: Optional[float] = None,
+        resnet_lr: Optional[float] = None,
+        resnet_weight_decay: Optional[float] = None,
+        adapter_lr: Optional[float] = None,
+        adapter_weight_decay: Optional[float] = None,
+        **kwargs,
+    ):
         """Change model configuration at runtime.
 
         Args:
-            encoder_dropout_rate: Optional dropout rate to apply in the ResNet encoder during fine-tuning.
-            **kwargs: Additional keyword arguments forwarded to the base class method for reconfiguration.
+            encoder_dropout_rate: Optional dropout rate to apply in the ResNet
+                encoder during fine-tuning.
+            resnet_lr: Optional learning-rate override for backbone
+                ``resnet_encoder`` parameters.
+            resnet_weight_decay: Optional weight-decay override for backbone
+                ``resnet_encoder`` parameters.
+            adapter_lr: Optional learning-rate override for adapter parameters
+                (``hidden_feats_adapter`` and ``output_feats_adapter``).
+            adapter_weight_decay: Optional weight-decay override for adapter
+                parameters (``hidden_feats_adapter`` and ``output_feats_adapter``).
+            **kwargs: Additional keyword arguments forwarded to the base class
+                method for reconfiguration.
         """
 
         if encoder_dropout_rate is not None:
             self.resnet_encoder.change_dropouts(dropout_rate=encoder_dropout_rate)
+
+        if resnet_lr is not None:
+            logging.info(
+                "overriding resnet learning rate with new value: %s", resnet_lr
+            )
+            self.resnet_lr = resnet_lr
+
+        if resnet_weight_decay is not None:
+            logging.info(
+                "overriding resnet weight decay with new value: %s",
+                resnet_weight_decay,
+            )
+            self.resnet_weight_decay = resnet_weight_decay
+
+        if adapter_lr is not None:
+            logging.info(
+                "overriding adapter learning rate with new value: %s", adapter_lr
+            )
+            self.adapter_lr = adapter_lr
+
+        if adapter_weight_decay is not None:
+            logging.info(
+                "overriding adapter weight decay with new value: %s",
+                adapter_weight_decay,
+            )
+            self.adapter_weight_decay = adapter_weight_decay
 
         super().change_config(**kwargs)
 
@@ -350,6 +514,10 @@ class ResNetQVector(QVector):
         config = {
             "acoustic_feats": feats_cfg,
             "resnet_encoder": resnet_cfg,
+            "resnet_lr": self.resnet_lr,
+            "resnet_weight_decay": self.resnet_weight_decay,
+            "adapter_lr": self.adapter_lr,
+            "adapter_weight_decay": self.adapter_weight_decay,
         }
         config.update(base_config)
         return config
@@ -397,6 +565,30 @@ class ResNetQVector(QVector):
 
         AudioFeatsMVN.add_class_args(parser, prefix="acoustic_feats")
         RNF.add_class_args(parser, prefix="resnet_encoder")
+        parser.add_argument(
+            "--resnet-lr",
+            type=float,
+            default=None,
+            help="optional learning-rate override for backbone resnet_encoder parameters",
+        )
+        parser.add_argument(
+            "--resnet-weight-decay",
+            type=float,
+            default=None,
+            help="optional weight-decay override for backbone resnet_encoder parameters",
+        )
+        parser.add_argument(
+            "--adapter-lr",
+            type=float,
+            default=None,
+            help="optional learning-rate override for adapter parameters",
+        )
+        parser.add_argument(
+            "--adapter-weight-decay",
+            type=float,
+            default=None,
+            help="optional weight-decay override for adapter parameters",
+        )
         QVector.add_class_args(parser)
 
         if prefix is not None:
@@ -420,6 +612,30 @@ class ResNetQVector(QVector):
             type=float,
             default=None,
             help="Optional dropout rate to apply in the ResNet encoder during fine-tuning.",
+        )
+        parser.add_argument(
+            "--resnet-lr",
+            type=float,
+            default=None,
+            help="optional learning-rate override for backbone resnet_encoder parameters",
+        )
+        parser.add_argument(
+            "--resnet-weight-decay",
+            type=float,
+            default=None,
+            help="optional weight-decay override for backbone resnet_encoder parameters",
+        )
+        parser.add_argument(
+            "--adapter-lr",
+            type=float,
+            default=None,
+            help="optional learning-rate override for adapter parameters",
+        )
+        parser.add_argument(
+            "--adapter-weight-decay",
+            type=float,
+            default=None,
+            help="optional weight-decay override for adapter parameters",
         )
         QVector.add_finetune_args(parser)
 

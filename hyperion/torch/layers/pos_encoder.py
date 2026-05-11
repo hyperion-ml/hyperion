@@ -32,6 +32,8 @@ class PosEncoder(PosEncoderBase):
 
     def __init__(self, num_feats: int, dropout_rate: float = 0):
         super().__init__()
+        if num_feats % 2 != 0:
+            raise ValueError(f"{self.__class__.__name__} requires even num_feats, got {num_feats}")
         self.num_feats = num_feats
         self.dropout_rate = dropout_rate
         self.xscale = math.sqrt(self.num_feats)
@@ -221,7 +223,7 @@ class RotaryPosEncoder(PosEncoderBase):
         theta: float = 500000,
         scale_freqs: bool = True,
         update_max_seq_length: bool = True,
-        original_max_seq_length: Optional[int] = None,
+        original_max_seq_length: int = 8192,
         scaling_factor: float = 8,
         low_freq_factor: float = 1,
         high_freq_factor: float = 4,
@@ -233,8 +235,10 @@ class RotaryPosEncoder(PosEncoderBase):
         self.scaling_factor = scaling_factor
         self.scale_freqs = scale_freqs
         self.update_max_seq_length = update_max_seq_length
-        if original_max_seq_length is None:
-            original_max_seq_length = 0
+        if original_max_seq_length <= 0:
+            raise ValueError(
+                f"{self.__class__.__name__} requires original_max_seq_length > 0, got {original_max_seq_length}"
+            )
 
         self.register_buffer("freqs_cis", None, persistent=False)
         self.freqs_cis: Optional[torch.Tensor]
@@ -383,6 +387,10 @@ class RotaryPosEncoder(PosEncoderBase):
         Returns:
             torch.Tensor: Tensor of identical shape with rotary positional embeddings applied.
         """
+        if x.size(-1) % 2 != 0:
+            raise ValueError(
+                f"{self.__class__.__name__} requires an even last dimension, got {x.size(-1)}"
+            )
         x_out = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
         freqs_cis = self._compute_freqs_cis(x_out, start_pos)
         # print(x_out.shape, freqs_cis.shape, flush=True)
