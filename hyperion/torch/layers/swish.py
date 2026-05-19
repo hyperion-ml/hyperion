@@ -8,19 +8,19 @@ import torch.nn as nn
 
 
 class SwishImplementation(torch.autograd.Function):
-    """Implementation for Swish activation function."""
+    """Autograd implementation of Swish: ``f(x) = x * sigmoid(x)``."""
 
     @staticmethod
-    def forward(ctx, i):
-        result = i * torch.sigmoid(i)
-        ctx.save_for_backward(i)
+    def forward(ctx, x: torch.Tensor) -> torch.Tensor:
+        result = x * torch.sigmoid(x)
+        ctx.save_for_backward(x)
         return result
 
     @staticmethod
-    def backward(ctx, grad_output):
-        i = ctx.saved_variables[0]
-        sigmoid_i = torch.sigmoid(i)
-        return grad_output * (sigmoid_i * (1 + i * (1 - sigmoid_i)))
+    def backward(ctx, grad_output: torch.Tensor) -> torch.Tensor:
+        (x,) = ctx.saved_tensors
+        sigmoid_x = torch.sigmoid(x)
+        return grad_output * (sigmoid_x * (1 + x * (1 - sigmoid_x)))
 
 
 class Swish(nn.Module):
@@ -28,15 +28,14 @@ class Swish(nn.Module):
     y = x * sigmoid(x)
     """
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return SwishImplementation.apply(x)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def __str__(self):
-        s = "{}()".format(self.__class__.__name__)
-        return s
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}()"
 
 
 class Swish6(nn.Module):
@@ -44,15 +43,14 @@ class Swish6(nn.Module):
     y = min(x, 6) * sigmoid(min(x,6))
     """
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return SwishImplementation.apply(x.clamp(max=6))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def __str__(self):
-        s = "{}()".format(self.__class__.__name__)
-        return s
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}()"
 
 
 class DoubleSwishImplementation(torch.autograd.Function):
@@ -120,12 +118,11 @@ class DoubleSwish(torch.nn.Module):
 
         return DoubleSwishImplementation.apply(x)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def __str__(self):
-        s = "{}()".format(self.__class__.__name__)
-        return s
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}()"
 
 
 class DoubleSwish6(torch.nn.Module):
@@ -142,9 +139,8 @@ class DoubleSwish6(torch.nn.Module):
 
         return DoubleSwishImplementation.apply(x)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def __str__(self):
-        s = "{}()".format(self.__class__.__name__)
-        return s
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}()"

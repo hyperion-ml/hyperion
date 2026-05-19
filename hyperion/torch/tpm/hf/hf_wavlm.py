@@ -5,7 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import logging
 import os
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -20,8 +20,8 @@ class HFWavLM(HFWav2VecBase):
     r"""This is wrapper over HuggingFace WavLM model.
         See documentation: https://huggingface.co/docs/transformers/model_doc/wavlm
 
-        This wrapper makes the HugginFace model to have the same interface
-        as other hyperion models. It also add extra functionalities.
+        This wrapper makes the HuggingFace model to have the same interface
+        as other hyperion models. It also adds extra functionalities.
 
         The config. parameters are the same as in the HuggingFace WavLMConfig class.
 
@@ -92,20 +92,20 @@ class HFWavLM(HFWav2VecBase):
             Recognition](https://arxiv.org/abs/1904.08779).
         mask_time_prob (`float`, defaults to 0.05):
             percentage (between 0 and 1) of all feature vectors along the time axis which will be masked. The masking
-            procecure generates ''mask_time_prob*len(time_axis)/mask_time_length'' independent masks over the axis. If
-            reasoning from the propability of each feature vector to be chosen as the start of the vector span to be
+            procedure generates ''`mask_time_prob*len(time_axis)/mask_time_length`'' independent masks over the axis. If
+            reasoning from the probability of each feature vector to be chosen as the start of the vector span to be
             masked, *mask_time_prob* should be `prob_vector_start*mask_time_length`. Note that overlap may decrease the
             actual percentage of masked vectors. This is only relevant if `apply_spec_augment is True`.
         mask_time_length (`int`, defaults to 10):
             length of vector span along the time axis.
         mask_time_min_masks (`int`, defaults to 2),:
             the minimum number of masks of length `mask_time_length` generated along the time axis, each time step,
-            irrespectively of `mask_feature_prob`. Only relevant if ''mask_time_prob*len(time_axis)/mask_time_length <
+            irrespectively of `mask_feature_prob`. Only relevant if ''`mask_time_prob*len(time_axis)/mask_time_length` <
             mask_time_min_masks''
         mask_feature_prob (`float`, defaults to 0.0):
             percentage (between 0 and 1) of all feature vectors along the feature axis which will be masked. The
-            masking procecure generates ''mask_feature_prob*len(feature_axis)/mask_time_length'' independent masks over
-            the axis. If reasoning from the propability of each feature vector to be chosen as the start of the vector
+            masking procedure generates ''`mask_feature_prob*len(feature_axis)/mask_time_length`'' independent masks over
+            the axis. If reasoning from the probability of each feature vector to be chosen as the start of the vector
             span to be masked, *mask_feature_prob* should be `prob_vector_start*mask_feature_length`. Note that overlap
             may decrease the actual percentage of masked vectors. This is only relevant if `apply_spec_augment is
             True`.
@@ -114,7 +114,7 @@ class HFWavLM(HFWav2VecBase):
         mask_feature_min_masks (`int`, defaults to 0):
             The minimum number of masks of length `mask_feature_length` generated along the feature axis, each time
             step, irrespectively of `mask_feature_prob`. Only relevant if
-            ''mask_feature_prob*len(feature_axis)/mask_feature_length < mask_feature_min_masks''
+            ''`mask_feature_prob*len(feature_axis)/mask_feature_length < mask_feature_min_masks`''
         add_adapter (`bool`, defaults to `False`):
             whether a convolutional network should be stacked on top of the WavLM Encoder. Can be very useful for
             warm-starting WavLM for SpeechEncoderDecoder models.
@@ -128,34 +128,35 @@ class HFWavLM(HFWav2VecBase):
         output_hidden_size (`int`, defaults to None):
             dimensionality of the encoder output layer. If not defined, this defaults to *hidden-size*. Only relevant
             if `add_adapter is True`.
-        cache_dir (str or os.PathLike): path to a directory in which a downloaded pretrained
+        cache_dir (`Union[str, os.PathLike]`, defaults to `"./.cache/hyperion_hf"`): path to a directory in which a downloaded pretrained
             model configuration should be cached if the standard cache should not be used.
         force_download (`bool`, defaults to `False`): whether or not to force the (re-)download
             the model weights and configuration files and override the
             cached versions if they exist.
         resume_download (`bool`, defaults to `False`): whether or not to delete incompletely
             received files. Will attempt to resume the download if such a file exists.
-        revision(`str`, defaults to `"main"`): the specific model version to use.
+        revision (`str`, defaults to `"main"`): the specific model version to use.
             It can be a branch name, a tag name, or a commit id.
-        ignore_pretrained (`bool` defaults to False): if True, it ignores the pretrained_model_path
-            and inits the model from the configuration. This is set to True for models that have already
-            been finetuned.
-        override_dropouts (`bool` defaults to False): if True, it ingnores the dropout probs. in the pretrained model
+        ignore_pretrained (`bool`, defaults to `False`): if True, it ignores the pretrained_model_path
+            and initializes the model from the configuration. This is set to True for models that have already
+            been fine-tuned.
+        override_dropouts (`bool`, defaults to `False`): if True, it ignores the dropout probs. in the pretrained model
             and uses the ones passed as arguments.
-        override_spec_augment (`bool` defaults to False): if True, it ingnores the spec. augment.
+        override_spec_augment (`bool`, defaults to `False`): if True, it ignores the spec. augment.
             configuration in the pretrained model and uses the ones passed in the arguments.
-        left_encoder_context (`int`): past context frames used by the transformer encoder when the signal is evaluated
-          chunk by chunk, if it is too long to fit in GPU.
-        right_encoder_context: (`int`): future context frames used by the transformer encoder.
-        sample_frequency: (`int`) waveform sample frequency used to train the model.
-        feat_extract_lr: learning rate for conv feature extractor, serves to set a lr different than the global one.
-        encoder_lr: learning rate for the wav2vec encoder, serves to set a lr different than the global one.
-        use_lora: use low-rank adapters
-        lora_components: list of components where we apply LoRA, eg [Wq, Wv]
-        lora_rank: rank of LoRA
-        lora_alpha: scale for LoRA
-        lora_dropout: dropout rate for LoRA
-        lora_merge_weights: lora weights are merged with the pretrained weights at inference.
+        left_encoder_context (`int`, defaults to `16`): past context frames used by the transformer encoder when the signal is evaluated
+            chunk by chunk, if it is too long to fit in GPU.
+        right_encoder_context (`int`, defaults to `16`): future context frames used by the transformer encoder.
+        sample_frequency (`int`, defaults to `16000`): waveform sample frequency used to train the model.
+        feat_extract_lr (`Optional[float]`, defaults to `None`): learning rate for conv feature extractor, serves to set a lr different than the global one.
+        encoder_lr (`Optional[float]`, defaults to `None`): learning rate for the wav2vec encoder, serves to set a lr different than the global one.
+        use_lora (`bool`, defaults to `False`): use low-rank adapters
+        lora_components (`List[str]`, defaults to `["q_proj", "v_proj"]`): list of components where we apply LoRA, e.g., [Wq, Wv]
+        lora_rank (`int`, defaults to `4`): rank of LoRA
+        lora_alpha (`int`, defaults to `8`): scale for LoRA
+        lora_dropout (`float`, defaults to `0.0`): dropout rate for LoRA
+        lora_merge_weights (`bool`, defaults to `True`): lora weights are merged with the pretrained weights at inference.
+        bias_weight_decay (`Optional[float]`, defaults to `None`): weight decay for bias parameters, if not None overrides global weight decay
     """
 
     def __init__(
@@ -213,10 +214,75 @@ class HFWavLM(HFWav2VecBase):
         use_lora: bool = False,
         lora_components: List[str] = ["q_proj", "v_proj"],
         lora_rank: int = 4,
-        lora_alpha: int = 1,
+        lora_alpha: int = 8,
         lora_dropout: float = 0.0,
         lora_merge_weights: bool = True,
-    ):
+        bias_weight_decay: Optional[float] = None,
+    ) -> None:
+        """Initializes the HuggingFace WavLM wrapper.
+
+        Args:
+            pretrained_model_path: Local path or HF Hub model id.
+            normalize_input: If True, applies waveform normalization.
+            use_input_attention_mask: If True, forwards attention mask to HF model.
+            vocab_size: Vocabulary size.
+            hidden_size: Transformer hidden size.
+            num_hidden_layers: Number of transformer encoder layers.
+            num_attention_heads: Number of attention heads.
+            intermediate_size: Feed-forward intermediate size.
+            hidden_act: Encoder activation function.
+            hidden_dropout: Dropout used in hidden layers.
+            activation_dropout: Dropout used in FFN/activation layers.
+            attention_dropout: Dropout used in attention probabilities.
+            layerdrop: Probability of dropping an encoder layer during training.
+            initializer_range: Stddev for weight initialization.
+            layer_norm_eps: Epsilon used by layer normalization.
+            feat_extract_norm: Feature-extractor normalization type.
+            feat_proj_dropout: Dropout after feature projection.
+            feat_extract_activation: Feature-extractor activation function.
+            conv_dim: Feature extractor channel dimensions.
+            conv_stride: Feature extractor strides.
+            conv_kernel: Feature extractor kernels.
+            conv_bias: Whether conv layers include bias.
+            num_conv_pos_embeddings: Convolutional positional embedding size.
+            num_conv_pos_embedding_groups: Positional embedding groups.
+            do_stable_layer_norm: Whether to use stable layer norm variant.
+            apply_spec_augment: Whether to enable SpecAugment.
+            mask_time_prob: SpecAugment time masking probability.
+            mask_time_length: SpecAugment time mask length.
+            mask_time_min_masks: SpecAugment min time masks.
+            mask_feature_prob: SpecAugment feature masking probability.
+            mask_feature_length: SpecAugment feature mask length.
+            mask_feature_min_masks: SpecAugment min feature masks.
+            add_adapter: Whether to add HF adapter stack.
+            adapter_kernel_size: Adapter conv kernel size.
+            adapter_stride: Adapter conv stride.
+            num_adapter_layers: Number of adapter layers.
+            output_hidden_size: Optional adapter output hidden size.
+            cache_dir: HF cache directory.
+            force_download: If True, forces HF re-download.
+            resume_download: Deprecated argument, kept for compatibility.
+            revision: HF model revision.
+            drop_layers_gt: Drops encoder layers above this index when set.
+            ignore_pretrained: If True, builds model from config only.
+            override_dropouts: Whether to override dropout settings.
+            override_spec_augment: Whether to override spec-augment settings.
+            left_encoder_context: Left chunked-inference context in frames.
+            right_encoder_context: Right chunked-inference context in frames.
+            sample_frequency: Expected waveform sample frequency.
+            feat_extract_lr: Optional LR override for feature extractor/projection.
+            encoder_lr: Optional LR override for encoder/adapter.
+            use_lora: Whether to enable LoRA adapters.
+            lora_components: Target module names for LoRA.
+            lora_rank: LoRA rank.
+            lora_alpha: LoRA scale.
+            lora_dropout: LoRA dropout.
+            lora_merge_weights: Whether to merge LoRA weights at inference.
+            bias_weight_decay: Optional separate weight decay for bias params.
+
+        Returns:
+            None.
+        """
         super().__init__(
             pretrained_model_path=pretrained_model_path,
             normalize_input=normalize_input,
@@ -240,6 +306,7 @@ class HFWavLM(HFWav2VecBase):
             lora_alpha=lora_alpha,
             lora_dropout=lora_dropout,
             lora_merge_weights=lora_merge_weights,
+            bias_weight_decay=bias_weight_decay,
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:
@@ -327,17 +394,32 @@ class HFWavLM(HFWav2VecBase):
                 lora_rank,
                 lora_alpha,
                 lora_dropout,
-                lora_merge_weights,
             )
 
         self.ignore_pretrained = True
 
     @property
-    def num_encoder_layers(self):
+    def num_encoder_layers(self) -> int:
+        """Returns the number of transformer encoder layers.
+
+        Args:
+            None.
+
+        Returns:
+            Number of encoder layers.
+        """
         return self.hf_config.num_hidden_layers
 
     @property
-    def hidden_size(self):
+    def hidden_size(self) -> int:
+        """Returns the encoder hidden dimension.
+
+        Args:
+            None.
+
+        Returns:
+            Hidden size.
+        """
         return self.hf_config.hidden_size
 
     def change_dropouts(
@@ -346,8 +428,20 @@ class HFWavLM(HFWav2VecBase):
         activation_dropout: float = 0.1,
         attention_dropout: float = 0.1,
         feat_proj_dropout: float = 0.1,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
+        """Updates dropout values in config and instantiated HF modules.
+
+        Args:
+            hidden_dropout: Hidden-layer dropout probability.
+            activation_dropout: Activation/FFN dropout probability.
+            attention_dropout: Attention dropout probability.
+            feat_proj_dropout: Feature-projection dropout probability.
+            **kwargs: Extra unused keyword arguments.
+
+        Returns:
+            None.
+        """
         import transformers.models.wavlm.modeling_wavlm as t
 
         self.hf_model.config.hidden_dropout = hidden_dropout
@@ -362,11 +456,19 @@ class HFWavLM(HFWav2VecBase):
 
         for module in self.hf_model.encoder.modules():
             if isinstance(module, t.WavLMAttention):
-                module.dropout = activation_dropout
-            if isinstance(module, t.WavLMFeatureProjection):
+                module.dropout = attention_dropout
+            if isinstance(module, t.WavLMFeedForward):
                 module.intermediate_dropout.p = activation_dropout
 
-    def drop_upper_layers(self, max_layers: int):
+    def drop_upper_layers(self, max_layers: int) -> None:
+        """Drops encoder layers above `max_layers`.
+
+        Args:
+            max_layers: Number of lower encoder layers to keep.
+
+        Returns:
+            None.
+        """
         if max_layers >= self.hf_config.num_hidden_layers:
             return
 
@@ -381,7 +483,7 @@ class HFWavLM(HFWav2VecBase):
             self.hf_model.adapter = None
             self.hf_config.add_adapter = False
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         """Returns the configuration arguments for the object in a dictionary."""
         config = self.hf_model.config.to_dict()
         config = self.filter_args(**config)
@@ -389,7 +491,15 @@ class HFWavLM(HFWav2VecBase):
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters kwargs to those accepted by constructor arguments.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Filtered constructor argument dictionary.
+        """
         args_base = HFWav2VecBase.filter_args(**kwargs)
         valid_args = (
             "vocab_size",
@@ -432,15 +542,32 @@ class HFWavLM(HFWav2VecBase):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Optional[set] = None
+    ) -> None:
+        """Adds model-construction CLI arguments to parser.
+
+        Args:
+            parser: Parser to update.
+            prefix: Optional nested prefix for parser composition.
+            skip: Optional set of argument names to omit.
+
+        Returns:
+            None.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        HFWav2VecBase.add_class_args(parser)
+        HFWav2VecBase.add_class_args(parser, skip=skip)
 
-        parser.add_argument(
-            "--vocab-size",
+        skip = set() if skip is None else set(skip)
+
+        def _use_arg(var_name: str) -> bool:
+            return var_name not in skip
+        if _use_arg("vocab_size"):
+            parser.add_argument(
+                "--vocab-size",
             default=32,
             type=int,
             help=(
@@ -449,20 +576,23 @@ class HFWavLM(HFWav2VecBase):
                 "*inputs_ids* passed to the forward method."
             ),
         )
-        parser.add_argument(
-            "--hidden-size",
+        if _use_arg("hidden_size"):
+            parser.add_argument(
+                "--hidden-size",
             default=768,
             type=int,
             help=("dimensionality of the encoder layers and the pooler layer."),
-        )
-        parser.add_argument(
-            "--num-hidden-layers",
+            )
+        if _use_arg("num_hidden_layers"):
+            parser.add_argument(
+                "--num-hidden-layers",
             default=12,
             type=int,
             help=("number of hidden layers in the Transformer encoder"),
-        )
-        parser.add_argument(
-            "--num-attention-heads",
+            )
+        if _use_arg("num_attention_heads"):
+            parser.add_argument(
+                "--num-attention-heads",
             default=12,
             type=int,
             help=(
@@ -470,16 +600,18 @@ class HFWavLM(HFWav2VecBase):
                 "each attention layer in the Transformer encoder"
             ),
         )
-        parser.add_argument(
-            "--intermediate-size",
+        if _use_arg("intermediate_size"):
+            parser.add_argument(
+                "--intermediate-size",
             default=3072,
             type=int,
             help=(
                 "dimensionality of the " "feed-forward layer in the Transformer encoder"
             ),
         )
-        parser.add_argument(
-            "--hidden-act",
+        if _use_arg("hidden_act"):
+            parser.add_argument(
+                "--hidden-act",
             default="gelu",
             choices=["gelu", "relu", "selu", "gelu_new"],
             help=(
@@ -487,8 +619,9 @@ class HFWavLM(HFWav2VecBase):
                 "activation function (function or string) in the encoder and pooler"
             ),
         )
-        parser.add_argument(
-            "--hidden-dropout",
+        if _use_arg("hidden_dropout"):
+            parser.add_argument(
+                "--hidden-dropout",
             default=0.1,
             type=float,
             help=(
@@ -496,8 +629,9 @@ class HFWavLM(HFWav2VecBase):
                 "fully connected layers in the embeddings, encoder, and pooler"
             ),
         )
-        parser.add_argument(
-            "--activation-dropout",
+        if _use_arg("activation_dropout"):
+            parser.add_argument(
+                "--activation-dropout",
             default=0.1,
             type=float,
             help=(
@@ -505,20 +639,23 @@ class HFWavLM(HFWav2VecBase):
                 "intermediate layer in feedforward transformer layers"
             ),
         )
-        parser.add_argument(
-            "--attention-dropout",
+        if _use_arg("attention_dropout"):
+            parser.add_argument(
+                "--attention-dropout",
             default=0.1,
             type=float,
             help=("the dropout ratio for the attention probabilities"),
-        )
-        parser.add_argument(
-            "--layerdrop",
+            )
+        if _use_arg("layerdrop"):
+            parser.add_argument(
+                "--layerdrop",
             default=0.1,
             type=float,
             help=("prob. of dropping a layer"),
-        )
-        parser.add_argument(
-            "--initializer-range",
+            )
+        if _use_arg("initializer_range"):
+            parser.add_argument(
+                "--initializer-range",
             default=0.02,
             type=float,
             help=(
@@ -526,8 +663,9 @@ class HFWavLM(HFWav2VecBase):
                 "truncated_normal_initializer for initializing all weight matrices"
             ),
         )
-        parser.add_argument(
-            "--layer-norm-eps",
+        if _use_arg("layer_norm_eps"):
+            parser.add_argument(
+                "--layer-norm-eps",
             default=1e-12,
             type=float,
             help=(
@@ -535,8 +673,9 @@ class HFWavLM(HFWav2VecBase):
                 "truncated_normal_initializer for initializing all weight matrices"
             ),
         )
-        parser.add_argument(
-            "--feat-extract-norm",
+        if _use_arg("feat_extract_norm"):
+            parser.add_argument(
+                "--feat-extract-norm",
             default="group",
             choices=["group", "layer"],
             help=(
@@ -545,14 +684,16 @@ class HFWavLM(HFWav2VecBase):
                 "layer or `layer` for layer normalization of all 1D convolutional layers"
             ),
         )
-        parser.add_argument(
-            "--feat-proj-dropout",
+        if _use_arg("feat_proj_dropout"):
+            parser.add_argument(
+                "--feat-proj-dropout",
             default=0.1,
             type=float,
             help=("the dropout probability for output of the feature encoder"),
-        )
-        parser.add_argument(
-            "--feat-extract-activation",
+            )
+        if _use_arg("feat_extract_activation"):
+            parser.add_argument(
+                "--feat-extract-activation",
             default="gelu",
             choices=["gelu", "relu", "selu", "gelu_new"],
             help=(
@@ -560,8 +701,9 @@ class HFWavLM(HFWav2VecBase):
                 "convolutional layers of the feature extractor"
             ),
         )
-        parser.add_argument(
-            "--conv-dim",
+        if _use_arg("conv_dim"):
+            parser.add_argument(
+                "--conv-dim",
             default=[512, 512, 512, 512, 512, 512, 512],
             nargs="+",
             type=int,
@@ -570,8 +712,9 @@ class HFWavLM(HFWav2VecBase):
                 "feature encoder. The length of *conv_dim* defines the number of 1D convolutional layers"
             ),
         )
-        parser.add_argument(
-            "--conv-stride",
+        if _use_arg("conv_stride"):
+            parser.add_argument(
+                "--conv-stride",
             default=[5, 2, 2, 2, 2, 2, 2],
             nargs="+",
             type=int,
@@ -579,8 +722,9 @@ class HFWavLM(HFWav2VecBase):
                 "a tuple of integers defining the stride of each 1D convolutional layer in the feature encoder"
             ),
         )
-        parser.add_argument(
-            "--conv-kernel",
+        if _use_arg("conv_kernel"):
+            parser.add_argument(
+                "--conv-kernel",
             default=[10, 3, 3, 3, 3, 3, 3],
             nargs="+",
             type=int,
@@ -588,14 +732,16 @@ class HFWavLM(HFWav2VecBase):
                 "a tuple of integers defining the kernel size of each 1D convolutional layer in the feature encoder"
             ),
         )
-        parser.add_argument(
-            "--conv-bias",
+        if _use_arg("conv_bias"):
+            parser.add_argument(
+                "--conv-bias",
             default=False,
             action=ActionYesNo,
             help=("whether the 1D convolutional layers have a bias"),
-        )
-        parser.add_argument(
-            "--num-conv-pos-embeddings",
+            )
+        if _use_arg("num_conv_pos_embeddings"):
+            parser.add_argument(
+                "--num-conv-pos-embeddings",
             default=128,
             type=int,
             help=(
@@ -603,102 +749,116 @@ class HFWavLM(HFWav2VecBase):
                 "embeddings layer"
             ),
         )
-        parser.add_argument(
-            "--num-conv-pos-embedding-groups",
+        if _use_arg("num_conv_pos_embedding_groups"):
+            parser.add_argument(
+                "--num-conv-pos-embedding-groups",
             default=16,
             type=int,
             help=("number of groups of 1D convolutional positional embeddings layer"),
-        )
-        parser.add_argument(
-            "--do-stable-layer-norm",
+            )
+        if _use_arg("do_stable_layer_norm"):
+            parser.add_argument(
+                "--do-stable-layer-norm",
             default=False,
             action=ActionYesNo,
             help=(
                 "whether to apply *stable* layer norm architecture of the Transformer encoder"
             ),
         )
-        parser.add_argument(
-            "--apply-spec-augment",
+        if _use_arg("apply_spec_augment"):
+            parser.add_argument(
+                "--apply-spec-augment",
             default=True,
             action=ActionYesNo,
             help=(
                 "whether to apply *SpecAugment* data augmentation to the outputs of the feature encoder"
             ),
         )
-        parser.add_argument(
-            "--mask-time-prob",
+        if _use_arg("mask_time_prob"):
+            parser.add_argument(
+                "--mask-time-prob",
             default=0.05,
             type=float,
             help=(
                 "percentage (between 0 and 1) of all feature vectors along the time axis which will be masked"
             ),
         )
-        parser.add_argument(
-            "--mask-time-length",
+        if _use_arg("mask_time_length"):
+            parser.add_argument(
+                "--mask-time-length",
             default=10,
             type=int,
             help=("length of vector span along the time axis"),
-        )
-        parser.add_argument(
-            "--mask-time-min-masks",
+            )
+        if _use_arg("mask_time_min_masks"):
+            parser.add_argument(
+                "--mask-time-min-masks",
             default=2,
             type=int,
             help=(
                 "the minimum number of masks of length `mask_time_length` generated along the time axis"
             ),
         )
-        parser.add_argument(
-            "--mask-feature-prob",
+        if _use_arg("mask_feature_prob"):
+            parser.add_argument(
+                "--mask-feature-prob",
             default=0.0,
             type=float,
             help=(
                 "percentage (between 0 and 1) of all feature vectors along the feature axis which will be masked"
             ),
         )
-        parser.add_argument(
-            "--mask-feature-length",
+        if _use_arg("mask_feature_length"):
+            parser.add_argument(
+                "--mask-feature-length",
             default=10,
             type=int,
             help=(" length of vector span along the feature axis"),
-        )
-        parser.add_argument(
-            "--mask-feature-min-masks",
+            )
+        if _use_arg("mask_feature_min_masks"):
+            parser.add_argument(
+                "--mask-feature-min-masks",
             default=0,
             type=int,
             help=(
                 "The minimum number of masks of length `mask_feature_length` generated along the feature axis"
             ),
         )
-        parser.add_argument(
-            "--add-adapter",
+        if _use_arg("add_adapter"):
+            parser.add_argument(
+                "--add-adapter",
             default=False,
             action=ActionYesNo,
             help=(
                 "whether a convolutional network should be stacked on top of the WavLM Encoder"
             ),
         )
-        parser.add_argument(
-            "--adapter-kernel-size",
+        if _use_arg("adapter_kernel_size"):
+            parser.add_argument(
+                "--adapter-kernel-size",
             default=3,
             type=int,
             help=("kernel size of the convolutional layers in the adapter network"),
-        )
-        parser.add_argument(
-            "--adapter-stride",
+            )
+        if _use_arg("adapter_stride"):
+            parser.add_argument(
+                "--adapter-stride",
             default=2,
             type=int,
             help=("stride of the convolutional layers in the adapter network"),
-        )
-        parser.add_argument(
-            "--num-adapter-layers",
+            )
+        if _use_arg("num_adapter_layers"):
+            parser.add_argument(
+                "--num-adapter-layers",
             default=3,
             type=int,
             help=(
                 "number of convolutional layers that should be used in the adapter network"
             ),
         )
-        parser.add_argument(
-            "--output-hidden-size",
+        if _use_arg("output_hidden_size"):
+            parser.add_argument(
+                "--output-hidden-size",
             default=None,
             type=int,
             help=(
@@ -710,7 +870,15 @@ class HFWavLM(HFWav2VecBase):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters kwargs to those accepted by finetuning reconfiguration.
+
+        Args:
+            **kwargs: Candidate finetuning keyword arguments.
+
+        Returns:
+            Filtered finetuning argument dictionary.
+        """
         args_base = HFWav2VecBase.filter_finetune_args(**kwargs)
         valid_args = (
             "hidden_dropout",
@@ -730,14 +898,32 @@ class HFWavLM(HFWav2VecBase):
         return args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None, skip=set()):
+    def add_finetune_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Optional[set] = None
+    ) -> None:
+        """Adds finetuning CLI arguments to parser.
+
+        Args:
+            parser: Parser to update.
+            prefix: Optional nested prefix for parser composition.
+            skip: Optional set of argument names to omit.
+
+        Returns:
+            None.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        HFWav2VecBase.add_finetune_args(parser)
-        parser.add_argument(
-            "--hidden-dropout",
+        HFWav2VecBase.add_finetune_args(parser, skip=skip)
+
+        skip = set() if skip is None else set(skip)
+
+        def _use_arg(var_name: str) -> bool:
+            return var_name not in skip
+        if _use_arg("hidden_dropout"):
+            parser.add_argument(
+                "--hidden-dropout",
             default=0.1,
             type=float,
             help=(
@@ -745,8 +931,9 @@ class HFWavLM(HFWav2VecBase):
                 "fully connected layers in the embeddings, encoder, and pooler"
             ),
         )
-        parser.add_argument(
-            "--activation-dropout",
+        if _use_arg("activation_dropout"):
+            parser.add_argument(
+                "--activation-dropout",
             default=0.1,
             type=float,
             help=(
@@ -754,58 +941,66 @@ class HFWavLM(HFWav2VecBase):
                 "intermediate layer in feedforward transformer layers"
             ),
         )
-        parser.add_argument(
-            "--attention-dropout",
+        if _use_arg("attention_dropout"):
+            parser.add_argument(
+                "--attention-dropout",
             default=0.1,
             type=float,
             help=("the dropout ratio for the attention probabilities"),
-        )
-        parser.add_argument(
-            "--apply-spec-augment",
+            )
+        if _use_arg("apply_spec_augment"):
+            parser.add_argument(
+                "--apply-spec-augment",
             default=True,
             action=ActionYesNo,
             help=(
                 "whether to apply *SpecAugment* data augmentation to the outputs of the feature encoder"
             ),
         )
-        parser.add_argument(
-            "--mask-time-prob",
+        if _use_arg("mask_time_prob"):
+            parser.add_argument(
+                "--mask-time-prob",
             default=0.05,
             type=float,
             help=(
                 "percentage (between 0 and 1) of all feature vectors along the time axis which will be masked"
             ),
         )
-        parser.add_argument(
-            "--mask-time-length",
+        if _use_arg("mask_time_length"):
+            parser.add_argument(
+                "--mask-time-length",
             default=10,
             type=int,
             help=("length of vector span along the time axis"),
-        )
-        parser.add_argument(
-            "--mask-time-min-masks",
+            )
+        if _use_arg("mask_time_min_masks"):
+            parser.add_argument(
+                "--mask-time-min-masks",
             default=2,
             type=int,
             help=(
                 "the minimum number of masks of length `mask_time_length` generated along the time axis"
             ),
         )
-        parser.add_argument(
-            "--mask-feature-prob",
+        if _use_arg("mask_feature_prob"):
+            parser.add_argument(
+                "--mask-feature-prob",
             default=0.0,
             type=float,
             help=(
                 "percentage (between 0 and 1) of all feature vectors along the feature axis which will be masked"
             ),
         )
-        parser.add_argument(
-            "--mask-feature-length",
+        if _use_arg("mask_feature_length"):
+            parser.add_argument(
+                "--mask-feature-length",
             default=10,
             type=int,
             help=(" length of vector span along the feature axis"),
-        )
-        parser.add_argument(
-            "--mask-feature-min-masks",
+            )
+        if _use_arg("mask_feature_min_masks"):
+            parser.add_argument(
+                "--mask-feature-min-masks",
             default=0,
             type=int,
             help=(

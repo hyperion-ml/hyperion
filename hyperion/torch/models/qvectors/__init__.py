@@ -4,5 +4,6 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 """
 
+from .hf_wav2vec2qvector import HFWav2Vec2QVector
 from .qvector import QVectorOutput, QVectorTrainMode
 from .resnet_qvector import ResNetQVector

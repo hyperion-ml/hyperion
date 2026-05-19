@@ -80,9 +80,14 @@ class QVectorOutput(HyperDataClass):
                 )
             return concatenated
 
-        head_outputs = [
-            out.head_output for out in outputs if out.head_output is not None
-        ]
+        head_outputs_raw = [out.head_output for out in outputs]
+        num_none = sum(h is None for h in head_outputs_raw)
+        if 0 < num_none < len(head_outputs_raw):
+            raise ValueError(
+                "Inconsistent head_output across outputs: mixed None and non-None values."
+            )
+
+        head_outputs = [h for h in head_outputs_raw if h is not None]
         head_output: Optional[
             Union[HydraClassifHeadOutput, HydraRegressionHeadOutput]
         ] = None
@@ -132,13 +137,13 @@ class QVectorOutput(HyperDataClass):
         dtype = concatenated_output.qvector.dtype
         audio_index = audio_index.to(device=device, dtype=torch.long)
 
-        print(
-            "co",
-            concatenated_output.qvector[:, :4],
-            concatenated_output.qmatrix[:, :2, :2],
-            audio_index,
-            chunk_weights,
-        )
+        # print(
+        #     "co",
+        #     concatenated_output.qvector[:, :4],
+        #     concatenated_output.qmatrix[:, :2, :2],
+        #     audio_index,
+        #     chunk_weights,
+        # )
 
         if chunk_weights is None:
             chunk_weights = torch.ones(audio_index.size(0), device=device, dtype=dtype)
@@ -208,7 +213,7 @@ class QVectorOutput(HyperDataClass):
         else:
             aggregated_head_output = None
 
-        print("oo", qvector[:, :4], qmatrix[:, :2, :2], flush=True)
+        # print("oo", qvector[:, :4], qmatrix[:, :2, :2], flush=True)
 
         return cls(
             qmatrix=qmatrix,
@@ -226,6 +231,7 @@ class QVectorTrainMode(str, Enum):
 
     FULL = "full"
     FROZEN = "frozen"
+    FROZEN_FEAT_EXTRACTOR = "frozen-feat-extractor"
     ADAPTERS_QFORMERS = "adapters-qformers"
     QFORMERS = "qformers"
     OUTPUT_FEATS_QFORMER = "output-feats-qformer"
@@ -261,6 +267,7 @@ class QVector(HyperTorchModel):
         num_output_feats_queries: int,
         qvector_dim: int,
         head: Union[Dict[str, Any], HydraHead],
+        proj_bias: bool = True,
         qformer_weight_decay: Optional[float] = None,
         proj_head_weight_decay: Optional[float] = None,
         head_weight_decay: Optional[float] = None,
@@ -280,6 +287,7 @@ class QVector(HyperTorchModel):
                 backbone features.
             qvector_dim: Dimensionality of the projected q-vector embedding.
             head: Keyword arguments used to instantiate the downstream Hydra head.
+            proj_bias: Whether the projection head linear layer includes a bias term.
             qformer_weight_decay: Optional weight-decay override applied to both
                 hidden/output Q-former parameters.
             proj_head_weight_decay: Optional weight-decay override applied to
@@ -295,6 +303,7 @@ class QVector(HyperTorchModel):
         self.num_hidden_feats_queries = num_hidden_feats_queries
         self.num_output_feats_queries = num_output_feats_queries
         self.qvector_dim = qvector_dim
+        self.proj_bias = proj_bias
 
         query_dim = None
         if num_hidden_feats_queries > 0:
@@ -365,6 +374,7 @@ class QVector(HyperTorchModel):
             out_feats=qvector_dim,
             use_norm=proj_uses_norm,
             norm_layer=proj_norm_layer,
+            bias=self.proj_bias,
         )
 
         if isinstance(head, HydraHead):
@@ -423,6 +433,10 @@ class QVector(HyperTorchModel):
     @property
     def has_output_feats_agg(self):
         return self.output_feats_agg_qformer is not None
+
+    @property
+    def requires_max_train_length(self) -> bool:
+        return False
 
     @property
     def sample_frequency(self):
@@ -850,10 +864,15 @@ class QVector(HyperTorchModel):
         if override_chunk_duration is not None:
             chunk_length = int(override_chunk_duration * self.sample_frequency)
         else:
-            chunk_length = self.max_chunk_length
-
-        if chunk_length == 0:
-            chunk_length = audio.size(-1)
+            if self.requires_max_train_length:
+                if self.max_chunk_length <= 0:
+                    raise ValueError(
+                        "Model requires a positive max_chunk_length but it is not set. "
+                        "Please provide override_chunk_duration or ensure max_chunk_length is set during training."
+                    )
+                chunk_length = self.max_chunk_length
+            else:
+                chunk_length = audio.size(-1)
 
         if max_batch_length is not None and max_batch_length < chunk_length:
             chunk_length = max_batch_length
@@ -866,7 +885,7 @@ class QVector(HyperTorchModel):
         num_chunks = max(1, math.ceil(time_dim / chunk_length))
         chunk_length = max(1, math.ceil(time_dim / num_chunks))
         padded_length = num_chunks * chunk_length
-        print("a1", audio.shape, num_chunks, chunk_length, padded_length, flush=True)
+        # print("a1", audio.shape, num_chunks, chunk_length, padded_length, flush=True)
         if padded_length > time_dim:
             audio = F.pad(audio, (0, padded_length - time_dim))
 
@@ -911,8 +930,9 @@ class QVector(HyperTorchModel):
             audio, new_audio_lengths, chunk_length, max_batch_length
         )
         for i, (b, l) in enumerate(zip(audio_batches, audio_lengths_batches)):
-            print("ab", i, b.shape, l)
-        print("ae", audio_index, flush=True)
+            # print("ab", i, b.shape, l)
+            pass
+        # print("ae", audio_index, flush=True)
         return audio_batches, audio_lengths_batches, audio_index
 
     def infer(
@@ -1224,6 +1244,7 @@ class QVector(HyperTorchModel):
             "output_feats_agg_qformer": output_feats_agg_qformer,
             "num_output_feats_queries": self.num_output_feats_queries,
             "qvector_dim": self.qvector_dim,
+            "proj_bias": self.proj_bias,
             "head": head,
             "qformer_weight_decay": self.qformer_weight_decay,
             "proj_head_weight_decay": self.proj_head_weight_decay,
@@ -1254,6 +1275,7 @@ class QVector(HyperTorchModel):
                 out_feats=self.qvector_dim,
                 use_norm=self.proj_head.use_norm,
                 norm_layer=self.proj_head.norm_layer,
+                bias=self.proj_bias,
             )
             if not override_head:
                 logging.info("rebuilding head to accommodate new qvector dim")
@@ -1450,6 +1472,9 @@ class QVector(HyperTorchModel):
             self.unfreeze()
         elif mode == QVectorTrainMode.FROZEN:
             self.freeze()
+        elif mode == QVectorTrainMode.FROZEN_FEAT_EXTRACTOR:
+            self.unfreeze()
+            self.freeze_backbone_feat_extractor()
         elif mode == QVectorTrainMode.ADAPTERS_QFORMERS:
             self._backbone_context = torch.no_grad()
             self.unfreeze()
@@ -1499,6 +1524,16 @@ class QVector(HyperTorchModel):
         """
         if train_mode in [QVectorTrainMode.FULL, QVectorTrainMode.FROZEN]:
             super()._train(str(train_mode))
+        elif train_mode == QVectorTrainMode.FROZEN_FEAT_EXTRACTOR:
+            self.set_backbone_in_train_mode()
+            self.set_adapters_in_train_mode()
+            if self.hidden_feats_agg_qformer is not None:
+                self.hidden_feats_agg_qformer.train()
+
+            if self.output_feats_agg_qformer is not None:
+                self.output_feats_agg_qformer.train()
+            self.proj_head.train()
+            self.head.train()
         elif train_mode == QVectorTrainMode.ADAPTERS_QFORMERS:
             self.set_backbone_in_eval_mode()
             self.set_adapters_in_train_mode()
@@ -1548,6 +1583,10 @@ class QVector(HyperTorchModel):
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
 
+    def freeze_backbone_feat_extractor(self):
+        """Freeze backbone feature extractor parameters. Subclasses must implement the details."""
+        pass
+
     def freeze_backbone(self):
         """Freeze backbone parameters. Subclasses must implement the details."""
         raise NotImplementedError("set_freeze_backbone not implemented")
@@ -1555,6 +1594,22 @@ class QVector(HyperTorchModel):
     def freeze_adapters(self):
         """Freeze adapter modules. Subclasses must implement the details."""
         raise NotImplementedError("set_freeze_adapters not implemented")
+
+    def set_backbone_feat_extractor_in_train_mode(self):
+        """Put the backbone feature extractor into training mode. Subclasses decide the specifics."""
+        raise NotImplementedError(
+            "set_backbone_feat_extractor_in_train_mode not implemented"
+        )
+
+    def set_backbone_feat_extractor_in_eval_mode(self):
+        """Put the backbone feature extractor into evaluation mode. Subclasses decide the specifics."""
+        raise NotImplementedError(
+            "set_backbone_feat_extractor_in_eval_mode not implemented"
+        )
+
+    def set_backbone_in_train_mode(self):
+        """Put the backbone into training mode. Subclasses decide the specifics."""
+        raise NotImplementedError("set_backbone_in_train_mode not implemented")
 
     def set_backbone_in_eval_mode(self):
         """Put the backbone into evaluation mode. Subclasses decide the specifics."""
@@ -1588,7 +1643,7 @@ class QVector(HyperTorchModel):
 
     @staticmethod
     def filter_args(**kwargs):
-        return filter_func_args(QVector.__init__)
+        return filter_func_args(QVector.__init__, kwargs)
 
     @staticmethod
     def add_class_args(
@@ -1633,6 +1688,13 @@ class QVector(HyperTorchModel):
                 type=int,
                 default=256,
                 help="final q-vector embedding dimension",
+            )
+        if "proj_bias" not in skip:
+            parser.add_argument(
+                "--proj-bias",
+                default=True,
+                action=ActionYesNo,
+                help="whether the projection-head linear layer uses a bias term",
             )
 
         if "bias_weight_decay" not in skip:

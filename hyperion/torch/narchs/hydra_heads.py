@@ -14,12 +14,8 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn import Linear
 
-from ...utils import HyperDataClass
 from ...utils.misc import filter_func_args
-from ..layer_blocks import FCBlock
-from ..layers import ActivationFactory as AF
 from ..layers import ArcLossOutput, CosLossOutput
-from ..layers import NormLayer1dFactory as NLF
 from ..layers import SubCenterArcLossOutput
 from .net_arch import NetArch
 
@@ -257,6 +253,8 @@ class HydraClassifHead(HydraHead):
                 intertop_k=intertop_k,
                 intertop_margin=intertop_margin,
             )
+        else:
+            raise ValueError(f"Unsupported loss type: {loss_type}")
 
         if self.enable_loss:
             self.loss = nn.CrossEntropyLoss(
@@ -385,10 +383,10 @@ class HydraClassifHead(HydraHead):
         self.output.margin = margin
 
     def set_margin_warmup_steps(self, margin_warmup_steps: int) -> None:
-        """Update the number of steps used to anneal the margin.
+        """Update the number of training steps used to anneal the margin.
 
         Args:
-            margin_warmup_steps: New warmup step count.
+            margin_warmup_steps: New warmup training-step count.
         """
         if self.loss_type == HydraClassifLossType.SOFTMAX:
             return
@@ -452,7 +450,7 @@ class HydraClassifHead(HydraHead):
         self.output.num_subcenters = num_subcenters
 
     def update_margin(self, step: int) -> None:
-        """Propagate a training epoch to the loss so it can refresh the margin.
+        """Propagate the current training step to refresh the loss margin.
 
         Args:
             step: Current training step.
@@ -511,6 +509,11 @@ class HydraClassifHead(HydraHead):
             # remove invalid targets
             logits = logits[target_mask]
             target = target[target_mask]
+            if target.numel() == 0:
+                # Keep a differentiable zero-valued loss on the right device/dtype.
+                if self.reduction == "none":
+                    return logits.new_zeros((0,))
+                return logits.sum() * 0.0
 
         loss = self.loss(logits, target)
         return loss
@@ -592,7 +595,7 @@ class HydraClassifHead(HydraHead):
         if "margin_warmup_steps" not in skip:
             parser.add_argument(
                 "--margin-warmup-steps",
-                default=10,
+                default=0,
                 type=int,
                 help="number of steps until we set the final margin",
             )

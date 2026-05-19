@@ -17,12 +17,22 @@ import torch.nn as nn
 
 
 def _dist_initialized() -> bool:
+    """Return ``True`` when ``torch.distributed`` is available and initialized."""
     return dist.is_available() and dist.is_initialized()
 
 
 def _resolve_process_group(
     process_group: Optional[dist.ProcessGroup],
 ) -> Optional[dist.ProcessGroup]:
+    """Resolve the process group to use for tensor parallel collectives.
+
+    Args:
+        process_group: Explicit group passed by the caller.
+
+    Returns:
+        The provided group, the global world group when distributed is initialized,
+        or ``None`` in non-distributed execution.
+    """
     if process_group is not None:
         return process_group
     if _dist_initialized():
@@ -33,6 +43,10 @@ def _resolve_process_group(
 def get_tensor_parallel_world_size(
     process_group: Optional[dist.ProcessGroup] = None,
 ) -> int:
+    """Return tensor-parallel world size for the resolved process group.
+
+    Returns ``1`` when distributed execution is not active.
+    """
     group = _resolve_process_group(process_group)
     if group is None:
         return 1
@@ -42,6 +56,10 @@ def get_tensor_parallel_world_size(
 def get_tensor_parallel_rank(
     process_group: Optional[dist.ProcessGroup] = None,
 ) -> int:
+    """Return rank index within the resolved tensor-parallel process group.
+
+    Returns ``0`` when distributed execution is not active.
+    """
     group = _resolve_process_group(process_group)
     if group is None:
         return 0
@@ -53,6 +71,7 @@ def _gather_from_parallel_region(
     process_group: Optional[dist.ProcessGroup],
     world_size: int,
 ) -> torch.Tensor:
+    """All-gather feature shards across ranks and concatenate on the last dimension."""
     if process_group is None or world_size == 1:
         return tensor
     gathered = dist_nn.all_gather(tensor, group=process_group)
@@ -64,6 +83,7 @@ def _split_to_parallel_region(
     world_size: int,
     rank: int,
 ) -> torch.Tensor:
+    """Split a tensor evenly on the last dimension and return the shard for ``rank``."""
     if world_size == 1:
         return tensor
     if tensor.size(-1) % world_size != 0:
@@ -88,6 +108,18 @@ class ColumnParallelLinear(nn.Module):
         device=None,
         dtype=None,
     ):
+        """Create a column-parallel linear layer.
+
+        Args:
+            in_features: Input feature dimension.
+            out_features: Full output feature dimension before sharding.
+            bias: If ``True``, add learnable bias per output shard.
+            gather_output: If ``True``, all-gather local outputs into full output.
+            input_is_parallel: If ``True``, input is already feature-sharded.
+            process_group: Tensor-parallel process group; defaults to world group.
+            device: Optional parameter device.
+            dtype: Optional parameter dtype.
+        """
         super().__init__()
         self.process_group = _resolve_process_group(process_group)
         self.world_size = get_tensor_parallel_world_size(self.process_group)
@@ -113,9 +145,15 @@ class ColumnParallelLinear(nn.Module):
             self.register_parameter("bias", None)
         self.gather_output = gather_output
         self.input_is_parallel = input_is_parallel
+        if self.input_is_parallel and self.in_features % self.world_size != 0:
+            raise ValueError(
+                f"in_features ({self.in_features}) must be divisible by tensor parallel world size ({self.world_size}) "
+                "when input_is_parallel=True."
+            )
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
+        """Initialize weights with Kaiming uniform and bias with fan-in bound."""
         nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
         if self.bias is not None:
             fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
@@ -123,6 +161,11 @@ class ColumnParallelLinear(nn.Module):
             nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        """Apply the sharded linear transform.
+
+        When ``input_is_parallel`` is ``True``, this method first gathers sharded
+        inputs before computing the local linear projection.
+        """
         if self.input_is_parallel and self.world_size > 1:
             expected = self.in_features // self.world_size
             if input.size(-1) != expected:
@@ -132,6 +175,11 @@ class ColumnParallelLinear(nn.Module):
                 )
             input = _gather_from_parallel_region(
                 input, self.process_group, self.world_size
+            )
+        elif not self.input_is_parallel and input.size(-1) != self.in_features:
+            raise ValueError(
+                f"Expected input with {self.in_features} features, "
+                f"but received {input.size(-1)}."
             )
 
         output_parallel = nn.functional.linear(input, self.weight, self.bias)
@@ -156,6 +204,17 @@ class RowParallelLinear(nn.Module):
         device=None,
         dtype=None,
     ):
+        """Create a row-parallel linear layer.
+
+        Args:
+            in_features: Full input feature dimension before sharding.
+            out_features: Output feature dimension.
+            bias: If ``True``, add learnable full-size bias after reduce.
+            input_is_parallel: If ``True``, input is already feature-sharded.
+            process_group: Tensor-parallel process group; defaults to world group.
+            device: Optional parameter device.
+            dtype: Optional parameter dtype.
+        """
         super().__init__()
         self.process_group = _resolve_process_group(process_group)
         self.world_size = get_tensor_parallel_world_size(self.process_group)
@@ -181,13 +240,20 @@ class RowParallelLinear(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
+        """Initialize weights with Kaiming uniform and bias with fan-in bound."""
         nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        # Row-parallel outputs are summed across ranks, so scale each shard's
+        # weights by 1/sqrt(world_size) to match full-layer variance.
+        if self.world_size > 1:
+            with torch.no_grad():
+                self.weight.mul_(1.0 / math.sqrt(self.world_size))
         if self.bias is not None:
-            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            full_fan_in = self.input_size_per_partition * self.world_size
+            bound = 1 / math.sqrt(full_fan_in) if full_fan_in > 0 else 0
             nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        """Apply row-parallel linear transform and all-reduce partial outputs."""
         if self.input_is_parallel and input.size(-1) != self.input_size_per_partition:
             raise ValueError(
                 f"Expected shard width {self.input_size_per_partition}, "

@@ -60,7 +60,7 @@ class HydraHeadFactory:
         """Reconfigure an existing head or create a new one if necessary.
 
         Args:
-            head: Existing head instance to reconfigure
+            head: Existing head instance to reconfigure.
             **kwargs: Keyword arguments forwarded to the head constructor or reconfiguration method.
         Returns:
             HydraHead: Reconfigured or newly created head instance.
@@ -68,7 +68,9 @@ class HydraHeadFactory:
         cur_head_type = head.head_type
         new_head_type = kwargs.get("head_type", cur_head_type)
         if new_head_type != cur_head_type:
-            return HydraHeadFactory.create(**kwargs)
+            cfg = head.get_config(no_class_name=True)
+            cfg.update(kwargs)
+            return HydraHeadFactory.create(**cfg)
         else:
             if "head_type" in kwargs:
                 kwargs.pop("head_type")

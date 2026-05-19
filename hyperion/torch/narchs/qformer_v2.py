@@ -127,11 +127,11 @@ class QFormerV2(NetArch):
         self.att_bias = att_bias
         self.cross_att_freq = cross_att_freq
 
-        assert (
-            num_layers // cross_att_freq
-        ) * cross_att_freq == num_layers, (
-            "num_layers should be multiple of cross_att_freq"
-        )
+        if cross_att_freq < 1:
+            raise ValueError("cross_att_freq must be >= 1")
+
+        if (num_layers // cross_att_freq) * cross_att_freq != num_layers:
+            raise ValueError("num_layers should be multiple of cross_att_freq")
 
         self.ff_type = ff_type
         self.ff_dim_multiplier = ff_dim_multiplier
@@ -261,9 +261,8 @@ class QFormerV2(NetArch):
 
         self.use_layer_idx_encoder = use_layer_idx_encoder
         if use_layer_idx_encoder:
-            assert (
-                self.tied_layers
-            ), "layer idx encoder can be used only with tied layers"
+            if not self.tied_layers:
+                raise ValueError("layer idx encoder can be used only with tied layers")
             self.layer_idx_encoder = nn.Embedding(
                 self.num_layers // self.cross_att_freq, self.in_feats
             )
@@ -316,7 +315,8 @@ class QFormerV2(NetArch):
         if query_shape is None:
             return (None, None, out_channels)
 
-        assert len(query_shape) == 3, "query_shape must be (batch, time, channels)"
+        if len(query_shape) != 3:
+            raise ValueError("query_shape must be (batch, time, channels)")
         if query_shape[1] is None:
             T = None
         else:
@@ -478,7 +478,9 @@ class QFormerV2(NetArch):
         self,
         query_embeds: torch.Tensor,
         feats: List[torch.Tensor],
-        feats_lengths: Optional[List[Optional[torch.Tensor]]] = None,
+        feats_lengths: Optional[
+            Union[torch.Tensor, List[Optional[torch.Tensor]]]
+        ] = None,
         start_pos: int = 0,
     ) -> torch.Tensor:
         """Process encoder hidden states from multiple layers one cross-att step at a time.
@@ -486,17 +488,35 @@ class QFormerV2(NetArch):
         Args:
             query_embeds: Query tensor `(batch, query_len, hidden_dim)`.
             feats: List of encoder feature tensors, one per cross-attention layer.
-            feats_lengths: Optional list matching `feats` with sequence-length tensors.
+            feats_lengths: Optional sequence lengths. It can be:
+                - a single tensor shared by all `feats` entries (all entries must have
+                  the same temporal length), or
+                - a list matching `feats`, potentially with per-entry lengths.
             start_pos: Starting rotary/cache position for cross-attention.
 
         """
-        assert (
-            len(feats) == self.num_layers // self.cross_att_freq
-        ), "feats must match num cross-attention layers"
+        if not isinstance(feats, list):
+            raise ValueError(
+                "forward_multilayer_input expects feats to be a list of tensors"
+            )
+
+        if len(feats) != self.num_layers // self.cross_att_freq:
+            raise ValueError("feats must match num cross-attention layers")
+        shared_feats_lengths = None
         if feats_lengths is not None:
-            assert len(feats) == len(
-                feats_lengths
-            ), "feats_lengths must align with feats for multilayer input"
+            if torch.is_tensor(feats_lengths):
+                shared_feats_lengths = feats_lengths
+                shared_max_kv_length = feats[0].size(1)
+                for idx, feat in enumerate(feats):
+                    if feat.size(1) != shared_max_kv_length:
+                        raise ValueError(
+                            "when feats_lengths is a tensor, all feats must share the same time length"
+                        )
+            else:
+                if len(feats) != len(feats_lengths):
+                    raise ValueError(
+                        "feats_lengths must align with feats for multilayer input"
+                    )
         for idx, feat in enumerate(feats):
             if not torch.all(torch.isfinite(feat)):
                 logging.warning("non-finite x-in-%d-avg=%f", idx, torch.mean(feat))
@@ -519,8 +539,19 @@ class QFormerV2(NetArch):
             hidden_feats = query_embeds
             mask_query_length = query_embeds.size(1)
 
-        last_max_feats_lengths = 0
-        feats_mask = None
+        if shared_feats_lengths is not None:
+            feats_mask = seq_lengths_to_cross_attn_mask(
+                None,
+                shared_feats_lengths,
+                max_query_length=mask_query_length,
+                max_kv_length=shared_max_kv_length,
+                dtype=query_dtype,
+                device=query_device,
+                none_if_all_max=True,
+            )
+        else:
+            feats_mask = None
+
         for i in range(self.num_layers):
             layer_idx = i % self.num_untied_layers
             if i % self.cross_att_freq == 0:
@@ -531,21 +562,23 @@ class QFormerV2(NetArch):
 
                 feats_idx = i // self.cross_att_freq
                 cur_feats = feats[feats_idx]
-                if (
-                    feats_lengths is not None
-                    and feats_lengths[feats_idx] is not None
-                    and cur_feats.size(1) != last_max_feats_lengths
-                ):
-                    last_max_feats_lengths = cur_feats.size(1)
-                    feats_mask = seq_lengths_to_cross_attn_mask(
-                        None,
-                        feats_lengths[feats_idx],
-                        max_query_length=mask_query_length,
-                        max_kv_length=last_max_feats_lengths,
-                        dtype=query_dtype,
-                        device=query_device,
-                        none_if_all_max=True,
-                    )
+
+                if shared_feats_lengths is None and feats_lengths is not None:
+                    cur_feats_lengths = feats_lengths[feats_idx]
+                    if cur_feats_lengths is not None:
+                        feats_mask = seq_lengths_to_cross_attn_mask(
+                            None,
+                            cur_feats_lengths,
+                            max_query_length=mask_query_length,
+                            max_kv_length=cur_feats.size(1),
+                            dtype=query_dtype,
+                            device=query_device,
+                            none_if_all_max=True,
+                        )
+                    else:
+                        feats_mask = None
+                elif shared_feats_lengths is None:
+                    feats_mask = None
 
                 if self.use_layer_idx_encoder:
                     layer_idx_embeds = self.layer_idx_encoder.weight[feats_idx].view(

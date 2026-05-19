@@ -20,7 +20,7 @@ class QProjHead(NetArch):
     Attributes:
         in_feats: Input feature dimensionality.
         out_feats: Output q-vector dimensionality.
-        norm_layer: Optional normalization layer type applied before the projection.
+        norm_layer: Normalization layer type applied before the projection.
         use_norm: Flag indicating whether the normalization layer is active.
         bias: Whether the projection layer uses a bias term.
     """
@@ -29,7 +29,7 @@ class QProjHead(NetArch):
         self,
         in_feats: int,
         out_feats: int,
-        norm_layer: Optional[Union[str, TransformerV2NormLayerType]] = (
+        norm_layer: Union[str, TransformerV2NormLayerType] = (
             TransformerV2NormLayerType.LAYERNORM
         ),
         use_norm: bool = False,
@@ -40,8 +40,8 @@ class QProjHead(NetArch):
         Args:
             in_feats: Size of the flattened input feature vector.
             out_feats: Target q-vector dimensionality.
-            norm_layer: Optional normalization layer type applied before the linear
-                projection. When ``None`` the input is forwarded unchanged.
+            norm_layer: Normalization layer type applied before the linear
+                projection when ``use_norm=True``.
             use_norm: Enable/disable the normalization layer.
             bias: Whether the linear projection uses a bias term.
         """
@@ -55,10 +55,8 @@ class QProjHead(NetArch):
         self.use_norm = use_norm
         self.bias = bias
 
-        self._norm_layer: Optional[nn.Module] = None
+        self._norm_layer: Union[nn.Module, None] = None
         if use_norm:
-            if self.norm_layer is None:
-                raise ValueError("norm_layer must be provided when use_norm=True")
             norm_cls = TransformerV2NormLayerType.to_class(self.norm_layer)
             self._norm_layer = norm_cls(in_feats)
 
@@ -85,9 +83,7 @@ class QProjHead(NetArch):
         config = {
             "in_feats": self.in_feats,
             "out_feats": self.out_feats,
-            "norm_layer": (
-                self.norm_layer.value if self.norm_layer is not None else None
-            ),
+            "norm_layer": self.norm_layer.value,
             "use_norm": self.use_norm,
             "bias": self.bias,
         }

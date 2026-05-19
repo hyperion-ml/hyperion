@@ -1,9 +1,10 @@
 """
- Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
+from typing import Any, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -22,25 +23,25 @@ class AxisMasker(nn.Module):
     Attributes:
       min_width: minimum width of the mask.
       max_width: maximum width of the mask.
-      min_num_mask: minimum number of masks.
-      max_num_mask: maximum number of masks.
+      min_num_masks: minimum number of masks.
+      max_num_masks: maximum number of masks.
       dim: axis where we apply the mask.
-      mask_method: method to dedice the mask_value in [mean, min, constant]
+      mask_method: method to decide the mask value in ["mean", "min", "constant"].
       mask_value: masking value if mask method is constant.
       use_num_masks_percentage: if True, num_masks are per 100 frames, if False they are absolute.
     """
 
     def __init__(
         self,
-        min_width=0,
-        max_width=30,
-        min_num_masks=1,
-        max_num_masks=2,
-        dim=-1,
-        mask_method="constant",
-        mask_value=0,
-        use_num_masks_percentage=False,
-    ):
+        min_width: int = 0,
+        max_width: int = 30,
+        min_num_masks: Union[int, float] = 1,
+        max_num_masks: Union[int, float] = 2,
+        dim: int = -1,
+        mask_method: str = "constant",
+        mask_value: float = 0,
+        use_num_masks_percentage: bool = False,
+    ) -> None:
         super().__init__()
         assert min_width >= 0
         assert max_width > 0
@@ -60,7 +61,7 @@ class AxisMasker(nn.Module):
         self.mask_value = mask_value
         self.use_num_masks_percentage = use_num_masks_percentage
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s = (
             "{}(min_width={}, max_width={}, "
             "min_num_masks={}, max_num_masks={}, "
@@ -78,7 +79,7 @@ class AxisMasker(nn.Module):
         )
         return s
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply mask along time or freq dimension
 
         Args:
@@ -97,6 +98,11 @@ class AxisMasker(nn.Module):
 
         batch_size = x.shape[0]
         masked_dim_length = x.shape[self.dim]
+        if masked_dim_length < self.max_width:
+            if ndim > 3:
+                x = x.view(in_shape)
+            return x
+
         if self.use_num_masks_percentage:
             min_num_masks = int(round(self.min_num_masks * masked_dim_length / 100))
             max_num_masks = int(round(self.max_num_masks * masked_dim_length / 100))
@@ -153,23 +159,25 @@ class SpecWarper(nn.Module):
 
     Attributes:
       window: time warp parameter.
-      mode: interpolation mode in ["nearest", "linear", "bilinear"]
+      mode: interpolation mode in ["nearest", "linear", "bilinear", "bicubic", "trilinear"].
       dim: warping dimension.
     """
 
-    def __init__(self, window=80, mode="bicubic", dim=-2):
+    def __init__(self, window: int = 80, mode: str = "bicubic", dim: int = -2) -> None:
         super().__init__()
         self.window = window
         self.mode = mode
         self.dim = dim
 
-    def __repr__(self):
-        s = ("{}(window={}, mode={}, dim={}").format(
+    def __repr__(self) -> str:
+        s = ("{}(window={}, mode={}, dim={})").format(
             self.__class__.__name__, self.window, self.mode, self.dim
         )
         return s
 
-    def forward(self, x, x_lengths=None):
+    def forward(
+        self, x: torch.Tensor, x_lengths: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """warps x along time or freq dimension
 
         Args:
@@ -186,8 +194,8 @@ class SpecWarper(nn.Module):
         if ndim == 3:
             x = x.unsqueeze(1)
 
-        if self.dim > 0:
-            dim = ndim - self.dim
+        if self.dim >= 0:
+            dim = self.dim - ndim
         else:
             dim = self.dim
 
@@ -203,6 +211,14 @@ class SpecWarper(nn.Module):
             warp_length = x.shape[-2]
         else:
             warp_length = int(torch.min(x_lengths))
+
+        # Skip warping when the sequence is too short for the selected window.
+        if warp_length <= 2 * self.window:
+            if dim == -1:
+                x = x.transpose(-1, -2)
+            if ndim == 3:
+                x = x.squeeze(1)
+            return x.view(in_shape)
 
         center = torch.randint(self.window, warp_length - self.window, (1,))[0]
         warped = torch.randint(center - self.window, center + self.window, (1,))[0] + 1
@@ -245,40 +261,41 @@ class SpecAugment(nn.Module):
     Attributes:
       time_warp_prob:   probability of applying time warping.
       time_warp_window: time warp parameter.
-      time_warp_mode:   interpolation mode in ["nearest", "linear", "bilinear"]
+      time_warp_mode:   interpolation mode in ["nearest", "linear", "bilinear", "bicubic", "trilinear"].
       time_mask_prob:   probability of applying masking in time.
-      time_min_width:   minimum width of the time mask.
-      time_max_width:   maximum width of the time mask.
-      time_min_num_mask: minimum number of time masks.
-      time_max_num_mask: maximum number of time masks.
+      time_mask_min_width: minimum width of the time mask.
+      time_mask_max_width: maximum width of the time mask.
+      time_mask_min_num_masks: minimum number of time masks.
+      time_mask_max_num_masks: maximum number of time masks.
       time_use_num_masks_percentage: if True, num_masks are per 100 frames, if False they are absolute.
       freq_mask_prob:    probability of applying frequency masking.
-      freq_min_width:    minimum width of the frequency mask.
-      freq_max_width:    maximum width of the frequency mask.
-      freq_min_num_mask: minimum number of frequency masks.
-      freq_max_num_mask: maximum number of frequency masks.
+      freq_mask_min_width: minimum width of the frequency mask.
+      freq_mask_max_width: maximum width of the frequency mask.
+      freq_mask_min_num_masks: minimum number of frequency masks.
+      freq_mask_max_num_masks: maximum number of frequency masks.
+      mask_method:       method to decide the mask value in ["mean", "min", "constant"].
       mask_value:        masking value.
     """
 
     def __init__(
         self,
-        time_warp_prob=0,
-        time_warp_window=5,
-        time_warp_mode="bicubic",
-        time_mask_prob=0,
-        time_mask_min_width=0,
-        time_mask_max_width=100,
-        time_mask_min_num_masks=1,
-        time_mask_max_num_masks=2,
-        time_use_num_masks_percentage=False,
-        freq_mask_prob=0,
-        freq_mask_min_width=0,
-        freq_mask_max_width=20,
-        freq_mask_min_num_masks=1,
-        freq_mask_max_num_masks=2,
-        mask_method="constant",
-        mask_value=0,
-    ):
+        time_warp_prob: float = 0,
+        time_warp_window: int = 5,
+        time_warp_mode: str = "bicubic",
+        time_mask_prob: float = 0,
+        time_mask_min_width: int = 0,
+        time_mask_max_width: int = 100,
+        time_mask_min_num_masks: Union[int, float] = 1,
+        time_mask_max_num_masks: Union[int, float] = 2,
+        time_use_num_masks_percentage: bool = False,
+        freq_mask_prob: float = 0,
+        freq_mask_min_width: int = 0,
+        freq_mask_max_width: int = 20,
+        freq_mask_min_num_masks: int = 1,
+        freq_mask_max_num_masks: int = 2,
+        mask_method: str = "constant",
+        mask_value: float = 0,
+    ) -> None:
 
         super().__init__()
         self.time_warp_prob = time_warp_prob
@@ -328,7 +345,7 @@ class SpecAugment(nn.Module):
                 window=time_warp_window, mode=time_warp_mode, dim=-2
             )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s = (
             "{}(time_warper(p={})={}, time_masker(p={})={}, freq_masker(p={})={})"
         ).format(
@@ -342,13 +359,15 @@ class SpecAugment(nn.Module):
         )
         return s
 
-    def forward(self, x, x_lengths=None):
+    def forward(
+        self, x: torch.Tensor, x_lengths: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Applies spec augment to input
         Args:
-           x: spectrogram with shape = (batch, time, freq)
-           lengths: time lengths of the sequences.
+           x: spectrogram with shape = (batch, *, time, freq)
+           x_lengths: optional sequence lengths used by time warping.
         Returns:
-           Augmented spectrogram with shape = (batch, time, freq)
+           Augmented spectrogram with shape = (batch, *, time, freq)
         """
         if not self.training:
             return x
@@ -382,7 +401,7 @@ class SpecAugment(nn.Module):
         return x
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Filters SpecAugment args from arguments dictionary.
 
         Args:
@@ -394,7 +413,7 @@ class SpecAugment(nn.Module):
         return filter_func_args(SpecAugment.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Adds SpecAugment options to parser.
 
         Args:
@@ -409,97 +428,100 @@ class SpecAugment(nn.Module):
             "--time-warp-prob",
             type=float,
             default=0.0,
-            help="prob. for applying warping",
+            help="Probability of applying time warping.",
         )
         parser.add_argument(
-            "--time-warp-window", type=int, default=80, help="time warp window param."
+            "--time-warp-window",
+            type=int,
+            default=5,
+            help="Time-warp window size (in frames).",
         )
         parser.add_argument(
             "--time-warp-mode",
             default="bicubic",
             choices=["bilinear", "linear", "nearest", "bicubic", "trilinear"],
-            help="prob. for applying warping",
+            help="Interpolation mode used for time warping.",
         )
 
         parser.add_argument(
             "--time-mask-prob",
             type=float,
             default=0.0,
-            help="prob. for applying time masking",
+            help="Probability of applying time masking.",
         )
         parser.add_argument(
             "--time-mask-min-width",
             type=int,
             default=0,
-            help="min. width for time mask",
+            help="Minimum time-mask width (in frames).",
         )
         parser.add_argument(
             "--time-mask-max-width",
             type=int,
             default=100,
-            help="max. width for time mask",
+            help="Maximum time-mask width (in frames).",
         )
         parser.add_argument(
             "--time-mask-min-num-masks",
             type=float,
             default=1,
-            help="min. number of time mask",
+            help="Minimum number of time masks (or percentage per 100 frames when enabled).",
         )
         parser.add_argument(
             "--time-mask-max-num-masks",
             type=float,
             default=2,
-            help="max. number of time mask",
+            help="Maximum number of time masks (or percentage per 100 frames when enabled).",
         )
         parser.add_argument(
             "--time-use-num-masks-percentage",
             default=False,
             action=ActionYesNo,
-            help="if True, num_masks are per 100 frames, if False they are absolute.",
+            help="If true, min/max time-mask counts are interpreted as percentages per 100 frames.",
         )
 
         parser.add_argument(
             "--freq-mask-prob",
             type=float,
             default=0.0,
-            help="prob. for applying freq. masking",
+            help="Probability of applying frequency masking.",
         )
         parser.add_argument(
             "--freq-mask-min-width",
             type=int,
             default=0,
-            help="min. width for freq mask",
+            help="Minimum frequency-mask width (in bins).",
         )
         parser.add_argument(
             "--freq-mask-max-width",
             type=int,
-            default=100,
-            help="max. width for freq mask",
+            default=20,
+            help="Maximum frequency-mask width (in bins).",
         )
         parser.add_argument(
             "--freq-mask-min-num-masks",
             type=int,
             default=1,
-            help="min. number of freq mask",
+            help="Minimum number of frequency masks.",
         )
         parser.add_argument(
             "--freq-mask-max-num-masks",
             type=int,
             default=2,
-            help="max. number of freq mask",
+            help="Maximum number of frequency masks.",
         )
         parser.add_argument(
             "--mask-method",
             default="constant",
             choices=["constant", "min", "mean"],
-            help="mothod to get the masked value",
+            help='How to choose mask fill value: "constant", "min", or "mean".',
         )
 
         parser.add_argument(
-            "---mask-value",
+            "--mask-value",
             type=float,
             default=0.0,
-            help="filling value for the masked spec. bins",
+            help='Fill value used when "--mask-method=constant".',
         )
 
         if prefix is not None:

@@ -8,7 +8,7 @@ from collections import OrderedDict as ODict
 from copy import deepcopy
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
@@ -17,52 +17,127 @@ from ..utils.misc import PathLike
 
 
 class HyperTorchModel(nn.Module):
-    """Base class for all Pytorch Models and NNet architectures"""
+    """Base class for PyTorch models and neural network architectures."""
 
-    registry = {}
+    registry: Dict[str, Type["HyperTorchModel"]] = {}
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Register subclasses by class name for dynamic loading.
+
+        Args:
+          **kwargs: Additional subclass initialization options.
+        """
         super().__init_subclass__(**kwargs)
         HyperTorchModel.registry[cls.__name__] = cls
 
     def __init__(self, bias_weight_decay: Optional[float] = None):
+        """Initialize model-level training controls.
+
+        Args:
+          bias_weight_decay: Optional decay value for bias/1D parameter group.
+        """
         super().__init__()
         self._train_mode = "full"
         self.bias_weight_decay = bias_weight_decay
 
     def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Return a serializable configuration dictionary.
+
+        Args:
+          no_class_name: If ``True``, omit ``class_name`` from the config.
+
+        Returns:
+          Configuration dictionary used to reconstruct the model.
+        """
         if no_class_name:
             return {}
         config = {"class_name": self.__class__.__name__}
         return config
 
-    def copy(self):
+    def copy(self) -> "HyperTorchModel":
+        """Return a deep copy of this model.
+
+        Returns:
+          A deep-copied model instance.
+        """
         return deepcopy(self)
 
-    def clone(self):
+    def clone(self) -> "HyperTorchModel":
+        """Return a deep copy of this model (alias of ``copy``).
+
+        Returns:
+          A deep-copied model instance.
+        """
         return deepcopy(self)
 
-    def trainable_parameters(self, recurse: bool = True):
+    def trainable_parameters(self, recurse: bool = True) -> Iterator[nn.Parameter]:
+        """Yield parameters with ``requires_grad=True``.
+
+        Args:
+          recurse: Whether to recurse into submodules.
+
+        Returns:
+          Iterator of trainable parameters.
+        """
         for param in self.parameters(recurse=recurse):
             if param.requires_grad:
                 yield param
 
-    def non_trainable_parameters(self, recurse: bool = True):
+    def non_trainable_parameters(self, recurse: bool = True) -> Iterator[nn.Parameter]:
+        """Yield parameters with ``requires_grad=False``.
+
+        Args:
+          recurse: Whether to recurse into submodules.
+
+        Returns:
+          Iterator of non-trainable parameters.
+        """
         for param in self.parameters(recurse=recurse):
             if not param.requires_grad:
                 yield param
 
-    def trainable_named_parameters(self, recurse: bool = True):
+    def trainable_named_parameters(
+        self, recurse: bool = True
+    ) -> Iterator[Tuple[str, nn.Parameter]]:
+        """Yield ``(name, parameter)`` pairs for trainable parameters.
+
+        Args:
+          recurse: Whether to recurse into submodules.
+
+        Returns:
+          Iterator of named trainable parameters.
+        """
         for name, param in self.named_parameters(recurse=recurse):
             if param.requires_grad:
                 yield name, param
 
-    def non_trainable_named_parameters(self, recurse: bool = True):
+    def non_trainable_named_parameters(
+        self, recurse: bool = True
+    ) -> Iterator[Tuple[str, nn.Parameter]]:
+        """Yield ``(name, parameter)`` pairs for non-trainable parameters.
+
+        Args:
+          recurse: Whether to recurse into submodules.
+
+        Returns:
+          Iterator of named non-trainable parameters.
+        """
         for name, param in self.named_parameters(recurse=recurse):
             if not param.requires_grad:
                 yield name, param
 
-    def parameter_summary(self, verbose: bool = False):
+    def parameter_summary(
+        self, verbose: bool = False
+    ) -> Tuple[int, int, int, int, int]:
+        """Return parameter and buffer counts.
+
+        Args:
+          verbose: If ``True``, log a summary line.
+
+        Returns:
+          Tuple ``(total, trainable, non_trainable_plus_buffers,
+          non_trainable, buffers)``.
+        """
         trainable_params = sum(p.numel() for p in self.trainable_parameters())
         non_trainable_params = sum(p.numel() for p in self.non_trainable_parameters())
         buffer_params = sum(p.numel() for p in self.buffers())
@@ -85,7 +160,8 @@ class HyperTorchModel(nn.Module):
             buffer_params,
         )
 
-    def print_parameter_list(self):
+    def print_parameter_list(self) -> None:
+        """Log names of trainable, non-trainable, and buffer tensors."""
         for n, p in self.trainable_named_parameters():
             logging.info("trainable: %s", n)
 
@@ -95,10 +171,20 @@ class HyperTorchModel(nn.Module):
         for n, p in self.named_buffers():
             logging.info("buffers: %s", n)
 
-    def has_param_groups(self):
+    def has_param_groups(self) -> bool:
+        """Return whether model exposes custom optimizer parameter groups.
+
+        Returns:
+          ``True`` if ``bias_weight_decay`` is enabled.
+        """
         return self.bias_weight_decay is not None
 
-    def trainable_param_groups(self):
+    def trainable_param_groups(self) -> List[Dict[str, Any]]:
+        """Build optimizer parameter groups for trainable parameters.
+
+        Returns:
+          Optimizer parameter-group dictionaries.
+        """
         if self.bias_weight_decay is None:
             return [{"params": self.trainable_parameters()}]
 
@@ -116,16 +202,22 @@ class HyperTorchModel(nn.Module):
             {"params": not_regularized, "weight_decay": self.bias_weight_decay},
         ]
 
-    def freeze(self):
+    def freeze(self) -> None:
+        """Disable gradients for all parameters."""
         for param in self.parameters():
             param.requires_grad = False
 
-    def unfreeze(self):
+    def unfreeze(self) -> None:
+        """Enable gradients for all parameters."""
         for param in self.parameters():
             param.requires_grad = True
 
-    def has_batchnorms(self):
-        """True if the is any batchnorm layer in the model"""
+    def has_batchnorms(self) -> bool:
+        """Return ``True`` if the model contains any batch-normalization layer.
+
+        Returns:
+          ``True`` when any batchnorm module is found.
+        """
         for module in self.modules():
             if isinstance(
                 module,
@@ -143,8 +235,12 @@ class HyperTorchModel(nn.Module):
 
         return False
 
-    def change_dropouts(self, dropout_rate: float):
-        """Changes all dropout rates of the model."""
+    def change_dropouts(self, dropout_rate: float) -> None:
+        """Set dropout probability on dropout and RNN modules.
+
+        Args:
+          dropout_rate: New dropout rate.
+        """
         for module in self.modules():
             if isinstance(module, nn.modules.dropout._DropoutNd):
                 module.p = dropout_rate
@@ -156,14 +252,24 @@ class HyperTorchModel(nn.Module):
             self.dropout_rate = dropout_rate
 
     @property
-    def train_mode(self):
+    def train_mode(self) -> str:
+        """Current train mode: ``full`` or ``frozen``.
+
+        Returns:
+          Active train mode string.
+        """
         return self._train_mode
 
     @train_mode.setter
-    def train_mode(self, mode):
+    def train_mode(self, mode: str) -> None:
         self.set_train_mode(mode)
 
-    def set_train_mode(self, mode):
+    def set_train_mode(self, mode: str) -> None:
+        """Switch model between full-train and frozen-parameter modes.
+
+        Args:
+          mode: Target mode (``full`` or ``frozen``).
+        """
         if mode == self._train_mode:
             return
 
@@ -174,7 +280,12 @@ class HyperTorchModel(nn.Module):
 
         self._train_mode = mode
 
-    def _train(self, train_mode: str):
+    def _train(self, train_mode: str) -> None:
+        """Apply PyTorch train/eval state for a custom train mode.
+
+        Args:
+          train_mode: Mode to apply (``full`` or ``frozen``).
+        """
         if train_mode == "full":
             super().train(True)
         elif train_mode == "frozen":
@@ -182,18 +293,37 @@ class HyperTorchModel(nn.Module):
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
 
-    def train(self, mode: bool = True):
+    def train(self, mode: bool = True) -> "HyperTorchModel":
+        """Override ``nn.Module.train`` to honor ``self.train_mode``.
+
+        Args:
+          mode: If ``False``, force eval mode.
+
+        Returns:
+          ``self``.
+        """
         if not mode:
             super().train(False)
-            return
+            return self
 
         self._train(self.train_mode)
+        return self
 
     @staticmethod
-    def valid_train_modes():
+    def valid_train_modes() -> List[str]:
+        """Return the list of supported train modes.
+
+        Returns:
+          Supported train-mode names.
+        """
         return ["full", "frozen"]
 
-    def save(self, file_path):
+    def save(self, file_path: PathLike) -> None:
+        """Save model config and state dictionary to disk.
+
+        Args:
+          file_path: Destination checkpoint path.
+        """
         file_path = Path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
@@ -202,7 +332,21 @@ class HyperTorchModel(nn.Module):
         )
 
     @staticmethod
-    def _load_cfg_state_dict(file_path=None, cfg=None, state_dict=None):
+    def _load_cfg_state_dict(
+        file_path: Optional[PathLike] = None,
+        cfg: Optional[Dict[str, Any]] = None,
+        state_dict: Optional[Dict[str, torch.Tensor]] = None,
+    ) -> Tuple[Dict[str, Any], Optional[Dict[str, torch.Tensor]]]:
+        """Resolve config/state_dict from args or a checkpoint file.
+
+        Args:
+          file_path: Optional checkpoint path.
+          cfg: Optional pre-loaded model config.
+          state_dict: Optional pre-loaded state dict.
+
+        Returns:
+          Tuple ``(cfg, state_dict)`` with ``class_name`` removed from config.
+        """
         model_data = None
         if cfg is None or state_dict is None:
             assert file_path is not None
@@ -218,7 +362,22 @@ class HyperTorchModel(nn.Module):
         return cfg, state_dict
 
     @classmethod
-    def load(cls, file_path=None, cfg=None, state_dict=None):
+    def load(
+        cls,
+        file_path: Optional[PathLike] = None,
+        cfg: Optional[Dict[str, Any]] = None,
+        state_dict: Optional[Dict[str, torch.Tensor]] = None,
+    ) -> "HyperTorchModel":
+        """Instantiate model from config and optionally load weights.
+
+        Args:
+          file_path: Optional checkpoint path.
+          cfg: Optional model config.
+          state_dict: Optional model weights.
+
+        Returns:
+          Instantiated model.
+        """
         cfg, state_dict = HyperTorchModel._load_cfg_state_dict(
             file_path, cfg, state_dict
         )
@@ -228,14 +387,29 @@ class HyperTorchModel(nn.Module):
             model.load_state_dict(state_dict)
         return model
 
-    def get_reg_loss(self):
+    def get_reg_loss(self) -> int:
+        """Return regularization loss contribution for this model.
+
+        Returns:
+          Regularization loss term.
+        """
         return 0
 
-    def get_loss(self):
+    def get_loss(self) -> int:
+        """Return auxiliary loss contribution for this model.
+
+        Returns:
+          Auxiliary loss term.
+        """
         return 0
 
     @property
-    def device(self):
+    def device(self) -> torch.device:
+        """Return unique device shared by parameters and buffers.
+
+        Returns:
+          Device where all parameters and buffers reside.
+        """
         devices = {param.device for param in self.parameters()} | {
             buf.device for buf in self.buffers()
         }
@@ -249,8 +423,21 @@ class HyperTorchModel(nn.Module):
         return next(iter(devices))
 
     @staticmethod
-    def _remove_module_prefix(state_dict):
+    def _remove_module_prefix(
+        state_dict: Dict[str, torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
+        """Remove leading ``module.`` prefixes from state-dict keys.
+
+        Args:
+          state_dict: State dict to normalize.
+
+        Returns:
+          Normalized state dict.
+        """
         import re
+
+        if not state_dict:
+            return state_dict
 
         p = re.compile("^(module\.)+")
         if p.match(list(state_dict.keys())[0]) is not None:
@@ -259,7 +446,15 @@ class HyperTorchModel(nn.Module):
         return state_dict
 
     @staticmethod
-    def _fix_xvector_cfg(cfg):
+    def _fix_xvector_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize legacy XVector config keys to current names.
+
+        Args:
+          cfg: Model config dictionary.
+
+        Returns:
+          Updated config dictionary.
+        """
         # We renamed AM-softmax scale parameer s to cos_scale
         if "s" in cfg:
             cfg["cos_scale"] = cfg.pop("s")
@@ -267,7 +462,18 @@ class HyperTorchModel(nn.Module):
         return cfg
 
     @staticmethod
-    def _fix_hf_wav2xvector(cfg, state_dict):
+    def _fix_hf_wav2xvector(
+        cfg: Dict[str, Any], state_dict: Dict[str, torch.Tensor]
+    ) -> Tuple[Dict[str, Any], Dict[str, torch.Tensor]]:
+        """Migrate legacy HF wav2xvector fusion config and checkpoint layout.
+
+        Args:
+          cfg: Model config dictionary.
+          state_dict: Model checkpoint weights.
+
+        Returns:
+          Updated ``(cfg, state_dict)``.
+        """
         key = "feat_fusion_method"
         if key in cfg:
             fuser_type = cfg.pop(key)
@@ -284,22 +490,35 @@ class HyperTorchModel(nn.Module):
         return cfg, state_dict
 
     @staticmethod
-    def _fix_resnet_qvector_cfg(cfg):
+    def _fix_resnet_qvector_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
+        """Drop deprecated ResNetQVector config keys.
+
+        Args:
+          cfg: Model config dictionary.
+
+        Returns:
+          Updated config dictionary.
+        """
         if "proj_head" in cfg:
             del cfg["proj_head"]
 
         return cfg
 
     @staticmethod
-    def _fix_model_compatibility(class_obj, cfg, state_dict):
-        """Function that fixed compatibility issues with deprecated models
+    def _fix_model_compatibility(
+        class_obj: Type["HyperTorchModel"],
+        cfg: Dict[str, Any],
+        state_dict: Dict[str, torch.Tensor],
+    ) -> Tuple[Dict[str, Any], Dict[str, torch.Tensor]]:
+        """Apply compatibility fixes for deprecated model formats.
 
         Args:
-          class_obj: class type of the model.
-          cfg: configuration dictiory that inits the model.
+          class_obj: Model class to instantiate.
+          cfg: Configuration dictionary.
+          state_dict: Serialized model weights.
 
         Returns:
-          Fixed configuration dictionary.
+          Updated ``(cfg, state_dict)``.
         """
         # for compatibility with older x-vector models
         XVector = HyperTorchModel.registry.get("XVector", None)
@@ -333,14 +552,36 @@ class HyperTorchModel(nn.Module):
         return cfg, state_dict
 
     @staticmethod
-    def _is_hf_path(file_path: Path):
-        # hf path can have only 2 dir levels
-        return len(file_path.parents) == 2
+    def _is_hf_path(file_path: Path) -> bool:
+        """Return ``True`` for HF-style ``org/repo/file`` paths.
+
+        Args:
+          file_path: Path to validate.
+
+        Returns:
+          ``True`` if path shape matches expected HF format.
+        """
+        parts = file_path.parts
+        if file_path.is_absolute():
+            parts = parts[1:]
+
+        # Expected format: org_or_user/repo/filename
+        return len(parts) == 3 and all(part != "" for part in parts)
 
     @staticmethod
     def _get_from_hf(
         file_path: Path, cache_dir: PathLike = None, local_dir: PathLike = None
-    ):
+    ) -> str:
+        """Download a file from Hugging Face Hub and return its local path.
+
+        Args:
+          file_path: HF-style path ``org/repo/file``.
+          cache_dir: Optional HF cache directory.
+          local_dir: Optional local download directory.
+
+        Returns:
+          Local filesystem path to downloaded file.
+        """
         from huggingface_hub import hf_hub_download
 
         return hf_hub_download(
@@ -353,7 +594,17 @@ class HyperTorchModel(nn.Module):
     @staticmethod
     def _try_to_get_from_hf(
         file_path: Path, cache_dir: PathLike = None, local_dir: PathLike = None
-    ):
+    ) -> Path:
+        """Resolve local file path, downloading from HF Hub when needed.
+
+        Args:
+          file_path: Local path or prefixed HF path.
+          cache_dir: Optional HF cache directory.
+          local_dir: Optional local download directory.
+
+        Returns:
+          Resolved local path.
+        """
         if str(file_path)[:3] == "hf:":
             # hf: prefix indicates to download from hub
             file_path = Path(str(file_path)[3:])
@@ -372,7 +623,8 @@ class HyperTorchModel(nn.Module):
             try:
                 file_path = HyperTorchModel._get_from_hf(file_path)
                 return Path(file_path)
-            except:
+            except Exception as err:
+                logging.debug("failed to fetch checkpoint from HF hub: %s", err)
                 return file_path
 
         else:
@@ -380,7 +632,7 @@ class HyperTorchModel(nn.Module):
             return file_path
 
     @staticmethod
-    def _bootstrap_registry():
+    def _bootstrap_registry() -> None:
         """Import common torch subpackages so subclasses register themselves.
 
         ``HyperTorchModel.registry`` is populated when subclass definitions are
@@ -405,7 +657,14 @@ class HyperTorchModel(nn.Module):
 
     @staticmethod
     def _find_module_for_class_name(class_name: str) -> Optional[str]:
-        """Find class module by scanning torch source files."""
+        """Find module path for class name by scanning torch source files.
+
+        Args:
+          class_name: Target class name.
+
+        Returns:
+          Dotted module path if found, otherwise ``None``.
+        """
         torch_dir = Path(__file__).resolve().parent
         search_dirs = (
             torch_dir / "models",
@@ -441,7 +700,7 @@ class HyperTorchModel(nn.Module):
     def auto_load(
         file_path: PathLike,
         model_name: Optional[str] = None,
-        extra_objs: dict = {},
+        extra_objs: Optional[Dict[str, Type["HyperTorchModel"]]] = None,
         map_location: Optional[
             Union[
                 Callable[[torch.Tensor, str], torch.Tensor],
@@ -452,7 +711,23 @@ class HyperTorchModel(nn.Module):
         ] = None,
         cache_dir: PathLike = None,
         local_dir: PathLike = None,
-    ):
+    ) -> "HyperTorchModel":
+        """Load model from checkpoint with dynamic class resolution.
+
+        Args:
+          file_path: Local path or HF-style path.
+          model_name: State-dict prefix; defaults to ``model``.
+          extra_objs: Optional mapping from class names to model classes.
+          map_location: ``torch.load`` map location.
+          cache_dir: Optional HF cache directory.
+          local_dir: Optional local download directory.
+
+        Returns:
+          Loaded model instance.
+        """
+        if extra_objs is None:
+            extra_objs = {}
+
         file_path = Path(file_path)
         file_path = HyperTorchModel._try_to_get_from_hf(
             file_path, cache_dir=cache_dir, local_dir=local_dir

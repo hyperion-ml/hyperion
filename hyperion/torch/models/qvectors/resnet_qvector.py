@@ -237,11 +237,6 @@ class ResNetQVector(QVector):
         """int: Sampling frequency assumed by ``acoustic_feats``."""
         return self.acoustic_feats.sample_frequency
 
-    @property
-    def max_chunk_length(self) -> int:
-        """Maximum chunk length (in samples) seen during training."""
-        return 0
-
     def _infer_backbone_layer_indices(self) -> None:
         """Determine which backbone layers to capture for aggregation."""
         if self.output_feats_agg_qformer is None:
@@ -300,10 +295,16 @@ class ResNetQVector(QVector):
     def freeze_backbone(self):
         self.resnet_encoder.freeze()
 
+    def set_backbone_in_train_mode(self):
+        self.resnet_encoder.train()
+
     def set_backbone_in_eval_mode(self):
         self.resnet_encoder.eval()
 
     def set_adapters_in_train_mode(self):
+        pass
+
+    def set_adapters_in_eval_mode(self):
         pass
 
     def change_config(

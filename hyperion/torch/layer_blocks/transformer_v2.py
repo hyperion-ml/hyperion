@@ -18,7 +18,11 @@ from ..layers.attention_v2 import (
     TorchScaledDotProdAttV2,
 )
 from ..layers.pos_encoder import RotaryPosEncoder
-from ..layers.tensor_parallel import ColumnParallelLinear, RowParallelLinear
+from ..layers.tensor_parallel import (
+    ColumnParallelLinear,
+    RowParallelLinear,
+    get_tensor_parallel_world_size,
+)
 from ..utils import scale_seq_lengths, seq_lengths_to_mask
 
 
@@ -166,11 +170,16 @@ class Conv2dStemLayer(nn.Module):
             x (torch.Tensor): Input tensor with shape ``(batch, channels, freq, time)``.
 
         Returns:
-            torch.Tensor: Tensor with the same shape as ``x`` after convolution, normalization, and activation.
+            torch.Tensor: Tensor with shape ``(batch, out_channels, out_freq, out_time)``.
         """
         x = self.conv(x)
         x = self.act(self.norm(x.permute(0, 2, 3, 1)))
         return x.permute(0, 3, 1, 2)  # .contiguous()
+
+    @property
+    def kernel_size(self) -> int:
+        """Return the effective kernel size used by the convolution."""
+        return self.conv.kernel_size[0]
 
 
 class Conv1dStemLayer(nn.Module):
@@ -231,11 +240,16 @@ class Conv1dStemLayer(nn.Module):
             x (torch.Tensor): Input tensor with shape ``(batch, channels, time)``.
 
         Returns:
-            torch.Tensor: Tensor with the same shape as ``x`` after convolution, normalization, and activation.
+            torch.Tensor: Tensor with shape ``(batch, out_channels, out_time)``.
         """
         x = self.conv(x)
         x = self.act(self.norm(x.permute(0, 2, 1)))
         return x.permute(0, 2, 1)  # .contiguous()
+
+    @property
+    def kernel_size(self) -> int:
+        """Return the effective kernel size used by the convolution."""
+        return self.conv.kernel_size[0]
 
 
 class TransfomerV2Conv2dStemBlock(nn.Module):
@@ -297,7 +311,7 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
         conv_layers = [conv_i]
         feat_dim = in_feats
         # feat_dim = (feat_dim + strides[0] - 1) // strides[0]
-        feat_dim = (feat_dim - kernel_sizes[0]) // 2 + 1
+        feat_dim = (feat_dim - conv_i.kernel_size) // 2 + 1
 
         self.context = conv_i.context
         self.downsample_factor = strides[0]
@@ -314,7 +328,7 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
             )
             conv_layers.append(conv_i)
             # feat_dim = (feat_dim + strides[i] - 1) // strides[i]
-            feat_dim = (feat_dim - kernel_sizes[i]) // 2 + 1
+            feat_dim = (feat_dim - conv_i.kernel_size) // 2 + 1
             self.context += conv_i.context * self.downsample_factor
             self.downsample_factor *= strides[i]
 
@@ -344,13 +358,13 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
         x = self.norm_layer(x)
         if x_lengths is not None:
             x_lengths = scale_seq_lengths(x_lengths, t_out, t_in)
-            x_mask = ~seq_lengths_to_mask(x_lengths, t_out)
+            x_mask = ~seq_lengths_to_mask(x_lengths, t_out).unsqueeze(-1)
             x = x.masked_fill(x_mask, 0.0)
 
         x_proj = self.projection(x)
         x_proj = self.dropout(x_proj)
         if x_lengths is not None:
-            x_proj = x.masked_fill(x_mask, 0.0)
+            x_proj = x_proj.masked_fill(x_mask, 0.0)
 
         return x, x_proj, x_lengths
 
@@ -430,7 +444,7 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
             self.context += conv_i.context * self.downsample_factor
             self.downsample_factor *= strides[i]
 
-        self.conv_layers = nn.Sequential(conv_layers)
+        self.conv_layers = nn.Sequential(*conv_layers)
         self.norm_layer = norm_layer(hidden_channels[-1], eps=norm_eps)
         self.projection = nn.Linear(hidden_channels[-1], out_feats)
         self.dropout = nn.Dropout(dropout_rate)
@@ -455,13 +469,13 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
         x = self.norm_layer(x)
         if x_lengths is not None:
             x_lengths = scale_seq_lengths(x_lengths, x.size(1), t_in)
-            x_mask = ~seq_lengths_to_mask(x_lengths, x.size(1))
+            x_mask = ~seq_lengths_to_mask(x_lengths, x.size(1)).unsqueeze(-1)
             x = x.masked_fill(x_mask, 0.0)
 
         x_proj = self.projection(x)
         x_proj = self.dropout(x_proj)
         if x_lengths is not None:
-            x_proj = x.masked_fill(x_mask, 0.0)
+            x_proj = x_proj.masked_fill(x_mask, 0.0)
 
         return x, x_proj, x_lengths
 
@@ -505,23 +519,29 @@ class TransformerV2MLPBlock(nn.Module):
         )
 
         if model_parallel:
+            tp_world_size = get_tensor_parallel_world_size()
+            if intermediate_dim % tp_world_size != 0:
+                raise ValueError(
+                    f"intermediate_dim ({intermediate_dim}) must be divisible by tensor parallel world size "
+                    f"({tp_world_size}) when model_parallel=True."
+                )
             self.gate_proj = ColumnParallelLinear(
                 hidden_dim,
                 intermediate_dim,
                 bias=ff_bias,
                 gather_output=False,
             )
-            self.up_proj = RowParallelLinear(
+            self.up_proj = ColumnParallelLinear(
                 hidden_dim,
                 intermediate_dim,
-                bias=False,
-                input_is_parallel=True,
-            )
-            self.down_proj = ColumnParallelLinear(
-                intermediate_dim,
-                hidden_dim,
                 bias=False,
                 gather_output=False,
+            )
+            self.down_proj = RowParallelLinear(
+                intermediate_dim,
+                hidden_dim,
+                bias=False,
+                input_is_parallel=True,
             )
         else:
             self.gate_proj = nn.Linear(

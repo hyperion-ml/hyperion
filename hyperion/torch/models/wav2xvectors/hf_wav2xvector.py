@@ -1,18 +1,18 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import contextlib
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
-from ...narchs import FeatFuserMVN
 from ...hyper_torch_model import HyperTorchModel
+from ...narchs import FeatFuserMVN
 from ...utils import collate_seqs_1d, collate_seqs_2d, remove_silence
 
 
@@ -25,85 +25,66 @@ class HFWav2XVector(HyperTorchModel):
        xvector: x-vector model object.
        feat_fusion_start: the input to x-vector model will fuse the wav2vec layers from "feat_fusion_start" to
                           the wav2vec "num_layers".
-       feat_fusion_method: method to fuse the hidden layers from the wav2vec model, when more
-                           than one layer is used (deprecated).
     """
 
     def __init__(
         self,
-        hf_feats,
-        feat_fuser,
-        xvector,
-        feat_fusion_start=0,
-        # feat_fusion_method="weighted-avg",
-    ):
+        hf_feats: nn.Module,
+        feat_fuser: Dict[str, Any],
+        xvector: nn.Module,
+        feat_fusion_start: int = 0,
+    ) -> None:
+        """Initializes the HF-based x-vector wrapper.
+
+        Args:
+          hf_feats: Hugging Face feature extractor module.
+          feat_fuser: Configuration dictionary for ``FeatFuserMVN``.
+          xvector: Backend x-vector model that consumes fused features.
+          feat_fusion_start: First HF layer index used by the feature fuser.
+
+        Returns:
+          None.
+        """
         super().__init__()
         self.hf_feats = hf_feats
         self.xvector = xvector
         self.feat_fusion_start = feat_fusion_start
-        # self.feat_fusion_method = feat_fusion_method
         self._hf_context = contextlib.nullcontext()
         self._make_fuser(feat_fuser)
 
-    def _make_fuser(self, feat_fuser):
+    def _make_fuser(self, feat_fuser: Dict[str, Any]) -> None:
+        """Builds the feature-fusion module based on HF extractor dimensions.
+
+        Args:
+          feat_fuser: Configuration dictionary for ``FeatFuserMVN``.
+
+        Returns:
+          None.
+        """
         num_feats = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
         feat_dim = self.hf_feats.hidden_size
         feat_fuser["feat_fuser"]["num_feats"] = num_feats
         feat_fuser["feat_fuser"]["feat_dim"] = feat_dim
         self.feat_fuser = FeatFuserMVN(**feat_fuser)
 
-    # def _make_fuser_legacy(self):
-    #     if self.feat_fusion_method == "last":
-    #         self.feat_fuser = None
-    #         return
-
-    #     num_layers = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
-    #     layer_dim = self.hf_feats.hidden_size
-    #     if self.feat_fusion_method == "weighted-avg":
-    #         self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
-    #     elif self.feat_fusion_method == "linear":
-    #         self.feat_fuser = nn.Linear(num_layers, 1, bias=False)
-    #         self.feat_fuser.weight.data = torch.ones(1, num_layers) / num_layers
-    #     elif self.feat_fusion_method == "cat":
-    #         self.feat_fuser = nn.Linear(num_layers * layer_dim, layer_dim, bias=False)
-
-    # def _fuse_hid_feats_legacy(self, hid_feats):
-    #     """Fuses the hidden features from the Wav2Vec model.
-
-    #     Args:
-    #       hid_feats: list of hidden features Tensors from Wav2Vec model.
-
-    #     Returns:
-    #       Tensor of fused features (batch, channels, time)
-    #     """
-    #     if len(hid_feats) == 1:
-    #         # There is only one layer of features
-    #         return hid_feats[0]
-
-    #     hid_feats = hid_feats[self.feat_fusion_start :]
-    #     if self.feat_fusion_method == "weighted-avg":
-    #         hid_feats = torch.stack(hid_feats, dim=-1)
-    #         norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
-    #         feats = torch.sum(hid_feats * norm_weights, dim=-1)
-    #     elif self.feat_fusion_method == "linear":
-    #         hid_feats = torch.stack(hid_feats, dim=-1)
-    #         feats = self.feat_fuser(hid_feats).squeeze(dim=-1)
-    #     elif self.feat_fusion_method == "cat":
-    #         hid_feats = torch.cat(hid_feats, dim=-1)
-    #         feats = self.feat_fuser(hid_feats)
-    #     elif self.feat_fusion_method == "last":
-    #         feats = hid_feats[-1]
-
-    #     return feats
-
     @property
-    def sample_frequency(self):
+    def sample_frequency(self) -> int:
+        """Sampling rate expected by the HF feature extractor.
+
+        Returns:
+          Sampling frequency in Hz.
+        """
         return self.hf_feats.sample_frequency
 
-    def compute_prototype_affinity(self):
+    def compute_prototype_affinity(self) -> torch.Tensor:
+        """Computes class-prototype affinity from the x-vector backend.
+
+        Returns:
+          Affinity tensor produced by the x-vector model.
+        """
         return self.xvector.compute_prototype_affinity()
 
-    def update_loss_margin(self, epoch):
+    def update_loss_margin(self, epoch: int) -> None:
         """Updates the value of the margin in AAM/AM-softmax losses
            given the epoch number
 
@@ -114,15 +95,30 @@ class HFWav2XVector(HyperTorchModel):
 
     def rebuild_output_layer(
         self,
-        num_classes=None,
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=10,
-        intertop_k=5,
-        intertop_margin=0.0,
-        num_subcenters=2,
-    ):
+        num_classes: Optional[int] = None,
+        loss_type: str = "arc-softmax",
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 10,
+        intertop_k: int = 5,
+        intertop_margin: float = 0.0,
+        num_subcenters: int = 2,
+    ) -> None:
+        """Rebuilds the classification/output layer in the x-vector backend.
+
+        Args:
+          num_classes: Number of target classes. If ``None``, backend defaults are used.
+          loss_type: Loss head type, e.g. ``"arc-softmax"``.
+          cos_scale: Scale applied to cosine logits.
+          margin: Margin value for margin-based softmax variants.
+          margin_warmup_epochs: Number of epochs used for margin warmup.
+          intertop_k: Number of hardest impostor classes for inter-top margin.
+          intertop_margin: Additional margin for inter-top classes.
+          num_subcenters: Number of subcenters per class.
+
+        Returns:
+          None.
+        """
         self.xvector.rebuild_output_layer(
             num_classes=num_classes,
             loss_type=loss_type,
@@ -135,8 +131,26 @@ class HFWav2XVector(HyperTorchModel):
         )
 
     def forward_feats(
-        self, x, x_lengths, return_feat_layers=None, chunk_length=0, detach_chunks=False
-    ):
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor],
+        return_feat_layers: Optional[List[int]] = None,
+        chunk_length: int = 0,
+        detach_chunks: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[List[torch.Tensor]], torch.Tensor]:
+        """Runs HF feature extraction and fuses selected hidden layers.
+
+        Args:
+          x: Input waveform tensor with shape ``(batch, num_samples)``.
+          x_lengths: Optional valid lengths for ``x``.
+          return_feat_layers: Optional HF hidden-layer indices to return.
+          chunk_length: Optional chunk length used by the HF extractor.
+          detach_chunks: If ``True``, detaches chunk outputs in chunked extraction.
+
+        Returns:
+          Tuple containing fused features ``(batch, feat_dim, time)``, optional
+          selected HF hidden features, and fused feature lengths.
+        """
         return_hid_states = (
             False
             if return_feat_layers is None and self.feat_fuser.fuser_type == "last"
@@ -172,54 +186,16 @@ class HFWav2XVector(HyperTorchModel):
 
         return feats, hid_feats, feat_lengths
 
-    # def forward_feats_legacy(
-    #     self, x, x_lengths, return_feat_layers=None, chunk_length=0, detach_chunks=False
-    # ):
-    #     return_hid_states = (
-    #         False
-    #         if return_feat_layers is None and self.feat_fusion_method == "last"
-    #         else True
-    #     )
-    #     with self._hf_context:
-    #         hf_output = self.hf_feats(
-    #             x,
-    #             x_lengths,
-    #             return_hid_states=return_hid_states,
-    #             chunk_length=chunk_length,
-    #             detach_chunks=detach_chunks,
-    #         )
-    #     feat_lengths = hf_output["hidden_states_lengths"]
-    #     if return_hid_states:
-    #         hid_feats = hf_output["hidden_states"]
-    #         feats = self._fuse_hid_feats(hid_feats)
-    #     else:
-    #         hid_feats = None
-    #         feats = hf_output["last_hidden_state"]
-
-    #     feats = feats.transpose(1, 2)
-    #     if return_feat_layers is not None:
-    #         # add hidden feats from wav2vec to the output. We transpose to be (batch, C, time)
-    #         # as the hidden features of the x-vector encoder.
-    #         hid_feats = [
-    #             f.transpose(1, 2)
-    #             for i, f in enumerate(hid_feats)
-    #             if i in return_feat_layers
-    #         ]
-    #     else:
-    #         hid_feats = None
-
-    #     return feats, hid_feats, feat_lengths
-
     def forward(
         self,
-        x,
-        x_lengths=None,
-        y=None,
-        return_feat_layers=None,
-        return_enc_layers=None,
-        return_classif_layers=None,
-        return_logits=True,
-    ):
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        y: Optional[torch.Tensor] = None,
+        return_feat_layers: Optional[List[int]] = None,
+        return_enc_layers: Optional[List[int]] = None,
+        return_classif_layers: Optional[List[int]] = None,
+        return_logits: bool = True,
+    ) -> Union[Dict[str, Any], torch.Tensor]:
         """Forward function. If returns the logits posteriors of the classes.
         It can also returns the hidden representations in the wav2vec feature extractor,
         the x-vector encoder and the
@@ -256,24 +232,33 @@ class HFWav2XVector(HyperTorchModel):
         if not return_feat_layers:
             return output
 
-        if not isinstance(output, dict):
-            # if the xvector just returned the logits we put then into a dictionary
-            # to append the hid feats later.
-            output["logits"] = output
-
-        output["h_feats"] = hid_feats
+        output.h_feats = hid_feats
         return output
 
     def extract_embed(
         self,
-        x,
-        x_lengths=None,
-        vad_samples=None,
-        hf_chunk_length=0,
-        xvec_chunk_length=0,
-        embed_layer=None,
-        detach_chunks=False,
-    ):
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        vad_samples: Optional[List[torch.Tensor]] = None,
+        hf_chunk_length: int = 0,
+        xvec_chunk_length: int = 0,
+        embed_layer: Optional[int] = None,
+        detach_chunks: bool = False,
+    ) -> torch.Tensor:
+        """Extracts speaker embeddings for full utterances.
+
+        Args:
+          x: Input waveform tensor with shape ``(batch, num_samples)``.
+          x_lengths: Optional valid lengths for ``x``.
+          vad_samples: Optional per-utterance voiced sample indices for silence removal.
+          hf_chunk_length: Chunk length used by HF feature extraction.
+          xvec_chunk_length: Chunk length used by x-vector embedding extraction.
+          embed_layer: Optional x-vector embedding layer selector.
+          detach_chunks: If ``True``, detaches chunk outputs in chunked extraction.
+
+        Returns:
+          Embedding tensor returned by ``xvector.extract_embed``.
+        """
         if vad_samples is not None:
             x, x_lengths = remove_silence(x, vad_samples, x_lengths)
 
@@ -301,7 +286,24 @@ class HFWav2XVector(HyperTorchModel):
         chunk_length: float = 0.0,
         embed_layer: Optional[int] = None,
         detach_chunks: bool = False,
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor], List[torch.Tensor]]:
+        """Extracts sliding-window embeddings with optional VAD time constraints.
+
+        Args:
+          x: Input waveform tensor with shape ``(batch, num_samples)``.
+          x_lengths: Optional valid lengths for ``x``.
+          vad_t_start: Optional voiced-region start times per utterance in seconds.
+          vad_t_end: Optional voiced-region end times per utterance in seconds.
+          win_length: Sliding window duration in seconds.
+          win_shift: Sliding window shift in seconds.
+          chunk_length: Max accumulated audio duration (seconds) before extraction.
+          embed_layer: Optional x-vector embedding layer selector.
+          detach_chunks: If ``True``, detaches chunk outputs after extraction.
+
+        Returns:
+          Tuple with padded window embeddings, embedding lengths, output window
+          start times, and output window end times.
+        """
         if vad_t_start is not None:
             assert vad_t_end is not None
             assert len(vad_t_start) == len(vad_t_end)
@@ -403,31 +405,55 @@ class HFWav2XVector(HyperTorchModel):
         out_embeds, embeds_lengths = collate_seqs_2d(out_embeds)
         return out_embeds, embeds_lengths, out_t_start, out_t_end
 
-    def freeze_feat_fuser(self):
+    def freeze_feat_fuser(self) -> None:
+        """Freezes feature-fuser parameters.
+
+        Returns:
+          None.
+        """
         self.feat_fuser.freeze()
-        # if self.feat_fuser is None:
-        #     return
 
-        # if self.feat_fusion_method == "weighted-avg":
-        #     self.feat_fuser.requires_grad = False
-        #     return
+    def freeze_hf_feats(self) -> None:
+        """Freezes all HF feature-extractor parameters.
 
-        # for param in self.feat_fuser.parameters():
-        #     param.requires_grad = False
-
-    def freeze_hf_feats(self):
+        Returns:
+          None.
+        """
         self.hf_feats.freeze()
 
-    def freeze_hf_feature_encoder(self):
+    def freeze_hf_feature_encoder(self) -> None:
+        """Freezes the low-level HF feature encoder only.
+
+        Returns:
+          None.
+        """
         self.hf_feats.freeze_feature_encoder()
 
-    def freeze_hf_except_lora(self, bias=None):
+    def freeze_hf_except_lora(self, bias: Optional[str] = None) -> None:
+        """Freezes HF parameters except LoRA (and optionally bias) parameters.
+
+        Args:
+          bias: Bias-freezing mode passed to the HF wrapper.
+
+        Returns:
+          None.
+        """
         self.hf_feats.freeze_except_lora(bias)
 
-    def has_param_groups(self):
+    def has_param_groups(self) -> bool:
+        """Checks whether custom optimizer parameter groups are required.
+
+        Returns:
+          ``True`` when either HF extractor or x-vector defines parameter groups.
+        """
         return self.hf_feats.has_param_groups() or self.xvector.has_param_groups()
 
-    def trainable_param_groups(self):
+    def trainable_param_groups(self) -> List[Dict[str, Any]]:
+        """Builds trainable optimizer parameter groups for this composite model.
+
+        Returns:
+          List of optimizer parameter-group dictionaries.
+        """
         if not self.has_param_groups():
             return [{"params": self.trainable_parameters()}]
 
@@ -436,7 +462,18 @@ class HFWav2XVector(HyperTorchModel):
         param_groups.extend(self.xvector.trainable_param_groups())
         return param_groups
 
-    def set_train_mode(self, mode):
+    def set_train_mode(self, mode: str) -> None:
+        """Sets train mode and applies the corresponding freeze/unfreeze policy.
+
+        Args:
+          mode: Train mode name. Must be one of ``valid_train_modes()``.
+
+        Returns:
+          None.
+
+        Raises:
+          ValueError: If ``mode`` is unknown.
+        """
         if mode == self._train_mode:
             return
 
@@ -484,7 +521,18 @@ class HFWav2XVector(HyperTorchModel):
 
         self._train_mode = mode
 
-    def _train(self, train_mode: str):
+    def _train(self, train_mode: str) -> None:
+        """Implements train-mode transitions used by ``HyperTorchModel.train``.
+
+        Args:
+          train_mode: Internal train mode name.
+
+        Returns:
+          None.
+
+        Raises:
+          ValueError: If ``train_mode`` is unknown.
+        """
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
         elif train_mode == "ft-embed-affine":
@@ -508,7 +556,12 @@ class HFWav2XVector(HyperTorchModel):
             raise ValueError(f"invalid train_mode={train_mode}")
 
     @staticmethod
-    def valid_train_modes():
+    def valid_train_modes() -> List[str]:
+        """Lists supported training modes.
+
+        Returns:
+          Supported train-mode names.
+        """
         return [
             "full",
             "frozen",
@@ -524,7 +577,15 @@ class HFWav2XVector(HyperTorchModel):
         ]
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters input kwargs to constructor-supported keys.
+
+        Args:
+          **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+          Dictionary containing only supported constructor keys.
+        """
         valid_args = (
             "hf_feats",
             "feat_fuser",
@@ -535,7 +596,12 @@ class HFWav2XVector(HyperTorchModel):
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Serializes model configuration.
+
+        Returns:
+          Configuration dictionary for recreating this model.
+        """
         hf_cfg = self.hf_feats.get_config()
         fuser_cfg = self.feat_fuser.get_config()
         xvec_cfg = self.xvector.get_config()
@@ -553,13 +619,39 @@ class HFWav2XVector(HyperTorchModel):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def change_config(self, hf_feats, xvector):
+    def change_config(self, hf_feats: Dict[str, Any], xvector: Dict[str, Any]) -> None:
+        """Applies runtime configuration updates to child modules.
+
+        Args:
+          hf_feats: Configuration updates for the HF feature extractor.
+          xvector: Configuration updates for the x-vector backend.
+
+        Returns:
+          None.
+        """
         logging.info("changing hf wav2xvector config")
         self.hf_feats.change_config(**hf_feats)
         self.xvector.change_config(**xvector)
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """Registers CLI arguments for this class.
+
+        Args:
+          parser: Argument parser where options are registered.
+          prefix: Optional namespace prefix for nested parser injection.
+          skip: Unused compatibility argument for shared class-arg API.
+
+        Returns:
+          None.
+        """
+        if skip is None:
+            skip = set()
+
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -575,15 +667,6 @@ class HFWav2XVector(HyperTorchModel):
                 "the wav2vec num_layers"
             ),
         )
-        # parser.add_argument(
-        #     "--feat-fusion-method",
-        #     default="weighted-avg",
-        #     choices=["weighted-avg", "linear", "cat", "last"],
-        #     help=(
-        #         "method to fuse the hidden layers from the wav2vec model "
-        #         "in [weighted-avg, cat]"
-        #     ),
-        # )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

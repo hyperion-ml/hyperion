@@ -14,10 +14,10 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
+from ...hyper_torch_model import HyperTorchModel
 from ...layer_blocks import TDNNBlock
 from ...layers import GlobalPool1dFactory as PF
 from ...narchs import ClassifHead, DINOHead, ProjHead, TorchNALoader
-from ...hyper_torch_model import HyperTorchModel
 from ...utils import eval_nnet_by_chunks, scale_seq_lengths
 
 
@@ -263,25 +263,6 @@ class XVector(HyperTorchModel):
             return self.classif_net.output_type
         else:
             raise ValueError()
-
-    # def clone(self):
-    #     # weight normalized layers cannot be copied with deepcopy,
-    #     # we remove them to clone and put them back later
-    #     modules, cloned_modules = self.before_cloning()
-    #     new_self = super().clone()
-    #     self.after_cloning(*modules)
-    #     new_self.after_cloning(*cloned_modules)
-    #     return new_self
-
-    # def before_cloning(self):
-    #     if self.head_type == XVectorHeadType.DINO:
-    #         return self.classif_net.before_cloning()
-    #     else:
-    #         return None, None
-
-    # def after_cloning(self, output):
-    #     if self.head_type == XVectorHeadType.DINO:
-    #         self.classif_net.after_cloning(output)
 
     def _make_pool_net(self, pool_net, enc_feats=None):
         """Makes the pooling block
