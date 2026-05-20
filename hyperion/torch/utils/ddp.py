@@ -87,7 +87,7 @@ def ddp_init(master_port: Optional[int] = None) -> Tuple[torch.device, int, int]
 
     # 2) Set the correct local device
     torch.cuda.set_device(local_rank)
-
+    device = torch.device("cuda", local_rank)
     logging.info(
         f"init-process-group rank={rank} world_size={world_size} master={master_addr}:{master_port} gpu_id={local_rank}"
     )
@@ -95,12 +95,13 @@ def ddp_init(master_port: Optional[int] = None) -> Tuple[torch.device, int, int]
         backend="nccl",
         init_method="env://",
         timeout=torch.distributed.constants.default_pg_timeout,  # optional; keep default or tune
+        device_id=device,  # tells NCCL which GPU this rank owns; avoids barrier device-guess warning
     )
     logging.info(
         f"done init-process-group rank={rank} world_size={world_size} master={master_addr}:{master_port} gpu_id={local_rank}"
     )
     # 4) Sanity touch (on this device)
-    device = torch.device("cuda", local_rank)
+
     torch.empty(0, device=device)
 
     return device, rank, world_size
