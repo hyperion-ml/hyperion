@@ -786,7 +786,9 @@ class HFWav2VecBase(HyperTorchModel):
         separate_bias = self.bias_weight_decay is not None
         include_bias_in_regular = not separate_bias
 
-        feat_params = list(self.trainable_feat_extract_params(bias=include_bias_in_regular))
+        feat_params = list(
+            self.trainable_feat_extract_params(bias=include_bias_in_regular)
+        )
         enc_params = list(self.trainable_encoder_params(bias=include_bias_in_regular))
 
         param_groups: List[Dict[str, Any]] = []
@@ -1110,7 +1112,7 @@ class HFWav2VecBase(HyperTorchModel):
         output["hidden_states_lengths"] = feat_lengths
         return output
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Returns the configuration arguments for the object in a dictionary."""
 
         config = {
@@ -1138,7 +1140,7 @@ class HFWav2VecBase(HyperTorchModel):
             "bias_weight_decay": self.bias_weight_decay,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     def save(self, file_path: PathLike) -> None:
@@ -1395,7 +1397,9 @@ class HFWav2VecBase(HyperTorchModel):
         if _use_arg("lora_rank"):
             parser.add_argument("--lora-rank", default=4, help="rank of LoRA")
         if _use_arg("lora_alpha"):
-            parser.add_argument("--lora-alpha", default=8, type=int, help="scale for LoRA")
+            parser.add_argument(
+                "--lora-alpha", default=8, type=int, help="scale for LoRA"
+            )
         if _use_arg("lora_dropout"):
             parser.add_argument(
                 "--lora-dropout", default=0.0, help="dropout rate for LoRA"
@@ -1522,7 +1526,9 @@ class HFWav2VecBase(HyperTorchModel):
         if _use_arg("lora_rank"):
             parser.add_argument("--lora-rank", default=4, help="rank of LoRA")
         if _use_arg("lora_alpha"):
-            parser.add_argument("--lora-alpha", default=8, type=int, help="scale for LoRA")
+            parser.add_argument(
+                "--lora-alpha", default=8, type=int, help="scale for LoRA"
+            )
         if _use_arg("lora_dropout"):
             parser.add_argument(
                 "--lora-dropout", default=0.0, help="dropout rate for LoRA"

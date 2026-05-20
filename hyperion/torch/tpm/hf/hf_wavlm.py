@@ -483,11 +483,11 @@ class HFWavLM(HFWav2VecBase):
             self.hf_model.adapter = None
             self.hf_config.add_adapter = False
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Returns the configuration arguments for the object in a dictionary."""
         config = self.hf_model.config.to_dict()
         config = self.filter_args(**config)
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
