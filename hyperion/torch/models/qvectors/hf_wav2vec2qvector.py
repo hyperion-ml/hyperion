@@ -168,14 +168,14 @@ class HFWav2Vec2QVector(HFWav2QVector):
         else:
             outer_parser = None
 
-        skip |= {
+        skip_w2v = skip | {
             "encoder_lr",
             "feat_extractor_lr",
             "bias_weight_decay",
             "encoder_weight_decay",
             "feat_extractor_weight_decay",
         }
-        HFWav2Vec2.add_class_args(parser, prefix="hf_feats", skip=skip)
+        HFWav2Vec2.add_class_args(parser, prefix="hf_feats", skip=skip_w2v)
         HFWav2QVector.add_class_args(parser, skip=skip)
 
         if outer_parser is not None and prefix is not None:
@@ -214,7 +214,7 @@ class HFWav2Vec2QVector(HFWav2QVector):
         else:
             outer_parser = None
 
-        skip |= {
+        skip_w2v = skip | {
             "encoder_lr",
             "feat_extractor_lr",
             "bias_weight_decay",
@@ -222,7 +222,7 @@ class HFWav2Vec2QVector(HFWav2QVector):
             "feat_extractor_weight_decay",
         }
 
-        HFWav2Vec2.add_finetune_args(parser, prefix="hf_feats", skip=skip)
+        HFWav2Vec2.add_finetune_args(parser, prefix="hf_feats", skip=skip_w2v)
         HFWav2QVector.add_finetune_args(parser, skip=skip)
         if outer_parser is not None and prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
