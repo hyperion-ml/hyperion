@@ -55,9 +55,9 @@ class _ProjFeatFuser(FeatFuser):
           None.
         """
         super().__init__()
-        if (feat_dim is None) != (proj_dim is None):
+        if feat_dim is None and proj_dim is not None:
             raise ValueError(
-                "feat_dim and proj_dim must both be set or both be None "
+                "feat_dim must be set when proj_dim is provided "
                 f"(got feat_dim={feat_dim}, proj_dim={proj_dim})"
             )
         if feat_dim is not None and feat_dim <= 0:

@@ -370,6 +370,13 @@ class HFWav2QVector(QVector):
         feat_dim = self.hf_feats.hidden_size
         feat_fuser["feat_fuser"]["num_feats"] = num_feats
         feat_fuser["feat_fuser"]["feat_dim"] = feat_dim
+        ofa_qformer_in_feats = self.output_feats_agg_qformer.in_feats
+        if ofa_qformer_in_feats != feat_dim:
+            feat_fuser["feat_fuser"]["proj_dim"] = ofa_qformer_in_feats
+            feat_fuser["feat_fuser"]["proj_bias"] = False
+        else:
+            feat_fuser["feat_fuser"]["proj_dim"] = None
+            feat_fuser["feat_fuser"]["proj_bias"] = False
         self.feat_fuser = FeatFuserMVN(**feat_fuser)
 
     def freeze_backbone(self) -> None:
