@@ -386,6 +386,10 @@ class HFWav2QVector(QVector):
         self.hf_feats.freeze_feature_encoder()
 
     def freeze_adapters(self) -> None:
+        if self.feat_fuser is not None:
+            for param in self.feat_fuser.parameters():
+                param.requires_grad = False
+
         if self.hidden_feats_adapter is not None:
             for adapter in self.hidden_feats_adapter:
                 for param in adapter.parameters():
@@ -523,10 +527,13 @@ class HFWav2QVector(QVector):
             hid_feats = [hf_output["last_hidden_state"]]
 
         if self.backbone_return_output:
-            hid_feats_for_fusion = hid_feats[self.hidden_feats_fusion_start :]
-            backbone_feats, backbone_feats_lengths = self.feat_fuser(
-                hid_feats_for_fusion, feat_lengths
-            )
+            if return_hid_states:
+                backbone_feats = hid_feats[self.hidden_feats_fusion_start :]
+            else:
+                backbone_feats = hid_feats
+
+            backbone_feats_lengths = feat_lengths
+
         else:
             backbone_feats, backbone_feats_lengths = None, None
 
@@ -577,11 +584,20 @@ class HFWav2QVector(QVector):
         else:
             adapted_hidden_feats = backbone_hidden_feats
 
-        adapted_output_feats = backbone_output_feats
+        if self.feat_fuser is not None:
+            adapted_output_feats, adapted_output_feats_lengths = self.feat_fuser(
+                backbone_output_feats, backbone_output_feats_lengths
+            )
+        elif backbone_output_feats is None:
+            adapted_output_feats = None
+            adapted_output_feats_lengths = backbone_output_feats_lengths
+        else:
+            adapted_output_feats = backbone_output_feats[-1]
+            adapted_output_feats_lengths = backbone_output_feats_lengths
 
         return (
             adapted_output_feats,
-            backbone_output_feats_lengths,
+            adapted_output_feats_lengths,
             adapted_hidden_feats,
             backbone_hidden_feats_lengths,
         )
