@@ -400,6 +400,9 @@ class HFWav2QVector(QVector):
     def set_adapters_in_eval_mode(self) -> None:
         pass
 
+    def _infer_backbone_layers_indices(self):
+        pass
+
     def change_config(
         self,
         backbone_feats_lr: Optional[float] = None,

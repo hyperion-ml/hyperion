@@ -442,7 +442,7 @@ class QVector(HyperTorchModel):
     def sample_frequency(self):
         raise NotImplementedError()
 
-    def _infer_backbone_layers_indices_and_dims(self):
+    def _infer_backbone_layers_indices(self):
         raise NotImplementedError()
 
     @property
