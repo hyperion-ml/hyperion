@@ -160,7 +160,7 @@ class HFWav2QVector(QVector):
             self.backbone_return_output: bool = True
         self.hidden_feats_adapter: Optional[nn.ModuleList] = None
         self.output_feats_adapter: Optional[nn.Linear] = None
-        self._infer_backbone_layer_indices()
+        self._infer_backbone_layers_indices()
         self._make_fuser(feat_fuser)
         self._make_adapters()
 

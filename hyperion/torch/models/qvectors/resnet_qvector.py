@@ -137,7 +137,7 @@ class ResNetQVector(QVector):
         self.backbone_return_output: bool = False
         self.hidden_feats_adapter: Optional[nn.ModuleList] = None
         self.output_feats_adapter: Optional[nn.Linear] = None
-        self._infer_backbone_layer_indices()
+        self._infer_backbone_layers_indices()
         self._make_adapters()
 
     def has_param_groups(self):
@@ -237,7 +237,7 @@ class ResNetQVector(QVector):
         """int: Sampling frequency assumed by ``acoustic_feats``."""
         return self.acoustic_feats.sample_frequency
 
-    def _infer_backbone_layer_indices(self) -> None:
+    def _infer_backbone_layers_indices(self) -> None:
         """Determine which backbone layers to capture for aggregation."""
         if self.output_feats_agg_qformer is None:
             self.backbone_layers = [1, 2, 3, 4]
