@@ -350,7 +350,9 @@ class HyperTorchModel(nn.Module):
         model_data = None
         if cfg is None or state_dict is None:
             assert file_path is not None
-            model_data = torch.load(file_path)
+            # PyTorch 2.6 changed torch.load default to weights_only=True.
+            # Our checkpoints include non-tensor metadata in model_cfg.
+            model_data = torch.load(file_path, weights_only=False)
         if cfg is None:
             cfg = model_data["model_cfg"]
         if state_dict is None and model_data is not None:
@@ -741,6 +743,9 @@ class HyperTorchModel(nn.Module):
         model_data = torch.load(
             file_path,
             map_location=map_location,
+            # PyTorch 2.6 default weights_only=True breaks config objects
+            # serialized in model_cfg (e.g., custom enums/types).
+            weights_only=False,
         )
         cfg = model_data["model_cfg"]
 
