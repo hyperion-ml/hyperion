@@ -495,9 +495,9 @@ class QFormerV2(NetArch):
             start_pos: Starting rotary/cache position for cross-attention.
 
         """
-        if not isinstance(feats, list):
+        if not isinstance(feats, (list, tuple)):
             raise ValueError(
-                "forward_multilayer_input expects feats to be a list of tensors"
+                "forward_multilayer_input expects feats to be a list/tuple of tensors"
             )
 
         if len(feats) != self.num_layers // self.cross_att_freq:

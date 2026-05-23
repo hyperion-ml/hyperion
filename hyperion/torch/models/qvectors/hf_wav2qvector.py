@@ -526,6 +526,9 @@ class HFWav2QVector(QVector):
         else:
             hid_feats = [hf_output["last_hidden_state"]]
 
+        if isinstance(hid_feats, tuple):
+            hid_feats = list(hid_feats)
+
         if self.backbone_return_output:
             if return_hid_states:
                 backbone_feats = hid_feats[self.hidden_feats_fusion_start :]
