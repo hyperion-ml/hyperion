@@ -501,7 +501,9 @@ class QFormerV2(NetArch):
             )
 
         if len(feats) != self.num_layers // self.cross_att_freq:
-            raise ValueError("feats must match num cross-attention layers")
+            raise ValueError(
+                f"feats ({len(feats)}) must match num cross-attention layers ({self.num_layers // self.cross_att_freq}) when multilayer_input is enabled"
+            )
         shared_feats_lengths = None
         if feats_lengths is not None:
             if torch.is_tensor(feats_lengths):
