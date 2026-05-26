@@ -62,6 +62,7 @@ class ResNetQVector(QVector):
         num_output_feats_queries: int,
         qvector_dim: int,
         head: Union[Dict[str, Any], HydraHead],
+        proj_bias: bool = True,
         resnet_lr: Optional[float] = None,
         resnet_weight_decay: Optional[float] = None,
         adapter_lr: Optional[float] = None,
@@ -82,6 +83,7 @@ class ResNetQVector(QVector):
             num_output_feats_queries: Number of output queries.
             qvector_dim: Size of the final q-vector embedding.
             head: Hydra head configuration or module.
+            proj_bias: Whether the projection head linear layer includes a bias term.
             resnet_lr: Optional learning-rate override for backbone
                 ``resnet_encoder`` parameters.
             resnet_weight_decay: Optional weight-decay override for backbone
@@ -120,6 +122,7 @@ class ResNetQVector(QVector):
             num_output_feats_queries=num_output_feats_queries,
             qvector_dim=qvector_dim,
             head=head,
+            proj_bias=proj_bias,
             qformer_weight_decay=qformer_weight_decay,
             proj_head_weight_decay=proj_head_weight_decay,
             head_weight_decay=head_weight_decay,

@@ -72,6 +72,7 @@ class HFWav2Vec2QVector(HFWav2QVector):
         num_output_feats_queries: int,
         qvector_dim: int,
         head: Union[Dict[str, Any], HydraHead],
+        proj_bias: bool = True,
         hidden_feats_fusion_start: int = 0,
         hidden_feats_agg_start: int = 0,
         hidden_feats_shared_adapters: bool = True,
@@ -99,6 +100,7 @@ class HFWav2Vec2QVector(HFWav2QVector):
             num_output_feats_queries: Number of output queries.
             qvector_dim: Size of the final q-vector embedding.
             head: Hydra head configuration or module.
+            proj_bias: Whether the projection head linear layer includes a bias term.
             hidden_feats_fusion_start: First hidden-state index used for output
                 feature fusion.
             hidden_feats_agg_start: First hidden-state index used for hidden
