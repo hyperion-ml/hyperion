@@ -25,7 +25,6 @@ from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.hyper_torch_model import HyperTorchModel
 from hyperion.torch.models import HFWav2Vec2QVector as W2V2QVec
 from hyperion.torch.models import ResNetQVector as RQVec
-from hyperion.torch.models import Wav2ResNetXVector as RQVec
 from hyperion.torch.narchs import HydraHeadType
 from hyperion.torch.trainers import QVectorTrainer as Trainer
 from hyperion.torch.utils import ddp

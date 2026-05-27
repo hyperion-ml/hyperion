@@ -3,6 +3,7 @@
 Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import multiprocessing
 import os
@@ -21,6 +22,7 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import HyperTorchModel
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
+from hyperion.torch.models import HFWav2Vec2QVector as W2V2QVec
 from hyperion.torch.models import ResNetQVector as RQVec
 from hyperion.torch.narchs import HydraHeadType
 from hyperion.torch.trainers import QVectorTrainer as Trainer
@@ -29,6 +31,7 @@ from hyperion.utils.misc import PathLike
 
 qvec_dict = {
     "resnet": RQVec,
+    "wav2vec2": W2V2QVec,
 }
 
 
