@@ -423,6 +423,7 @@ class HFWav2QVector(QVector):
 
     def change_config(
         self,
+        hf_feats: Optional[Dict[str, Any]] = None,
         backbone_feats_lr: Optional[float] = None,
         backbone_feats_weight_decay: Optional[float] = None,
         backbone_lr: Optional[float] = None,
@@ -434,6 +435,7 @@ class HFWav2QVector(QVector):
         """Change model configuration at runtime.
 
         Args:
+            hf_feats: Optional configuration dictionary for the HF backbone module.
             backbone_feats_lr: Optional learning-rate override for front-end
                 feature/backbone parameters.
             backbone_feats_weight_decay: Optional weight-decay override for
@@ -449,6 +451,8 @@ class HFWav2QVector(QVector):
             **kwargs: Additional keyword arguments forwarded to the base class
                 method for reconfiguration.
         """
+        if hf_feats is not None:
+            self.hf_feats.change_config(**hf_feats)
 
         if backbone_feats_lr is not None:
             logging.info(
