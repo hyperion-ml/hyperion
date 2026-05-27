@@ -345,7 +345,11 @@ class HFWav2QVector(QVector):
             else:
                 self.hidden_feats_adapter = nn.ModuleList(
                     [nn.Linear(in_feats, hfa_qformer_in_feats)]
-                    * (self.hf_feats.num_encoder_layers - self.hidden_feats_agg_start)
+                    * (
+                        self.hf_feats.num_encoder_layers
+                        + 1
+                        - self.hidden_feats_agg_start
+                    )
                 )
         else:
             self.hidden_feats_adapter = None
