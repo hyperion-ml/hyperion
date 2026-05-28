@@ -146,7 +146,7 @@ class TransformerEncoderV1(NetArch):
             )
         elif self.in_layer_type == "conv2d-sub":
             self.in_layer = Conv2dSubsampler(
-                in_feats, d_model, hid_act, pos_enc, time_dim=self.in_time_dim
+                in_feats, d_model, hid_act, pos_enc=pos_enc, time_dim=self.in_time_dim
             )
         elif self.in_layer_type == "embed":
             self.in_layer = nn.Sequential(

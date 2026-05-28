@@ -195,22 +195,26 @@ class HFWav2QVector(QVector):
         backbone_feats_extractor_bias = []
         backbone_bias = []
         if self.bias_weight_decay is None:
-            backbone_feat_extractor = list(self.hf_feats.feat_extract_params())
+            backbone_feat_extractor = list(
+                self.hf_feats.trainable_feat_extract_params()
+            )
             backbone = list(self.hf_feats.trainable_encoder_params())
         else:
             backbone_feat_extractor = list(
-                self.hf_feats.feat_extract_params(bias=False)
+                self.hf_feats.trainable_feat_extract_params(bias=False)
             )
             backbone = list(self.hf_feats.trainable_encoder_params(bias=False))
             if self.backbone_feats_lr is None:
-                bias += list(self.hf_feats.feat_extract_bias())
+                bias += list(self.hf_feats.trainable_feat_extract_bias())
             else:
-                backbone_feats_extractor_bias += list(self.hf_feats.feat_extract_bias())
+                backbone_feats_extractor_bias += list(
+                    self.hf_feats.trainable_feat_extract_bias()
+                )
 
             if self.backbone_lr is None:
-                bias += list(self.hf_feats.encoder_bias())
+                bias += list(self.hf_feats.trainable_encoder_bias())
             else:
-                backbone_bias += list(self.hf_feats.encoder_bias())
+                backbone_bias += list(self.hf_feats.trainable_encoder_bias())
 
         adapters = []
         qformer = []

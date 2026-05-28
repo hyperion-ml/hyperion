@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import math
+from typing import Any, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -12,21 +12,40 @@ from ..layers import ActivationFactory as AF
 
 
 class TransformerConv2dSubsampler(nn.Module):
-    """Convolutional 2D subsampling (to 1//stride length) Tor transformer
+    """Convolutional 2D subsampling block for transformer encoders.
 
     Attributes:
-      in_feats: input feature dimension
-      out_feats: Transformer d_model
-      hid_act: activation layer object
-      stride: total stride of the subsampler
-      pos_enc: positional encoder layer
-      time_dim: indicates which is the time dimension in the input tensor
+      stride: Total stride of the subsampler.
+      time_dim: Index of the time dimension in the input tensor.
     """
 
     def __init__(
-        self, in_feats, out_feats, hid_act, stride=4, pos_enc=None, time_dim=1
-    ):
+        self,
+        in_feats: int,
+        out_feats: int,
+        hid_act: Any,
+        stride: int = 4,
+        pos_enc: Optional[nn.Module] = None,
+        time_dim: int = 1,
+    ) -> None:
+        """Initializes the 2D convolutional transformer subsampler.
+
+        Args:
+          in_feats: Input feature dimension.
+          out_feats: Output feature dimension (transformer model dimension).
+          hid_act: Hidden activation specification accepted by ``ActivationFactory``.
+          stride: Total temporal subsampling stride (supported values: 1, 2, 4).
+          pos_enc: Optional positional encoding module appended after projection.
+          time_dim: Index of the time dimension in the input tensor.
+
+        Returns:
+          None.
+        """
         super().__init__()
+        if time_dim not in (1, 2, -1):
+            raise ValueError(
+                f"invalid time_dim={time_dim}, expected one of (1, 2, -1)"
+            )
         self.time_dim = time_dim
         hid_act = AF.create(hid_act)
         self.stride = stride
@@ -44,7 +63,7 @@ class TransformerConv2dSubsampler(nn.Module):
             hid_feats = out_feats * (in_feats - 4)
         else:
             raise NotImplementedError(
-                "Valid TransformerConv2dSubsampler stride==1,2,4 !={stride}"
+                f"Valid TransformerConv2dSubsampler stride==1,2,4 !={stride}"
             )
 
         self.conv = nn.Sequential(
@@ -60,16 +79,20 @@ class TransformerConv2dSubsampler(nn.Module):
         else:
             self.out = nn.Sequential(linear, pos_enc)
 
-    def forward(self, x, x_mask=None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward function.
 
         Args:
-          x: input tensor with size=(batch, time, in_feats)
-          x_mask: mask to indicate valid time steps for x (batch, time1, time2)
+          x: Input tensor. If ``time_dim == 1``, expected shape is
+            ``(batch, time, feat)``; otherwise shape is ``(batch, feat, time)``.
+          x_mask: Optional attention/sequence mask with time on the last axis.
 
         Returns:
-           Tensor with output features with shape = (batch, time//stride, out_feats)
-           Tensor with subsampled mask // stride.
+          Tuple containing:
+          output tensor of shape ``(batch, subsampled_time, out_feats)`` and
+          the subsampled mask (or ``None`` if ``x_mask`` is ``None``).
         """
         if self.time_dim == 1:
             x = x.transpose(1, 2)
@@ -85,21 +108,40 @@ class TransformerConv2dSubsampler(nn.Module):
 
 
 class TransformerConv1dSubsampler(nn.Module):
-    """Convolutional 1D subsampling (to 1//stride length) Tor transformer
+    """Convolutional 1D subsampling block for transformer encoders.
 
     Attributes:
-      in_feats: input feature dimension
-      out_feats: Transformer d_model
-      hid_act: activation layer object
-      stride: total stride of the subsampler
-      pos_enc: positional encoder layer
-      time_dim: indicates which is the time dimension in the input tensor
+      stride: Total stride of the subsampler.
+      time_dim: Index of the time dimension in the input tensor.
     """
 
     def __init__(
-        self, in_feats, out_feats, hid_act, stride=4, pos_enc=None, time_dim=1
-    ):
+        self,
+        in_feats: int,
+        out_feats: int,
+        hid_act: Any,
+        stride: int = 4,
+        pos_enc: Optional[nn.Module] = None,
+        time_dim: int = 1,
+    ) -> None:
+        """Initializes the 1D convolutional transformer subsampler.
+
+        Args:
+          in_feats: Input feature dimension.
+          out_feats: Output feature dimension (transformer model dimension).
+          hid_act: Hidden activation specification accepted by ``ActivationFactory``.
+          stride: Total temporal subsampling stride (supported values: 1, 2, 4).
+          pos_enc: Optional positional encoding module appended after projection.
+          time_dim: Index of the time dimension in the input tensor.
+
+        Returns:
+          None.
+        """
         super().__init__()
+        if time_dim not in (1, 2, -1):
+            raise ValueError(
+                f"invalid time_dim={time_dim}, expected one of (1, 2, -1)"
+            )
         self.time_dim = time_dim
         hid_act = AF.create(hid_act)
         self.stride = stride
@@ -114,7 +156,7 @@ class TransformerConv1dSubsampler(nn.Module):
             stride_2 = 1
         else:
             raise NotImplementedError(
-                "Valid TransformerConv1dSubsampler stride==1,2,4 !={stride}"
+                f"Valid TransformerConv1dSubsampler stride==1,2,4 !={stride}"
             )
 
         self.conv = nn.Sequential(
@@ -130,16 +172,20 @@ class TransformerConv1dSubsampler(nn.Module):
         else:
             self.out = nn.Sequential(linear, pos_enc)
 
-    def forward(self, x, x_mask=None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward function.
 
         Args:
-          x: input tensor with size=(batch, time, in_feats)
-          x_mask: mask to indicate valid time steps for x (batch, time1, time2)
+          x: Input tensor. If ``time_dim == 1``, expected shape is
+            ``(batch, time, feat)``; otherwise shape is ``(batch, feat, time)``.
+          x_mask: Optional attention/sequence mask with time on the last axis.
 
         Returns:
-           Tensor with output features with shape = (batch, time//stride, out_feats)
-           Tensor with subsampled mask // stride.
+          Tuple containing:
+          output tensor of shape ``(batch, subsampled_time, out_feats)`` and
+          the subsampled mask (or ``None`` if ``x_mask`` is ``None``).
         """
         if self.time_dim == 1:
             x = x.transpose(1, 2)
@@ -149,4 +195,4 @@ class TransformerConv1dSubsampler(nn.Module):
         if x_mask is None:
             return x, None
 
-        return x, x_mask[:, :, :: self.stride]
+        return x, x_mask[..., :: self.stride]
