@@ -5,7 +5,7 @@ project_root = Path(__file__).parent
 
 
 # Extract version
-def get_version():
+def get_version() -> str:
     init_path = project_root / "hyperion" / "__init__.py"
     with open(init_path) as f:
         for line in f:

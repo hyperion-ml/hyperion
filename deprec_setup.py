@@ -39,7 +39,7 @@ with open(project_root / "README.md", "r") as fh:
     long_description = fh.read()
 
 
-def get_version():
+def get_version() -> str:
     with open(project_root / "hyperion" / "__init__.py") as f:
         for line in f.read().splitlines():
             if line.startswith("__version__"):

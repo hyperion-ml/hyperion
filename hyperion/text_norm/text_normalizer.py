@@ -53,7 +53,7 @@ class BasicTextNormalizer:
         remove_symbols: bool = True,
         remove_diacritics: bool = False,
         split_chars: bool = False,
-    ):
+    ) -> None:
         """
         Initialize the BasicTextNormalizer.
 
@@ -117,7 +117,7 @@ class BasicTextNormalizer:
             for c in normalized
         )
 
-    def __call__(self, text: str):
+    def __call__(self, text: str) -> str:
         """
         Apply normalization pipeline to a string.
 

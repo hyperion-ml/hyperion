@@ -1,22 +1,23 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba, Yen-Ju Lu)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba, Yen-Ju Lu)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import logging
-from typing import Optional, Tuple
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+import logging
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..layers import ActivationFactory as AF
 
 
 class TransducerRNNPredictor(nn.Module):
-    """ RNN-T prediction network with LSTM or GRU
-    Implmentation  based on:
+    """RNN-T prediction network with LSTM or GRU.
+
+    Implementation based on:
     https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/transducer/decoder.py
 
     Attributes:
@@ -26,21 +27,36 @@ class TransducerRNNPredictor(nn.Module):
       hid_feats: Hidden dimension of LSTM layers.
       out_feats: Output dimension of the predictor.
       embed_dropout_rate: Dropout rate for the embedding layer.
-      rnn_dropout_rate: Dropout for LSTM layers.
-      rnn_type: between lstm and gru
-      blank_id: The ID of the blank symbol.           
+      rnn_dropout_rate: Dropout for recurrent layers.
+      rnn_type: Recurrent cell type (`lstm` or `gru`).
+      blank_id: The ID of the blank symbol.
     """
 
-    def __init__(self,
-                 vocab_size: int,
-                 embed_dim: int,
-                 num_layers: int,
-                 hid_feats: int,
-                 out_feats: Optional[int] = None,
-                 embed_dropout_rate: float = 0.0,
-                 rnn_dropout_rate: float = 0.0,
-                 rnn_type: str = "lstm",
-                 blank_id: int = 0):
+    def __init__(
+        self,
+        vocab_size: int,
+        embed_dim: int,
+        num_layers: int,
+        hid_feats: int,
+        out_feats: Optional[int] = None,
+        embed_dropout_rate: float = 0.0,
+        rnn_dropout_rate: float = 0.0,
+        rnn_type: str = "lstm",
+        blank_id: int = 0,
+    ):
+        """Build an RNN-based transducer predictor network.
+
+        Args:
+          vocab_size: Number of output symbols including blank.
+          embed_dim: Token embedding dimension.
+          num_layers: Number of recurrent layers.
+          hid_feats: Recurrent hidden size.
+          out_feats: Optional output projection size.
+          embed_dropout_rate: Embedding dropout probability.
+          rnn_dropout_rate: Recurrent dropout probability.
+          rnn_type: Recurrent cell type (`"lstm"` or `"gru"`).
+          blank_id: Blank/padding token id.
+        """
         super().__init__()
         self.embedding = nn.Embedding(
             num_embeddings=vocab_size,
@@ -73,6 +89,7 @@ class TransducerRNNPredictor(nn.Module):
         self.embed_dim = embed_dim
         self.num_layers = num_layers
         self.hid_feats = hid_feats
+        self.rnn_type = rnn_type
         self.embed_dropout_rate = embed_dropout_rate
         self.rnn_dropout_rate = rnn_dropout_rate
         if out_feats is None:
@@ -84,7 +101,12 @@ class TransducerRNNPredictor(nn.Module):
         else:
             self.output_proj = None
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Return a serializable configuration dictionary for this predictor.
+
+        Returns:
+          Dictionary with predictor construction parameters.
+        """
         config = {
             "pred_type": "rnn",
             "vocab_size": self.vocab_size,
@@ -104,17 +126,28 @@ class TransducerRNNPredictor(nn.Module):
         y: torch.Tensor,
         states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        """
-        Args: 
-          y: previous y_{<t} tensor of shape (N, U) with <sos> prepended.
-          states: tuple of tensors containing RNN layers states
+        """Compute predictor outputs and recurrent states.
+
+        Args:
+          y: Previous tokens tensor of shape `(batch, steps)`, with `<sos>` prepended.
+          states: Optional recurrent state tuple `(h, c)` for RNN layers.
+            For GRU, only `h` is consumed.
+
         Returns:
-          - rnn_output, a tensor of shape (N, U, C)
-          - (h, c), containing the states i for RNN layers with shape (num_layers, N, C).
+          Tuple `(out, (h, c))` where:
+          `out` has shape `(batch, steps, out_feats)` and `(h, c)` are recurrent
+          states with shape `(num_layers, batch, hid_feats)`.
         """
         embed = self.embedding(y)
         embed = self.embed_dropout(embed)
-        out, (h, c) = self.rnn(embed, states)
+        if self.rnn_type == "gru":
+            h0 = states[0] if states is not None else None
+            out, h = self.rnn(embed, h0)
+            # Keep return signature consistent with LSTM by providing
+            # a placeholder second state for GRU callers expecting `(h, c)`.
+            c = torch.zeros_like(h)
+        else:
+            out, (h, c) = self.rnn(embed, states)
         if self.output_proj:
             out = self.output_proj(out)
 
@@ -122,23 +155,31 @@ class TransducerRNNPredictor(nn.Module):
 
     def change_config(
         self,
-        override_dropouts=False,
+        override_dropouts: bool = False,
         embed_dropout_rate: float = 0.0,
         rnn_dropout_rate: float = 0.0,
-    ):
+    ) -> None:
+        """Update predictor dropout settings.
+
+        Args:
+          override_dropouts: If True, apply provided dropout values.
+          embed_dropout_rate: New embedding dropout probability.
+          rnn_dropout_rate: New recurrent dropout probability.
+        """
         logging.info("changing decoder config")
 
         if override_dropouts:
             logging.info("overriding decoder dropouts")
             self.rnn_dropout_rate = rnn_dropout_rate
-            self.rnn.p = self.rnn_dropout_rate
+            self.rnn.dropout = self.rnn_dropout_rate
             self.embed_dropout_rate = embed_dropout_rate
             self.embed_dropout = nn.Dropout(self.embed_dropout_rate)
 
 
 class TransducerConvPredictor(nn.Module):
-    """ RNN-T prediction network based on Convolutions
-    Implmentation  based on:
+    """RNN-T prediction network based on convolutions.
+
+    Implementation based on:
     https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless7/decoder.py
 
     Attributes:
@@ -159,7 +200,21 @@ class TransducerConvPredictor(nn.Module):
         hid_act: str = "relu",
         blank_id: int = 0,
     ):
+        """Build a convolution-based transducer predictor network.
+
+        Args:
+          vocab_size: Number of output symbols including blank.
+          embed_dim: Token embedding dimension.
+          out_feats: Optional output projection size.
+          context_size: Context window size for depthwise conv.
+          embed_dropout_rate: Embedding dropout probability.
+          hid_act: Hidden activation configuration.
+          blank_id: Blank/padding token id.
+        """
         super().__init__()
+        if out_feats is None:
+            out_feats = embed_dim
+
         self.embedding = nn.Embedding(
             num_embeddings=vocab_size,
             embedding_dim=embed_dim,
@@ -173,7 +228,7 @@ class TransducerConvPredictor(nn.Module):
                 out_channels=embed_dim,
                 kernel_size=context_size,
                 padding=0,
-                groups=out_feats // 4,
+                groups=embed_dim,
                 bias=False,
             )
 
@@ -184,16 +239,18 @@ class TransducerConvPredictor(nn.Module):
         self.context_size = context_size
         self.hid_act = AF.create(hid_act)
 
-        if out_feats is None:
-            out_feats = embed_dim
-
         self.out_feats = out_feats
         if out_feats != embed_dim:
             self.output_proj = nn.Linear(embed_dim, out_feats)
         else:
             self.output_proj = None
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Return a serializable configuration dictionary for this predictor.
+
+        Returns:
+          Dictionary with predictor construction parameters.
+        """
         hid_act = AF.get_config(self.hid_act)
         config = {
             "pred_type": "conv",
@@ -210,35 +267,41 @@ class TransducerConvPredictor(nn.Module):
     def forward(
         self,
         y: torch.Tensor,
-        states: Optional[torch.Tensor] = None,
+        states: Optional[Tuple[torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor]]:
-        """
+        """Compute predictor outputs and updated convolution context.
+
         Args:
-          y:
-            A 2-D tensor of shape (N, U).
-          # need_pad:
-          #   True to left pad the input. Should be True during training.
-          #   False to not pad the input. Should be False during inference.
+          y: Token ids tensor of shape `(batch, steps)`.
+          states: Optional cached left context tuple with one tensor of shape
+            `(batch, embed_dim, context_size - 1)`.
+
         Returns:
-          Return a tensor of shape (N, U, decoder_dim).
+          Tuple `(out, (new_state,))` where:
+          `out` has shape `(batch, steps, out_feats)` and `new_state` stores the
+          last `context_size - 1` frames of left context in shape
+          `(batch, embed_dim, context_size - 1)`.
         """
         y = y.to(torch.int64)
         embed = self.embedding(y)
+        embed = self.embed_dropout(embed)
         if self.context_size > 1:
             embed = embed.transpose(1, 2)
             if states is None:
-                embed = nn.functional.pad(embed,
-                                          pad=(self.context_size - 1, 0))
+                embed = nn.functional.pad(embed, pad=(self.context_size - 1, 0))
             else:
                 embed = torch.cat((states[0], embed), dim=-1)
 
-            out = self.conv(embed).transpose(1, 2)
+            new_state = embed[:, :, -self.context_size + 1 :]
+            embed = self.conv(embed).transpose(1, 2)
+        else:
+            new_state = embed.new_empty((embed.size(0), embed.size(2), 0))
 
-        out = self.hid_act(out)
+        out = self.hid_act(embed)
         if self.output_proj:
             out = self.output_proj(out)
 
-        return out, (embed[:, :, -self.context_size + 1:], )
+        return out, (new_state,)
 
         # # this stuff about clamp() is a temporary fix for a mismatch
         # # at utterance start, we use negative ids in beam_search.py
@@ -262,9 +325,15 @@ class TransducerConvPredictor(nn.Module):
 
     def change_config(
         self,
-        override_dropouts=False,
+        override_dropouts: bool = False,
         embed_dropout_rate: float = 0.0,
-    ):
+    ) -> None:
+        """Update predictor dropout settings.
+
+        Args:
+          override_dropouts: If True, apply provided dropout values.
+          embed_dropout_rate: New embedding dropout probability.
+        """
         logging.info("changing predictor config")
 
         if override_dropouts:

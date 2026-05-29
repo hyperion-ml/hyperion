@@ -47,7 +47,7 @@ class EnglishNumberNormalizer:
         literal_words (set): Words like 'one' or 'ones' that may be left unconverted.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._init_digits()
         self._init_tens()
         self._init_multipliers()
@@ -55,7 +55,7 @@ class EnglishNumberNormalizer:
         self._init_specials()
         self._build_vocab()
 
-    def _init_digits(self):
+    def _init_digits(self) -> None:
         """Initializes mappings for zero, one-to-nineteen, plural, and ordinal forms."""
         self.zeros = {"o", "zero"}
         self.ones = {name: i for i, name in enumerate([
@@ -83,7 +83,7 @@ class EnglishNumberNormalizer:
         }
         self.ones_suffixed = {**self.ones_plural, **self.ones_ordinal}
 
-    def _init_tens(self):
+    def _init_tens(self) -> None:
         """Initializes mappings for tens (twenty, thirty, etc.), including plural and ordinal forms."""
         self.tens = {
             "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
@@ -97,7 +97,7 @@ class EnglishNumberNormalizer:
         }
         self.tens_suffixed = {**self.tens_plural, **self.tens_ordinal}
 
-    def _init_multipliers(self):
+    def _init_multipliers(self) -> None:
         """Initializes mappings for large number multipliers like thousand, million, etc., including plural and ordinal forms."""
         self.multipliers = {
             "hundred": 100,
@@ -124,7 +124,7 @@ class EnglishNumberNormalizer:
             **self.multipliers_ordinal,
         }
 
-    def _init_prefix_suffix(self):
+    def _init_prefix_suffix(self) -> None:
         """Initializes mappings for prefix symbols (positive, negative) and suffix terms (currency, percent)."""
         self.preceding_prefixers = {
             "minus": "-", "negative": "-",
@@ -142,12 +142,12 @@ class EnglishNumberNormalizer:
             "percent": "%",
         }
 
-    def _init_specials(self):
+    def _init_specials(self) -> None:
         """Initializes special control words such as 'and', 'double', 'point'."""
         self.specials = {"and", "double", "triple", "point"}
         self.literal_words = {"one", "ones"}
 
-    def _build_vocab(self):
+    def _build_vocab(self) -> None:
         """Builds the full set of recognized words from all category dictionaries."""
         self.decimals = {*self.ones, *self.tens, *self.zeros}
         self.words = set().union(
@@ -180,13 +180,13 @@ class EnglishNumberNormalizer:
         value: Optional[Union[str, int]] = None
         skip = False
 
-        def to_fraction(s: str):
+        def to_fraction(s: str) -> Optional[Fraction]:
             try:
                 return Fraction(s)
             except ValueError:
                 return None
 
-        def output(result: Union[str, int]):
+        def output(result: Union[str, int]) -> str:
             nonlocal prefix, value
             result = str(result)
             if prefix is not None:
@@ -399,7 +399,7 @@ class EnglishNumberNormalizer:
         if value is not None:
             yield output(value)
 
-    def preprocess(self, s: str):
+    def preprocess(self, s: str) -> str:
         """
         Preprocess a string to normalize patterns that could affect numeric interpretation.
 
@@ -444,7 +444,7 @@ class EnglishNumberNormalizer:
 
         return s
 
-    def postprocess(self, s: str):
+    def postprocess(self, s: str) -> str:
         """
         Postprocess the normalized string to refine currency and singular word forms.
 
@@ -459,7 +459,7 @@ class EnglishNumberNormalizer:
         Returns:
             str: A cleaned-up string with currency and linguistic adjustments.
         """
-        def combine_cents(m: Match):
+        def combine_cents(m: Match) -> str:
             try:
                 currency = m.group(1)
                 integer = m.group(2)
@@ -468,7 +468,7 @@ class EnglishNumberNormalizer:
             except ValueError:
                 return m.string
 
-        def extract_cents(m: Match):
+        def extract_cents(m: Match) -> str:
             try:
                 return f"¢{int(m.group(1))}"
             except ValueError:
@@ -483,7 +483,7 @@ class EnglishNumberNormalizer:
 
         return s
 
-    def __call__(self, s: str):
+    def __call__(self, s: str) -> str:
         """
         Normalize a string containing spelled-out English numbers into numeric form.
 
@@ -541,7 +541,7 @@ class EnglishReverseNumberNormalizer(EnglishNumberNormalizer):
         str_to_tens_suffixed (dict[str, str]):
             Mapping from suffixed tens (e.g., '90s', '90th') to spelled-out versions like 'nineties', 'ninetieth'.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         # Reverse dictionaries
         self.int_to_ones = {v: k for k, v in self.ones.items()}
@@ -556,7 +556,7 @@ class EnglishReverseNumberNormalizer(EnglishNumberNormalizer):
             str(n) + s: k for k, (n, s) in self.tens_suffixed.items()
         }
 
-    def __call__(self, s: str):
+    def __call__(self, s: str) -> str:
         """
         Converts numeric expressions in a string back to their approximate spelled-out equivalents.
 
@@ -579,7 +579,7 @@ class EnglishReverseNumberNormalizer(EnglishNumberNormalizer):
         s = re.sub(r"(\d+(\.\d+)?)%", r"\1 percent", s)
         # note this doesn't handle cases such as -x or +x.
 
-        def number_to_words(w: str):
+        def number_to_words(w: str) -> str:
             if w.isdigit():
                 num = int(w)
                 if w == "000":

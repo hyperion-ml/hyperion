@@ -5,6 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import json
 from pathlib import Path
+from typing import Any, Dict
 
 
 class SpellingNormalizer:
@@ -24,9 +25,9 @@ class SpellingNormalizer:
 
     def __init__(self, mapping_name: str):
         mapping_path = str(Path(__file__).parent / f"{mapping_name}.json")
-        self.mapping = json.load(open(mapping_path))
+        self.mapping: Dict[str, Any] = json.load(open(mapping_path))
 
-    def __call__(self, s: str):
+    def __call__(self, s: str) -> str:
         """
         Apply the loaded spelling normalization to an input string.
 

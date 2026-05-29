@@ -417,10 +417,10 @@ class HFWav2QVector(QVector):
         self.hf_feats.train()
 
     def set_adapters_in_train_mode(self) -> None:
-        pass
+        self.feat_fuser.train()
 
     def set_adapters_in_eval_mode(self) -> None:
-        pass
+        self.feat_fuser.eval()
 
     def _infer_backbone_layers_indices(self):
         pass

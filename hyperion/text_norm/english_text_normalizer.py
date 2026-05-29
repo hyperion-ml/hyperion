@@ -41,7 +41,7 @@ class EnglishTextNormalizer(BasicTextNormalizer):
         remove_symbols: bool = True,
         remove_diacritics: bool = False,
         split_chars: bool = False,
-    ):
+    ) -> None:
         super().__init__(
             remove_punctuation=remove_punctuation,
             remove_symbols=remove_symbols,
@@ -144,7 +144,7 @@ class EnglishTextNormalizer(BasicTextNormalizer):
         else:
             self.fillers = None
 
-    def __call__(self, text: str):
+    def __call__(self, text: str) -> str:
         text = text.lower()
 
         # remove words between brackets
