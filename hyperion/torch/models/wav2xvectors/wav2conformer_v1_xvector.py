@@ -4,6 +4,7 @@
 """
 
 import logging
+from typing import Any, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -24,7 +25,11 @@ class Wav2ConformerV1XVector(Wav2XVector):
       xvector: ConformerV1XVector configuration dictionary or object.
     """
 
-    def __init__(self, feats, xvector):
+    def __init__(
+        self,
+        feats: Union[Dict[str, Any], Any],
+        xvector: Union[Dict[str, Any], ConformerV1XVector],
+    ) -> None:
         if isinstance(xvector, dict):
             xvector = ConformerV1XVector.filter_args(**xvector)
             xvector = ConformerV1XVector(**xvector)
@@ -34,7 +39,7 @@ class Wav2ConformerV1XVector(Wav2XVector):
         super().__init__(feats, xvector)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
         """Adds Wav2ConformerV1XVector options to parser.
 
         Args:
@@ -52,14 +57,14 @@ class Wav2ConformerV1XVector(Wav2XVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         base_args = {}
         child_args = ConformerV1XVector.filter_finetune_args(**kwargs["xvector"])
         base_args["xvector"] = child_args
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -70,14 +75,14 @@ class Wav2ConformerV1XVector(Wav2XVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_dino_teacher_args(**kwargs):
+    def filter_dino_teacher_args(**kwargs: Any) -> Dict[str, Any]:
         base_args = {}
         child_args = ConformerV1XVector.filter_dino_teacher_args(**kwargs["xvector"])
         base_args["xvector"] = child_args
         return base_args
 
     @staticmethod
-    def add_dino_teacher_args(parser, prefix=None):
+    def add_dino_teacher_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

@@ -134,6 +134,8 @@ class DACEncoderBlock(nn.Module):
                 )
             ),
         ]
+        # kernel_size = 2 * stride gives overlapping downsampling windows
+        # padding = ceil(stride / 2) makes the output length come out as ceil(T / stride) and matches the decoder design
         self.blocks = nn.Sequential(*blocks)
         context = 0
         for block in blocks[:-1]:
@@ -141,8 +143,16 @@ class DACEncoderBlock(nn.Module):
                 context += block.in_context()
 
         p = int(math.ceil(stride / 2))
-        self.right_context = context + p
-        self.left_context = context + (2 * stride - 1 - p)
+        # output sample y[n] depends on input indices:
+        #   n*s - p + j,   j = 0, ..., k-1
+        # So relative to the anchor n*s, the receptive field is:
+        #   left context: p
+        #   right context: k - 1 - p
+        self.left_context = context + p
+        self.right_context = context + (2 * stride - 1 - p)
+        # I had this reversed
+        # self.right_context = context + p
+        # self.left_context = context + (2 * stride - 1 - p)
 
     def in_context(self) -> Tuple[int, int]:
         """Return (left_context, right_context) in input samples for one stage."""
@@ -153,6 +163,8 @@ class DACEncoderBlock(nn.Module):
         stride = self.stride
         pad = int(math.ceil(stride / 2))
         kernel_size = 2 * stride
+        # First apply the residual blocks which keep length, then apply the final strided conv.
+        # Formula for l_out of last strided conv1d with given padding, kernel_size, stride and dilation=1:
         return (in_length + 2 * pad - kernel_size) // stride + 1
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:
@@ -246,10 +258,17 @@ class DACDecoderBlock(nn.Module):
         context = 0
         for block in blocks[1:]:
             if isinstance(block, DACResBlock):
+                # Each DACResBlock after the deconvolution adds
+                # symmetric context measured in output samples.
                 context += block.in_context()
 
         self.stride = stride
-        self._context = context / stride
+        # Those residual blocks operate after upsampling,
+        # so to express their context back in decoder-input samples,
+        # dividing by stride is the right thing to do.
+        context = context / stride
+        self.left_context = context + 1
+        self.right_context = context + 1
 
     def in_context(self) -> Tuple[float, float]:
         """
@@ -259,7 +278,7 @@ class DACDecoderBlock(nn.Module):
             For transposed-conv upsampling, the effective input context is fractional
             when mapped back through the stride; we expose it as floats.
         """
-        return (self._context + 1, self._context)
+        return (self.left_context, self.right_context)
 
     def max_out_length(self, in_length: int) -> int:
         """Max output length for a single example given input length ``in_length``."""
@@ -308,12 +327,12 @@ class StreamingDACResBlock(nn.Module):
     Streaming Descript Audio Codec residual block.
 
     Structure:
-        Snake1d → WN(Conv1d(ch, ch, kernel_size, dilation, padding)) →
+        Snake1d → WN(StreamingCausalConv1d(ch, ch, kernel_size, dilation)) →
         Snake1d → WN(Conv1d(ch, ch, kernel_size=1)) → residual add
 
     Notes:
         - Expects **channels-first** tensors of shape ``(B, C, T)``.
-        - Padding keeps time length (or off-by-one which is corrected by center-cropping).
+        - The causal conv preserves time length in full-sequence mode.
 
     Args:
         channels: Number of input/output channels (C).
@@ -341,21 +360,17 @@ class StreamingDACResBlock(nn.Module):
             weight_norm(Conv1d(channels, channels, kernel_size=1)),
         )
 
-    def in_context(self) -> int:
-        """Return  contributed by the dilated conv."""
+    def in_context(self) -> Tuple[int, int]:
+        """Return (left_context, right_context) contributed by the causal conv."""
         return ((self.layers[1].kernel_size[0] - 1) * self.layers[1].dilation[0], 0)
 
     def max_out_length(self, in_length: int) -> int:
         """Max output length for a single example given input length ``in_length``."""
-        # kernel_size = self.layers[1].kernel_size[0]
-        # dilation = self.layers[1].dilation[0]
-        return in_length  # - (kernel_size - 1) * dilation
+        return in_length
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:
         """Vectorized version of :meth:`max_out_length` for a batch of input lengths."""
-        # kernel_size = self.layers[1].kernel_size[0]
-        # dilation = self.layers[1].dilation[0]
-        return in_lengths  # - (kernel_size - 1) * dilation
+        return in_lengths
 
     @torch.no_grad()
     def init_state(
@@ -438,7 +453,7 @@ class StreamingDACEncoderBlock(nn.Module):
 
     Structure:
         [Residual stack @ in_channels] → Snake1d →
-        WN(Conv1d(in_channels, out_channels, kernel_size=2*stride, stride=stride, padding=ceil(stride/2)))
+        WN(StreamingCausalConv1d(in_channels, out_channels, kernel_size=2*stride, stride=stride))
 
     Purpose:
         Downsample the time axis by ``stride`` while (typically) doubling channels.
@@ -453,7 +468,7 @@ class StreamingDACEncoderBlock(nn.Module):
     Shapes:
         Input:  (B, C_in, T)
         Output: (B, C_out, T_out) with
-            ``T_out = floor((T + 2*ceil(stride/2) - 2*stride) / stride) + 1``
+            ``T_out = floor((T - 1) / stride) + 1``
     """
 
     def __init__(
@@ -484,7 +499,7 @@ class StreamingDACEncoderBlock(nn.Module):
         left_context = 0
         right_context = 0
         for block in blocks[:-1]:
-            if isinstance(block, DACResBlock):
+            if isinstance(block, StreamingDACResBlock):
                 lc, rc = block.in_context()
                 left_context += lc
                 right_context += rc
@@ -519,21 +534,11 @@ class StreamingDACEncoderBlock(nn.Module):
 
     def max_out_length(self, in_length: int) -> int:
         """Max output length for a single example given input length ``in_length``."""
-        # for block in self.blocks[:-2]:
-        #     in_length = block.max_out_length(in_length)
-
-        stride = self.stride
-        kernel_size = 2 * stride
-        # return (in_length - kernel_size) // stride + 1
-        return (in_length - 1) // stride + 1
+        return (in_length - 1) // self.stride + 1
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:
         """Vectorized version of :meth:`max_out_length` for a batch of input lengths."""
-        for block in self.blocks[:-2]:
-            in_lengths = block.out_lengths(in_lengths)
-        stride = self.stride
-        kernel_size = 2 * stride
-        return torch.div(in_lengths - kernel_size, stride, rounding_mode="floor") + 1
+        return torch.div(in_lengths - 1, self.stride, rounding_mode="floor") + 1
 
     def forward(
         self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
@@ -560,13 +565,18 @@ class StreamingDACEncoderBlock(nn.Module):
         state: List[Dict[str, Any]],
         flush: bool = False,
     ) -> Tuple[torch.Tensor, List[Dict[str, Any]]]:
-        """a
+        """
         Apply the encoder block in streaming mode.
 
         Args:
             x: Tensor of shape ``(B, C_in, T)``.
             state: List of per-layer states.
             flush: If True, flush the final streaming conv (end of stream).
+
+        Returns:
+            Tuple of:
+            - Tensor of shape ``(B, C_out, T_out)``.
+            - Updated per-layer states.
         """
         act_idx = len(self.blocks) - 2
         state_cur_idx = 0
@@ -595,7 +605,7 @@ class StreamingDACDecoderBlock(nn.Module):
     Streaming Descript Audio Codec decoder block.
 
     Structure:
-        Snake1d → WN(ConvTranspose1d(in_ch, out_ch, kernel_size=2*stride, stride=stride, padding=ceil(stride/2)))
+        Snake1d → WN(StreamingCausalConvTranspose1d(in_ch, out_ch, kernel_size=2*stride, stride=stride))
         → [Residual stack @ out_channels]
 
     Purpose:
@@ -611,7 +621,7 @@ class StreamingDACDecoderBlock(nn.Module):
     Shapes:
         Input:  (B, C_in, T)
         Output: (B, C_out, T_out) with
-            ``T_out = (T - 1)*stride - 2*ceil(stride/2) + (2*stride - 1) + 1``
+            ``T_out = (T - 1)*stride + (2*stride - 1) + 1`` in full-sequence mode.
     """
 
     def __init__(
@@ -643,14 +653,14 @@ class StreamingDACDecoderBlock(nn.Module):
 
         left_context = 0
         right_context = 0
-        for block in blocks[:-1]:
-            if isinstance(block, DACResBlock):
+        for block in blocks[1:]:
+            if isinstance(block, StreamingDACResBlock):
                 lc, rc = block.in_context()
                 left_context += lc
                 right_context += rc
 
-        self.left_context = left_context + 1
-        self.right_context = right_context
+        self.left_context = left_context / stride + 1
+        self.right_context = right_context / stride
         self.stride = stride
 
     @torch.no_grad()
@@ -678,16 +688,25 @@ class StreamingDACDecoderBlock(nn.Module):
 
     def in_context(self) -> Tuple[float, float]:
         """
-        Return (left_context, right_context) in **input** samples for this stage.
+        Return ``(left_context, right_context)`` in decoder-input samples for this stage.
 
         Notes:
-            For transposed-conv upsampling, the effective input context is fractional
-            when mapped back through the stride; we expose it as floats.
+            For transposed-conv upsampling, the effective input context is obtained by
+            mapping post-upsampling receptive field back through the stride.
+            This is a coarse-input receptive-field summary, not output-waveform context.
         """
         return (self.left_context, self.right_context)
 
     def max_out_length(self, in_length: int) -> int:
-        """Max output length for a single example given input length ``in_length``."""
+        """
+        Max full-sequence output length for a single example.
+
+        Notes:
+            This matches :meth:`forward`, which runs the underlying causal transposed
+            convolution on the entire sequence. It does not describe the number of
+            samples emitted by a non-final :meth:`stream` call, where overlap is
+            buffered and added into future chunks.
+        """
         stride = self.stride
         kernel_size = 2 * stride
         out_length = (in_length - 1) * stride + (kernel_size - 1) + 1
@@ -696,7 +715,13 @@ class StreamingDACDecoderBlock(nn.Module):
         return out_length
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:
-        """Vectorized version of :meth:`max_out_length` for a batch of input lengths."""
+        """
+        Vectorized version of :meth:`max_out_length` for full-sequence forward lengths.
+
+        Notes:
+            Like :meth:`max_out_length`, this predicts :meth:`forward` output lengths,
+            not the per-call emitted length of non-final :meth:`stream` steps.
+        """
         stride = self.stride
         kernel_size = 2 * stride
         out_lengths = (in_lengths - 1) * stride + (kernel_size - 1) + 1
@@ -765,7 +790,7 @@ class StreamingDACDecoderBlock(nn.Module):
 
 
 def stream_dac_resblock_demo(B=1, C=8, T=480, chunk=160, kernel_size=7, dilation=1):
-    """Compare forward vs streaming for DACResBlock."""
+    """Compare forward vs streaming for StreamingDACResBlock."""
     torch.manual_seed(0)
     block = StreamingDACResBlock(C, kernel_size=kernel_size, dilation=dilation).eval()
     x_full = torch.randn(B, C, T)

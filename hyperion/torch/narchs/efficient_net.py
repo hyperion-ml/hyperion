@@ -174,13 +174,14 @@ class EfficientNet(NetArch):
 
         self.blocks = nn.ModuleList([])
         k = 0
+        drop_connect_den = total_blocks - 1 if total_blocks > 1 else 1
         for i in range(num_superblocks):
             repeats_i = self.mbconv_repeats[i]
             channels_i = self.mbconv_channels[i]
             stride_i = self.mbconv_strides[i]
             kernel_size_i = self.mbconv_kernel_sizes[i]
             expansion_i = self.mbconv_expansions[i]
-            drop_i = drop_connect_rate * k / (total_blocks - 1)
+            drop_i = drop_connect_rate * k / drop_connect_den
             block_i = MBConvBlock(
                 cur_in_channels,
                 channels_i,
@@ -202,7 +203,7 @@ class EfficientNet(NetArch):
                 cur_feats = (cur_feats + stride_i - 1) // stride_i
 
             for j in range(repeats_i - 1):
-                drop_i = drop_connect_rate * k / (total_blocks - 1)
+                drop_i = drop_connect_rate * k / drop_connect_den
                 block_i = MBConvBlock(
                     channels_i,
                     channels_i,
@@ -335,6 +336,8 @@ class EfficientNet(NetArch):
         assert layers is not None or return_output
         if layers is None:
             layers = []
+        if not layers and not return_output:
+            return []
 
         if return_output:
             last_layer = len(self.blocks) + 1
@@ -380,7 +383,7 @@ class EfficientNet(NetArch):
             "mbconv_expansions": self.mbconv_expansions,
             "head_channels": self.head_channels,
             "width_scale": self.cfg_width_scale,
-            "depth_scale": self.cfg_width_scale,
+            "depth_scale": self.cfg_depth_scale,
             "fix_stem_head": self.fix_stem_head,
             "out_units": self.out_units,
             "drop_connect_rate": self.drop_connect_rate,

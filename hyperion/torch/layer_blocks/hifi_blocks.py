@@ -3,14 +3,13 @@ Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import math
-from typing import List, Optional, Tuple
+import copy
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d
 from torch.nn.utils.parametrizations import weight_norm
-from torch.nn.utils.parametrize import remove_parametrizations
+from torch.nn.utils.parametrize import is_parametrized, remove_parametrizations
 
 
 class HiFiBlock(nn.Module):
@@ -33,15 +32,23 @@ class HiFiBlock(nn.Module):
         self,
         channels: int,
         kernel_size: int = 3,
-        dilations: List[int] = [1, 3, 5],
+        dilations: Optional[List[int]] = None,
         activation: Optional[nn.Module] = None,
     ):
         super().__init__()
+        if kernel_size % 2 == 0:
+            raise ValueError(f"kernel_size must be odd, got {kernel_size}")
+        if dilations is None:
+            dilations = [1, 3, 5]
 
         self.channels = channels
         self.kernel_size = kernel_size
-        self.dilations = dilations
-        self.activation = activation or nn.LeakyReLU(negative_slope=0.1)
+        self.dilations = list(dilations)
+        self.activation = (
+            copy.deepcopy(activation)
+            if activation is not None
+            else nn.LeakyReLU(negative_slope=0.1)
+        )
 
         self.convs1 = nn.ModuleList(
             [
@@ -55,7 +62,7 @@ class HiFiBlock(nn.Module):
                         dilation=d,
                     )
                 )
-                for d in dilations
+                for d in self.dilations
             ]
         )
 
@@ -72,7 +79,7 @@ class HiFiBlock(nn.Module):
                         dilation=1,
                     )
                 )
-                for _ in dilations
+                for _ in self.dilations
             ]
         )
 
@@ -83,7 +90,18 @@ class HiFiBlock(nn.Module):
         Initialize the weights of all convolutional layers.
         """
         for layer in self.convs1 + self.convs2:
-            layer.weight.data.normal_(0.0, 0.01)
+            if (
+                is_parametrized(layer)
+                and hasattr(layer, "parametrizations")
+                and "weight" in layer.parametrizations
+            ):
+                g = layer.parametrizations.weight.original0
+                v = layer.parametrizations.weight.original1
+                nn.init.normal_(v, 0.0, 0.01)
+                with torch.no_grad():
+                    g.copy_(v.flatten(1).norm(dim=1, keepdim=True).view_as(g))
+            else:
+                nn.init.normal_(layer.weight, 0.0, 0.01)
             if layer.bias is not None:
                 nn.init.constant_(layer.bias, 0.0)
 

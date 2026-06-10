@@ -14,7 +14,7 @@ from .swish import DoubleSwish, DoubleSwish6, Swish, Swish6
 
 ActivationConfig = Dict[str, Any]
 ActivationCtor = Callable[..., nn.Module]
-ActivationSpec = Optional[Union[str, Mapping[str, Any], Callable[..., nn.Module]]]
+ActivationSpec = Optional[Union[str, ActivationConfig, ActivationCtor]]
 
 
 act_dict: Dict[str, ActivationCtor] = {

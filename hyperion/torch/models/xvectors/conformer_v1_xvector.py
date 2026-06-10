@@ -4,6 +4,7 @@
 """
 
 import logging
+from typing import Any, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -16,35 +17,35 @@ from .xvector import XVector
 class ConformerV1XVector(XVector):
     def __init__(
         self,
-        encoder,
-        num_classes,
-        pool_net="mean+stddev",
-        embed_dim=256,
-        num_embed_layers=1,
-        hid_act={"name": "relu", "inplace": True},
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=0,
-        intertop_k=5,
-        intertop_margin=0.0,
-        num_subcenters=2,
-        dropout_rate=0,
-        norm_layer=None,
-        head_norm_layer=None,
-        use_norm=True,
-        norm_before=True,
-        head_use_norm=True,
-        head_use_in_norm=False,
-        head_hid_dim=2048,
-        head_bottleneck_dim=256,
-        proj_head_use_norm=True,
-        proj_head_norm_before=True,
-        embed_layer=0,
-        proj_feats=None,
-        head_type="x-vector",
-        bias_weight_decay=None,
-    ):
+        encoder: Union[Dict[str, Any], Encoder],
+        num_classes: int,
+        pool_net: str = "mean+stddev",
+        embed_dim: int = 256,
+        num_embed_layers: int = 1,
+        hid_act: Union[Dict[str, Any], Any] = {"name": "relu", "inplace": True},
+        loss_type: str = "arc-softmax",
+        cos_scale: int = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 0,
+        intertop_k: int = 5,
+        intertop_margin: float = 0.0,
+        num_subcenters: int = 2,
+        dropout_rate: float = 0,
+        norm_layer: Optional[Any] = None,
+        head_norm_layer: Optional[Any] = None,
+        use_norm: bool = True,
+        norm_before: bool = True,
+        head_use_norm: bool = True,
+        head_use_in_norm: bool = False,
+        head_hid_dim: int = 2048,
+        head_bottleneck_dim: int = 256,
+        proj_head_use_norm: bool = True,
+        proj_head_norm_before: bool = True,
+        embed_layer: int = 0,
+        proj_feats: Optional[int] = None,
+        head_type: str = "x-vector",
+        bias_weight_decay: Optional[float] = None,
+    ) -> None:
         if isinstance(encoder, dict):
             logging.info(f"making conformer encoder network={encoder}")
             encoder["in_time_dim"] = 2
@@ -85,7 +86,7 @@ class ConformerV1XVector(XVector):
             bias_weight_decay=bias_weight_decay,
         )
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         base_config = super().get_config()
         del base_config["encoder_cfg"]
         del base_config["in_feats"]
@@ -101,19 +102,19 @@ class ConformerV1XVector(XVector):
 
     def change_config(
         self,
-        encoder,
-        override_output=False,
-        override_dropouts=False,
-        dropout_rate=0,
-        num_classes=None,
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=10,
-        intertop_k=5,
-        intertop_margin=0,
-        num_subcenters=2,
-    ):
+        encoder: Dict[str, Any],
+        override_output: bool = False,
+        override_dropouts: bool = False,
+        dropout_rate: float = 0,
+        num_classes: Optional[int] = None,
+        loss_type: str = "arc-softmax",
+        cos_scale: int = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 10,
+        intertop_k: int = 5,
+        intertop_margin: float = 0,
+        num_subcenters: int = 2,
+    ) -> None:
         super().change_config(
             override_output,
             False,
@@ -134,7 +135,12 @@ class ConformerV1XVector(XVector):
         self.encoder_net.change_config(**encoder)
 
     @classmethod
-    def load(cls, file_path=None, cfg=None, state_dict=None):
+    def load(
+        cls,
+        file_path: Optional[str] = None,
+        cfg: Optional[Dict[str, Any]] = None,
+        state_dict: Optional[Dict[str, Any]] = None,
+    ) -> "ConformerV1XVector":
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
         try:
             del cfg["in_feats"]
@@ -148,7 +154,7 @@ class ConformerV1XVector(XVector):
         return model
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         base_args = XVector.filter_args(**kwargs)
         child_args = Encoder.filter_args(**kwargs["encoder"])
 
@@ -156,7 +162,7 @@ class ConformerV1XVector(XVector):
         return base_args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -169,14 +175,14 @@ class ConformerV1XVector(XVector):
     add_argparse_args = add_class_args
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         base_args = XVector.filter_finetune_args(**kwargs)
         child_args = Encoder.filter_finetune_args(**kwargs["encoder"])
         base_args["encoder"] = child_args
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -188,14 +194,14 @@ class ConformerV1XVector(XVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_dino_teacher_args(**kwargs):
+    def filter_dino_teacher_args(**kwargs: Any) -> Dict[str, Any]:
         base_args = XVector.filter_dino_teacher_args(**kwargs)
         child_args = Encoder.filter_finetune_args(**kwargs["encoder"])
         base_args["encoder"] = child_args
         return base_args
 
     @staticmethod
-    def add_dino_teacher_args(parser, prefix=None):
+    def add_dino_teacher_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

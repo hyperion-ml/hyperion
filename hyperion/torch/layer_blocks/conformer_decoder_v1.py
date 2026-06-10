@@ -1,9 +1,11 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 #
+
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -43,13 +45,13 @@ class ConformerDecoderBlockV1(ConformerEncoderBlockV1):
       att_context: maximum context range for local attention
       att_dropout_rate: dropout rate for attention block
       causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
-                      that query q_i only attents to key k_j when j<=i
+                      that query q_i only attends to key k_j when j<=i
       conv_norm_layer: norm layer constructor for conv block,
-                       if None it uses BatchNorm
+                       if None it uses BatchNorm1d.
       se_r:         Squeeze-Excitation compression ratio,
                     if None it doesn't use Squeeze-Excitation
       ff_macaron: if True, it uses macaron-net style ff layers, otherwise transformer style.
-      out_lnorm: if True, use LNorm layer at the output as in the conformer paper,
+      out_lnorm: if True, use LayerNorm at the output as in the conformer paper,
                  we think that this layer is redundant and put it to False by default
       concat_after: if True, if concats attention input and output and apply linear transform, i.e.,
                              y = x + linear(concat(x, att(x)))
@@ -59,29 +61,56 @@ class ConformerDecoderBlockV1(ConformerEncoderBlockV1):
 
     def __init__(
         self,
-        num_feats,
-        self_attn,
-        cross_attn,
-        num_heads,
-        conv_repeats=0,
-        conv_kernel_size=31,
-        conv_stride=1,
-        feed_forward="linear",
-        d_ff=2048,
-        ff_kernel_size=3,
-        hid_act="swish",
-        dropout_rate=0,
-        att_context=25,
-        att_dropout_rate=0,
-        pos_enc_type="rel",
-        causal_pos_enc=False,
-        conv_norm_layer=None,
-        se_r=None,
-        ff_macaron=True,
-        src_lnorm=False,
-        out_lnorm=False,
-        concat_after=False,
-    ):
+        num_feats: int,
+        self_attn: Any,
+        cross_attn: Any,
+        num_heads: int,
+        conv_repeats: int = 0,
+        conv_kernel_size: int = 31,
+        conv_stride: int = 1,
+        feed_forward: str = "linear",
+        d_ff: int = 2048,
+        ff_kernel_size: int = 3,
+        hid_act: Union[str, Dict[str, Any]] = "swish",
+        dropout_rate: float = 0,
+        att_context: int = 25,
+        att_dropout_rate: float = 0,
+        pos_enc_type: str = "rel",
+        causal_pos_enc: bool = False,
+        conv_norm_layer: Optional[Callable[..., nn.Module]] = None,
+        se_r: Optional[int] = None,
+        ff_macaron: bool = True,
+        src_lnorm: bool = False,
+        out_lnorm: bool = False,
+        concat_after: bool = False,
+    ) -> None:
+        """Initialize the conformer decoder block.
+
+        Args:
+          num_feats: Input/output feature dimension.
+          self_attn: Self-attention constructor or module config.
+          cross_attn: Cross-attention constructor or module config.
+          num_heads: Number of attention heads.
+          conv_repeats: Number of convolution sub-blocks.
+          conv_kernel_size: Kernel size for the convolution block.
+          conv_stride: Stride for the first convolution block.
+          feed_forward: Feed-forward block type.
+          d_ff: Hidden dimension of the feed-forward block.
+          ff_kernel_size: Kernel size for convolutional feed-forward variants.
+          hid_act: Hidden activation specification accepted by
+            ``ActivationFactory``.
+          dropout_rate: Dropout probability for the block.
+          att_context: Local attention context size.
+          att_dropout_rate: Attention dropout probability.
+          pos_enc_type: Positional encoding type.
+          causal_pos_enc: Whether to use causal relative positions.
+          conv_norm_layer: Convolution normalization layer constructor.
+          se_r: Optional squeeze-excitation reduction ratio.
+          ff_macaron: Whether to use macaron-style feed-forward blocks.
+          src_lnorm: Whether to layer-normalize the source branch.
+          out_lnorm: Whether to apply an output layer norm.
+          concat_after: Whether to concatenate attention input/output.
+        """
         super().__init__(
             num_feats,
             self_attn,
@@ -105,7 +134,7 @@ class ConformerDecoderBlockV1(ConformerEncoderBlockV1):
             concat_after=concat_after,
         )
 
-        self.cross_att = self._make_att(
+        self.cross_attn = self._make_att(
             cross_attn,
             num_feats,
             num_heads,
@@ -123,7 +152,24 @@ class ConformerDecoderBlockV1(ConformerEncoderBlockV1):
         if self.concat_after:
             self.cross_concat_linear = nn.Linear(num_feats + num_feats, num_feats)
 
-    def _forward_self_attn(self, x, pos_emb=None, mask=None, cache=None):
+    def _forward_self_attn(
+        self,
+        x: torch.Tensor,
+        pos_emb: Optional[torch.Tensor] = None,
+        mask: Optional[torch.Tensor] = None,
+        cache: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Apply self-attention, optionally using the cached prefix.
+
+        Args:
+          x: Input tensor with shape ``(batch, time, features)``.
+          pos_emb: Optional positional embedding tensor.
+          mask: Optional valid-frame mask.
+          cache: Optional cached previous self-attention state.
+
+        Returns:
+          Tensor with the same shape as ``x``.
+        """
         residual = x
         x = self.norm_att(x)
 
@@ -157,7 +203,24 @@ class ConformerDecoderBlockV1(ConformerEncoderBlockV1):
         x = residual + x
         return x
 
-    def _forward_cross_attn(self, x, x_src, pos_emb=None, mask=None):
+    def _forward_cross_attn(
+        self,
+        x: torch.Tensor,
+        x_src: torch.Tensor,
+        pos_emb: Optional[torch.Tensor] = None,
+        mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Apply cross-attention with residual connection.
+
+        Args:
+          x: Decoder state tensor with shape ``(batch, time, features)``.
+          x_src: Source tensor with shape ``(batch, time_src, features)``.
+          pos_emb: Optional positional embedding tensor.
+          mask: Optional source mask.
+
+        Returns:
+          Tensor with the same shape as ``x``.
+        """
         residual = x
         x = self.norm_cross_att(x)
         if self.src_lnorm:
@@ -180,13 +243,21 @@ class ConformerDecoderBlockV1(ConformerEncoderBlockV1):
         x = residual + x
         return x
 
-    def forward(self, x, x_src, pos_emb=None, mask=None, mask_src=None, cache=None):
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_src: torch.Tensor,
+        pos_emb: Optional[torch.Tensor] = None,
+        mask: Optional[torch.Tensor] = None,
+        mask_src: Optional[torch.Tensor] = None,
+        cache: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward pass function
 
         Args:
           x: input tensor with size=(batch, time, num_feats)
           pos_emb: positional embedding size=(batch, time2, in_feats) as R_{L-1}, ..., R_0,
-                   when using relative postional encoder, otherwise None
+                   when using relative positional encoder, otherwise None
           mask: mask to indicate valid time steps for x (batch, time)
 
         Returns:

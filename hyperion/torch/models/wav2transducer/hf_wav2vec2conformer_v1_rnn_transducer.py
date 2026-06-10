@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 from jsonargparse import ActionParser, ArgumentParser
 
@@ -31,11 +31,11 @@ class HFWav2Vec2ConformerV1RNNTransducer(HFWav2RNNTransducer):
 
     def __init__(
         self,
-        hf_feats: Union[Dict, HFWav2Vec2],
-        transducer: Union[Dict, ConformerV1RNNTransducer],
+        hf_feats: Union[Dict[str, Any], HFWav2Vec2],
+        transducer: Union[Dict[str, Any], ConformerV1RNNTransducer],
         feat_fusion_start: int = 0,
         feat_fusion_method: str = "weighted-avg",
-    ):
+    ) -> None:
 
         if isinstance(hf_feats, dict):
             if "class_name" in hf_feats:
@@ -57,7 +57,7 @@ class HFWav2Vec2ConformerV1RNNTransducer(HFWav2RNNTransducer):
                          feat_fusion_method)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         base_args = HFWav2RNNTransducer.filter_args(**kwargs)
         child_args = HFWav2Vec2.filter_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
@@ -67,7 +67,7 @@ class HFWav2Vec2ConformerV1RNNTransducer(HFWav2RNNTransducer):
         return base_args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -83,7 +83,7 @@ class HFWav2Vec2ConformerV1RNNTransducer(HFWav2RNNTransducer):
                                       action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         base_args = {}
         child_args = HFWav2Vec2.filter_finetune_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
@@ -93,7 +93,7 @@ class HFWav2Vec2ConformerV1RNNTransducer(HFWav2RNNTransducer):
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

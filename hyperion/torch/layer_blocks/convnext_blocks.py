@@ -8,29 +8,41 @@ from typing import Optional, Type, Union
 import torch
 import torch.nn as nn
 
-from ..layers import ActivationFactory as AF
+from ..layers import ActivationFactory as AF, ActivationSpec
 from ..layers import DropPath1d, DropPath2d, GRN1d, GRN2d, Interpolate
 
 
 class ConvNext2dBlock(nn.Module):
-    """ConvNeXtV2 Block with 2d convolutions.
+    """ConvNeXtV2 block with 2D convolutions.
 
-    Args:
-        num_channels (int): Number of input channels.
-        kernel_size: kernel size
-        activation: activation function name or object
-        norm_layer: normalization layer constructor, if None, LayerNorm is used.
-        drop_path_rate (float): Stochastic depth rate. Default: 0.0
+    Attributes:
+      dwconv: Depthwise convolution over the spatial dimensions.
+      norm: Normalization layer applied in channels-last format.
+      pwconv1: First pointwise projection implemented with a linear layer.
+      act: Activation module created by the activation factory.
+      grn: Global response normalization layer.
+      pwconv2: Second pointwise projection back to the input width.
+      drop_path: Stochastic depth module.
+      context: Effective padding/context contributed by the block.
     """
 
     def __init__(
         self,
         num_channels: int,
         kernel_size: int = 7,
-        activation: Union[str, nn.Module] = "gelu",
+        activation: ActivationSpec = "gelu",
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
-    ):
+    ) -> None:
+        """Initialize the 2D ConvNeXt block.
+
+        Args:
+          num_channels: Number of input and output channels.
+          kernel_size: Depthwise convolution kernel size.
+          activation: Activation specification accepted by ``ActivationFactory``.
+          norm_layer: Normalization layer constructor, if any.
+          drop_path_rate: Stochastic depth rate.
+        """
         super().__init__()
         padding = (kernel_size - 1) // 2
         self.dwconv = nn.Conv2d(
@@ -56,7 +68,18 @@ class ConvNext2dBlock(nn.Module):
 
         self.context = padding
 
-    def forward(self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the block.
+
+        Args:
+          x: Input tensor with shape ``(batch, channels, height, width)``.
+          x_mask: Optional binary mask in the same spatial layout as ``x``.
+
+        Returns:
+          Output tensor with the same shape as ``x``.
+        """
         input = x
         # x.contiguous()
         x = self.dwconv(x)
@@ -77,15 +100,17 @@ class ConvNext2dBlock(nn.Module):
 
 
 class ConvNext1dBlock(nn.Module):
-    """ConvNeXtV2 Block with 1d convolutions.
+    """ConvNeXtV2 block with 1D convolutions.
 
-    Args:
-        num_channels (int): Number of input channels.
-        kernel_size: kernel size
-        dilation: dilation factor of convolution
-        activation: activation function name or object
-        norm_layer: normalization layer constructor, if None, LayerNorm is used.
-        drop_path_rate (float): Stochastic depth rate. Default: 0.0
+    Attributes:
+      dwconv: Depthwise convolution over the temporal dimension.
+      norm: Normalization layer applied in channels-last format.
+      pwconv1: First pointwise projection implemented with a linear layer.
+      act: Activation module created by the activation factory.
+      grn: Global response normalization layer.
+      pwconv2: Second pointwise projection back to the input width.
+      drop_path: Stochastic depth module.
+      context: Effective temporal context contributed by the block.
     """
 
     def __init__(
@@ -93,10 +118,20 @@ class ConvNext1dBlock(nn.Module):
         num_channels: int,
         kernel_size: int = 7,
         dilation: int = 1,
-        activation: Union[str, nn.Module] = "gelu",
+        activation: ActivationSpec = "gelu",
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
-    ):
+    ) -> None:
+        """Initialize the 1D ConvNeXt block.
+
+        Args:
+          num_channels: Number of input and output channels.
+          kernel_size: Depthwise convolution kernel size.
+          dilation: Depthwise convolution dilation.
+          activation: Activation specification accepted by ``ActivationFactory``.
+          norm_layer: Normalization layer constructor, if any.
+          drop_path_rate: Stochastic depth rate.
+        """
         super().__init__()
         padding = dilation * (kernel_size - 1) // 2
         self.dwconv = nn.Conv1d(
@@ -122,7 +157,18 @@ class ConvNext1dBlock(nn.Module):
         )
         self.context = padding
 
-    def forward(self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the block.
+
+        Args:
+          x: Input tensor with shape ``(batch, channels, time)``.
+          x_mask: Optional binary mask in the same temporal layout as ``x``.
+
+        Returns:
+          Output tensor with the same shape as ``x``.
+        """
         input = x
         x = self.dwconv(x)
         x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
@@ -141,14 +187,13 @@ class ConvNext1dBlock(nn.Module):
 
 
 class ConvNext2dStemBlock(nn.Module):
-    """ConvNext-v2 2d input block
+    """ConvNeXt-v2 2D input stem block.
 
-    Args:
-      in_channels: input channels
-      out_channels: output channels
-      kernel_size: kernel size of the convolution
-      stride: stride of the convolution
-      norm_layer: normalization layer constructor, if None, LayerNorm is used.
+    Attributes:
+      conv: Strided convolution used to downsample the input.
+      norm: Normalization layer applied in channels-last format.
+      context: Effective spatial context contributed by the stem.
+      stride: Stride used by the stem convolution.
     """
 
     def __init__(
@@ -158,7 +203,16 @@ class ConvNext2dStemBlock(nn.Module):
         kernel_size: int = 4,
         stride: int = 4,
         norm_layer: Optional[Type[nn.Module]] = None,
-    ):
+    ) -> None:
+        """Initialize the 2D stem block.
+
+        Args:
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
+          kernel_size: Convolution kernel size.
+          stride: Convolution stride.
+          norm_layer: Normalization layer constructor, if any.
+        """
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.LayerNorm
@@ -176,21 +230,28 @@ class ConvNext2dStemBlock(nn.Module):
         self.context = (kernel_size - 1) // 2
         self.stride = stride
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the stem block.
+
+        Args:
+          x: Input tensor with shape ``(batch, channels, height, width)``.
+
+        Returns:
+          Downsampled tensor with shape ``(batch, out_channels, out_height, out_width)``.
+        """
         x = self.conv(x)
         x = self.norm(x.permute(0, 2, 3, 1))  # .contiguous())
         return x.permute(0, 3, 1, 2).contiguous()
 
 
 class ConvNext1dStemBlock(nn.Module):
-    """ConvNext-v2 1d input block
+    """ConvNeXt-v2 1D input stem block.
 
-    Args:
-      in_channels: input channels
-      out_channels: output channels
-      kernel_size: kernel size of the convolution
-      stride: stride of the convolution
-      norm_layer: normalization layer constructor, if None, LayerNorm is used.
+    Attributes:
+      conv: Strided convolution used to downsample the input.
+      norm: Normalization layer applied in channels-last format.
+      context: Effective temporal context contributed by the stem.
+      stride: Stride used by the stem convolution.
     """
 
     def __init__(
@@ -200,7 +261,16 @@ class ConvNext1dStemBlock(nn.Module):
         kernel_size: int = 4,
         stride: int = 4,
         norm_layer: Optional[Type[nn.Module]] = None,
-    ):
+    ) -> None:
+        """Initialize the 1D stem block.
+
+        Args:
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
+          kernel_size: Convolution kernel size.
+          stride: Convolution stride.
+          norm_layer: Normalization layer constructor, if any.
+        """
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.LayerNorm
@@ -218,21 +288,28 @@ class ConvNext1dStemBlock(nn.Module):
         self.context = (kernel_size - 1) // 2
         self.stride = stride
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the stem block.
+
+        Args:
+          x: Input tensor with shape ``(batch, channels, time)``.
+
+        Returns:
+          Downsampled tensor with shape ``(batch, out_channels, out_time)``.
+        """
         x = self.conv(x)
         x = self.norm(x.permute(0, 2, 1))
         return x.permute(0, 2, 1).contiguous()
 
 
 class ConvNext2dDownsampleBlock(nn.Module):
-    """ConvNext-v2 2d downsample block
+    """ConvNeXt-v2 2D downsampling block.
 
-    Args:
-      in_channels: input channels
-      out_channels: output channels
-      kernel_size: kernel size of the convolution
-      stride: stride of the convolution
-      norm_layer: normalization layer constructor, if None, LayerNorm is used.
+    Attributes:
+      norm: Normalization layer applied before the stride convolution.
+      conv: Strided convolution used to downsample the input.
+      context: Effective spatial context contributed by the block.
+      stride: Stride used by the downsampling convolution.
     """
 
     def __init__(
@@ -242,7 +319,16 @@ class ConvNext2dDownsampleBlock(nn.Module):
         kernel_size: int = 2,
         stride: int = 2,
         norm_layer: Optional[Type[nn.Module]] = None,
-    ):
+    ) -> None:
+        """Initialize the 2D downsampling block.
+
+        Args:
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
+          kernel_size: Convolution kernel size.
+          stride: Convolution stride.
+          norm_layer: Normalization layer constructor, if any.
+        """
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.LayerNorm
@@ -260,20 +346,27 @@ class ConvNext2dDownsampleBlock(nn.Module):
         self.context = (kernel_size - 1) // 2
         self.stride = stride
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the downsampling block.
+
+        Args:
+          x: Input tensor with shape ``(batch, channels, height, width)``.
+
+        Returns:
+          Downsampled tensor with shape ``(batch, out_channels, out_height, out_width)``.
+        """
         x = self.norm(x.permute(0, 2, 3, 1))  # .contiguous())
         return self.conv(x.permute(0, 3, 1, 2).contiguous())
 
 
 class ConvNext1dDownsampleBlock(nn.Module):
-    """ConvNext-v2 1d downsample block
+    """ConvNeXt-v2 1D downsampling block.
 
-    Args:
-      in_channels: input channels
-      out_channels: output channels
-      kernel_size: kernel size of the convolution
-      stride: stride of the convolution
-      norm_layer: normalization layer constructor, if None, LayerNorm is used.
+    Attributes:
+      norm: Normalization layer applied before the stride convolution.
+      conv: Strided convolution used to downsample the input.
+      context: Effective temporal context contributed by the block.
+      stride: Stride used by the downsampling convolution.
     """
 
     def __init__(
@@ -283,7 +376,16 @@ class ConvNext1dDownsampleBlock(nn.Module):
         kernel_size: int = 2,
         stride: int = 2,
         norm_layer: Optional[Type[nn.Module]] = None,
-    ):
+    ) -> None:
+        """Initialize the 1D downsampling block.
+
+        Args:
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
+          kernel_size: Convolution kernel size.
+          stride: Convolution stride.
+          norm_layer: Normalization layer constructor, if any.
+        """
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.LayerNorm
@@ -301,35 +403,47 @@ class ConvNext1dDownsampleBlock(nn.Module):
         self.context = (kernel_size - 1) // 2
         self.stride = stride
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the downsampling block.
+
+        Args:
+          x: Input tensor with shape ``(batch, channels, time)``.
+
+        Returns:
+          Downsampled tensor with shape ``(batch, out_channels, out_time)``.
+        """
         x = self.norm(x.permute(0, 2, 1))
         return self.conv(x.permute(0, 2, 1).contiguous())
 
 
 class ConvNext2dEndpoint(nn.Module):
-    """Class that connects the ouputs of the ConvNext2d to the rest of the network
-        when using multilevel feature aggregation.
-
-        It converts the features of all the levels that we are going to aggregate
-        to the same temporal scale.
+    """Endpoint that maps 2D ConvNeXt features to a common scale.
 
     Attributes:
-      in_channels:       input channels.
-      out_channels:      output channels.
-      in_scale:          resolution scale of the input feature maps.
-      out_scale:         resolution scale of the output feature maps.
-      norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
-
+      in_channels: Number of input channels.
+      out_channels: Number of output channels.
+      rel_scale: Ratio between input and output scales.
+      norm: Normalization layer applied before resampling.
+      resample: Sequential module that performs upsampling or downsampling.
     """
 
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        in_scale,
-        out_scale,
-        norm_layer=None,
-    ):
+        in_channels: int,
+        out_channels: int,
+        in_scale: int,
+        out_scale: int,
+        norm_layer: Optional[Type[nn.Module]] = None,
+    ) -> None:
+        """Initialize the 2D endpoint.
+
+        Args:
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
+          in_scale: Resolution scale of the input feature maps.
+          out_scale: Resolution scale of the output feature maps.
+          norm_layer: Normalization layer constructor, if any.
+        """
 
         super().__init__()
         if norm_layer is None:
@@ -350,7 +464,19 @@ class ConvNext2dEndpoint(nn.Module):
             )
 
     @staticmethod
-    def _make_downsample(in_channels, out_channels, stride):
+    def _make_downsample(
+        in_channels: int, out_channels: int, stride: int
+    ) -> nn.Sequential:
+        """Build a downsampling resampling path.
+
+        Args:
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
+          stride: Total downsampling factor.
+
+        Returns:
+          Sequential module that downsamples and projects the tensor.
+        """
 
         if stride % 2 == 0:
             first_stride = 2
@@ -382,22 +508,36 @@ class ConvNext2dEndpoint(nn.Module):
         return nn.Sequential(*layers)
 
     @staticmethod
-    def _make_upsample(in_channels, out_channels, stride):
+    def _make_upsample(
+        in_channels: int, out_channels: int, stride: int
+    ) -> nn.Sequential:
+        """Build an upsampling resampling path.
+
+        Args:
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
+          stride: Upsampling factor.
+
+        Returns:
+          Sequential module that projects and upsamples the tensor.
+        """
         layers = [
             nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=True)
         ]
         layers.append(Interpolate(scale_factor=stride, mode="nearest"))
         return nn.Sequential(*layers)
 
-    def forward(self, x, x_mask=None):
-        """Forward function.
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the endpoint.
 
         Args:
-          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
-          x_mask: unused.
+          x: Input tensor with shape ``(batch, in_channels, height, width)``.
+          x_mask: Unused.
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+          Tensor with shape ``(batch, out_channels, out_height, out_width)``.
         """
         x = self.norm(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2).contiguous()
         x = self.resample(x)
@@ -405,29 +545,33 @@ class ConvNext2dEndpoint(nn.Module):
 
 
 class ConvNext1dEndpoint(nn.Module):
-    """Class that connects the ouputs of the ConvNext2d to the rest of the network
-        when using multilevel feature aggregation.
-
-        It converts the features of all the levels that we are going to aggregate
-        to the same temporal scale.
+    """Endpoint that maps 1D ConvNeXt features to a common scale.
 
     Attributes:
-      in_channels:       input channels.
-      out_channels:      output channels.
-      in_scale:          resolution scale of the input feature maps.
-      out_scale:         resolution scale of the output feature maps.
-      norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
-
+      in_channels: Number of input channels.
+      out_channels: Number of output channels.
+      rel_scale: Ratio between input and output scales.
+      norm: Normalization layer applied before resampling.
+      resample: Sequential module that performs upsampling or downsampling.
     """
 
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        in_scale,
-        out_scale,
-        norm_layer=None,
-    ):
+        in_channels: int,
+        out_channels: int,
+        in_scale: int,
+        out_scale: int,
+        norm_layer: Optional[Type[nn.Module]] = None,
+    ) -> None:
+        """Initialize the 1D endpoint.
+
+        Args:
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
+          in_scale: Resolution scale of the input feature maps.
+          out_scale: Resolution scale of the output feature maps.
+          norm_layer: Normalization layer constructor, if any.
+        """
 
         super().__init__()
         if norm_layer is None:
@@ -448,7 +592,19 @@ class ConvNext1dEndpoint(nn.Module):
             )
 
     @staticmethod
-    def _make_downsample(in_channels, out_channels, stride):
+    def _make_downsample(
+        in_channels: int, out_channels: int, stride: int
+    ) -> nn.Sequential:
+        """Build a downsampling resampling path.
+
+        Args:
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
+          stride: Total downsampling factor.
+
+        Returns:
+          Sequential module that downsamples and projects the tensor.
+        """
 
         if stride % 2 == 0:
             first_stride = 2
@@ -480,22 +636,36 @@ class ConvNext1dEndpoint(nn.Module):
         return nn.Sequential(*layers)
 
     @staticmethod
-    def _make_upsample(in_channels, out_channels, stride):
+    def _make_upsample(
+        in_channels: int, out_channels: int, stride: int
+    ) -> nn.Sequential:
+        """Build an upsampling resampling path.
+
+        Args:
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
+          stride: Upsampling factor.
+
+        Returns:
+          Sequential module that projects and upsamples the tensor.
+        """
         layers = [
             nn.Conv1d(in_channels, out_channels, kernel_size=1, stride=1, bias=True)
         ]
         layers.append(Interpolate(scale_factor=stride, mode="nearest"))
         return nn.Sequential(*layers)
 
-    def forward(self, x, x_mask=None):
-        """Forward function.
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the endpoint.
 
         Args:
-          x: input tensor with shape = (batch, in_channels, in_time).
-          x_mask: unused.
+          x: Input tensor with shape ``(batch, in_channels, time)``.
+          x_mask: Unused.
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_time).
+          Tensor with shape ``(batch, out_channels, out_time)``.
         """
         x = self.norm(x.permute(0, 2, 1)).permute(0, 2, 1).contiguous()
         x = self.resample(x)

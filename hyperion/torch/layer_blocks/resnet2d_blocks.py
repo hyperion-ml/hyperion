@@ -1,18 +1,29 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Callable, Optional
+
+import torch
 import torch.nn as nn
 from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
+from ..layers.activation_factory import ActivationSpec
 from ..layers.subpixel_convs import SubPixelConv2d
 from .se_blocks import SEBlock2d
 
 
 def _convkxk(
-    in_channels, out_channels, kernel_size=3, stride=1, groups=1, dilation=1, bias=False
-):
+    in_channels: int,
+    out_channels: int,
+    kernel_size: int = 3,
+    stride: int = 1,
+    groups: int = 1,
+    dilation: int = 1,
+    bias: bool = False,
+) -> nn.Conv2d:
     """kernel k convolution with padding"""
     padding = dilation * (kernel_size - 1) // 2
     return Conv2d(
@@ -27,12 +38,16 @@ def _convkxk(
     )
 
 
-def _conv1x1(in_channels, out_channels, stride=1, bias=False):
+def _conv1x1(
+    in_channels: int, out_channels: int, stride: int = 1, bias: bool = False
+) -> nn.Conv2d:
     """point-wise convolution"""
     return Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=bias)
 
 
-def _subpixel_conv1x1(in_channels, out_channels, stride=1, bias=False):
+def _subpixel_conv1x1(
+    in_channels: int, out_channels: int, stride: int = 1, bias: bool = False
+) -> nn.Module:
     """point-wise subpixel convolution"""
     return SubPixelConv2d(
         in_channels, out_channels, kernel_size=1, stride=stride, bias=bias
@@ -40,8 +55,14 @@ def _subpixel_conv1x1(in_channels, out_channels, stride=1, bias=False):
 
 
 def _subpixel_convkxk(
-    in_channels, out_channels, kernel_size=3, stride=1, groups=1, dilation=1, bias=False
-):
+    in_channels: int,
+    out_channels: int,
+    kernel_size: int = 3,
+    stride: int = 1,
+    groups: int = 1,
+    dilation: int = 1,
+    bias: bool = False,
+) -> nn.Module:
     """kernel k subpixel convolution with padding"""
     padding = dilation * (kernel_size - 1) // 2
     return SubPixelConv2d(
@@ -56,7 +77,13 @@ def _subpixel_convkxk(
     )
 
 
-def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before):
+def _make_downsample(
+    in_channels: int,
+    out_channels: int,
+    stride: int,
+    norm_layer: Callable[[int], nn.Module],
+    norm_before: bool,
+) -> nn.Module:
 
     if norm_before:
         return nn.Sequential(
@@ -67,7 +94,13 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
     return _conv1x1(in_channels, out_channels, stride, bias=True)
 
 
-def _make_upsample(in_channels, out_channels, stride, norm_layer, norm_before):
+def _make_upsample(
+    in_channels: int,
+    out_channels: int,
+    stride: int,
+    norm_layer: Callable[[int], nn.Module],
+    norm_before: bool,
+) -> nn.Module:
 
     if norm_before:
         return nn.Sequential(
@@ -85,7 +118,7 @@ class ResNet2dBasicBlock(nn.Module):
       in_channels:       input channels.
       channels:          output channels.
       kernel_size:       kernel size.
-      activation:        Non-linear activation object, string of configuration dictionary.
+      activation:        Activation specification accepted by ActivationFactory.
       stride:            downsampling stride of the convs.
       dropout_rate:      dropout rate.
       groups:            number of groups in the convolutions.
@@ -100,18 +133,33 @@ class ResNet2dBasicBlock(nn.Module):
 
     def __init__(
         self,
-        in_channels,
-        channels,
-        kernel_size=3,
-        activation="relu",
-        stride=1,
-        dropout_rate=0,
-        groups=1,
-        dilation=1,
-        use_norm=True,
-        norm_layer=None,
-        norm_before=True,
-    ):
+        in_channels: int,
+        channels: int,
+        kernel_size: int = 3,
+        activation: ActivationSpec = "relu",
+        stride: int = 1,
+        dropout_rate: float = 0,
+        groups: int = 1,
+        dilation: int = 1,
+        use_norm: bool = True,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+    ) -> None:
+        """Initialize a 2D residual basic block.
+
+        Args:
+          in_channels: input channels.
+          channels: output channels.
+          kernel_size: convolution kernel size.
+          activation: activation specification.
+          stride: convolution stride.
+          dropout_rate: dropout probability.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          use_norm: if True, use normalization layers.
+          norm_layer: normalization layer constructor, if any.
+          norm_before: if True, normalize before activation.
+        """
 
         super().__init__()
 
@@ -154,18 +202,21 @@ class ResNet2dBasicBlock(nn.Module):
         self.downsample_factor = stride
 
     @property
-    def out_channels(self):
+    def out_channels(self) -> int:
+        """Returns the number of output channels."""
         return self.channels
 
-    def forward(self, x, x_mask=None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Forward function.
 
         Args:
-          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x: input tensor with shape = (batch, in_channels, height, width).
           x_mask: unused.
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+          Tensor with shape = (batch, out_channels, height, width).
         """
         residual = x
         if self.downsample is not None:
@@ -206,7 +257,7 @@ class ResNet2dBasicDecBlock(nn.Module):
       in_channels:       input channels.
       channels:          output channels.
       kernel_size:       kernel size.
-      activation:        Non-linear activation object, string of configuration dictionary.
+      activation:        Activation specification accepted by ActivationFactory.
       stride:            upsampling stride of the convs.
       dropout_rate:      dropout rate.
       groups:            number of groups in the convolutions.
@@ -221,18 +272,33 @@ class ResNet2dBasicDecBlock(nn.Module):
 
     def __init__(
         self,
-        in_channels,
-        channels,
-        kernel_size=3,
-        activation="relu",
-        stride=1,
-        dropout_rate=0,
-        groups=1,
-        dilation=1,
-        use_norm=True,
-        norm_layer=None,
-        norm_before=True,
-    ):
+        in_channels: int,
+        channels: int,
+        kernel_size: int = 3,
+        activation: ActivationSpec = "relu",
+        stride: int = 1,
+        dropout_rate: float = 0,
+        groups: int = 1,
+        dilation: int = 1,
+        use_norm: bool = True,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+    ) -> None:
+        """Initialize a 2D residual basic decoder block.
+
+        Args:
+          in_channels: input channels.
+          channels: output channels.
+          kernel_size: convolution kernel size.
+          activation: activation specification.
+          stride: upsampling stride.
+          dropout_rate: dropout probability.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          use_norm: if True, use normalization layers.
+          norm_layer: normalization layer constructor, if any.
+          norm_before: if True, normalize before activation.
+        """
 
         super().__init__()
 
@@ -276,18 +342,21 @@ class ResNet2dBasicDecBlock(nn.Module):
         self.upsample_factor = stride
 
     @property
-    def out_channels(self):
+    def out_channels(self) -> int:
+        """Returns the number of output channels."""
         return self.channels
 
-    def forward(self, x, x_mask=None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Forward function.
 
         Args:
-          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x: input tensor with shape = (batch, in_channels, height, width).
           x_mask: unused.
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+          Tensor with shape = (batch, out_channels, height, width).
         """
         residual = x
         if self.upsample is not None:
@@ -327,12 +396,12 @@ class ResNet2dBNBlock(nn.Module):
       in_channels:       input channels.
       channels:          output channels.
       kernel_size:       kernel size in bottleneck.
-      activation:        Non-linear activation object, string of configuration dictionary.
+      activation:        Activation specification accepted by ActivationFactory.
       stride:            downsampling stride of the convs.
       dropout_rate:      dropout rate.
       groups:            number of groups in the convolutions.
       dilation:          dilation factor of the conv. kernels.
-      expansion:         expansion factor of the bottlneck channels to output channels.
+      expansion:         expansion factor from bottleneck channels to output channels.
       use_norm:          if True, it uses normalization layers, otherwise it does not.
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
@@ -340,19 +409,35 @@ class ResNet2dBNBlock(nn.Module):
 
     def __init__(
         self,
-        in_channels,
-        channels,
-        kernel_size=3,
-        activation="relu",
-        stride=1,
-        dropout_rate=0,
-        groups=1,
-        dilation=1,
-        expansion=4,
-        use_norm=True,
-        norm_layer=None,
-        norm_before=True,
-    ):
+        in_channels: int,
+        channels: int,
+        kernel_size: int = 3,
+        activation: ActivationSpec = "relu",
+        stride: int = 1,
+        dropout_rate: float = 0,
+        groups: int = 1,
+        dilation: int = 1,
+        expansion: int = 4,
+        use_norm: bool = True,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+    ) -> None:
+        """Initialize a 2D residual bottleneck block.
+
+        Args:
+          in_channels: input channels.
+          channels: output channels.
+          kernel_size: convolution kernel size.
+          activation: activation specification.
+          stride: convolution stride.
+          dropout_rate: dropout probability.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          expansion: bottleneck expansion factor.
+          use_norm: if True, use normalization layers.
+          norm_layer: normalization layer constructor, if any.
+          norm_before: if True, normalize before activation.
+        """
 
         super().__init__()
 
@@ -406,18 +491,21 @@ class ResNet2dBNBlock(nn.Module):
         self.downsample_factor = stride
 
     @property
-    def out_channels(self):
+    def out_channels(self) -> int:
+        """Returns the number of output channels."""
         return self.channels
 
-    def forward(self, x, x_mask=None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Forward function.
 
         Args:
-          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x: input tensor with shape = (batch, in_channels, height, width).
           x_mask: unused.
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+          Tensor with shape = (batch, out_channels, height, width).
         """
         residual = x
         if self.downsample is not None:
@@ -464,12 +552,12 @@ class ResNet2dBNDecBlock(nn.Module):
       in_channels:       input channels.
       channels:          output channels.
       kernel_size:       kernel size in bottleneck.
-      activation:        Non-linear activation object, string of configuration dictionary.
+      activation:        Activation specification accepted by ActivationFactory.
       stride:            upsampling stride of the convs.
       dropout_rate:      dropout rate.
       groups:            number of groups in the convolutions.
       dilation:          dilation factor of the conv. kernels.
-      expansion:         expansion factor of the bottlneck channels to output channels.
+      expansion:         expansion factor from bottleneck channels to output channels.
       use_norm:          if True, it uses normalization layers, otherwise it does not.
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
@@ -477,19 +565,35 @@ class ResNet2dBNDecBlock(nn.Module):
 
     def __init__(
         self,
-        in_channels,
-        channels,
-        kernel_size=3,
-        activation="relu",
-        stride=1,
-        dropout_rate=0,
-        groups=1,
-        dilation=1,
-        expansion=4,
-        use_norm=True,
-        norm_layer=None,
-        norm_before=True,
-    ):
+        in_channels: int,
+        channels: int,
+        kernel_size: int = 3,
+        activation: ActivationSpec = "relu",
+        stride: int = 1,
+        dropout_rate: float = 0,
+        groups: int = 1,
+        dilation: int = 1,
+        expansion: int = 4,
+        use_norm: bool = True,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+    ) -> None:
+        """Initialize a 2D residual bottleneck decoder block.
+
+        Args:
+          in_channels: input channels.
+          channels: output channels.
+          kernel_size: convolution kernel size.
+          activation: activation specification.
+          stride: upsampling stride.
+          dropout_rate: dropout probability.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          expansion: bottleneck expansion factor.
+          use_norm: if True, use normalization layers.
+          norm_layer: normalization layer constructor, if any.
+          norm_before: if True, normalize before activation.
+        """
 
         super().__init__()
 
@@ -502,7 +606,7 @@ class ResNet2dBNDecBlock(nn.Module):
                 norm_layer = BatchNorm2d
             self.bn1 = norm_layer(bn_channels)
             self.bn2 = norm_layer(bn_channels)
-            self.bn2 = norm_layer(channels)
+            self.bn3 = norm_layer(channels)
             if norm_before:
                 self.norm_before = True
             else:
@@ -537,18 +641,21 @@ class ResNet2dBNDecBlock(nn.Module):
         self.upsample_factor = stride
 
     @property
-    def out_channels(self):
+    def out_channels(self) -> int:
+        """Returns the number of output channels."""
         return self.channels
 
-    def forward(self, x, x_mask=None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Forward function.
 
         Args:
-          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x: input tensor with shape = (batch, in_channels, height, width).
           x_mask: unused.
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+          Tensor with shape = (batch, out_channels, height, width).
         """
         residual = x
         if self.upsample is not None:
@@ -595,7 +702,7 @@ class SEResNet2dBasicBlock(ResNet2dBasicBlock):
       in_channels:       input channels.
       channels:          output channels.
       kernel_size:       kernel size.
-      activation:        Non-linear activation object, string of configuration dictionary.
+      activation:        Activation specification accepted by ActivationFactory.
       stride:            downsampling stride of the convs.
       dropout_rate:      dropout rate.
       drop_connect_rate: drop-connect rate for stochastic number of layers.
@@ -624,6 +731,22 @@ class SEResNet2dBasicBlock(ResNet2dBasicBlock):
         norm_layer=None,
         norm_before=True,
     ):
+        """Initialize a squeeze-excitation 2D residual basic block.
+
+        Args:
+          in_channels: input channels.
+          channels: output channels.
+          kernel_size: convolution kernel size.
+          activation: activation specification.
+          stride: convolution stride.
+          dropout_rate: dropout probability.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          se_r: squeeze-excitation reduction ratio.
+          use_norm: if True, use normalization layers.
+          norm_layer: normalization layer constructor, if any.
+          norm_before: if True, normalize before activation.
+        """
 
         super().__init__(
             in_channels,
@@ -645,12 +768,12 @@ class SEResNet2dBasicBlock(ResNet2dBasicBlock):
         """Forward function.
 
         Args:
-          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x: input tensor with shape = (batch, in_channels, height, width).
           x_mask: Binary mask indicating which spatial dimensions are valid of
                   shape=(batch, time), (batch, 1, time), (batch, height, width)
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+          Tensor with shape = (batch, out_channels, height, width).
         """
         residual = x
         if self.downsample is not None:
@@ -692,7 +815,7 @@ class SEResNet2dBasicDecBlock(ResNet2dBasicDecBlock):
       in_channels:       input channels.
       channels:          output channels.
       kernel_size:       kernel size.
-      activation:        Non-linear activation object, string of configuration dictionary.
+      activation:        Activation specification accepted by ActivationFactory.
       stride:            downsampling stride of the convs.
       dropout_rate:      dropout rate.
       drop_connect_rate: drop-connect rate for stochastic number of layers.
@@ -721,6 +844,22 @@ class SEResNet2dBasicDecBlock(ResNet2dBasicDecBlock):
         norm_layer=None,
         norm_before=True,
     ):
+        """Initialize a squeeze-excitation 2D residual basic decoder block.
+
+        Args:
+          in_channels: input channels.
+          channels: output channels.
+          kernel_size: convolution kernel size.
+          activation: activation specification.
+          stride: upsampling stride.
+          dropout_rate: dropout probability.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          se_r: squeeze-excitation reduction ratio.
+          use_norm: if True, use normalization layers.
+          norm_layer: normalization layer constructor, if any.
+          norm_before: if True, normalize before activation.
+        """
 
         super().__init__(
             in_channels,
@@ -740,18 +879,19 @@ class SEResNet2dBasicDecBlock(ResNet2dBasicDecBlock):
 
     @property
     def out_channels(self):
+        """Returns the number of output channels."""
         return self.channels
 
     def forward(self, x, x_mask=None):
         """Forward function.
 
         Args:
-          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x: input tensor with shape = (batch, in_channels, height, width).
           x_mask: Binary mask indicating which spatial dimensions are valid of
                   shape=(batch, time), (batch, 1, time), (batch, height, width)
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+          Tensor with shape = (batch, out_channels, height, width).
         """
         residual = x
         if self.upsample is not None:
@@ -793,12 +933,12 @@ class SEResNet2dBNBlock(ResNet2dBNBlock):
       in_channels:       input channels.
       channels:          output channels.
       kernel_size:       kernel size.
-      activation:        Non-linear activation object, string of configuration dictionary.
+      activation:        Activation specification accepted by ActivationFactory.
       stride:            downsampling stride of the convs.
       dropout_rate:      dropout rate.
       groups:            number of groups in the convolutions.
       dilation:          dilation factor of the conv. kernels.
-      expansion:         expansion factor of the bottlneck channels to output channels.
+      expansion:         expansion factor from bottleneck channels to output channels.
       se_r:              squeeze-excitation compression ratio.
       use_norm:          if True, it uses normalization layers, otherwise it does not.
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
@@ -821,6 +961,23 @@ class SEResNet2dBNBlock(ResNet2dBNBlock):
         norm_layer=None,
         norm_before=True,
     ):
+        """Initialize a squeeze-excitation 2D residual bottleneck block.
+
+        Args:
+          in_channels: input channels.
+          channels: output channels.
+          kernel_size: convolution kernel size.
+          activation: activation specification.
+          stride: convolution stride.
+          dropout_rate: dropout probability.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          expansion: bottleneck expansion factor.
+          se_r: squeeze-excitation reduction ratio.
+          use_norm: if True, use normalization layers.
+          norm_layer: normalization layer constructor, if any.
+          norm_before: if True, normalize before activation.
+        """
 
         super().__init__(
             in_channels,
@@ -843,12 +1000,12 @@ class SEResNet2dBNBlock(ResNet2dBNBlock):
         """Forward function.
 
         Args:
-          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x: input tensor with shape = (batch, in_channels, height, width).
           x_mask: Binary mask indicating which spatial dimensions are valid of
                   shape=(batch, time), (batch, 1, time), (batch, height, width)
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+          Tensor with shape = (batch, out_channels, height, width).
         """
         residual = x
         if self.downsample is not None:
@@ -897,12 +1054,12 @@ class SEResNet2dBNDecBlock(ResNet2dBNDecBlock):
       in_channels:       input channels.
       channels:          output channels.
       kernel_size:       kernel size.
-      activation:        Non-linear activation object, string of configuration dictionary.
+      activation:        Activation specification accepted by ActivationFactory.
       stride:            downsampling stride of the convs.
       dropout_rate:      dropout rate.
       groups:            number of groups in the convolutions.
       dilation:          dilation factor of the conv. kernels.
-      expansion:         expansion factor of the bottlneck channels to output channels.
+      expansion:         expansion factor from bottleneck channels to output channels.
       se_r:              squeeze-excitation compression ratio.
       use_norm:          if True, it uses normalization layers, otherwise it does not.
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
@@ -925,6 +1082,23 @@ class SEResNet2dBNDecBlock(ResNet2dBNDecBlock):
         norm_layer=None,
         norm_before=True,
     ):
+        """Initialize a squeeze-excitation 2D residual bottleneck decoder block.
+
+        Args:
+          in_channels: input channels.
+          channels: output channels.
+          kernel_size: convolution kernel size.
+          activation: activation specification.
+          stride: upsampling stride.
+          dropout_rate: dropout probability.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          expansion: bottleneck expansion factor.
+          se_r: squeeze-excitation reduction ratio.
+          use_norm: if True, use normalization layers.
+          norm_layer: normalization layer constructor, if any.
+          norm_before: if True, normalize before activation.
+        """
 
         super().__init__(
             in_channels,
@@ -947,12 +1121,12 @@ class SEResNet2dBNDecBlock(ResNet2dBNDecBlock):
         """Forward function.
 
         Args:
-          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x: input tensor with shape = (batch, in_channels, height, width).
           x_mask: Binary mask indicating which spatial dimensions are valid of
                   shape=(batch, time), (batch, 1, time), (batch, height, width)
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+          Tensor with shape = (batch, out_channels, height, width).
         """
         residual = x
         if self.upsample is not None:

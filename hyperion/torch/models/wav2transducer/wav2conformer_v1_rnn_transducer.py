@@ -4,7 +4,7 @@
 """
 
 import logging
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -26,9 +26,9 @@ class Wav2ConformerV1RNNTransducer(Wav2RNNTransducer):
 
     def __init__(
         self,
-        feats: Union[Dict, HFWav2Vec2],
-        transducer: Union[Dict, ConformerV1RNNTransducer],
-    ):
+        feats: Union[Dict[str, Any], HFWav2Vec2],
+        transducer: Union[Dict[str, Any], ConformerV1RNNTransducer],
+    ) -> None:
 
         if isinstance(transducer, dict):
             if "class_name" in transducer:
@@ -41,7 +41,7 @@ class Wav2ConformerV1RNNTransducer(Wav2RNNTransducer):
         super().__init__(feats, transducer)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -53,7 +53,7 @@ class Wav2ConformerV1RNNTransducer(Wav2RNNTransducer):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         base_args = {}
         child_args = ConformerV1RNNTransducer.filter_finetune_args(
             **kwargs["transducer"]
@@ -62,7 +62,7 @@ class Wav2ConformerV1RNNTransducer(Wav2RNNTransducer):
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

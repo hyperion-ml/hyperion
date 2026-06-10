@@ -5,18 +5,40 @@
 
 import torch
 import torch.nn as nn
+from typing import Any, Callable, Dict, Optional, Union
 
 from ..layers import ActivationFactory as AF
 from .se_blocks import SEBlock1d
 
 
-def _conv1(in_channels, out_channels, bias=False):
-    """1x1 convolution"""
+def _conv1(in_channels: int, out_channels: int, bias: bool = False) -> nn.Conv1d:
+    """Build a 1x1 convolution layer.
+
+    Args:
+      in_channels: Number of input channels.
+      out_channels: Number of output channels.
+      bias: Whether to use a bias term.
+
+    Returns:
+      A 1x1 ``nn.Conv1d`` module.
+    """
     return nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=bias)
 
 
-def _dwconvk(channels, kernel_size, stride=1, bias=False):
-    """kxk depth-wise convolution with padding"""
+def _dwconvk(
+    channels: int, kernel_size: int, stride: int = 1, bias: bool = False
+) -> nn.Conv1d:
+    """Build a depth-wise 1D convolution with symmetric padding.
+
+    Args:
+      channels: Number of channels.
+      kernel_size: Convolution kernel size.
+      stride: Convolution stride.
+      bias: Whether to use a bias term.
+
+    Returns:
+      A depth-wise ``nn.Conv1d`` module.
+    """
     return nn.Conv1d(
         channels,
         channels,
@@ -29,7 +51,19 @@ def _dwconvk(channels, kernel_size, stride=1, bias=False):
     )
 
 
-def _make_downsample(in_channels, out_channels, stride):
+def _make_downsample(
+    in_channels: int, out_channels: int, stride: int
+) -> nn.Conv1d:
+    """Build the residual downsampling projection.
+
+    Args:
+      in_channels: Number of input channels.
+      out_channels: Number of output channels.
+      stride: Downsampling stride.
+
+    Returns:
+      A 1x1 ``nn.Conv1d`` module used to match residual dimensions.
+    """
     return _conv1(in_channels, out_channels, stride, bias=True)
 
 
@@ -47,9 +81,9 @@ class ConformerConvBlock(nn.Module):
        num_channels : number of input/output channels
        kernel_size: kernel_size for depth-wise conv
        stride: stride for depth-wise conv
-       activation: activation function str or object
-       norm_layer: norm layer constructor,
-                   if None it uses BatchNorm
+       activation: activation specification accepted by ``ActivationFactory``.
+       norm_layer: normalization layer constructor, if ``None`` it uses
+                   ``BatchNorm1d``.
        dropout_rate: dropout rate
        se_r:         Squeeze-Excitation compression ratio,
                      if None it doesn't use Squeeze-Excitation
@@ -57,14 +91,26 @@ class ConformerConvBlock(nn.Module):
 
     def __init__(
         self,
-        num_channels,
-        kernel_size,
-        stride=1,
-        activation="swish",
-        norm_layer=None,
-        dropout_rate=0,
-        se_r=None,
-    ):
+        num_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        activation: Union[str, Dict[str, Any]] = "swish",
+        norm_layer: Optional[Callable[..., nn.Module]] = None,
+        dropout_rate: float = 0,
+        se_r: Optional[int] = None,
+    ) -> None:
+        """Initialize the convolutional conformer block.
+
+        Args:
+          num_channels: Input and output channel dimension.
+          kernel_size: Kernel size for the depth-wise convolution.
+          stride: Stride for the depth-wise convolution and residual path.
+          activation: Activation specification accepted by ``ActivationFactory``.
+          norm_layer: Normalization layer constructor. Defaults to
+            ``nn.BatchNorm1d``.
+          dropout_rate: Dropout probability applied after the projection.
+          se_r: Optional squeeze-excitation reduction ratio.
+        """
         super().__init__()
         self.num_channels = (num_channels,)
         self.kernel_size = kernel_size
@@ -100,16 +146,18 @@ class ConformerConvBlock(nn.Module):
 
         self.context = stride * (kernel_size - 1) // 2
 
-    def forward(self, x, x_mask=None):
-        """Forward function
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the conformer convolution block.
 
         Args:
-          x: input tesnosr shape = (batch, num_channels, time)
-          x_mask: mask indicating the valid frames in the sequence with
+          x: Input tensor with shape ``(batch, channels, time)``.
+          x_mask: Mask indicating the valid frames in the sequence with
                   shape = (batch, 1, time) or (batch, time)
 
-        Returns
-          Tensor with shape = (batch, num_channels, (time-1)//stride+1)
+        Returns:
+          Tensor with shape ``(batch, channels, time_out)``.
         """
         residual = x
 

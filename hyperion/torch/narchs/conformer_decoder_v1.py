@@ -5,6 +5,7 @@
 
 import torch
 import torch.nn as nn
+from typing import Any, Dict, List, Optional, Tuple, Union
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
@@ -64,41 +65,41 @@ class ConformerDecoderV1(NetArch):
 
     def __init__(
         self,
-        num_classes,
-        d_model=256,
-        num_heads=4,
-        num_blocks=6,
-        self_att_type="scaled-dot-prod-v1",
-        att_context=25,
-        cross_att_type="scaled-dot-prod-v1",
-        conv_repeats=0,
-        conv_kernel_sizes=31,
-        conv_strides=1,
-        ff_type="linear",
-        d_ff=2048,
-        ff_kernel_size=1,
-        dropout_rate=0.1,
-        pos_dropout_rate=0.1,
-        att_dropout_rate=0.0,
-        in_layer_type="embed",
-        in_stride=4,
-        pos_enc_type="abs",
-        causal_pos_enc=False,
-        pos_kernel_size=128,
-        pos_num_groups=16,
-        hid_act="swish",
-        conv_norm_layer=None,
-        se_r=None,
-        ff_macaron=True,
-        red_lnorms=True,
-        concat_after=False,
-        padding_idx=-1,
-        in_time_dim=1,
-        src_time_dim=1,
-        out_time_dim=1,
-        in_feats=None,
-        with_output=True,
-    ):
+        num_classes: int,
+        d_model: int = 256,
+        num_heads: int = 4,
+        num_blocks: int = 6,
+        self_att_type: str = "scaled-dot-prod-v1",
+        att_context: int = 25,
+        cross_att_type: str = "scaled-dot-prod-v1",
+        conv_repeats: Union[int, List[int]] = 0,
+        conv_kernel_sizes: Union[int, List[int]] = 31,
+        conv_strides: Union[int, List[int]] = 1,
+        ff_type: str = "linear",
+        d_ff: int = 2048,
+        ff_kernel_size: int = 1,
+        dropout_rate: float = 0.1,
+        pos_dropout_rate: float = 0.1,
+        att_dropout_rate: float = 0.0,
+        in_layer_type: Union[str, nn.Module, None] = "embed",
+        in_stride: int = 4,
+        pos_enc_type: str = "abs",
+        causal_pos_enc: bool = False,
+        pos_kernel_size: int = 128,
+        pos_num_groups: int = 16,
+        hid_act: Any = "swish",
+        conv_norm_layer: Optional[Any] = None,
+        se_r: Optional[int] = None,
+        ff_macaron: bool = True,
+        red_lnorms: bool = True,
+        concat_after: bool = False,
+        padding_idx: int = -1,
+        in_time_dim: int = 1,
+        src_time_dim: int = 1,
+        out_time_dim: int = 1,
+        in_feats: Optional[int] = None,
+        with_output: bool = True,
+    ) -> None:
         super().__init__()
         self.num_classes = num_classes
         self.with_output = with_output
@@ -189,7 +190,9 @@ class ConformerDecoderV1(NetArch):
             self.output_layer = nn.Linear(d_model, num_classes)
 
     @staticmethod
-    def _standarize_cblocks_param(p, num_blocks, p_name):
+    def _standarize_cblocks_param(
+        p: Union[int, List[int]], num_blocks: int, p_name: str
+    ) -> List[int]:
         if isinstance(p, int):
             p = [p] * num_blocks
         elif isinstance(p, list):
@@ -206,7 +209,7 @@ class ConformerDecoderV1(NetArch):
 
         return p
 
-    def _make_in_layer(self):
+    def _make_in_layer(self) -> None:
         in_feats = self.in_feats
         d_model = self.d_model
         dropout_rate = self.dropout_rate
@@ -264,14 +267,14 @@ class ConformerDecoderV1(NetArch):
 
     def _make_masks(
         self,
-        max_in_length,
-        x_lengths,
-        x_mask,
-        max_src_length,
-        x_src_lengths,
-        x_src_mask,
-        causal_mask,
-    ):
+        max_in_length: int,
+        x_lengths: Optional[torch.Tensor],
+        x_mask: Optional[torch.Tensor],
+        max_src_length: int,
+        x_src_lengths: Optional[torch.Tensor],
+        x_src_mask: Optional[torch.Tensor],
+        causal_mask: bool,
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         if x_mask is None:
             if x_lengths is not None:
                 x_mask = seq_lengths_to_mask(x_lengths, max_in_length, time_dim=1)
@@ -283,7 +286,9 @@ class ConformerDecoderV1(NetArch):
 
         return x_mask, x_src_mask
 
-    def _forward_input(self, x, x_mask):
+    def _forward_input(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor]
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         if isinstance(self.in_layer, (Conv2dSubsampler, Conv1dSubsampler)):
             x, x_mask = self.in_layer(x, x_mask)
         else:
@@ -295,14 +300,14 @@ class ConformerDecoderV1(NetArch):
 
     def forward(
         self,
-        x,
-        x_src,
-        x_lengths=None,
-        x_src_lengths=None,
-        x_mask=None,
-        x_src_mask=None,
-        causal_mask=True,
-    ):
+        x: torch.Tensor,
+        x_src: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        x_src_lengths: Optional[torch.Tensor] = None,
+        x_mask: Optional[torch.Tensor] = None,
+        x_src_mask: Optional[torch.Tensor] = None,
+        causal_mask: bool = True,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward pass function
 
         Args:
@@ -361,12 +366,12 @@ class ConformerDecoderV1(NetArch):
 
     def forward_1step(
         self,
-        x,
-        x_src,
-        x_lengths=None,
-        x_mask=None,
-        cache=None,
-    ):
+        x: torch.Tensor,
+        x_src: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        x_mask: Optional[torch.Tensor] = None,
+        cache: Optional[List[Any]] = None,
+    ) -> Tuple[torch.Tensor, List[Any]]:
         """Forward pass function
 
         Args:
@@ -416,7 +421,7 @@ class ConformerDecoderV1(NetArch):
 
         return x, next_cache
 
-    def get_config(self, no_class_name: bool = False):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Gets network config
         Returns:
            dictionary with config params
@@ -459,10 +464,10 @@ class ConformerDecoderV1(NetArch):
         base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
-    def in_context(self):
+    def in_context(self) -> Tuple[int, int]:
         return (self.att_context, self.att_context)
 
-    def in_shape(self):
+    def in_shape(self) -> Tuple[Optional[int], Optional[int], int]:
         """Input shape for network
 
         Returns:
@@ -473,7 +478,10 @@ class ConformerDecoderV1(NetArch):
         else:
             return (None, self.in_feats, None)
 
-    def out_shape(self, in_shape=None):
+    def out_shape(
+        self,
+        in_shape: Optional[Tuple[Optional[int], Optional[int], Optional[int]]] = None,
+    ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         """Infers the network output shape given the input shape
 
         Args:
@@ -504,7 +512,7 @@ class ConformerDecoderV1(NetArch):
             return (batch_size, self.d_model, out_t)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Filters arguments correspondin to ConformerDecoder
             from args dictionary
 
@@ -518,7 +526,9 @@ class ConformerDecoderV1(NetArch):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: Any, prefix: Optional[str] = None, skip: set = set()
+    ) -> None:
         """Adds Conformer config parameters to argparser
 
         Args:

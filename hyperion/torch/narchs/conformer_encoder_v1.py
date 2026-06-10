@@ -7,6 +7,7 @@ import logging
 
 import torch
 import torch.nn as nn
+from typing import Any, Dict, List, Optional, Tuple, Union
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
@@ -76,37 +77,37 @@ class ConformerEncoderV1(NetArch):
 
     def __init__(
         self,
-        in_feats,
-        d_model=256,
-        num_heads=4,
-        num_blocks=6,
-        att_type="scaled-dot-prod-v1",
-        att_context=25,
-        conv_repeats=1,
-        conv_kernel_sizes=31,
-        conv_strides=1,
-        ff_type="linear",
-        d_ff=2048,
-        ff_kernel_size=1,
-        dropout_rate=0.1,
-        pos_dropout_rate=0.1,
-        att_dropout_rate=0.0,
-        in_layer_type="conv2d-sub",
-        in_stride=4,
-        pos_enc_type="rel",
-        causal_pos_enc=False,
-        pos_kernel_size=128,
-        pos_num_groups=16,
-        hid_act="swish",
-        conv_norm_layer=None,
-        se_r=None,
-        ff_macaron=True,
-        red_lnorms=True,
-        concat_after=False,
-        padding_idx=-1,
-        in_time_dim=1,
-        out_time_dim=1,
-    ):
+        in_feats: int,
+        d_model: int = 256,
+        num_heads: int = 4,
+        num_blocks: int = 6,
+        att_type: str = "scaled-dot-prod-v1",
+        att_context: int = 25,
+        conv_repeats: Union[int, List[int]] = 1,
+        conv_kernel_sizes: Union[int, List[int]] = 31,
+        conv_strides: Union[int, List[int]] = 1,
+        ff_type: str = "linear",
+        d_ff: int = 2048,
+        ff_kernel_size: int = 1,
+        dropout_rate: float = 0.1,
+        pos_dropout_rate: float = 0.1,
+        att_dropout_rate: float = 0.0,
+        in_layer_type: Union[str, nn.Module, None] = "conv2d-sub",
+        in_stride: int = 4,
+        pos_enc_type: str = "rel",
+        causal_pos_enc: bool = False,
+        pos_kernel_size: int = 128,
+        pos_num_groups: int = 16,
+        hid_act: Any = "swish",
+        conv_norm_layer: Optional[Any] = None,
+        se_r: Optional[int] = None,
+        ff_macaron: bool = True,
+        red_lnorms: bool = True,
+        concat_after: bool = False,
+        padding_idx: int = -1,
+        in_time_dim: int = 1,
+        out_time_dim: int = 1,
+    ) -> None:
         super().__init__()
         self.in_feats = in_feats
         self.d_model = d_model
@@ -187,7 +188,9 @@ class ConformerEncoderV1(NetArch):
             self.norm_out = nn.LayerNorm(d_model)
 
     @staticmethod
-    def _standarize_cblocks_param(p, num_blocks, p_name):
+    def _standarize_cblocks_param(
+        p: Union[int, List[int]], num_blocks: int, p_name: str
+    ) -> List[int]:
         if isinstance(p, int):
             p = [p] * num_blocks
         elif isinstance(p, list):
@@ -204,7 +207,7 @@ class ConformerEncoderV1(NetArch):
 
         return p
 
-    def _make_in_layer(self):
+    def _make_in_layer(self) -> None:
         in_feats = self.in_feats
         d_model = self.d_model
         dropout_rate = self.dropout_rate
@@ -259,13 +262,20 @@ class ConformerEncoderV1(NetArch):
         else:
             raise ValueError(f"unknown in_layer_type: {self.in_layer_type}")
 
-    def _make_masks(self, max_in_length, x_lengths=None, x_mask=None):
+    def _make_masks(
+        self,
+        max_in_length: int,
+        x_lengths: Optional[torch.Tensor] = None,
+        x_mask: Optional[torch.Tensor] = None,
+    ) -> Optional[torch.Tensor]:
         if x_mask is None and x_lengths is not None:
             x_mask = seq_lengths_to_mask(x_lengths, max_in_length, time_dim=1)
 
         return x_mask
 
-    def _forward_input(self, x, x_mask):
+    def _forward_input(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor]
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         if isinstance(self.in_layer, (Conv2dSubsampler, Conv1dSubsampler)):
             x, x_mask = self.in_layer(x, x_mask)
         else:
@@ -276,13 +286,19 @@ class ConformerEncoderV1(NetArch):
         return x, x_mask
 
     def change_config(
-        self, override_dropouts, dropout_rate, pos_dropout_rate, att_dropout_rate
-    ):
+        self,
+        override_dropouts: bool,
+        dropout_rate: float,
+        pos_dropout_rate: float,
+        att_dropout_rate: float,
+    ) -> None:
         if override_dropouts:
             logging.info("changing conformer dropouts")
             self.change_dropouts(dropout_rate, pos_dropout_rate, att_dropout_rate)
 
-    def change_dropouts(self, dropout_rate, pos_dropout_rate, att_dropout_rate):
+    def change_dropouts(
+        self, dropout_rate: float, pos_dropout_rate: float, att_dropout_rate: float
+    ) -> None:
         super().change_dropouts(dropout_rate)
         from ..layers import PosEncoderBase
 
@@ -299,8 +315,16 @@ class ConformerEncoderV1(NetArch):
         self.att_dropout_rate = att_dropout_rate
 
     def forward(
-        self, x, x_lengths=None, x_mask=None, return_mask=False, target_shape=None
-    ):
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        x_mask: Optional[torch.Tensor] = None,
+        return_mask: bool = False,
+        target_shape: Any = None,
+    ) -> Union[
+        Tuple[torch.Tensor, Optional[torch.Tensor]],
+        Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]],
+    ]:
         """Forward pass function
 
         Args:
@@ -342,7 +366,7 @@ class ConformerEncoderV1(NetArch):
 
         return x, x_lengths
 
-    def get_config(self, no_class_name: bool = False):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Gets network config
         Returns:
            dictionary with config params
@@ -383,10 +407,10 @@ class ConformerEncoderV1(NetArch):
         base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
-    def in_context(self):
+    def in_context(self) -> Tuple[int, int]:
         return (self.att_context, self.att_context)
 
-    def in_shape(self):
+    def in_shape(self) -> Tuple[Optional[int], Optional[int], int]:
         """Input shape for network
 
         Returns:
@@ -397,7 +421,10 @@ class ConformerEncoderV1(NetArch):
         else:
             return (None, self.in_feats, None)
 
-    def out_shape(self, in_shape=None):
+    def out_shape(
+        self,
+        in_shape: Optional[Tuple[Optional[int], Optional[int], Optional[int]]] = None,
+    ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         """Infers the network output shape given the input shape
 
         Args:
@@ -428,7 +455,7 @@ class ConformerEncoderV1(NetArch):
             return (batch_size, self.d_model, out_t)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Filters arguments correspondin to Conformer Encoder
             from args dictionary
 
@@ -442,7 +469,9 @@ class ConformerEncoderV1(NetArch):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: Any, prefix: Optional[str] = None, skip: set = set()
+    ) -> None:
         """Adds Conformer config parameters to argparser
 
         Args:
@@ -637,7 +666,7 @@ class ConformerEncoderV1(NetArch):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         valid_args = (
             "override_dropouts",
             "dropout_rate",
@@ -648,7 +677,9 @@ class ConformerEncoderV1(NetArch):
         return args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None, skip=set([])):
+    def add_finetune_args(
+        parser: Any, prefix: Optional[str] = None, skip: set = set()
+    ) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

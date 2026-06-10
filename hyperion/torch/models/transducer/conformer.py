@@ -18,7 +18,7 @@
 import copy
 import math
 import warnings
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
@@ -391,7 +391,7 @@ class Conformer(Transformer):
 
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         valid_args = (
             "num_features",
             "encoder_out_dim",
@@ -407,7 +407,9 @@ class Conformer(Transformer):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: Any, prefix: Optional[str] = None, skip: set = set()
+    ) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -1506,5 +1508,5 @@ class Swish(torch.nn.Module):
         return x * torch.sigmoid(x)
 
 
-def identity(x):
+def identity(x: Tensor) -> Tensor:
     return x

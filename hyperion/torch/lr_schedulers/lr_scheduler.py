@@ -101,6 +101,10 @@ class LRScheduler:
         Args:
             state_dict: Serialized scheduler state.
         """
+        if "min_lrs" in state_dict:
+            # we use the current min_lrs instead of the checkpointed ones to be able to change
+            # the min_lrs when resuming from a checkpoint
+            state_dict.pop("min_lrs")
         self.__dict__.update(state_dict)
 
     def get_warmup_lr(self) -> List[float]:

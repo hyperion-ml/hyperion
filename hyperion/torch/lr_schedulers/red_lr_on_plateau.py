@@ -195,6 +195,8 @@ class ReduceLROnPlateau(LRScheduler):
 
     def load_state_dict(self, state_dict: Mapping[str, Any]) -> None:
         """Load scheduler state and rebuild comparator closure."""
+        state_dict = dict(state_dict)
+        state_dict.pop("min_lrs", None)
         self.__dict__.update(state_dict)
         self._init_is_better(
             mode=self.mode, threshold=self.threshold, threshold_mode=self.threshold_mode

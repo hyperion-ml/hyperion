@@ -4,12 +4,13 @@
 """
 #
 
-import numpy as np
+from typing import Optional, Type
 
+import torch
 import torch.nn as nn
-from torch.nn import BatchNorm1d, Conv1d, Linear
+from torch.nn import BatchNorm1d, Conv1d
 
-from ..layers import ActivationFactory as AF
+from ..layers import ActivationSpec
 from ..layers import Dropout1d
 from .etdnn_blocks import ETDNNBlock
 
@@ -18,29 +19,40 @@ class ResETDNNBlock(ETDNNBlock):
     """Building block for Residual Extended-TDNN.
 
     Args:
-      in_channels:   input channels.
-      out_channels:  output channels.
-      kernel_size:   kernels size for the convolution.
+      num_channels:  input and output channels.
+      kernel_size:   kernel size for the convolution.
       dilation:      kernel dilation.
       activation:    non-linear activation function object, string or config dict.
       dropout_rate:  dropout rate.
-      use_norm:      if True, if uses layer normalization.
-      norm_layer:    Normalization Layer constructor, if None it used BatchNorm1d.
+      use_norm:      if True, applies normalization.
+      norm_layer:    Normalization layer constructor; if None, uses BatchNorm1d.
       norm_before:   if True, layer normalization is before the non-linearity, else
                      after the non-linearity.
     """
 
     def __init__(
         self,
-        num_channels,
-        kernel_size,
-        dilation=1,
-        activation={"name": "relu", "inplace": True},
-        dropout_rate=0,
-        norm_layer=None,
-        use_norm=True,
-        norm_before=False,
+        num_channels: int,
+        kernel_size: int,
+        dilation: int = 1,
+        activation: ActivationSpec = {"name": "relu", "inplace": True},
+        dropout_rate: float = 0,
+        norm_layer: Optional[Type[nn.Module]] = None,
+        use_norm: bool = True,
+        norm_before: bool = False,
     ):
+        """Initializes the Residual Extended-TDNN block.
+
+        Args:
+          num_channels: Input and output channels.
+          kernel_size: Convolution kernel size.
+          dilation: Convolution dilation factor.
+          activation: Non-linear activation specification.
+          dropout_rate: Dropout probability.
+          norm_layer: Normalization layer constructor; if ``None``, uses ``BatchNorm1d``.
+          use_norm: If ``True``, applies normalization.
+          norm_before: If ``True``, normalization is applied before the activation.
+        """
 
         super().__init__(
             num_channels,
@@ -54,12 +66,14 @@ class ResETDNNBlock(ETDNNBlock):
             norm_before,
         )
 
-    def forward(self, x, x_mask=None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Forward function.
 
         Args:
           x: input tensor with shape = (batch, in_channels, in_time).
-          x_mask: unused.
+          x_mask: Optional input mask, unused.
 
         Returns:
           Tensor with shape = (batch, out_channels, out_time).

@@ -18,7 +18,7 @@ from torch.nn.utils.parametrize import remove_parametrizations
 from ...utils.misc import filter_func_args
 from ..layer_blocks.hifi_blocks import HiFiBlock
 from ..layers import ActivationFactory as AF
-from ..utils import seq_lengths_to_mask
+from ..utils import scale_seq_lengths, seq_lengths_to_mask
 from .net_arch import NetArch
 
 
@@ -176,27 +176,48 @@ class HiFiGenerator(NetArch):
         if x_lengths is not None:
             x_mask = seq_lengths_to_mask(x_lengths, x.size(2), time_dim=2).to(x.dtype)
             x = x * x_mask
+        else:
+            x_mask = None
 
         x = self.in_conv(x)
+        if x_mask is not None:
+            x = x * x_mask
 
         if condition is not None and self.cond_layer is not None:
             x = x + self.cond_layer(condition)
+            if x_mask is not None:
+                x = x * x_mask
 
         for i in range(self.num_upsamples):
+            prev_t = x.size(2)
             x = self.activation(x)
+            if x_mask is not None:
+                x = x * x_mask
             x = self.upsample_layers[i](x)
+            if x_lengths is not None:
+                x_lengths = scale_seq_lengths(
+                    x_lengths, x.size(2), max_in_length=prev_t
+                )
+                x_mask = seq_lengths_to_mask(
+                    x_lengths, x.size(2), time_dim=2, dtype=x.dtype
+                )
+                x = x * x_mask
 
             res_out = None
             for j in range(self.num_kernels):
                 block = self.blocks[i * self.num_kernels + j]
-                x_block = block(x)
+                x_block = block(x, x_mask=x_mask)
                 res_out = x_block if res_out is None else res_out + x_block
 
             x = res_out / self.num_kernels  # average residuals
 
         x = self.activation(x)
+        if x_mask is not None:
+            x = x * x_mask
         x = self.out_conv(x)
         x = torch.tanh(x)
+        if x_mask is not None:
+            x = x * x_mask
         return x
 
     def remove_weight_norm(self):

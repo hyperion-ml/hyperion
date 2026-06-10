@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -31,11 +31,11 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
 
     def __init__(
         self,
-        hf_feats: Union[Dict, HFHubert],
-        feat_fuser: Union[Dict, FeatFuserMVN],
-        xvector: Union[Dict, ConformerV1XVector],
+        hf_feats: Union[Dict[str, Any], HFHubert],
+        feat_fuser: Union[Dict[str, Any], FeatFuserMVN],
+        xvector: Union[Dict[str, Any], ConformerV1XVector],
         feat_fusion_start: int = 0,
-    ):
+    ) -> None:
         if isinstance(hf_feats, dict):
             hf_feats = HFHubert(**hf_feats)
         else:
@@ -51,7 +51,7 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
         super().__init__(hf_feats, feat_fuser, xvector, feat_fusion_start)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         base_args = HFWav2XVector.filter_args(**kwargs)
         child_args = HFHubert.filter_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
@@ -60,7 +60,7 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
         return base_args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -73,7 +73,7 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         base_args = {}
         child_args = HFHubert.filter_finetune_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
@@ -82,7 +82,7 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

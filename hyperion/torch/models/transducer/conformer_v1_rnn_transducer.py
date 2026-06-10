@@ -4,7 +4,7 @@
 """
 
 import logging
-from typing import Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Union
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
@@ -28,7 +28,11 @@ class ConformerV1RNNTransducer(RNNTransducer):
 
     """
 
-    def __init__(self, encoder, rnnt_decoder):
+    def __init__(
+        self,
+        encoder: Union[Dict[str, Any], ConformerEncoderV1],
+        rnnt_decoder: Union[Dict[str, Any], Any],
+    ) -> None:
         if isinstance(encoder, dict):
             encoder = ConformerEncoderV1(**encoder)
         else:
@@ -37,14 +41,16 @@ class ConformerV1RNNTransducer(RNNTransducer):
         super().__init__(encoder, rnnt_decoder)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         args = RNNTransducer.filter_args(**kwargs)
         encoder_args = ConformerEncoderV1.filter_args(**kwargs["encoder"])
         args["encoder"] = encoder_args
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: Any, prefix: Optional[str] = None, skip: set = set()
+    ) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -56,22 +62,22 @@ class ConformerV1RNNTransducer(RNNTransducer):
 
     def change_config(
         self,
-        encoder,
-        rnnt_decoder,
-    ):
+        encoder: Dict[str, Any],
+        rnnt_decoder: Dict[str, Any],
+    ) -> None:
         logging.info("changing transducer encoder config")
         self.encoder.change_config(**encoder)
         super().chage_config(**rnnt_decoder)
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         args = RNNTransducer.filter_finetune_args(**kwargs)
         encoder_args = ConformerEncoderV1.filter_finetune_args(**kwargs["encoder"])
         args["encoder"] = encoder_args
         return args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

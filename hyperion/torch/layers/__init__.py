@@ -3,7 +3,7 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .activation_factory import ActivationFactory
+from .activation_factory import ActivationFactory, ActivationSpec
 from .attention_v1 import (
     LocalScaledDotProdAttRelPosEncV1,
     LocalScaledDotProdAttV1,
