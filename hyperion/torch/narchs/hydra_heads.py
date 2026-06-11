@@ -15,8 +15,8 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn import Linear
 
 from ...utils.misc import filter_func_args
-from ..layers import ArcLossOutput, CosLossOutput
-from ..layers import SubCenterArcLossOutput
+from ..layers import ArcLossOutput, CosLossOutput, SubCenterArcLossOutput
+from ..losses.rate_distortion import SubspaceLikeGaussianCodeRateDistortionL2
 from .net_arch import NetArch
 
 
@@ -73,6 +73,7 @@ class HydraClassifHeadOutput:
 
     logits: torch.Tensor
     loss: Optional[torch.Tensor] = None
+    prototype_code_rate: Optional[torch.Tensor] = None
 
 
 @dataclass
@@ -172,6 +173,8 @@ class HydraClassifHead(HydraHead):
         enable_loss: Whether the module computes cross-entropy loss on forward.
         reduction: Reduction applied by the cross-entropy loss.
         label_smoothing: Label smoothing factor for the cross-entropy loss.
+        enable_prototype_code_rate: Whether to compute the prototype code rate in `forward`.
+        code_rate_eps: Epsilon parameter for the prototype code rate computation.
     """
 
     def __init__(
@@ -188,6 +191,8 @@ class HydraClassifHead(HydraHead):
         enable_loss: bool = True,
         reduction: str = "mean",
         label_smoothing: float = 0.0,
+        enable_prototype_code_rate: bool = False,
+        code_rate_eps: float = 0.5,
     ) -> None:
         """Build the classification head and configure its loss module.
 
@@ -204,6 +209,8 @@ class HydraClassifHead(HydraHead):
             enable_loss: When True, compute cross-entropy loss in `forward`.
             reduction: Reduction strategy for cross-entropy loss.
             label_smoothing: Label smoothing factor for cross-entropy loss.
+            enable_prototype_code_rate: When True, compute the code rate of the prototypes in `forward`.
+            code_rate_eps: Epsilon parameter for the prototype code rate computation.
         """
         super().__init__(enable_loss, reduction)
         self.in_feats = in_feats
@@ -215,6 +222,8 @@ class HydraClassifHead(HydraHead):
         self.intertop_k = intertop_k
         self.intertop_margin = intertop_margin
         self.num_subcenters = num_subcenters
+        self.enable_prototype_code_rate = enable_prototype_code_rate
+        self.code_rate_eps = code_rate_eps
 
         # output layer
         if loss_type == HydraClassifLossType.SOFTMAX:
@@ -261,10 +270,33 @@ class HydraClassifHead(HydraHead):
                 reduction=reduction, label_smoothing=label_smoothing
             )
 
+        if self.enable_prototype_code_rate:
+            self.code_rate = SubspaceLikeGaussianCodeRateDistortionL2(
+                eps=code_rate_eps,
+                normalize=False,
+                distributed_mode="local",
+            )
+
     @property
     def head_type(self) -> HydraHeadType:
         """Return the head type identifier for this head instance."""
         return HydraHeadType.CLASSIF
+
+    @property
+    def prototypes(self) -> torch.Tensor:
+        """Return the learned prototypes (class centers) of the head."""
+        if self.loss_type == HydraClassifLossType.SOFTMAX:
+            return self.output.weight
+
+        return self.output.prototypes
+
+    @property
+    def normalized_prototypes(self) -> torch.Tensor:
+        """Return the learned prototypes (class centers) of the head."""
+        if self.loss_type == HydraClassifLossType.SOFTMAX:
+            return nn.functional.normalize(self.output.weight, p=2, dim=1)
+
+        return self.output.prototypes
 
     def reconfig_or_create(
         self,
@@ -280,6 +312,8 @@ class HydraClassifHead(HydraHead):
         enable_loss: bool = True,
         reduction: str = "mean",
         label_smoothing: float = 0.0,
+        enable_prototype_code_rate: bool = False,
+        code_rate_eps: float = 0.5,
     ) -> "HydraClassifHead":
         """Reconfigure the head or create a new one when structural settings change.
 
@@ -296,6 +330,8 @@ class HydraClassifHead(HydraHead):
             enable_loss: When True, compute cross-entropy loss in `forward`.
             reduction: Reduction strategy for cross-entropy loss.
             label_smoothing: Label smoothing factor for cross-entropy loss.
+            enable_prototype_code_rate: When True, compute the prototype code rate in `forward`.
+            code_rate_eps: Epsilon parameter for the prototype code rate computation.
         Returns:
             HydraClassifHead: Updated head instance.
         """
@@ -316,6 +352,8 @@ class HydraClassifHead(HydraHead):
             "enable_loss": enable_loss,
             "reduction": reduction,
             "label_smoothing": label_smoothing,
+            "enable_prototype_code_rate": enable_prototype_code_rate,
+            "code_rate_eps": code_rate_eps,
         }
 
         if (
@@ -342,6 +380,8 @@ class HydraClassifHead(HydraHead):
                 enable_loss=enable_loss,
                 reduction=reduction,
                 label_smoothing=label_smoothing,
+                enable_prototype_code_rate=enable_prototype_code_rate,
+                code_rate_eps=code_rate_eps,
             )
 
         logging.info(
@@ -366,8 +406,22 @@ class HydraClassifHead(HydraHead):
                 reduction=reduction, label_smoothing=label_smoothing
             )
 
+        if self.enable_prototype_code_rate:
+            if enable_prototype_code_rate:
+                self.code_rate.eps = code_rate_eps
+            else:
+                del self.code_rate
+        elif enable_prototype_code_rate:
+            self.code_rate = SubspaceLikeGaussianCodeRateDistortionL2(
+                eps=code_rate_eps,
+                normalize=False,
+                distributed_mode="local",
+            )
+
         self.reduction = reduction
         self.enable_loss = enable_loss
+        self.enable_prototype_code_rate = enable_prototype_code_rate
+        self.code_rate_eps = code_rate_eps
         return self
 
     def set_margin(self, margin: float) -> None:
@@ -486,7 +540,14 @@ class HydraClassifHead(HydraHead):
         else:
             loss = None
 
-        output = HydraClassifHeadOutput(logits=logits, loss=loss)
+        if self.enable_prototype_code_rate:
+            code_rate = self.code_rate(self.normalized_prototypes)
+        else:
+            code_rate = None
+
+        output = HydraClassifHeadOutput(
+            logits=logits, loss=loss, prototype_code_rate=code_rate
+        )
         return output
 
     def compute_loss(
@@ -549,6 +610,8 @@ class HydraClassifHead(HydraHead):
             "intertop_margin": self.intertop_margin,
             "num_subcenters": self.num_subcenters,
             "label_smoothing": self.loss.label_smoothing if self.enable_loss else 0.0,
+            "enable_prototype_code_rate": self.enable_prototype_code_rate,
+            "code_rate_eps": self.code_rate_eps,
         }
 
         base_config = super().get_config(no_class_name=no_class_name)
@@ -645,6 +708,33 @@ class HydraClassifHead(HydraHead):
             )
 
     @staticmethod
+    def add_prototype_code_rate_args(
+        parser: ArgumentParser, skip: Optional[Set[str]] = None
+    ) -> None:
+        """Register CLI arguments for prototype code rate configuration.
+
+        Args:
+            parser: Argument parser where the options are registered.
+            skip: Optional set of argument names to omit.
+        """
+        skip = skip or set()
+        if "enable_prototype_code_rate" not in skip:
+            parser.add_argument(
+                "--enable-prototype-code-rate",
+                default=False,
+                action=ActionYesNo,
+                help="enable the computation of the prototype code rate",
+            )
+
+        if "code_rate_eps" not in skip:
+            parser.add_argument(
+                "--code-rate-eps",
+                default=0.5,
+                type=float,
+                help="epsilon parameter for the prototype code rate computation",
+            )
+
+    @staticmethod
     def add_class_args(
         parser: ArgumentParser,
         prefix: Optional[str] = None,
@@ -672,6 +762,7 @@ class HydraClassifHead(HydraHead):
             )
         HydraClassifHead.add_large_margin_loss_args(parser, skip=skip)
         HydraClassifHead.add_cross_entropy_loss_args(parser, skip=skip)
+        HydraClassifHead.add_prototype_code_rate_args(parser, skip=skip)
         HydraHead.add_class_args(parser, prefix=None, skip=skip)
 
         if prefix is not None:

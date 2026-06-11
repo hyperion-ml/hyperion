@@ -18,6 +18,9 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
 from ...hyper_torch_model import HyperTorchModel
+from ...losses.rate_distortion import (
+    SubspaceLikeGaussianCodeRateDistortionL2 as CodeRate,
+)
 from ...narchs import (
     HydraClassifHeadOutput,
     HydraHead,
@@ -56,6 +59,9 @@ class QVectorOutput(HyperDataClass):
     backbone_hidden_feats_lengths: Optional[torch.Tensor] = None
     """Lengths matching `backbone_hidden_feats` for variable-length inputs."""
 
+    qmatrix_code_rate: Optional[torch.Tensor] = None
+    """Code rate for the Q-matrix."""
+
     @classmethod
     def concatenate(cls, outputs: List["QVectorOutput"]) -> "QVectorOutput":
         """Concatenate multiple QVectorOutput instances along the batch dimension."""
@@ -67,6 +73,18 @@ class QVectorOutput(HyperDataClass):
             if any(t is None for t in tensors):
                 return None
             return torch.cat(tensors, dim=0)
+
+        def _avg_optional_scalar(attr: str) -> Optional[torch.Tensor]:
+            values = [getattr(out, attr) for out in outputs]
+            if any(v is None for v in values):
+                return None
+            weights = torch.tensor(
+                [out.qvector.size(0) for out in outputs],
+                device=values[0].device,
+                dtype=values[0].dtype,
+            )
+            stacked = torch.stack(values)
+            return torch.sum(stacked * weights) / torch.sum(weights)
 
         def _cat_optional_tensor_lists(attr: str) -> Optional[List[torch.Tensor]]:
             tensor_lists = [getattr(out, attr) for out in outputs]
@@ -99,11 +117,39 @@ class QVectorOutput(HyperDataClass):
                 )
             if isinstance(first_output, HydraClassifHeadOutput):
                 logits = torch.cat([h.logits for h in head_outputs], dim=0)
-                loss = head_outputs[0].loss
-                head_output = HydraClassifHeadOutput(logits=logits, loss=loss)
+                weights = torch.tensor(
+                    [out.qvector.size(0) for out in outputs],
+                    device=logits.device,
+                    dtype=logits.dtype,
+                )
+                loss = None
+                if all(h.loss is not None for h in head_outputs):
+                    losses = torch.stack([h.loss for h in head_outputs])
+                    loss = torch.sum(losses * weights) / torch.sum(weights)
+                prototype_code_rate = None
+                if all(h.prototype_code_rate is not None for h in head_outputs):
+                    prototype_rates = torch.stack(
+                        [h.prototype_code_rate for h in head_outputs]
+                    )
+                    prototype_code_rate = (
+                        torch.sum(prototype_rates * weights) / torch.sum(weights)
+                    )
+                head_output = HydraClassifHeadOutput(
+                    logits=logits,
+                    loss=loss,
+                    prototype_code_rate=prototype_code_rate,
+                )
             elif isinstance(first_output, HydraRegressionHeadOutput):
                 preds = torch.cat([h.preds for h in head_outputs], dim=0)
-                loss = head_outputs[0].loss
+                loss = None
+                if all(h.loss is not None for h in head_outputs):
+                    weights = torch.tensor(
+                        [out.qvector.size(0) for out in outputs],
+                        device=preds.device,
+                        dtype=preds.dtype,
+                    )
+                    losses = torch.stack([h.loss for h in head_outputs])
+                    loss = torch.sum(losses * weights) / torch.sum(weights)
                 head_output = HydraRegressionHeadOutput(preds=preds, loss=loss)
 
         return cls(
@@ -118,6 +164,7 @@ class QVectorOutput(HyperDataClass):
             backbone_hidden_feats_lengths=_cat_optional_tensor(
                 "backbone_hidden_feats_lengths"
             ),
+            qmatrix_code_rate=_avg_optional_scalar("qmatrix_code_rate"),
         )
 
     @classmethod
@@ -136,14 +183,6 @@ class QVectorOutput(HyperDataClass):
         device = concatenated_output.qvector.device
         dtype = concatenated_output.qvector.dtype
         audio_index = audio_index.to(device=device, dtype=torch.long)
-
-        # print(
-        #     "co",
-        #     concatenated_output.qvector[:, :4],
-        #     concatenated_output.qmatrix[:, :2, :2],
-        #     audio_index,
-        #     chunk_weights,
-        # )
 
         if chunk_weights is None:
             chunk_weights = torch.ones(audio_index.size(0), device=device, dtype=dtype)
@@ -193,7 +232,9 @@ class QVectorOutput(HyperDataClass):
             logits.index_add_(0, audio_index, weighted_logits)
             logits = logits / weight_sums.unsqueeze(1)
             aggregated_head_output = HydraClassifHeadOutput(
-                logits=logits, loss=input_head_output.loss
+                logits=logits,
+                loss=input_head_output.loss,
+                prototype_code_rate=input_head_output.prototype_code_rate,
             )
         elif isinstance(input_head_output, HydraRegressionHeadOutput):
             preds_chunks = input_head_output.preds
@@ -213,8 +254,6 @@ class QVectorOutput(HyperDataClass):
         else:
             aggregated_head_output = None
 
-        # print("oo", qvector[:, :4], qmatrix[:, :2, :2], flush=True)
-
         return cls(
             qmatrix=qmatrix,
             qvector=qvector,
@@ -223,6 +262,7 @@ class QVectorOutput(HyperDataClass):
             backbone_output_feats_lengths=None,
             backbone_hidden_feats=None,
             backbone_hidden_feats_lengths=None,
+            qmatrix_code_rate=concatenated_output.qmatrix_code_rate,
         )
 
 
@@ -257,6 +297,10 @@ class QVector(HyperTorchModel):
         num_hidden_feats_queries: Number of hidden-feature queries.
         num_output_feats_queries: Number of output-feature queries.
         qvector_dim: Dimensionality of the final q-vector embedding.
+        enable_qmatrix_code_rate: Whether to compute the q-matrix code rate in
+            ``forward``.
+        qmatrix_code_rate_eps: Epsilon parameter for the q-matrix code-rate
+            computation.
     """
 
     def __init__(
@@ -268,6 +312,8 @@ class QVector(HyperTorchModel):
         qvector_dim: int,
         head: Union[Dict[str, Any], HydraHead],
         proj_bias: bool = True,
+        enable_qmatrix_code_rate: bool = False,
+        qmatrix_code_rate_eps: float = 0.5,
         qformer_weight_decay: Optional[float] = None,
         proj_head_weight_decay: Optional[float] = None,
         head_weight_decay: Optional[float] = None,
@@ -288,6 +334,10 @@ class QVector(HyperTorchModel):
             qvector_dim: Dimensionality of the projected q-vector embedding.
             head: Keyword arguments used to instantiate the downstream Hydra head.
             proj_bias: Whether the projection head linear layer includes a bias term.
+            enable_qmatrix_code_rate: When True, compute the q-matrix code rate
+                in ``forward``.
+            qmatrix_code_rate_eps: Epsilon parameter for the q-matrix code-rate
+                computation.
             qformer_weight_decay: Optional weight-decay override applied to both
                 hidden/output Q-former parameters.
             proj_head_weight_decay: Optional weight-decay override applied to
@@ -394,6 +444,20 @@ class QVector(HyperTorchModel):
         self.head_weight_decay = head_weight_decay
         self.proj_head_weight_decay = proj_head_weight_decay
         self.qformer_weight_decay = qformer_weight_decay
+
+        self.enable_qmatrix_code_rate = enable_qmatrix_code_rate
+        self.qmatrix_code_rate_eps = qmatrix_code_rate_eps
+        if self.enable_qmatrix_code_rate:
+            logging.info(
+                "Q-matrix code rate enabled with eps=%.4f", self.qmatrix_code_rate_eps
+            )
+            self.qmatrix_code_rate = CodeRate(
+                eps=self.qmatrix_code_rate_eps,
+                reduction="mean",
+                distributed_mode="global_data",
+            )
+        else:
+            self.qmatrix_code_rate = None
 
     def _init_queries(self):
         """Initialise the learnable query tensors using a truncated normal draw."""
@@ -699,7 +763,8 @@ class QVector(HyperTorchModel):
 
         Returns:
             QVectorOutput: Structured output containing the q-matrix, q-vector, head
-            output, and any requested backbone features.
+            output, optional q-matrix code rate, and any requested backbone
+            features.
         """
         self.update_train_length(audio.size(-1))
         with self._backbone_context:
@@ -773,6 +838,11 @@ class QVector(HyperTorchModel):
             backbone_output_feats = None
             backbone_output_feats_lengths = None
 
+        if self.enable_qmatrix_code_rate and self.qmatrix_code_rate is not None:
+            qmatrix_code_rate = self.qmatrix_code_rate(qmatrix)
+        else:
+            qmatrix_code_rate = None
+
         qmatrix_flat = qmatrix.view(qmatrix.size(0), -1)
         qvector = self.proj_head(qmatrix_flat)
         if return_head_output:
@@ -796,6 +866,7 @@ class QVector(HyperTorchModel):
             backbone_output_feats_lengths=(
                 backbone_output_feats_lengths if return_backbone_feats else None
             ),
+            qmatrix_code_rate=qmatrix_code_rate,
         )
         return output
 
@@ -1246,6 +1317,8 @@ class QVector(HyperTorchModel):
             "qvector_dim": self.qvector_dim,
             "proj_bias": self.proj_bias,
             "head": head,
+            "enable_qmatrix_code_rate": self.enable_qmatrix_code_rate,
+            "qmatrix_code_rate_eps": self.qmatrix_code_rate_eps,
             "qformer_weight_decay": self.qformer_weight_decay,
             "proj_head_weight_decay": self.proj_head_weight_decay,
             "head_weight_decay": self.head_weight_decay,
@@ -1317,139 +1390,6 @@ class QVector(HyperTorchModel):
                 f"overriding head weight decay with new value: {head_weight_decay}"
             )
             self.head_weight_decay = head_weight_decay
-
-    # def change_config(
-    #     self,
-    #     override_output=False,
-    #     override_dropouts=False,
-    #     dropout_rate=0,
-    #     num_classes=None,
-    #     loss_type="arc-softmax",
-    #     cos_scale=64,
-    #     margin=0.3,
-    #     margin_warmup_epochs=10,
-    #     intertop_k=5,
-    #     intertop_margin=0.0,
-    #     num_subcenters=2,
-    #     head_type=XVectorHeadType.XVECTOR,
-    # ):
-    #     logging.info("changing x-vector config")
-    #     if override_output:
-    #         self.rebuild_output_layer(
-    #             num_classes=num_classes,
-    #             loss_type=loss_type,
-    #             cos_scale=cos_scale,
-    #             margin=margin,
-    #             margin_warmup_epochs=margin_warmup_epochs,
-    #             intertop_k=intertop_k,
-    #             intertop_margin=intertop_margin,
-    #             num_subcenters=num_subcenters,
-    #             head_type=head_type,
-    #         )
-
-    #     if override_dropouts:
-    #         logging.info("overriding x-vector dropouts")
-    #         self.encoder_net.change_dropouts(dropout_rate)
-    #         self.classif_net.change_dropouts(dropout_rate)
-
-    # def rebuild_output_layer(
-    #     self,
-    #     num_classes=None,
-    #     loss_type="arc-softmax",
-    #     cos_scale=64,
-    #     margin=0.3,
-    #     margin_warmup_epochs=10,
-    #     intertop_k=5,
-    #     intertop_margin=0.0,
-    #     num_subcenters=2,
-    #     head_type=XVectorHeadType.XVECTOR,
-    # ):
-
-    #     if head_type != self.head_type:
-    #         # only from dino to x-vector
-    #         assert self.head_type == XVectorHeadType.DINO
-    #         logging.info("transforming dino head into x-vector head")
-    #         self.num_embed_layers = 1
-    #         self.head_use_in_norm = (
-    #             self.proj_head_use_norm and self.proj_head_norm_before
-    #         )
-    #         self.head_use_norm = (
-    #             self.proj_head_use_norm and not self.proj_head_norm_before
-    #         )
-    #         self.classif_net = ClassifHead(
-    #             self.proj_head_net.in_feats,
-    #             num_classes,
-    #             embed_dim=self.proj_head_net.out_feats,
-    #             num_embed_layers=1,
-    #             hid_act=None,
-    #             loss_type=loss_type,
-    #             cos_scale=cos_scale,
-    #             margin=margin,
-    #             margin_warmup_epochs=margin_warmup_epochs,
-    #             intertop_k=intertop_k,
-    #             intertop_margin=intertop_margin,
-    #             num_subcenters=num_subcenters,
-    #             norm_layer=self.head_norm_layer,
-    #             use_norm=self.proj_head_use_norm,
-    #             norm_before=self.norm_before,
-    #             dropout_rate=self.dropout_rate,
-    #             use_in_norm=self.head_use_in_norm,
-    #         )
-
-    #         if (
-    #             self.classif_net.fc_blocks[0].linear.bias is not None
-    #             and self.proj_head_net.proj.bias is not None
-    #         ):
-    #             self.classif_net.fc_blocks[0].linear.bias.data.copy_(
-    #                 self.proj_head_net.proj.bias.data
-    #             )
-
-    #         self.classif_net.fc_blocks[0].linear.weight.data.copy_(
-    #             self.proj_head_net.proj.weight.data
-    #         )
-    #         if self.head_use_norm:
-    #             self.classif_net.fc_blocks[0].bn1.load_state_dict(
-    #                 self.proj_head_net._norm_layer.state_dict()
-    #             )
-    #         del self.proj_head_net
-    #         self.proj_head_net = None
-    #         self.head_type = XVectorHeadType.XVECTOR
-    #         return
-
-    #     if (
-    #         (self.num_classes is not None and self.num_classes != num_classes)
-    #         or (self.loss_type != loss_type)
-    #         or (
-    #             loss_type == "subcenter-arc-softmax"
-    #             and self.classif_net.num_subcenters != num_subcenters
-    #         )
-    #     ):
-    #         # if we change the number of classes or the loss-type
-    #         # we need to reinitiate the last layer
-    #         logging.info("rebuilding output layer")
-    #         self.classif_net.rebuild_output_layer(
-    #             num_classes,
-    #             loss_type,
-    #             cos_scale,
-    #             margin,
-    #             margin_warmup_epochs,
-    #             intertop_k=intertop_k,
-    #             intertop_margin=intertop_margin,
-    #             num_subcenters=num_subcenters,
-    #         )
-    #         return
-
-    #     # otherwise we just change the values of s, margin and margin_warmup
-    #     self.classif_net.set_margin(margin)
-    #     self.classif_net.set_margin_warmup_epochs(margin_warmup_epochs)
-    #     self.classif_net.set_cos_scale(cos_scale)
-    #     self.classif_net.set_intertop_k(intertop_k)
-    #     self.classif_net.set_intertop_margin(intertop_margin)
-    #     self.classif_net.set_num_subcenters(num_subcenters)
-
-    # def cancel_output_layer_grads(self):
-    #     for p in self.classif_net.output.parameters():
-    #         p.grad = None
 
     def set_train_mode(self, mode: Union[str, QVectorTrainMode]):
         """Switch between predefined training regimes.
@@ -1695,6 +1635,20 @@ class QVector(HyperTorchModel):
                 default=True,
                 action=ActionYesNo,
                 help="whether the projection-head linear layer uses a bias term",
+            )
+        if "enable_qmatrix_code_rate" not in skip:
+            parser.add_argument(
+                "--enable-qmatrix-code-rate",
+                default=False,
+                action=ActionYesNo,
+                help="enable the computation of the q-matrix code rate",
+            )
+        if "qmatrix_code_rate_eps" not in skip:
+            parser.add_argument(
+                "--qmatrix-code-rate-eps",
+                type=float,
+                default=0.5,
+                help="epsilon parameter for the q-matrix code-rate computation",
             )
 
         if "bias_weight_decay" not in skip:

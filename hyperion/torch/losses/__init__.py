@@ -12,5 +12,10 @@ from .dino_loss import CosineDINOLoss, DINOLoss
 from .feature_matching_loss import FeatureMatchingLoss
 from .multiresolution_filter_bank_loss import MultiResolutionFilterBankLoss
 from .multiresolution_stft_loss import MultiResolutionSTFTLoss
+from .rate_distortion import (
+    CategoricalSubspaceLikeGaussianCodeRateDistortionL2,
+    CategoricalSubspaceLikeGaussianCodeRateDistortionL2Reduction,
+    SubspaceLikeGaussianCodeRateDistortionL2,
+)
 from .si_sdr_loss import SISDRLoss
 from .sim_clr_loss import SimCLRLoss

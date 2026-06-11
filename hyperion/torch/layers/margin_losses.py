@@ -28,6 +28,18 @@ def _cosine_affinity(kernel: torch.Tensor) -> torch.Tensor:
     return torch.mm(kernel_norm.transpose(0, 1), kernel_norm)
 
 
+def _normalized_prototypes(kernel: torch.Tensor) -> torch.Tensor:
+    """Returns unit-norm class prototypes as rows.
+
+    Args:
+      kernel: Prototype matrix with shape ``(in_feats, num_classes)``.
+
+    Returns:
+      Prototype matrix with shape ``(num_classes, in_feats)``.
+    """
+    return F.normalize(kernel, dim=0, eps=1e-10).transpose(0, 1)
+
+
 class ArcLossOutput(nn.Module):
     """Additive angular margin softmax (ArcFace) output layer.
 
@@ -94,6 +106,15 @@ class ArcLossOutput(nn.Module):
         self.kernel = nn.Parameter(torch.Tensor(in_feats, num_classes))
         # we normalize prototypes to have l2 norm = 1
         self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
+
+    @property
+    def prototypes(self) -> torch.Tensor:
+        """Returns the class prototypes.
+
+        Returns:
+          Class prototypes with shape ``(num_classes, in_feats)``.
+        """
+        return _normalized_prototypes(self.kernel)
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -291,6 +312,15 @@ class CosLossOutput(nn.Module):
         self.kernel = nn.Parameter(torch.Tensor(in_feats, num_classes))
         self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
 
+    @property
+    def prototypes(self) -> torch.Tensor:
+        """Returns the class prototypes.
+
+        Returns:
+          Class prototypes with shape ``(num_classes, in_feats)``.
+        """
+        return _normalized_prototypes(self.kernel)
+
     def __repr__(self) -> str:
         return self.__str__()
 
@@ -458,6 +488,15 @@ class SubCenterArcLossOutput(ArcLossOutput):
         self.register_buffer(
             "subcenter_counts", torch.zeros(num_classes, num_subcenters)
         )
+
+    @property
+    def prototypes(self) -> torch.Tensor:
+        """Returns the class prototypes.
+
+        Returns:
+          Class prototypes with shape ``(num_classes, in_feats)``.
+        """
+        return _normalized_prototypes(self.get_main_prototype_kernel())
 
     def __str__(self) -> str:
         s = (

@@ -77,6 +77,8 @@ class HFWav2QVector(QVector):
         qvector_dim: int,
         head: Union[Dict[str, Any], HydraHead],
         proj_bias: bool = True,
+        enable_qmatrix_code_rate: bool = False,
+        qmatrix_code_rate_eps: float = 0.5,
         hidden_feats_fusion_start: int = 0,
         hidden_feats_agg_start: int = 0,
         hidden_feats_shared_adapters: bool = True,
@@ -105,6 +107,10 @@ class HFWav2QVector(QVector):
             qvector_dim: Size of the final q-vector embedding.
             head: Hydra head configuration or module.
             proj_bias: Whether the projection head linear layer includes a bias term.
+            enable_qmatrix_code_rate: When True, compute the q-matrix code rate
+                in ``forward``.
+            qmatrix_code_rate_eps: Epsilon parameter for the q-matrix code-rate
+                computation.
             hidden_feats_fusion_start: First hidden-state index used for output
                 feature fusion.
             hidden_feats_agg_start: First hidden-state index used for hidden
@@ -140,6 +146,8 @@ class HFWav2QVector(QVector):
             qvector_dim=qvector_dim,
             head=head,
             proj_bias=proj_bias,
+            enable_qmatrix_code_rate=enable_qmatrix_code_rate,
+            qmatrix_code_rate_eps=qmatrix_code_rate_eps,
             qformer_weight_decay=qformer_weight_decay,
             proj_head_weight_decay=proj_head_weight_decay,
             head_weight_decay=head_weight_decay,

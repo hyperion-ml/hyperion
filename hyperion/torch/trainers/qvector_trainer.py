@@ -68,6 +68,10 @@ class QVectorTrainer(SingleModelTrainer):
         bn_update_steps (int): Max steps for BN statistics refresh after SWA.
         input_key (str): Key for the audio tensor in dataloader batches.
         target_key (str): Key for supervision labels in the batch.
+        qmatrix_code_rate_weight (float): Weight applied to the q-matrix code-rate
+            regularizer in the total loss.
+        prototype_code_rate_weight (float): Weight applied to the prototype
+            code-rate regularizer in the total loss.
         categorical_acc_metric (CategoricalAccuracy): Metric accumulator used when
             the model exposes a `HydraClassifHeadOutput`.
     """
@@ -115,6 +119,8 @@ class QVectorTrainer(SingleModelTrainer):
         bn_update_steps: int = 5000,
         input_key: str = "audio",
         target_key: str = "speaker",
+        qmatrix_code_rate_weight: float = 0.0,
+        prototype_code_rate_weight: float = 0.0,
     ) -> None:
         """
         Initializes the Q-vector trainer, forwarding most configuration to
@@ -162,6 +168,10 @@ class QVectorTrainer(SingleModelTrainer):
             bn_update_steps (int): Steps used to refresh BatchNorm statistics after SWA.
             input_key (str): Batch key used for the audio tensor.
             target_key (str): Batch key used for label tensors.
+            qmatrix_code_rate_weight (float): Weight applied to the q-matrix
+                code-rate regularizer.
+            prototype_code_rate_weight (float): Weight applied to the prototype
+                code-rate regularizer.
 
         Returns:
             None
@@ -170,6 +180,8 @@ class QVectorTrainer(SingleModelTrainer):
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
 
+        self.qmatrix_code_rate_weight = qmatrix_code_rate_weight
+        self.prototype_code_rate_weight = prototype_code_rate_weight
         self.categorical_acc_metric = CategoricalAccuracy()
 
     # def preprocess_train_data(self, batch_data):
@@ -221,8 +233,8 @@ class QVectorTrainer(SingleModelTrainer):
 
     def compute_forward(self, batch_data: Dict[str, Any]) -> Tuple[torch.Tensor, Any]:
         """
-        Runs the model forward pass and extracts the scalar loss from the
-        hydra classification head.
+        Runs the model forward pass and composes the total optimization loss from
+        the classification term and optional code-rate regularizers.
 
         Args:
             batch_data (Dict[str, Any]): Preprocessed batch from ``preprocess_data``.
@@ -232,7 +244,22 @@ class QVectorTrainer(SingleModelTrainer):
         """
         self.model.update_hyperparams(self.cur_step)
         batch_output = self.model(**batch_data)
-        loss = batch_output.head_output.loss
+        classification_loss = batch_output.head_output.loss
+        loss = classification_loss
+
+        qmatrix_code_rate = batch_output.qmatrix_code_rate
+        if qmatrix_code_rate is not None and self.qmatrix_code_rate_weight != 0:
+            loss = loss - self.qmatrix_code_rate_weight * qmatrix_code_rate
+
+        prototype_code_rate = None
+        if isinstance(batch_output.head_output, HydraClassifHeadOutput):
+            prototype_code_rate = batch_output.head_output.prototype_code_rate
+            if (
+                prototype_code_rate is not None
+                and self.prototype_code_rate_weight != 0
+            ):
+                loss = loss - self.prototype_code_rate_weight * prototype_code_rate
+
         return loss, batch_output
 
     def compute_metrics(
@@ -256,11 +283,20 @@ class QVectorTrainer(SingleModelTrainer):
             )
 
             batch_metrics["categorical_acc"] = categorical_acc
+            if batch_output.head_output.loss is not None:
+                batch_metrics["classification_loss"] = batch_output.head_output.loss.item()
+            if batch_output.head_output.prototype_code_rate is not None:
+                batch_metrics["prototype_code_rate"] = (
+                    batch_output.head_output.prototype_code_rate.item()
+                )
         else:
             logging.warning(
                 "QVectorTrainer: compute_metrics: Unknown head_output type %s"
                 % type(batch_output.head_output)
             )
+
+        if batch_output.qmatrix_code_rate is not None:
+            batch_metrics["qmatrix_code_rate"] = batch_output.qmatrix_code_rate.item()
 
         return batch_metrics
 
@@ -312,6 +348,22 @@ class QVectorTrainer(SingleModelTrainer):
         SingleModelTrainer.add_train_modes_args(
             parser, train_modes=train_modes, skip=skip
         )
+
+        if "qmatrix_code_rate_weight" not in skip:
+            parser.add_argument(
+                "--qmatrix-code-rate-weight",
+                type=float,
+                default=0.0,
+                help="weight applied to the q-matrix code-rate regularizer",
+            )
+
+        if "prototype_code_rate_weight" not in skip:
+            parser.add_argument(
+                "--prototype-code-rate-weight",
+                type=float,
+                default=0.0,
+                help="weight applied to the prototype code-rate regularizer",
+            )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
