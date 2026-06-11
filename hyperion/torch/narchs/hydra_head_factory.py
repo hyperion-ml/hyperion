@@ -120,6 +120,7 @@ class HydraHeadFactory:
             )
         HydraClassifHead.add_large_margin_loss_args(parser, skip=skip)
         HydraClassifHead.add_cross_entropy_loss_args(parser, skip=skip)
+        HydraClassifHead.add_prototype_code_rate_args(parser, skip=skip)
 
         if outer_parser is not None and prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
