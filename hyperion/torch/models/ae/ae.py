@@ -4,6 +4,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -13,16 +14,23 @@ from ...hyper_torch_model import HyperTorchModel
 
 
 class AE(HyperTorchModel):
-    """Basic Autoencoder class
+    """Basic autoencoder wrapper.
 
     Attributes:
-      encoder_net: NArch encoder network object
-      decoder_net: NArch decoder network object
-      z_dim: latent variable dimension (inferred from encoder_net output shape)
+      encoder_net: Encoder network.
+      decoder_net: Decoder network.
+      z_dim: Latent variable dimension inferred from the encoder output.
+      in_channels: Number of input channels.
 
     """
 
-    def __init__(self, encoder_net, decoder_net):
+    def __init__(self, encoder_net: Any, decoder_net: Any) -> None:
+        """Build an autoencoder from encoder and decoder networks.
+
+        Args:
+          encoder_net: Encoder network.
+          decoder_net: Decoder network.
+        """
         super().__init__()
         self.encoder_net = encoder_net
         self.decoder_net = decoder_net
@@ -43,16 +51,40 @@ class AE(HyperTorchModel):
 
         self.z_dim = self._enc_out_channels
 
-    def _pre_enc(self, x):
+    def _pre_enc(self, x: torch.Tensor) -> torch.Tensor:
+        """Adjust input rank before encoding.
+
+        Args:
+          x: Input tensor.
+
+        Returns:
+          Tensor ready for the encoder.
+        """
         if x.dim() == 3 and self._enc_in_dim == 4:
             return x.unsqueeze(1)
 
         return x
 
-    def _post_enc(self, x):
+    def _post_enc(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply any post-encoder transformation.
+
+        Args:
+          x: Encoder output tensor.
+
+        Returns:
+          Unmodified encoder output.
+        """
         return x
 
-    def _pre_dec(self, x):
+    def _pre_dec(self, x: torch.Tensor) -> torch.Tensor:
+        """Adjust latent rank before decoding.
+
+        Args:
+          x: Latent tensor.
+
+        Returns:
+          Tensor ready for the decoder.
+        """
         if self._enc_out_dim == 3 and self._dec_in_dim == 4:
             return x.unsqueeze(dim=1)
 
@@ -61,7 +93,18 @@ class AE(HyperTorchModel):
 
         return x
 
-    def forward(self, x, x_target=None):
+    def forward(
+        self, x: torch.Tensor, x_target: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Run the autoencoder forward pass.
+
+        Args:
+          x: Input tensor.
+          x_target: Optional target tensor used to infer the decoder output shape.
+
+        Returns:
+          Reconstructed tensor.
+        """
         if x_target is None:
             x_target = x
 
@@ -72,7 +115,12 @@ class AE(HyperTorchModel):
         xhat = self.decoder_net(zz, target_shape=x_target.shape)
         return xhat
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Return the serializable model configuration.
+
+        Returns:
+          Configuration dictionary.
+        """
         enc_cfg = self.encoder_net.get_config()
         dec_cfg = self.decoder_net.get_config()
         config = {"encoder_cfg": enc_cfg, "decoder_cfg": dec_cfg}
@@ -80,11 +128,26 @@ class AE(HyperTorchModel):
         return dict(list(base_config.items()) + list(config.items()))
 
     @classmethod
-    def load(cls, file_path=None, cfg=None, state_dict=None):
+    def load(
+        cls,
+        file_path: Optional[str] = None,
+        cfg: Optional[Dict[str, Any]] = None,
+        state_dict: Optional[Dict[str, torch.Tensor]] = None,
+    ) -> "AE":
+        """Load an autoencoder from configuration and state.
+
+        Args:
+          file_path: Optional checkpoint file path.
+          cfg: Optional configuration dictionary.
+          state_dict: Optional model state dictionary.
+
+        Returns:
+          Loaded autoencoder instance.
+        """
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
 
-        encoder_net = TorchNALoader.load(cfg=cfg["encoder_cfg"])
-        decoder_net = TorchNALoader.load(cfg=cfg["decoder_cfg"])
+        encoder_net = TorchNALoader.load_from_cfg(cfg=cfg["encoder_cfg"])
+        decoder_net = TorchNALoader.load_from_cfg(cfg=cfg["decoder_cfg"])
         for k in ("encoder_cfg", "decoder_cfg"):
             del cfg[k]
 
