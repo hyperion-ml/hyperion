@@ -22,7 +22,13 @@ class ConvergenceLoss(nn.Module):
         self,
         reduction: str = "mean",
         ref_floor: float = 1e-2,
-    ):
+    ) -> None:
+        """Initializes the convergence loss.
+
+        Args:
+            reduction: Reduction to apply to the per-example losses.
+            ref_floor: Minimum reference norm used for normalization.
+        """
         super().__init__()
         if reduction not in ["mean", "sum", "none"]:
             raise ValueError(

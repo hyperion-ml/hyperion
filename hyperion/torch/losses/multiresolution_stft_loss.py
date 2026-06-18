@@ -35,7 +35,17 @@ class MultiResolutionSTFTLoss(nn.Module):
         reduction: str = "mean",
         clamp_eps: float = 1e-5,
         compute_conv_loss: bool = True,
-    ):
+    ) -> None:
+        """Initializes the multi-resolution STFT loss.
+
+        Args:
+            window_lengths: STFT window lengths at each resolution.
+            hop_lengths: Hop lengths at each resolution. If ``None``, defaults to
+                ``window_length // 4`` for each resolution.
+            reduction: Reduction used by the underlying losses.
+            clamp_eps: Minimum magnitude before taking the logarithm.
+            compute_conv_loss: Whether to include convergence loss.
+        """
         super().__init__()
         self.window_lengths = window_lengths
         if hop_lengths is None:
@@ -59,7 +69,26 @@ class MultiResolutionSTFTLoss(nn.Module):
         self.clamp_eps = clamp_eps
         self.compute_conv_loss = compute_conv_loss
 
-    def get_mag_spectrogram(self, x, n_fft, window_length, hop_length, window):
+    def get_mag_spectrogram(
+        self,
+        x: torch.Tensor,
+        n_fft: int,
+        window_length: int,
+        hop_length: int,
+        window: torch.Tensor,
+    ) -> torch.Tensor:
+        """Computes a magnitude spectrogram from a waveform tensor.
+
+        Args:
+            x: Input waveform tensor with shape ``(B, T)`` or ``(B, 1, T)``.
+            n_fft: FFT size.
+            window_length: STFT window length.
+            hop_length: STFT hop length.
+            window: Window tensor.
+
+        Returns:
+            Magnitude spectrogram tensor.
+        """
         if x.dim() == 3:
             x = x.squeeze(1)  # (B, 1, T) -> (B, T)
 
@@ -76,16 +105,16 @@ class MultiResolutionSTFTLoss(nn.Module):
     def forward(
         self, x_pred: torch.Tensor, x_ref: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Computes multi-resolution STFT between an estimate and a reference
-        signal.
+        """Computes the multi-resolution STFT and convergence losses.
+
         Args:
             x_pred (torch.Tensor): Estimated audio signal of shape (B, T).
             x_ref (torch.Tensor): Reference audio signal of shape (B, T).
         Returns:
-            torch.Tensor: Computed multi-resolution STFT loss.
+            Tuple containing the convergence loss and log-magnitude loss.
         """
-        loss_sc = 0.0
-        loss_mag = 0.0
+        loss_sc = x_pred.new_tensor(0.0)
+        loss_mag = x_pred.new_tensor(0.0)
         for i in range(len(self.window_lengths)):
             w = self.window_lengths[i]
             h = self.hop_lengths[i]
@@ -103,7 +132,13 @@ class MultiResolutionSTFTLoss(nn.Module):
         return loss_sc, loss_mag
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Adds CLI arguments for this loss.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional nested prefix for grouped arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

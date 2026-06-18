@@ -109,6 +109,14 @@ class SubspaceLikeGaussianCodeRateDistortionL2(nn.Module):
             return torch.sum(rates)
 
     def _use_distributed_global_data(self, z: Tensor) -> bool:
+        """Checks whether to use distributed global-data aggregation.
+
+        Args:
+            z: Input feature tensor.
+
+        Returns:
+            ``True`` when rank-2 inputs should be aggregated across ranks.
+        """
         return (
             self.distributed_mode == "global_data"
             and z.dim() == 2
@@ -217,13 +225,27 @@ class SubspaceLikeGaussianCodeRateDistortionL2(nn.Module):
         return self.apply_reduction(R)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: object) -> dict:
+        """Filters keyword arguments accepted by ``__init__``.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dictionary containing the accepted keyword arguments.
+        """
         return filter_func_args(
             SubspaceLikeGaussianCodeRateDistortionL2.__init__, kwargs
         )
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: str | None = None) -> None:
+        """Adds CLI arguments for this loss.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional nested prefix for grouped arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -388,13 +410,27 @@ class CategoricalSubspaceLikeGaussianCodeRateDistortionL2(
         return Rc
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: object) -> dict:
+        """Filters keyword arguments accepted by ``__init__``.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dictionary containing the accepted keyword arguments.
+        """
         return filter_func_args(
             CategoricalSubspaceLikeGaussianCodeRateDistortionL2.__init__, kwargs
         )
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: str | None = None) -> None:
+        """Adds CLI arguments for this loss.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional nested prefix for grouped arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -512,14 +548,28 @@ class CategoricalSubspaceLikeGaussianCodeRateDistortionL2Reduction(nn.Module):
         return delta_R
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: object) -> dict:
+        """Filters keyword arguments accepted by ``__init__``.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dictionary containing the accepted keyword arguments.
+        """
         return filter_func_args(
             CategoricalSubspaceLikeGaussianCodeRateDistortionL2Reduction.__init__,
             kwargs,
         )
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: str | None = None) -> None:
+        """Adds CLI arguments for this loss.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional nested prefix for grouped arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

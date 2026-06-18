@@ -11,28 +11,28 @@ import torch.nn as nn
 
 
 class AudioDiscriminatorAdvLoss(nn.Module):
-    """
-    Adversarial audio discriminator loss for GANs.
+    """Least-squares adversarial loss for an audio discriminator.
 
-    This loss computes the mean squared error between the discriminator's outputs for real and generated samples.
-    It is used to train the discriminator to distinguish between real and generated audio samples.
+    Attributes:
+        None: This module is stateless.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initializes the stateless loss."""
         super().__init__()
 
     def forward(
         self, discrim_generated: List[torch.Tensor], discrim_real: List[torch.Tensor]
     ) -> Tuple[torch.Tensor, List[float], List[float]]:
-        """
-        Compute the adversarial discriminator loss.
+        """Computes the discriminator loss for real and generated samples.
 
         Args:
-            discrim_generated (list): List of discriminator outputs for generated samples.
-            discrim_real (list): List of discriminator outputs for real samples.
+            discrim_generated: Discriminator outputs for generated samples.
+            discrim_real: Discriminator outputs for real samples.
 
         Returns:
-            torch.Tensor: Computed adversarial discriminator loss.
+            Tuple containing the scalar loss tensor, per-layer generated losses,
+            and per-layer real losses.
         """
         loss = 0
         real_losses = []
@@ -50,27 +50,27 @@ class AudioDiscriminatorAdvLoss(nn.Module):
 
 
 class AudioGeneratorAdvLoss(nn.Module):
-    """
-    Adversarial audio generator loss for GANs.
+    """Least-squares adversarial loss for an audio generator.
 
-    This loss computes the mean squared error between the discriminator's outputs for generated samples.
-    It is used to train the generator to produce samples that are indistinguishable from real audio samples.
+    Attributes:
+        None: This module is stateless.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initializes the stateless loss."""
         super().__init__()
 
     def forward(
         self, discrim_gen: List[torch.Tensor]
     ) -> Tuple[torch.Tensor, List[float]]:
-        """
-        Compute the adversarial generator loss.
+        """Computes the generator loss for discriminator outputs.
 
         Args:
-            discrim_real (list): List of discriminator outputs for generated samples.
+            discrim_gen: Discriminator outputs for generated samples.
 
         Returns:
-            torch.Tensor: Computed adversarial generator loss.
+            Tuple containing the scalar loss tensor and per-layer generator
+            losses.
         """
         loss = 0
         gen_losses = []

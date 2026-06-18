@@ -196,7 +196,7 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
             with amp.autocast(
                 enabled=self.use_amp,
                 dtype=self.amp_dtype,
-                device_type=teacher_data[0].device.type,
+                device_type=self.device.type,
             ):
                 with torch.no_grad():
                     teacher_data = tensors_subset(data, teacher_keys, self.device)
@@ -326,7 +326,7 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
             with amp.autocast(
                 enabled=self.use_amp,
                 dtype=self.amp_dtype,
-                device_type=teacher_data[0].device.type,
+                device_type=self.device.type,
             ):
                 teacher_data = tensors_subset(data, teacher_keys, self.device)
                 batch_size = teacher_data[0].size(0)

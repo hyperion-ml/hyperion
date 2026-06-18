@@ -5,6 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import torch
 import torch.nn as nn
+from typing import Optional
 
 
 class SISDRLoss(nn.Module):
@@ -24,11 +25,25 @@ class SISDRLoss(nn.Module):
 
     def __init__(
         self,
-        scale_invariant: int = True,
+        scale_invariant: bool = True,
         reduction: str = "mean",
-        zero_mean: int = True,
-        clip_min: int = None,
-    ):
+        zero_mean: bool = True,
+        clip_min: Optional[float] = None,
+    ) -> None:
+        """Initializes the SI-SDR loss.
+
+        Args:
+            scale_invariant: Whether to project the prediction onto the
+                reference before computing the distortion.
+            reduction: Reduction to apply to the per-example losses.
+            zero_mean: Whether to remove the mean before scoring.
+            clip_min: Optional minimum value for the returned loss.
+        """
+        if reduction not in ["mean", "sum", "none"]:
+            raise ValueError(
+                f"Invalid reduction mode: {reduction}. "
+                "Choose from 'mean', 'sum', or 'none'."
+            )
         self.scale_invariant = scale_invariant
         self.reduction = reduction
         self.zero_mean = zero_mean

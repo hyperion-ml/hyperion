@@ -67,7 +67,28 @@ class MultiResolutionFilterBankLoss(nn.Module):
         reduction: str = "mean",
         compute_conv_loss: bool = True,
         normalize: bool = False,
-    ):
+    ) -> None:
+        """Initializes the multi-resolution filter bank loss.
+
+        Args:
+            sample_frequency: Input waveform sample rate.
+            frame_lengths: Frame lengths in milliseconds for each resolution.
+            frame_shifts: Frame shifts in milliseconds for each resolution.
+            remove_dc_offset: Whether to remove the DC component before analysis.
+            window_type: Analysis window type.
+            use_fft_mag: Whether to use magnitude or power filter banks.
+            dither: Dither amount added to the waveform.
+            fb_type: Filter bank type.
+            low_freqs: Low cutoff frequency per resolution.
+            high_freqs: High cutoff frequency per resolution.
+            num_filters: Number of filters per resolution.
+            norm_filters: Whether to normalize filter coefficients.
+            snip_edges: Whether to snip analysis frames at the edges.
+            center: Whether to center frames on the analysis position.
+            reduction: Reduction used by the underlying losses.
+            compute_conv_loss: Whether to include convergence loss.
+            normalize: Whether to average the losses over resolutions.
+        """
         super().__init__()
         num_resolutions = len(frame_lengths)
         if frame_shifts is None:
@@ -133,10 +154,12 @@ class MultiResolutionFilterBankLoss(nn.Module):
         self.compute_conv_loss = compute_conv_loss
         self.normalize = normalize
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Returns the developer-facing representation."""
         return self.__str__()
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """Returns the human-readable representation."""
         s = f"{self.__class__.__name__}(\n"
         s += f"  num_resolutions={len(self.log_fb_extractors)},\n"
         for i, extractor in enumerate(self.log_fb_extractors):
@@ -149,17 +172,16 @@ class MultiResolutionFilterBankLoss(nn.Module):
     def forward(
         self, x_pred: torch.Tensor, x_ref: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Computes multi-resolution mel filter-bank loss between an estimate and a reference
-        signal.
+        """Computes the multi-resolution filter bank losses.
+
         Args:
             x_pred (torch.Tensor): Estimated audio signal of shape (B, T).
             x_ref (torch.Tensor): Reference audio signal of shape (B, T).
         Returns:
-            torch.Tensor: Computed multi-resolution STFT loss
-            torch.Tensor: Computed multi-resolution convergence loss (if enabled)
+            Tuple containing the log-magnitude loss and the convergence loss.
         """
-        loss_conv = 0.0
-        loss_log_mag = 0.0
+        loss_conv = x_pred.new_tensor(0.0)
+        loss_log_mag = x_pred.new_tensor(0.0)
         if x_pred.dim() != 2:
             x_pred = x_pred.squeeze(1)
 
@@ -187,12 +209,12 @@ class MultiResolutionFilterBankLoss(nn.Module):
         return loss_log_mag, loss_conv
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
-        """Adds feature extractor options to parser.
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Adds CLI arguments for this loss.
 
         Args:
-          parser: Arguments parser
-          prefix: Options prefix.
+            parser: Argument parser to extend.
+            prefix: Optional nested prefix for grouped arguments.
         """
         if prefix is not None:
             outer_parser = parser

@@ -4,7 +4,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -16,18 +16,18 @@ from ..utils import ddp_get_rank
 
 
 class ContrastiveLoss(nn.Module):
-    """
-    Contrastive loss with multi-GPU support and optional memory banks.
+    """Contrastive loss with distributed gathering and optional negatives.
 
-    Args:
-        temp (float): Target temperature scaling value for similarity logits.
-                      This is the final value used after warmup.
-        temp_warmup_steps (int): Number of steps over which to linearly warm up the temperature
-                                 from `initial_temp` to `temp`.
-        initial_temp (float): Initial temperature used at the start of training before warmup completes.
-        margin (float): Margin value for contrastive loss.
-        margin_warmup_steps (int): Number of steps over which to linearly warm up the margin from 0 to `margin`.
-        log_interval (int): Interval for logging temperature and margin updates.
+    Attributes:
+        temp: Target temperature used after warmup.
+        cur_temp: Current temperature value.
+        temp_warmup_steps: Number of steps for temperature warmup.
+        initial_temp: Starting temperature value.
+        margin: Target margin used after warmup.
+        margin_warmup_steps: Number of steps for margin warmup.
+        margin_warmup_start: Step at which margin warmup starts.
+        cur_margin: Current margin value.
+        log_interval: Logging interval for schedule updates.
     """
 
     def __init__(
@@ -39,7 +39,18 @@ class ContrastiveLoss(nn.Module):
         margin_warmup_steps: int = 0,
         margin_warmup_start: int = 0,
         log_interval: int = 1000,
-    ):
+    ) -> None:
+        """Initializes the loss.
+
+        Args:
+            temp: Final temperature used after warmup.
+            temp_warmup_steps: Number of steps over which to warm up the temperature.
+            initial_temp: Temperature used at step zero.
+            margin: Final margin used after warmup.
+            margin_warmup_steps: Number of steps over which to warm up the margin.
+            margin_warmup_start: Step at which margin warmup starts.
+            log_interval: Interval for logging schedule updates.
+        """
         super().__init__()
         self.temp = temp
         self.cur_temp = initial_temp
@@ -51,7 +62,12 @@ class ContrastiveLoss(nn.Module):
         self.cur_margin = 0.0
         self.log_interval = log_interval
 
-    def update_temp(self, step: int):
+    def update_temp(self, step: int) -> None:
+        """Updates the temperature schedule.
+
+        Args:
+            step: Current training step.
+        """
         if step < self.temp_warmup_steps:
             self.cur_temp = (
                 self.initial_temp
@@ -62,11 +78,11 @@ class ContrastiveLoss(nn.Module):
         else:
             self.cur_temp = self.temp
 
-    def update_margin(self, step: int):
-        """Updates the value of the margin.
+    def update_margin(self, step: int) -> None:
+        """Updates the margin schedule.
 
         Args:
-          step: value of current step.
+            step: Current training step.
         """
         if step < self.margin_warmup_start:
             self.cur_margin = 0.0
@@ -88,13 +104,13 @@ class ContrastiveLoss(nn.Module):
                     logging.info(
                         "updating constrastive loss margin=%.2f",
                         self.cur_margin,
-                    )
+                )
 
-    def update(self, step: int):
-        """Updates the temperature and margin values.
+    def update(self, step: int) -> None:
+        """Updates both scheduled loss parameters.
 
         Args:
-          step: value of current step.
+            step: Current training step.
         """
         self.update_temp(step)
         self.update_margin(step)
@@ -105,17 +121,18 @@ class ContrastiveLoss(nn.Module):
         z_true: torch.Tensor,
         z_negatives: Optional[torch.Tensor] = None,
         return_logits: bool = False,
-    ) -> torch.Tensor:
-        """
-        Compute contrastive loss with distributed gathering and optional memory banks.
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Computes the contrastive loss.
 
         Args:
-            z_pred (Tensor): Predicted embeddings, shape (B, D)
-            z_true (Tensor): Ground Truth embeddings, shape (B, D)
-            z_negatives (Optional[Tensor]): Additional image z_negatives (K_img, D)
+            z_pred: Predicted embeddings with shape ``(B, D)``.
+            z_true: Ground-truth embeddings with shape ``(B, D)``.
+            z_negatives: Optional additional negatives with shape ``(K, D)``.
+            return_logits: If ``True``, also return the logits tensor.
 
         Returns:
-            Tensor: Scalar contrastive loss.
+            Scalar loss tensor, or ``(loss, logits)`` when ``return_logits`` is
+            ``True``.
         """
         B, D = z_pred.shape
 
@@ -158,11 +175,25 @@ class ContrastiveLoss(nn.Module):
         return loss
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: object) -> dict:
+        """Filters keyword arguments accepted by ``__init__``.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dictionary containing the accepted keyword arguments.
+        """
         return filter_func_args(ContrastiveLoss.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Adds CLI arguments for this loss.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional nested prefix for grouped arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

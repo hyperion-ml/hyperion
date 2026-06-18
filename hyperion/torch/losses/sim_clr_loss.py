@@ -13,21 +13,15 @@ from ..layers import GatherDistributedFunction
 
 
 class SimCLRLoss(nn.Module):
-    """
-    Normalized Temperature-scaled Cross Entropy Loss (NT-Xent) used in SimCLR.
+    """Normalized temperature-scaled cross entropy loss for SimCLR.
 
-    This contrastive loss pulls together representations of different augmented
-    views of the same sample and pushes apart those of different samples.
-
-    Args:
-        temp (float): Target temperature scaling value for similarity logits.
-                      This is the final value used after warmup.
-        temp_warmup_steps (int): Number of steps over which to linearly warm up the temperature
-                                 from `initial_temp` to `temp`.
-        initial_temp (float): Initial temperature used at the start of training before warmup completes.
-        num_views (int): Number of augmented views per sample. Default is 2.
-        grouped_views (bool): If True, assumes views are grouped per sample (e.g., [x1_view1, x1_view2, ..., xN_view1, xN_view2]).
-                              If False, assumes tiled layout (e.g., [x1_view1, x2_view1, ..., xN_view1, x1_view2, ...]).
+    Attributes:
+        temp: Target temperature used after warmup.
+        cur_temp: Current temperature value.
+        temp_warmup_steps: Number of steps for temperature warmup.
+        initial_temp: Starting temperature value.
+        num_views: Number of views per sample.
+        grouped_views: Whether the input layout is grouped by sample.
     """
 
     def __init__(
@@ -37,7 +31,16 @@ class SimCLRLoss(nn.Module):
         initial_temp: float = 0.07,
         num_views: int = 2,
         grouped_views: bool = False,
-    ):
+    ) -> None:
+        """Initializes the loss.
+
+        Args:
+            temp: Final temperature used after warmup.
+            temp_warmup_steps: Number of steps over which to warm up the temperature.
+            initial_temp: Temperature used at step zero.
+            num_views: Number of augmented views per sample.
+            grouped_views: If ``True``, input views are grouped per sample.
+        """
         super().__init__()
         self.temp = temp
         self.cur_temp = initial_temp
@@ -46,7 +49,12 @@ class SimCLRLoss(nn.Module):
         self.num_views = num_views
         self.grouped_views = grouped_views
 
-    def update_temp(self, step: int):
+    def update_temp(self, step: int) -> None:
+        """Updates the temperature schedule.
+
+        Args:
+            step: Current training step.
+        """
         if step < self.temp_warmup_steps:
             self.cur_temp = (
                 self.initial_temp
@@ -56,17 +64,18 @@ class SimCLRLoss(nn.Module):
         else:
             self.cur_temp = self.temp
 
-    def forward(self, z: torch.Tensor, z_negatives: Optional[torch.Tensor] = None):
-        """
-        Compute the SimCLR NT-Xent contrastive loss.
+    def forward(
+        self, z: torch.Tensor, z_negatives: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Computes the SimCLR NT-Xent loss.
 
         Args:
-            z (Tensor): Normalized representations of augmented views.
-                        Shape: (num_views * batch_size, projection_dim)
-            z_negatives_1 (Optional[Tensor]): Additional mode 1 z_negatives (K_img, D)
+            z: Representations of augmented views with shape
+                ``(num_views * batch_size, projection_dim)``.
+            z_negatives: Optional extra negatives with shape ``(K, projection_dim)``.
 
         Returns:
-            Tensor: Scalar loss value.
+            Scalar loss tensor.
         """
         batch_size = z.shape[0] // self.num_views
         z = GatherDistributedFunction.apply(z)  # Gather across distributed ranks
@@ -82,7 +91,7 @@ class SimCLRLoss(nn.Module):
             z_extended = z
 
         similarity = torch.matmul(z, z_extended.T)  # shape: (NxB, NxB+K)
-        sim = similarity / self.temp
+        sim = similarity / self.cur_temp
 
         # Remove self-similarity
         mask = torch.eye(sim.shape[0], dtype=torch.bool, device=z.device)
@@ -108,7 +117,7 @@ class SimCLRLoss(nn.Module):
                 for i in range(global_batch_size // batch_size):
                     stop = start + batch_size * self.num_views
                     labels[start:stop] = torch.arange(
-                        i * batch_size + batch_size, device=z.device
+                        i * batch_size, i * batch_size + batch_size, device=z.device
                     ).repeat(self.num_views)
                     start = stop
             else:
@@ -116,8 +125,8 @@ class SimCLRLoss(nn.Module):
                     self.num_views
                 )
 
-        mask_pos = labels.unsqueeze(0) == labels.unsqueeze(1)
-        mask_pos.fill_diagonal_(False)  # remove (i, i)
+        pos_mask = labels.unsqueeze(0) == labels.unsqueeze(1)
+        pos_mask.fill_diagonal_(False)  # remove (i, i)
 
         # Pad mask to match sim shape
         if z_negatives is not None:
@@ -133,7 +142,7 @@ class SimCLRLoss(nn.Module):
         log_prob = nn.functional.log_softmax(sim, dim=1)
 
         # Only keep positives
-        mean_log_prob_pos = (log_prob * mask_pos).sum(1) / mask_pos.sum(1)
+        mean_log_prob_pos = (log_prob * pos_mask).sum(1) / pos_mask.sum(1)
 
         # Final loss
         loss = -mean_log_prob_pos.mean()

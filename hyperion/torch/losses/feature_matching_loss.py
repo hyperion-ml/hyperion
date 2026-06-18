@@ -11,15 +11,14 @@ import torch.nn as nn
 
 
 class FeatureMatchingLoss(nn.Module):
-    """
-    Feature matching loss for GANs.
+    """Feature matching loss for GAN training.
 
-    This loss computes the mean absolute error between the features of real and generated samples.
-    It is used to stabilize GAN training by encouraging the generator to produce samples that
-    match the statistics of real data.
+    Attributes:
+        None: This module is stateless.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initializes the stateless loss."""
         super().__init__()
 
     def forward(
@@ -27,15 +26,14 @@ class FeatureMatchingLoss(nn.Module):
         fmaps_generated: List[List[torch.Tensor]],
         fmaps_real: List[List[torch.Tensor]],
     ) -> torch.Tensor:
-        """
-        Compute the feature matching loss.
+        """Computes the L1 distance between real and generated feature maps.
 
         Args:
-            fmaps_generated (list): List of feature maps from the discriminator for generated samples.
-            fmaps_real (list): List of feature maps from the discriminator for real samples.
+            fmaps_generated: Discriminator feature maps for generated samples.
+            fmaps_real: Discriminator feature maps for real samples.
 
         Returns:
-            torch.Tensor: Computed feature matching loss.
+            Scalar loss tensor.
         """
         loss = 0
         for fmap_r, fmap_g in zip(fmaps_real, fmaps_generated):
