@@ -4,6 +4,7 @@
 """
 
 import logging
+from typing import Any, Callable, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -14,37 +15,89 @@ from .xvector import XVector
 
 
 class ConvNext1dXVector(XVector):
+    """x-vector model that wraps a 1D ConvNeXt encoder.
+
+    Attributes:
+        encoder_net: Encoder network inherited from ``XVector``.
+        in_feats: Input feature dimension inherited from ``XVector``.
+        proj: Optional encoder-to-pooling projection inherited from ``XVector``.
+        proj_feats: Projection feature dimension inherited from ``XVector``.
+        pool_net: Temporal pooling module inherited from ``XVector``.
+        classif_net: Classification head inherited from ``XVector``.
+        proj_head_net: Optional projection head inherited from ``XVector``.
+        head_type: Head type inherited from ``XVector``.
+        embed_dim: Embedding dimension inherited from ``XVector``.
+        num_embed_layers: Number of embedding layers inherited from ``XVector``.
+        dropout_rate: Head dropout inherited from ``XVector``.
+        convnext_enc: Saved encoder configuration when serialized.
+    """
+
     def __init__(
         self,
-        convnext_enc,
-        num_classes,
-        pool_net="mean+stddev",
-        embed_dim=256,
-        num_embed_layers=1,
-        hid_act={"name": "relu", "inplace": True},
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=0,
-        intertop_k=5,
-        intertop_margin=0.0,
-        num_subcenters=2,
-        dropout_rate=0,
-        norm_layer=None,
-        head_norm_layer=None,
-        use_norm=True,
-        norm_before=True,
-        head_use_norm=True,
-        head_use_in_norm=False,
-        head_hid_dim=2048,
-        head_bottleneck_dim=256,
-        proj_head_use_norm=True,
-        proj_head_norm_before=True,
-        embed_layer=0,
-        proj_feats=None,
-        head_type="x-vector",
-        bias_weight_decay=None,
-    ):
+        convnext_enc: Union[Dict[str, Any], nn.Module],
+        num_classes: int,
+        pool_net: Union[str, Dict[str, Any], nn.Module] = "mean+stddev",
+        embed_dim: int = 256,
+        num_embed_layers: int = 1,
+        hid_act: Union[str, Dict[str, Any], Callable[..., nn.Module]] = {
+            "name": "relu",
+            "inplace": True,
+        },
+        loss_type: str = "arc-softmax",
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 0,
+        intertop_k: int = 5,
+        intertop_margin: float = 0.0,
+        num_subcenters: int = 2,
+        dropout_rate: float = 0,
+        norm_layer: Optional[Union[str, Callable[..., nn.Module]]] = None,
+        head_norm_layer: Optional[Union[str, Callable[..., nn.Module]]] = None,
+        use_norm: bool = True,
+        norm_before: bool = True,
+        head_use_norm: bool = True,
+        head_use_in_norm: bool = False,
+        head_hid_dim: int = 2048,
+        head_bottleneck_dim: int = 256,
+        proj_head_use_norm: bool = True,
+        proj_head_norm_before: bool = True,
+        embed_layer: int = 0,
+        proj_feats: Optional[int] = None,
+        head_type: str = "x-vector",
+        bias_weight_decay: Optional[float] = None,
+    ) -> None:
+        """Build a 1D ConvNeXt x-vector model.
+
+        Args:
+            convnext_enc: Encoder module or configuration dictionary.
+            num_classes: Number of output classes.
+            pool_net: Pooling configuration.
+            embed_dim: X-vector embedding dimension.
+            num_embed_layers: Number of hidden layers in the head.
+            hid_act: Hidden activation configuration.
+            loss_type: Classification loss type.
+            cos_scale: Scaling factor for angular-margin losses.
+            margin: Margin for angular-margin losses.
+            margin_warmup_epochs: Margin warmup duration in epochs.
+            intertop_k: InterTopK penalty parameter.
+            intertop_margin: InterTopK margin parameter.
+            num_subcenters: Number of subcenters for subcenter losses.
+            dropout_rate: Dropout rate used in the head.
+            norm_layer: Normalization layer configuration.
+            head_norm_layer: Normalization layer configuration for the head.
+            use_norm: Whether to use normalization in auxiliary blocks.
+            norm_before: Whether normalization is applied before activation.
+            head_use_norm: Whether to use normalization in the head.
+            head_use_in_norm: Whether to normalize head inputs.
+            head_hid_dim: Hidden dimension for DINO heads.
+            head_bottleneck_dim: Bottleneck dimension for DINO heads.
+            proj_head_use_norm: Whether to normalize the projection head.
+            proj_head_norm_before: Whether projection head normalization happens before activation.
+            embed_layer: Head layer index used for embeddings.
+            proj_feats: Optional projection feature dimension after the encoder.
+            head_type: Classification head type.
+            bias_weight_decay: Optional weight decay for bias parameters.
+        """
         if isinstance(convnext_enc, dict):
             logging.info("making ConvNext2d encoder network")
             convnext_enc = Encoder(**convnext_enc)
@@ -80,7 +133,12 @@ class ConvNext1dXVector(XVector):
             bias_weight_decay=bias_weight_decay,
         )
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Return a serializable configuration dictionary.
+
+        Returns:
+            Model configuration dictionary.
+        """
         base_config = super().get_config()
         del base_config["encoder_cfg"]
         del base_config["in_feats"]
@@ -96,19 +154,35 @@ class ConvNext1dXVector(XVector):
 
     def change_config(
         self,
-        convnext_enc,
-        override_output=False,
-        override_dropouts=False,
-        dropout_rate=0,
-        num_classes=None,
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=10,
-        intertop_k=5,
-        intertop_margin=0,
-        num_subcenters=2,
-    ):
+        convnext_enc: Dict[str, Any],
+        override_output: bool = False,
+        override_dropouts: bool = False,
+        dropout_rate: float = 0,
+        num_classes: Optional[int] = None,
+        loss_type: str = "arc-softmax",
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 10,
+        intertop_k: int = 5,
+        intertop_margin: float = 0,
+        num_subcenters: int = 2,
+    ) -> None:
+        """Update the model configuration in place.
+
+        Args:
+            convnext_enc: New encoder configuration.
+            override_output: Whether to rebuild the output layer.
+            override_dropouts: Whether to override dropout settings.
+            dropout_rate: New dropout rate.
+            num_classes: New number of classes.
+            loss_type: New loss type.
+            cos_scale: New scale value for angular-margin losses.
+            margin: New margin value.
+            margin_warmup_epochs: New margin warmup duration.
+            intertop_k: New InterTopK parameter.
+            intertop_margin: New InterTopK margin.
+            num_subcenters: New number of subcenters.
+        """
         super().change_config(
             override_output,
             False,
@@ -129,7 +203,22 @@ class ConvNext1dXVector(XVector):
         self.encoder_net.change_config(**convnext_enc)
 
     @classmethod
-    def load(cls, file_path=None, cfg=None, state_dict=None):
+    def load(
+        cls,
+        file_path: Optional[str] = None,
+        cfg: Optional[Dict[str, Any]] = None,
+        state_dict: Optional[Dict[str, Any]] = None,
+    ) -> "ConvNext1dXVector":
+        """Load a model from a config, state dict, or saved file.
+
+        Args:
+            file_path: Optional file path to load from.
+            cfg: Optional configuration dictionary.
+            state_dict: Optional state dictionary.
+
+        Returns:
+            Loaded model instance.
+        """
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
         try:
             del cfg["in_feats"]
@@ -143,7 +232,15 @@ class ConvNext1dXVector(XVector):
         return model
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter constructor arguments for this model.
+
+        Args:
+            kwargs: Candidate keyword arguments.
+
+        Returns:
+            Filtered configuration dictionary.
+        """
         base_args = XVector.filter_args(**kwargs)
         child_args = Encoder.filter_args(**kwargs["convnext_enc"])
         if "in_feats" in base_args:
@@ -152,7 +249,13 @@ class ConvNext1dXVector(XVector):
         return base_args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Add constructor arguments to an argparse parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix for nested parsing.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -165,14 +268,28 @@ class ConvNext1dXVector(XVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter arguments used for finetuning.
+
+        Args:
+            kwargs: Candidate keyword arguments.
+
+        Returns:
+            Filtered configuration dictionary.
+        """
         base_args = XVector.filter_finetune_args(**kwargs)
         child_args = Encoder.filter_finetune_args(**kwargs["convnext_enc"])
         base_args["convnext_enc"] = child_args
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Add finetuning arguments to an argparse parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix for nested parsing.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -186,14 +303,28 @@ class ConvNext1dXVector(XVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_dino_teacher_args(**kwargs):
-        base_args = XVector.filter_dinoteacher_args(**kwargs)
+    def filter_dino_teacher_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter arguments used for DINO teacher configuration.
+
+        Args:
+            kwargs: Candidate keyword arguments.
+
+        Returns:
+            Filtered configuration dictionary.
+        """
+        base_args = XVector.filter_dino_teacher_args(**kwargs)
         child_args = Encoder.filter_finetune_args(**kwargs["convnext_enc"])
         base_args["convnext_enc"] = child_args
         return base_args
 
     @staticmethod
-    def add_dino_teacher_args(parser, prefix=None):
+    def add_dino_teacher_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Add DINO teacher arguments to an argparse parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix for nested parsing.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

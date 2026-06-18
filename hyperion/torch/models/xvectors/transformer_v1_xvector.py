@@ -4,6 +4,7 @@ f"""
 """
 
 import logging
+from typing import Any, Callable, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -17,82 +18,121 @@ class TransformerV1XVector(XVector):
     """x-Vector with Transformer encoder.
 
     Attributes:
-      in_feats: input features dimension
-      num_classes: number of training classes
-      enc_d_model: encoder blocks feature dimension
-      num_enc_heads: number of heads
-      num_enc_blocks: number of self attn blocks
-      enc_att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
-      enc_att_context: maximum context range for local attention
-      enc_ff_type: string in ['linear', 'conv1dx2', 'conv1d-linear']
-      enc_d_ff: dimension of middle layer in feed_forward block
-      enc_ff_kernel_size: kernel size for convolutional versions of ff block
-      in_layer_type: input layer block type in ['linear','conv2d-sub', 'embed', None]
-      enc_concat_after: if True, if concats attention input and output and apply linear transform, i.e.,
-                             y = x + linear(concat(x, att(x)))
-                    if False, y = x + att(x)
-      pool_net: pooling block configuration string or dictionary of params
-      embed_dim: x-vector  dimension
-      num_embed_layers: number of hidden layers in classification head
-      hid_act: hidden activation configuration string or dictionary
-      loss_type: sofmax losss type string in ['softmax', 'arc-softmax', 'cos-softmax']
-      cos_scale: s parameter in arc/cos-softmax losses
-      margin: margin in arc/cos-sofmtax losses
-      margin_warmup_epochs: number of epochs until we reach the maximum value for margin
-      dropout_rate: dropout rate for ff block and classification head
-      pos_dropout_rate: dropout rate for positional encoder
-      att_dropout_rate: dropout rate for attention block
-
-
-      use_norm: if True use batch/layer norm
-      norm_before: if True, use layer norm before layers, otherwise after
-      embed_layer: which layer to use to extract x-vectors
-      proj_feats: add linear projection layer after the encoder to project feature dimension to proj_feats
+        encoder_net: Encoder network inherited from ``XVector``.
+        in_feats: Input feature dimension inherited from ``XVector``.
+        proj: Optional encoder-to-pooling projection inherited from ``XVector``.
+        proj_feats: Projection feature dimension inherited from ``XVector``.
+        pool_net: Temporal pooling module inherited from ``XVector``.
+        classif_net: Classification head inherited from ``XVector``.
+        proj_head_net: Optional projection head inherited from ``XVector``.
+        head_type: Head type inherited from ``XVector``.
+        embed_dim: Embedding dimension inherited from ``XVector``.
+        num_embed_layers: Number of embedding layers inherited from ``XVector``.
+        dropout_rate: Head dropout inherited from ``XVector``.
+        enc_d_model: Transformer block feature dimension.
+        num_enc_heads: Number of attention heads.
+        num_enc_blocks: Number of self-attention blocks.
+        enc_att_type: Attention type.
+        enc_att_context: Local attention context size.
+        enc_ff_type: Feed-forward block type.
+        enc_d_ff: Feed-forward hidden dimension.
+        enc_ff_kernel_size: Feed-forward convolution kernel size.
+        in_layer_type: Input layer type.
+        enc_concat_after: Whether attention input/output are concatenated.
+        pos_dropout_rate: Positional dropout rate.
+        att_dropout_rate: Attention dropout rate.
     """
 
     def __init__(
         self,
-        in_feats,
-        num_classes,
-        enc_d_model=512,
-        num_enc_heads=4,
-        num_enc_blocks=6,
-        enc_att_type="scaled-dot-prod-v1",
-        enc_att_context=25,
-        enc_ff_type="linear",
-        enc_d_ff=2048,
-        enc_ff_kernel_size=1,
-        in_layer_type="conv2d-sub",
-        enc_concat_after=False,
-        pool_net="mean+stddev",
-        embed_dim=256,
-        num_embed_layers=1,
-        hid_act={"name": "relu6", "inplace": True},
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=0,
-        intertop_k=5,
-        intertop_margin=0.0,
-        num_subcenters=2,
-        dropout_rate=0.1,
-        pos_dropout_rate=0.1,
-        att_dropout_rate=0.0,
-        norm_layer=None,
-        head_norm_layer=None,
-        use_norm=True,
-        norm_before=False,
-        head_use_norm=True,
-        head_use_in_norm=False,
-        head_hid_dim=2048,
-        head_bottleneck_dim=256,
-        proj_head_use_norm=True,
-        proj_head_norm_before=True,
-        embed_layer=0,
-        proj_feats=None,
-        head_type="x-vector",
-        bias_weight_decay=None,
-    ):
+        in_feats: int,
+        num_classes: int,
+        enc_d_model: int = 512,
+        num_enc_heads: int = 4,
+        num_enc_blocks: int = 6,
+        enc_att_type: str = "scaled-dot-prod-v1",
+        enc_att_context: int = 25,
+        enc_ff_type: str = "linear",
+        enc_d_ff: int = 2048,
+        enc_ff_kernel_size: int = 1,
+        in_layer_type: str = "conv2d-sub",
+        enc_concat_after: bool = False,
+        pool_net: Union[str, Dict[str, Any], nn.Module] = "mean+stddev",
+        embed_dim: int = 256,
+        num_embed_layers: int = 1,
+        hid_act: Union[str, Dict[str, Any], Callable[..., nn.Module]] = {
+            "name": "relu6",
+            "inplace": True,
+        },
+        loss_type: str = "arc-softmax",
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 0,
+        intertop_k: int = 5,
+        intertop_margin: float = 0.0,
+        num_subcenters: int = 2,
+        dropout_rate: float = 0.1,
+        pos_dropout_rate: float = 0.1,
+        att_dropout_rate: float = 0.0,
+        norm_layer: Optional[Union[str, Callable[..., nn.Module]]] = None,
+        head_norm_layer: Optional[Union[str, Callable[..., nn.Module]]] = None,
+        use_norm: bool = True,
+        norm_before: bool = False,
+        head_use_norm: bool = True,
+        head_use_in_norm: bool = False,
+        head_hid_dim: int = 2048,
+        head_bottleneck_dim: int = 256,
+        proj_head_use_norm: bool = True,
+        proj_head_norm_before: bool = True,
+        embed_layer: int = 0,
+        proj_feats: Optional[int] = None,
+        head_type: str = "x-vector",
+        bias_weight_decay: Optional[float] = None,
+    ) -> None:
+        """Build a Transformer V1 x-vector model.
+
+        Args:
+            in_feats: Input feature dimension.
+            num_classes: Number of output classes.
+            enc_d_model: Transformer model dimension.
+            num_enc_heads: Number of attention heads.
+            num_enc_blocks: Number of encoder blocks.
+            enc_att_type: Attention type.
+            enc_att_context: Local attention context size.
+            enc_ff_type: Feed-forward block type.
+            enc_d_ff: Feed-forward hidden dimension.
+            enc_ff_kernel_size: Feed-forward convolution kernel size.
+            in_layer_type: Input layer type.
+            enc_concat_after: Whether to concatenate attention input/output.
+            pool_net: Pooling configuration.
+            embed_dim: X-vector embedding dimension.
+            num_embed_layers: Number of hidden layers in the head.
+            hid_act: Hidden activation configuration.
+            loss_type: Classification loss type.
+            cos_scale: Scaling factor for angular-margin losses.
+            margin: Margin for angular-margin losses.
+            margin_warmup_epochs: Margin warmup duration in epochs.
+            intertop_k: InterTopK penalty parameter.
+            intertop_margin: InterTopK margin parameter.
+            num_subcenters: Number of subcenters for subcenter losses.
+            dropout_rate: Dropout rate used in the head.
+            pos_dropout_rate: Positional encoder dropout rate.
+            att_dropout_rate: Attention dropout rate.
+            norm_layer: Normalization layer configuration.
+            head_norm_layer: Normalization layer configuration for the head.
+            use_norm: Whether to use normalization in auxiliary blocks.
+            norm_before: Whether normalization is applied before activation.
+            head_use_norm: Whether to use normalization in the head.
+            head_use_in_norm: Whether to normalize head inputs.
+            head_hid_dim: Hidden dimension for DINO heads.
+            head_bottleneck_dim: Bottleneck dimension for DINO heads.
+            proj_head_use_norm: Whether to normalize the projection head.
+            proj_head_norm_before: Whether projection head normalization happens before activation.
+            embed_layer: Head layer index used for embeddings.
+            proj_feats: Optional projection feature dimension after the encoder.
+            head_type: Classification head type.
+            bias_weight_decay: Optional weight decay for bias parameters.
+        """
         logging.info("making transformer-v1 encoder network")
         encoder_net = TE(
             in_feats,
@@ -148,57 +188,122 @@ class TransformerV1XVector(XVector):
 
     @property
     def enc_d_model(self):
+        """Return the Transformer model dimension.
+
+        Returns:
+            Transformer model dimension.
+        """
         return self.encoder_net.d_model
 
     @property
     def num_enc_heads(self):
+        """Return the number of attention heads.
+
+        Returns:
+            Number of attention heads.
+        """
         return self.encoder_net.num_heads
 
     @property
     def num_enc_blocks(self):
+        """Return the number of encoder blocks.
+
+        Returns:
+            Number of encoder blocks.
+        """
         return self.encoder_net.num_blocks
 
     @property
     def enc_att_type(self):
+        """Return the attention type.
+
+        Returns:
+            Attention type string.
+        """
         return self.encoder_net.att_type
 
     @property
     def enc_att_context(self):
+        """Return the local attention context.
+
+        Returns:
+            Attention context size.
+        """
         return self.encoder_net.att_context
 
     @property
     def enc_ff_type(self):
+        """Return the feed-forward block type.
+
+        Returns:
+            Feed-forward block type string.
+        """
         return self.encoder_net.ff_type
 
     @property
     def enc_d_ff(self):
+        """Return the feed-forward hidden dimension.
+
+        Returns:
+            Feed-forward hidden dimension.
+        """
         return self.encoder_net.d_ff
 
     @property
     def enc_ff_kernel_size(self):
+        """Return the feed-forward kernel size.
+
+        Returns:
+            Feed-forward kernel size.
+        """
         return self.encoder_net.ff_kernel_size
 
     @property
     def pos_dropout_rate(self):
+        """Return the positional dropout rate.
+
+        Returns:
+            Positional dropout rate.
+        """
         return self.encoder_net.pos_dropout_rate
 
     @property
     def att_dropout_rate(self):
+        """Return the attention dropout rate.
+
+        Returns:
+            Attention dropout rate.
+        """
         return self.encoder_net.att_dropout_rate
 
     @property
     def in_layer_type(self):
+        """Return the input layer type.
+
+        Returns:
+            Input layer type string.
+        """
         return self.encoder_net.in_layer_type
 
     @property
     def enc_concat_after(self):
+        """Return whether attention output is concatenated.
+
+        Returns:
+            ``True`` when attention input and output are concatenated.
+        """
         return self.encoder_net.concat_after
 
     @property
     def enc_ff_type(self):
+        """Return the feed-forward block type.
+
+        Returns:
+            Feed-forward block type string.
+        """
         return self.encoder_net.ff_type
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         """Gets network config
         Returns:
            dictionary with config params
@@ -228,8 +333,22 @@ class TransformerV1XVector(XVector):
         return config
 
     @classmethod
-    def load(cls, file_path=None, cfg=None, state_dict=None):
-        """Loads model from file"""
+    def load(
+        cls,
+        file_path: Optional[str] = None,
+        cfg: Optional[Dict[str, Any]] = None,
+        state_dict: Optional[Dict[str, Any]] = None,
+    ) -> "TransformerV1XVector":
+        """Loads model from file.
+
+        Args:
+            file_path: Optional file path to load from.
+            cfg: Optional configuration dictionary.
+            state_dict: Optional state dictionary.
+
+        Returns:
+            Loaded model instance.
+        """
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
 
         # fix to load old model
@@ -243,7 +362,7 @@ class TransformerV1XVector(XVector):
         return model
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Filters arguments correspondin to TransformerXVector
             from args dictionary
 
@@ -277,7 +396,7 @@ class TransformerV1XVector(XVector):
         return base_args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
         """Adds TransformerXVector config parameters to argparser
 
         Args:
@@ -375,7 +494,7 @@ class TransformerV1XVector(XVector):
     add_argparse_args = add_class_args
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         """Filters arguments correspondin to TransformerXVector
             from args dictionary
 
@@ -397,7 +516,7 @@ class TransformerV1XVector(XVector):
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
         """Adds TransformerXVector config parameters for finetuning to argparser
 
         Args:
@@ -423,7 +542,7 @@ class TransformerV1XVector(XVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_dino_teacher_args(**kwargs):
+    def filter_dino_teacher_args(**kwargs: Any) -> Dict[str, Any]:
         """Filters arguments correspondin to TransformerXVector
             from args dictionary
 
@@ -445,7 +564,7 @@ class TransformerV1XVector(XVector):
         return base_args
 
     @staticmethod
-    def add_dino_teacher_args(parser, prefix=None):
+    def add_dino_teacher_args(parser: Any, prefix: Optional[str] = None) -> None:
         """Adds TransformerXVector config parameters for finetuning to argparser
 
         Args:

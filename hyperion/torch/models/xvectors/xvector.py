@@ -6,7 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -26,55 +26,110 @@ class XVectorHeadType(str, Enum):
     DINO = "dino"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return the valid head type strings.
+
+        Returns:
+            List of valid head type strings.
+        """
         return [o.value for o in XVectorHeadType]
 
 
 @dataclass
 class XVectorOutput(HyperDataClass):
-    loss: torch.Tensor
-    logits: torch.Tensor
-    xvector: torch.Tensor
+    loss: Optional[torch.Tensor]
+    logits: Optional[torch.Tensor]
+    xvector: Optional[torch.Tensor]
     h_enc: Optional[List[torch.Tensor]] = None
     h_classif: Optional[List[torch.Tensor]] = None
     h_feats: Optional[List[torch.Tensor]] = None
 
 
 class XVector(HyperTorchModel):
-    """x-Vector base class"""
+    """Base class for x-vector style models.
+
+    Attributes:
+        encoder_net: Encoder network that produces frame-level features.
+        in_feats: Input feature dimension, if known.
+        proj: Optional projection layer between encoder and pooling.
+        proj_feats: Output dimension of ``proj`` when present.
+        pool_net: Temporal pooling module.
+        classif_net: Classification head.
+        proj_head_net: Optional projection head used by DINO-style heads.
+        head_type: Classification head type.
+        embed_dim: Output embedding size of the classification head.
+        num_embed_layers: Number of hidden layers in the head.
+        dropout_rate: Dropout rate applied in the head.
+    """
 
     def __init__(
         self,
-        encoder_net,
-        num_classes,
-        pool_net="mean+stddev",
-        embed_dim=256,
-        num_embed_layers=1,
-        hid_act={"name": "relu", "inplace": True},
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=0,
-        intertop_k=5,
-        intertop_margin=0.0,
-        num_subcenters=2,
-        norm_layer=None,
-        head_norm_layer=None,
-        use_norm=True,
-        norm_before=True,
-        head_use_norm=True,
-        head_use_in_norm=False,
-        head_hid_dim=2048,
-        head_bottleneck_dim=256,
-        proj_head_use_norm=True,
-        proj_head_norm_before=True,
-        dropout_rate=0,
-        embed_layer=0,
-        in_feats=None,
-        proj_feats=None,
-        head_type=XVectorHeadType.XVECTOR,
-        bias_weight_decay=None,
-    ):
+        encoder_net: Any,
+        num_classes: int,
+        pool_net: Union[str, Dict[str, Any], nn.Module] = "mean+stddev",
+        embed_dim: int = 256,
+        num_embed_layers: int = 1,
+        hid_act: Union[str, Dict[str, Any], Callable[..., nn.Module]] = {
+            "name": "relu",
+            "inplace": True,
+        },
+        loss_type: str = "arc-softmax",
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 0,
+        intertop_k: int = 5,
+        intertop_margin: float = 0.0,
+        num_subcenters: int = 2,
+        norm_layer: Optional[Union[str, Callable[..., nn.Module]]] = None,
+        head_norm_layer: Optional[Union[str, Callable[..., nn.Module]]] = None,
+        use_norm: bool = True,
+        norm_before: bool = True,
+        head_use_norm: bool = True,
+        head_use_in_norm: bool = False,
+        head_hid_dim: int = 2048,
+        head_bottleneck_dim: int = 256,
+        proj_head_use_norm: bool = True,
+        proj_head_norm_before: bool = True,
+        dropout_rate: float = 0,
+        embed_layer: int = 0,
+        in_feats: Optional[int] = None,
+        proj_feats: Optional[int] = None,
+        head_type: Union[str, XVectorHeadType] = XVectorHeadType.XVECTOR,
+        bias_weight_decay: Optional[float] = None,
+    ) -> None:
+        """Build an x-vector model.
+
+        Args:
+            encoder_net: Encoder network instance.
+            num_classes: Number of output classes.
+            pool_net: Pooling configuration or module.
+            embed_dim: X-vector embedding dimension.
+            num_embed_layers: Number of hidden layers in the classification head.
+            hid_act: Hidden activation configuration.
+            loss_type: Classification loss type.
+            cos_scale: Scaling factor for angular-margin losses.
+            margin: Margin for angular-margin losses.
+            margin_warmup_epochs: Margin warmup duration in epochs.
+            intertop_k: InterTopK penalty parameter.
+            intertop_margin: InterTopK margin parameter.
+            num_subcenters: Number of subcenters for subcenter losses.
+            norm_layer: Normalization layer configuration.
+            head_norm_layer: Normalization layer configuration for the head.
+            use_norm: Whether to use normalization in auxiliary blocks.
+            norm_before: Whether normalization is applied before activation.
+            head_use_norm: Whether to use normalization in the head.
+            head_use_in_norm: Whether to normalize head inputs.
+            head_hid_dim: Hidden dimension for DINO heads.
+            head_bottleneck_dim: Bottleneck dimension for DINO heads.
+            proj_head_use_norm: Whether to normalize the projection head.
+            proj_head_norm_before: Whether projection head normalization happens before activation.
+            dropout_rate: Dropout rate used in the head.
+            embed_layer: Head layer index used for embeddings.
+            in_feats: Input feature dimension, if known.
+            proj_feats: Optional projection feature dimension after the encoder.
+            head_type: Classification head type.
+            bias_weight_decay: Optional weight decay for bias parameters.
+        """
         super().__init__(bias_weight_decay=bias_weight_decay)
 
         # encoder network
@@ -202,6 +257,11 @@ class XVector(HyperTorchModel):
 
     @property
     def pool_feats(self):
+        """Return the pooling feature dimension.
+
+        Returns:
+            Feature dimension consumed by the classification head.
+        """
         if self.proj_head_net is None:
             return self.classif_net.in_feats
         else:
@@ -209,10 +269,20 @@ class XVector(HyperTorchModel):
 
     @property
     def num_classes(self):
+        """Return the number of output classes.
+
+        Returns:
+            Number of output classes.
+        """
         return self.classif_net.num_classes
 
     @property
     def cos_scale(self):
+        """Return the angular-margin scale.
+
+        Returns:
+            Scaling factor used by the head.
+        """
         if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.cos_scale
         elif self.head_type == XVectorHeadType.DINO:
@@ -222,6 +292,11 @@ class XVector(HyperTorchModel):
 
     @property
     def margin(self):
+        """Return the current margin value.
+
+        Returns:
+            Margin used by the head.
+        """
         if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.margin
         else:
@@ -229,6 +304,11 @@ class XVector(HyperTorchModel):
 
     @property
     def margin_warmup_epochs(self):
+        """Return the margin warmup duration.
+
+        Returns:
+            Margin warmup duration in epochs.
+        """
         if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.margin_warmup_epochs
         else:
@@ -236,6 +316,11 @@ class XVector(HyperTorchModel):
 
     @property
     def intertop_k(self):
+        """Return the InterTopK parameter.
+
+        Returns:
+            InterTopK `k` value.
+        """
         if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.intertop_k
         else:
@@ -243,6 +328,11 @@ class XVector(HyperTorchModel):
 
     @property
     def intertop_margin(self):
+        """Return the InterTopK margin.
+
+        Returns:
+            InterTopK margin value.
+        """
         if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.intertop_margin
         else:
@@ -250,6 +340,11 @@ class XVector(HyperTorchModel):
 
     @property
     def num_subcenters(self):
+        """Return the number of subcenters.
+
+        Returns:
+            Number of subcenters used by the head.
+        """
         if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.num_subcenters
         else:
@@ -257,6 +352,11 @@ class XVector(HyperTorchModel):
 
     @property
     def loss_type(self):
+        """Return the configured loss type.
+
+        Returns:
+            Loss type string.
+        """
         if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.loss_type
         elif self.head_type == XVectorHeadType.DINO:
@@ -264,17 +364,20 @@ class XVector(HyperTorchModel):
         else:
             raise ValueError()
 
-    def _make_pool_net(self, pool_net, enc_feats=None):
+    def _make_pool_net(
+        self,
+        pool_net: Union[str, Dict[str, Any], nn.Module],
+        enc_feats: Optional[int] = None,
+    ) -> nn.Module:
         """Makes the pooling block
 
         Args:
-         pool_net: str or dict to pass to the pooling factory create function
-         enc_feats: dimension of the features coming from the encoder
+            pool_net: Pooling configuration string, dictionary, or module.
+            enc_feats: Input feature dimension from the encoder.
 
         Returns:
-         GlobalPool1d object
+            Pooling module.
         """
-        print(pool_net, flush=True)
         if isinstance(pool_net, str):
             pool_net = {"pool_type": pool_net}
 
@@ -288,21 +391,44 @@ class XVector(HyperTorchModel):
         else:
             raise Exception("Invalid pool_net argument")
 
-    def update_loss_margin(self, epoch):
+    def update_loss_margin(self, epoch: int) -> None:
         """Updates the value of the margin in AAM/AM-softmax losses
            given the epoch number
 
         Args:
-          epoch: epoch which is about to start
+            epoch: Epoch that is about to start.
         """
         self.classif_net.update_margin(epoch)
 
-    def _pre_enc(self, x):
+    def _pre_enc(self, x: torch.Tensor) -> torch.Tensor:
+        """Reshape inputs to match the encoder layout.
+
+        Args:
+            x: Input feature tensor.
+
+        Returns:
+            Tensor formatted for the encoder.
+        """
         if self.encoder_net.in_dim() == 4 and x.dim() == 3:
             x = x.contiguous().view(x.size(0), 1, x.size(1), x.size(2))
         return x
 
-    def _post_enc(self, x, in_lengths=None, max_in_length=None):
+    def _post_enc(
+        self,
+        x: torch.Tensor,
+        in_lengths: Optional[torch.Tensor] = None,
+        max_in_length: Optional[int] = None,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Undo encoder-specific layout changes and scale sequence lengths.
+
+        Args:
+            x: Encoder output tensor.
+            in_lengths: Input sequence lengths.
+            max_in_length: Maximum input length before encoding.
+
+        Returns:
+            Tuple of post-processed features and output lengths.
+        """
         if self.encoder_net.out_dim() == 4:
             x = x.view(x.size(0), -1, x.size(-1))
 
@@ -318,13 +444,13 @@ class XVector(HyperTorchModel):
 
     def forward(
         self,
-        x,
-        x_lengths=None,
-        y=None,
-        return_enc_layers=None,
-        return_classif_layers=None,
-        return_logits=True,
-    ):
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        y: Optional[torch.Tensor] = None,
+        return_enc_layers: Optional[Sequence[int]] = None,
+        return_classif_layers: Optional[Sequence[int]] = None,
+        return_logits: bool = True,
+    ) -> XVectorOutput:
         """Forward function. If returns the logits posteriors of the classes.
         It can also returns the hidden representations in the encoder and
         classification head. In this case the ouput variable is a dictionary.
@@ -335,7 +461,7 @@ class XVector(HyperTorchModel):
           y: target classes torch.long tensor with shape=(batch,).
           return_enc_layers: list of integers indicating, which encoder layers
                              we should return. If None, no encoder layers are returned.
-          return_enc_layers: list of integers indicating, which classification head layers
+          return_classif_layers: list of integers indicating, which classification head layers
                              we should return. If None, no head layers are returned.
           return_logits: if True, it adds the logits to the output dictionary.
         Returns:
@@ -351,16 +477,21 @@ class XVector(HyperTorchModel):
             x, x_lengths, y, return_enc_layers, return_classif_layers, return_logits
         )
 
-    def forward_logits(self, x, x_lengths=None, y=None):
+    def forward_logits(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        y: Optional[torch.Tensor] = None,
+    ) -> XVectorOutput:
         """Forward function
 
         Args:
-          x: input features tensor with shape=(batch, in_feats, time).
-          x_lengths: time lengths of the features with shape=(batch,).
-          y: target classes torch.long tensor with shape=(batch,).
+            x: Input features tensor with shape=(batch, in_feats, time).
+            x_lengths: Time lengths of the features with shape=(batch,).
+            y: Target classes tensor with shape=(batch,).
 
         Returns:
-          class logits tensor with shape=(batch, num_classes).
+            Output dataclass with class logits and optional embedding.
         """
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
@@ -390,35 +521,35 @@ class XVector(HyperTorchModel):
 
     def forward_hid_feats(
         self,
-        x,
-        x_lengths=None,
-        y=None,
-        return_enc_layers=None,
-        return_classif_layers=None,
-        return_logits=False,
-    ):
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        y: Optional[torch.Tensor] = None,
+        return_enc_layers: Optional[Sequence[int]] = None,
+        return_classif_layers: Optional[Sequence[int]] = None,
+        return_logits: bool = False,
+    ) -> XVectorOutput:
         """forwards hidden representations in the x-vector network
 
         Args:
-          x: input features tensor with shape=(batch, in_feats, time).
-          x_lengths: time lengths of the features with shape=(batch,).
-          y: target classes torch.long tensor with shape=(batch,).
-          return_enc_layers: list of integers indicating, which encoder layers
-                             we should return. If None, no encoder layers are returned.
-          return_classif_layers: list of integers indicating, which classification head layers
-                             we should return. If None, no head layers are returned.
-          return_logits: if True, it adds the logits to the output dictionary.
+            x: Input features tensor with shape=(batch, in_feats, time).
+            x_lengths: Time lengths of the features with shape=(batch,).
+            y: Target classes tensor with shape=(batch,).
+            return_enc_layers: list of integers indicating, which encoder layers
+                we should return. If None, no encoder layers are returned.
+            return_classif_layers: list of integers indicating, which classification head layers
+                we should return. If None, no head layers are returned.
+            return_logits: if True, it adds the logits to the output dictionary.
         Returns:
-          Dictionary with "logits", "h_enc" (list of hidden encoder layers),
-          "h_classif" (list hidden classification head layers).
+            Output dataclass with hidden features and optional logits.
         """
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
         h_enc, x = self.encoder_net.forward_hid_feats(
-            x, x_lenghts=x_lengths, layers=return_enc_layers, return_output=True
+            x, x_lengths=x_lengths, layers=return_enc_layers, return_output=True
         )
         output = {"h_enc": h_enc}
         if not return_logits and return_classif_layers is None:
+            output = XVectorOutput(None, None, None, h_enc, None)
             return output
 
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
@@ -428,7 +559,7 @@ class XVector(HyperTorchModel):
         h_classif, y_pred = self.classif_net.forward_hid_feats(
             p, y, return_classif_layers, return_logits=return_logits
         )
-        if h_classif is not None:
+        if h_classif:
             xvector = h_classif[0]
         else:
             xvector = None
@@ -486,8 +617,25 @@ class XVector(HyperTorchModel):
     #     return output
 
     def extract_embed_impl(
-        self, x, x_lengths=None, chunk_length=0, embed_layer=None, detach_chunks=False
-    ):
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        chunk_length: int = 0,
+        embed_layer: Optional[int] = None,
+        detach_chunks: bool = False,
+    ) -> torch.Tensor:
+        """Extract an embedding from the network.
+
+        Args:
+            x: Input feature tensor.
+            x_lengths: Optional sequence lengths.
+            chunk_length: Chunk length for encoder evaluation.
+            embed_layer: Head layer index to use.
+            detach_chunks: Whether to detach chunk outputs.
+
+        Returns:
+            Embedding tensor.
+        """
         if embed_layer is None:
             embed_layer = self.embed_layer
 
@@ -514,8 +662,25 @@ class XVector(HyperTorchModel):
         return y
 
     def extract_embed(
-        self, x, x_lengths=None, chunk_length=0, embed_layer=None, detach_chunks=False
-    ):
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        chunk_length: int = 0,
+        embed_layer: Optional[int] = None,
+        detach_chunks: bool = False,
+    ) -> torch.Tensor:
+        """Extract embeddings, chunking long utterances when needed.
+
+        Args:
+            x: Input feature tensor.
+            x_lengths: Optional sequence lengths.
+            chunk_length: Chunk length for encoder evaluation.
+            embed_layer: Head layer index to use.
+            detach_chunks: Whether to detach chunk outputs.
+
+        Returns:
+            Embedding tensor.
+        """
 
         if x.size(-1) <= chunk_length or chunk_length == 0:
             return self.extract_embed_impl(x, x_lengths, 0, embed_layer)
@@ -524,7 +689,7 @@ class XVector(HyperTorchModel):
             for i in range(x.size(0)):
                 x_i = x[i : i + 1]
                 if x_lengths is not None:
-                    x_i = x_i[..., x_lengths[i]]
+                    x_i = x_i[..., : int(x_lengths[i])]
 
                 e_i = self.extract_embed_impl(
                     x_i,
@@ -538,16 +703,32 @@ class XVector(HyperTorchModel):
 
     def extract_embed_slidwin_legacy(
         self,
-        x,
-        win_length,
-        win_shift,
-        snip_edges=False,
-        feat_frame_length=None,
-        feat_frame_shift=None,
-        chunk_length=0,
-        embed_layer=None,
-        detach_chunks=False,
-    ):
+        x: torch.Tensor,
+        win_length: float,
+        win_shift: float,
+        snip_edges: bool = False,
+        feat_frame_length: Optional[float] = None,
+        feat_frame_shift: Optional[float] = None,
+        chunk_length: int = 0,
+        embed_layer: Optional[int] = None,
+        detach_chunks: bool = False,
+    ) -> torch.Tensor:
+        """Extract embeddings on sliding windows using the legacy convention.
+
+        Args:
+            x: Input feature tensor.
+            win_length: Window length.
+            win_shift: Window shift.
+            snip_edges: Whether to discard partial windows at the edges.
+            feat_frame_length: Feature frame length in milliseconds.
+            feat_frame_shift: Feature frame shift in milliseconds.
+            chunk_length: Chunk length for encoder evaluation.
+            embed_layer: Head layer index to use.
+            detach_chunks: Whether to detach chunk outputs.
+
+        Returns:
+            Tensor of window embeddings.
+        """
         if feat_frame_shift is not None:
             # assume win_length/shift are in secs, transform to frames
             # pass feat times from msecs to secs
@@ -564,8 +745,8 @@ class XVector(HyperTorchModel):
         if embed_layer is None:
             embed_layer = self.embed_layer
 
-        in_time = x.size(-1)
-        x, _ = self._pre_enc(x)
+        max_in_length = x.size(-1)
+        x = self._pre_enc(x)
         x = eval_nnet_by_chunks(
             x, self.encoder_net, chunk_length, detach_chunks=detach_chunks
         )
@@ -573,9 +754,9 @@ class XVector(HyperTorchModel):
         if x.device != self.device:
             x = x.to(self.device)
 
-        x = self._post_enc(x)
+        x, _ = self._post_enc(x)
         pin_time = x.size(-1)  # time dim before pooling
-        downsample_factor = float(pin_time) / in_time
+        downsample_factor = float(pin_time) / max_in_length
         p = self.pool_net.forward_slidwin(
             x,
             downsample_factor * win_length,
@@ -596,14 +777,28 @@ class XVector(HyperTorchModel):
 
     def compute_slidwin_timestamps(
         self,
-        num_windows,
-        win_length,
-        win_shift,
-        snip_edges=False,
-        feat_frame_length=25,
-        feat_frame_shift=10,
-        feat_snip_edges=False,
-    ):
+        num_windows: int,
+        win_length: float,
+        win_shift: float,
+        snip_edges: bool = False,
+        feat_frame_length: float = 25,
+        feat_frame_shift: float = 10,
+        feat_snip_edges: bool = False,
+    ) -> torch.Tensor:
+        """Compute timestamps for sliding-window embeddings.
+
+        Args:
+            num_windows: Number of sliding windows.
+            win_length: Window length.
+            win_shift: Window shift.
+            snip_edges: Whether to discard partial windows at the edges.
+            feat_frame_length: Feature frame length in milliseconds.
+            feat_frame_shift: Feature frame shift in milliseconds.
+            feat_snip_edges: Whether feature extraction snips edge frames.
+
+        Returns:
+            Timestamp tensor with shape ``(num_windows, 2)``.
+        """
         P = self.compute_slidwin_left_padding(
             win_length,
             win_shift,
@@ -627,13 +822,26 @@ class XVector(HyperTorchModel):
 
     def compute_slidwin_left_padding(
         self,
-        win_length,
-        win_shift,
-        snip_edges=False,
-        feat_frame_length=25,
-        feat_frame_shift=10,
-        feat_snip_edges=False,
-    ):
+        win_length: float,
+        win_shift: float,
+        snip_edges: bool = False,
+        feat_frame_length: float = 25,
+        feat_frame_shift: float = 10,
+        feat_snip_edges: bool = False,
+    ) -> float:
+        """Compute the left padding used by sliding-window extraction.
+
+        Args:
+            win_length: Window length.
+            win_shift: Window shift.
+            snip_edges: Whether to discard partial windows at the edges.
+            feat_frame_length: Feature frame length in milliseconds.
+            feat_frame_shift: Feature frame shift in milliseconds.
+            feat_snip_edges: Whether feature extraction snips edge frames.
+
+        Returns:
+            Left padding in seconds.
+        """
         # pass feat times from msecs to secs
         feat_frame_shift = feat_frame_shift / 1000
         feat_frame_length = feat_frame_length / 1000
@@ -663,7 +871,12 @@ class XVector(HyperTorchModel):
         # total left padding
         return P1 + P2
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Return a serializable configuration for the model.
+
+        Returns:
+            Dictionary with the model configuration.
+        """
         enc_cfg = self.encoder_net.get_config()
         pool_cfg = PF.get_config(self.pool_net)
         config = {
@@ -702,11 +915,25 @@ class XVector(HyperTorchModel):
         return dict(list(base_config.items()) + list(config.items()))
 
     @classmethod
-    def load(cls, file_path=None, cfg=None, state_dict=None):
+    def load(
+        cls,
+        file_path: Optional[str] = None,
+        cfg: Optional[Dict[str, Any]] = None,
+        state_dict: Optional[Dict[str, Any]] = None,
+    ) -> "XVector":
+        """Load a model from a config, state dict, or saved file.
+
+        Args:
+            file_path: Optional file path to load from.
+            cfg: Optional configuration dictionary.
+            state_dict: Optional state dictionary.
+
+        Returns:
+            Loaded model instance.
+        """
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
         encoder_net = TorchNALoader.load_from_cfg(cfg=cfg["encoder_cfg"])
-        for k in "encoder_cfg":
-            del cfg[k]
+        del cfg["encoder_cfg"]
 
         model = cls(encoder_net, **cfg)
         if state_dict is not None:
@@ -716,19 +943,35 @@ class XVector(HyperTorchModel):
 
     def change_config(
         self,
-        override_output=False,
-        override_dropouts=False,
-        dropout_rate=0,
-        num_classes=None,
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=10,
-        intertop_k=5,
-        intertop_margin=0.0,
-        num_subcenters=2,
-        head_type=XVectorHeadType.XVECTOR,
-    ):
+        override_output: bool = False,
+        override_dropouts: bool = False,
+        dropout_rate: float = 0,
+        num_classes: Optional[int] = None,
+        loss_type: str = "arc-softmax",
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 10,
+        intertop_k: int = 5,
+        intertop_margin: float = 0.0,
+        num_subcenters: int = 2,
+        head_type: Union[str, XVectorHeadType] = XVectorHeadType.XVECTOR,
+    ) -> None:
+        """Change the output head or dropout configuration.
+
+        Args:
+            override_output: Whether to rebuild the output layer.
+            override_dropouts: Whether to override dropout settings.
+            dropout_rate: New dropout rate.
+            num_classes: New number of classes.
+            loss_type: New loss type.
+            cos_scale: New scale value for angular-margin losses.
+            margin: New margin value.
+            margin_warmup_epochs: New margin warmup duration.
+            intertop_k: New InterTopK parameter.
+            intertop_margin: New InterTopK margin.
+            num_subcenters: New number of subcenters.
+            head_type: Desired head type.
+        """
         logging.info("changing x-vector config")
         if override_output:
             self.rebuild_output_layer(
@@ -750,20 +993,41 @@ class XVector(HyperTorchModel):
 
     def rebuild_output_layer(
         self,
-        num_classes=None,
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=10,
-        intertop_k=5,
-        intertop_margin=0.0,
-        num_subcenters=2,
-        head_type=XVectorHeadType.XVECTOR,
-    ):
+        num_classes: Optional[int] = None,
+        loss_type: str = "arc-softmax",
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 10,
+        intertop_k: int = 5,
+        intertop_margin: float = 0.0,
+        num_subcenters: int = 2,
+        head_type: Union[str, XVectorHeadType] = XVectorHeadType.XVECTOR,
+    ) -> None:
+        """Rebuild or retune the classification head.
+
+        Args:
+            num_classes: Optional new class count.
+            loss_type: Loss type for the new head.
+            cos_scale: New scale value for angular-margin losses.
+            margin: New margin value.
+            margin_warmup_epochs: New margin warmup duration.
+            intertop_k: New InterTopK parameter.
+            intertop_margin: New InterTopK margin.
+            num_subcenters: New number of subcenters.
+            head_type: Desired head type.
+        """
+        head_type = XVectorHeadType(head_type)
 
         if head_type != self.head_type:
-            # only from dino to x-vector
-            assert self.head_type == XVectorHeadType.DINO
+            if head_type != XVectorHeadType.XVECTOR:
+                raise ValueError(
+                    f"unsupported head type transition {self.head_type} -> {head_type}"
+                )
+            if self.head_type != XVectorHeadType.DINO:
+                raise ValueError(
+                    f"unsupported head type transition {self.head_type} -> {head_type}"
+                )
+
             logging.info("transforming dino head into x-vector head")
             self.num_embed_layers = 1
             self.head_use_in_norm = (
@@ -843,11 +1107,13 @@ class XVector(HyperTorchModel):
         self.classif_net.set_intertop_margin(intertop_margin)
         self.classif_net.set_num_subcenters(num_subcenters)
 
-    def cancel_output_layer_grads(self):
+    def cancel_output_layer_grads(self) -> None:
+        """Clear gradients on the classification head output layer."""
         for p in self.classif_net.output.parameters():
             p.grad = None
 
-    def freeze_preembed_layers(self):
+    def freeze_preembed_layers(self) -> None:
+        """Freeze encoder and pooling layers up to the embedding head."""
         self.encoder_net.freeze()
         if self.proj is not None:
             self.proj.freeze()
@@ -858,7 +1124,12 @@ class XVector(HyperTorchModel):
         layer_list = [l for l in range(self.embed_layer)]
         self.classif_net.freeze_layers(layer_list)
 
-    def set_train_mode(self, mode):
+    def set_train_mode(self, mode: str) -> None:
+        """Switch between the supported training modes.
+
+        Args:
+            mode: Training mode name.
+        """
         if mode == self._train_mode:
             return
 
@@ -877,7 +1148,12 @@ class XVector(HyperTorchModel):
 
         self._train_mode = mode
 
-    def _train(self, train_mode: str):
+    def _train(self, train_mode: str) -> None:
+        """Apply the requested training mode to the module tree.
+
+        Args:
+            train_mode: Training mode name.
+        """
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
         elif train_mode == "ft-embed-affine":
@@ -892,15 +1168,33 @@ class XVector(HyperTorchModel):
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
 
-    def compute_prototype_affinity(self):
+    def compute_prototype_affinity(self) -> torch.Tensor:
+        """Return the prototype affinity matrix.
+
+        Returns:
+            Prototype affinity tensor from the classification head.
+        """
         return self.classif_net.compute_prototype_affinity()
 
     @staticmethod
-    def valid_train_modes():
+    def valid_train_modes() -> List[str]:
+        """Return the supported training modes.
+
+        Returns:
+            List of valid training mode names.
+        """
         return ["full", "frozen", "ft-embed-affine"]
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter constructor arguments for the base x-vector model.
+
+        Args:
+            kwargs: Candidate keyword arguments.
+
+        Returns:
+            Filtered configuration dictionary.
+        """
         # get arguments for pooling
         pool_args = PF.filter_args(**kwargs["pool_net"])
         args = filter_func_args(XVector.__init__, kwargs)
@@ -908,7 +1202,16 @@ class XVector(HyperTorchModel):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: Any, prefix: Optional[str] = None, skip: set = set()
+    ) -> None:
+        """Add constructor arguments to an argparse parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix for nested parsing.
+            skip: Argument names to skip.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -1109,12 +1412,26 @@ class XVector(HyperTorchModel):
             )
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter arguments for finetuning.
+
+        Args:
+            kwargs: Candidate keyword arguments.
+
+        Returns:
+            Filtered configuration dictionary.
+        """
         args = filter_func_args(XVector.change_config, kwargs)
         return args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Add finetuning arguments to an argparse parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix for nested parsing.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -1187,11 +1504,25 @@ class XVector(HyperTorchModel):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_dino_teacher_args(**kwargs):
+    def filter_dino_teacher_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter arguments for DINO teacher configuration.
+
+        Args:
+            kwargs: Candidate keyword arguments.
+
+        Returns:
+            Filtered configuration dictionary.
+        """
         return XVector.filter_finetune_args(**kwargs)
 
     @staticmethod
-    def add_dino_teacher_args(parser, prefix=None):
+    def add_dino_teacher_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Add DINO teacher arguments to an argparse parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix for nested parsing.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
