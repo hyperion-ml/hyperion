@@ -41,6 +41,7 @@ from .resnet2d_blocks import (
     ResNet2dBasicDecBlock,
     ResNet2dBNBlock,
     ResNet2dBNDecBlock,
+    ResNet2dEndpoint,
     SEResNet2dBasicBlock,
     SEResNet2dBasicDecBlock,
     SEResNet2dBNBlock,

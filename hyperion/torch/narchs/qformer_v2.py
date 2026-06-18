@@ -4,7 +4,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
@@ -28,47 +28,44 @@ from .net_arch import NetArch
 
 
 class QFormerV2(NetArch):
-    """A Simplified Q-former not pretrained from any language model.
-    It is called V2 because is based in V2 Transformer implementation, which based on LLAMA3 transformer implementation.
+    """Simplified Q-Former built on the V2 Transformer blocks.
 
     Attributes:
-        in_feats: input features dimension
-        att_type: type of attention layer in [sdp, torch_sdp, flash_sdp]
-        num_layers: transformer block repeats in each encoder stage
-        hidden_dim: transformer block hidden features in each encoder stage
-        num_heads: num. of attention heads
-        num_kv_heads: num. of key, value attention heads when using GQA
-        cross_att_freq: The frequency of adding cross-attention to the Transformer layers.
-        att_dropout_rate: attention dropout rate
-        att_bias: use bias in Linear layers of attention blocks
-        ff_type: type of feed forward layer in [mlp, convnext]
-        ff_dim_multiplier: number that multiplies the hidden dimension to get the inv. bottleneck dimension
-        ff_multiple_of: the inv bottleneck dim has to be a multiple of this
-        ff_kernel_size: kernel size when using convnext feed forward layer
-        ff_dilation: dilation when using convnext feedforward layers
-        ff_act: activation of feedforward layers
-        ff_bias: use bias in Linear layers of feed forward blocks
-        rope_in_self_att: use Rotary positional encoder or not positional encoder at all in self-attention
-        rope_in_cross_att: use Rotary positional encoder or not positional encoder at all in cross-attention
-        rope_theta: ROPE base theta
-        rope_scale_freqs: scale ROPE frequencies when seq lenght is larger than the maximmum length of the original training sequences
-        rope_update_max_seq_length: update the invernal ROPE variable that keeps track of the max seq length seen on training
-        rope_original_max_seq_length: sets manually the max seq length seen in training for ROPE
-        rope_scaling_factor: ROPE scaling factors
-        rope_low_freq_factor: ROPE frequencies are not scaled for wavelengths < max_seq_length / self.low_freq_factor
-        rope_high_freq_factor: ROPE frequencies are scaled by scaling for wavelengths > max_seq_length / self.high_freq_factor
-        out_feats: features for output projection, if None, no output proj is done
-        drop_path_rate: drop path rate
-        norm_layer: type of norm layer in [layer-norm, rms-norm]
-        norm_eps: eps for layer norms
-        tied_layers: whether the encoder encoder layers are tied or not.
-        multilayer_input: If True, input are hidden featues from several encoder layers.
-        distribute_query_across_layers: splits the query into num_layers / num_cross_attention layers groups,
-                                        the first group is used as input to the first cross-attention layer,
-                                        the nth group is concantenated to input of the nth cross-attention layer,
-        use_layer_idx_encoder: add a learned embedding based on the source layer index for cross-attention inputs.
-
-        model_parallel: train with model parallel using external tools (no built-in support)
+        in_feats: Input feature dimension.
+        att_type: Attention implementation used in the transformer blocks.
+        num_layers: Number of transformer layers.
+        hidden_dim: Hidden dimension of the query stream.
+        num_heads: Number of attention heads.
+        num_kv_heads: Number of key/value heads when using grouped-query attention.
+        cross_att_freq: Frequency of cross-attention layers.
+        att_dropout_rate: Attention dropout probability.
+        att_bias: Whether attention projections use bias terms.
+        ff_type: Feed-forward implementation used in the transformer blocks.
+        ff_dim_multiplier: Multiplier used to derive the feed-forward bottleneck size.
+        ff_multiple_of: Bottleneck size is rounded to a multiple of this value.
+        ff_kernel_size: Kernel size used by convolutional feed-forward blocks.
+        ff_dilation: Dilation used by convolutional feed-forward blocks.
+        ff_act: Feed-forward activation name.
+        ff_bias: Whether feed-forward projections use bias terms.
+        rope_in_self_att: Enable rotary position encoding in self-attention.
+        rope_in_cross_att: Enable rotary position encoding in cross-attention.
+        rope_theta: Rotary position encoding base theta.
+        rope_scale_freqs: Enable frequency scaling for long sequences.
+        rope_update_max_seq_length: Track the maximum sequence length seen during training.
+        rope_original_max_seq_length: Optional explicit original sequence length for RoPE.
+        rope_scaling_factor: Rotary scaling factor.
+        rope_low_freq_factor: Low-frequency RoPE scaling threshold.
+        rope_high_freq_factor: High-frequency RoPE scaling threshold.
+        out_feats: Optional output projection dimension.
+        drop_path_rate: Global stochastic-depth rate.
+        sdp_backend: Preferred scaled dot-product attention backend.
+        norm_layer: Normalization layer type.
+        norm_eps: Epsilon used by normalization layers.
+        tied_layers: Share transformer blocks across layers when enabled.
+        multilayer_input: Consume a list of encoder-layer feature tensors.
+        distribute_query_across_layers: Split queries across cross-attention groups.
+        use_layer_idx_encoder: Add a learned source-layer embedding to cross-attention inputs.
+        model_parallel: Build the module for external model-parallel execution.
 
     """
 
@@ -110,6 +107,21 @@ class QFormerV2(NetArch):
         use_layer_idx_encoder: bool = False,
         model_parallel: bool = False,
     ) -> None:
+        """Initialize the Q-Former module.
+
+        Args:
+            in_feats: Input feature dimension.
+            att_type: Attention implementation used in the transformer blocks.
+            num_layers: Number of transformer layers.
+            hidden_dim: Hidden dimension of the query stream.
+            cross_att_freq: Frequency of cross-attention layers.
+            out_feats: Optional output projection dimension.
+            multilayer_input: Enable the multi-layer feature-input path.
+            distribute_query_across_layers: Split queries across cross-attention groups.
+            use_layer_idx_encoder: Add a learned source-layer embedding to cross-attention inputs.
+            model_parallel: Build the module for external model-parallel execution.
+
+        """
         super().__init__()
         self.multilayer_input = multilayer_input
         if not isinstance(in_feats, int):
@@ -289,16 +301,27 @@ class QFormerV2(NetArch):
         Args:
             in_size: Temporal dimension of the query input.
 
+        Returns:
+            int: Output temporal dimension.
+
         """
         out_size = in_size
         return out_size
 
     def in_feats_shape(self) -> Tuple[Optional[int], Optional[int], int]:
-        """Describe the expected `(batch, time, channels)` shape for encoder features."""
+        """Describe the expected `(batch, time, channels)` shape for encoder features.
+
+        Returns:
+            Tuple[Optional[int], Optional[int], int]: Expected encoder feature shape.
+        """
         return (None, None, self.in_feats)
 
     def query_shape(self) -> Tuple[Optional[int], Optional[int], int]:
-        """Describe the `(batch, time, hidden_dim)` shape for the query tokens."""
+        """Describe the `(batch, time, hidden_dim)` shape for the query tokens.
+
+        Returns:
+            Tuple[Optional[int], Optional[int], int]: Expected query tensor shape.
+        """
         return (None, None, self.hidden_dim)
 
     def out_shape(
@@ -309,6 +332,9 @@ class QFormerV2(NetArch):
 
         Args:
             query_shape: Optional `(batch, time, channels)` tuple describing the query input.
+
+        Returns:
+            Tuple[Optional[int], Optional[int], int]: Output tensor shape.
 
         """
         out_channels = self.out_feats if self.out_feats is not None else self.hidden_dim
@@ -324,25 +350,37 @@ class QFormerV2(NetArch):
 
         return (query_shape[0], T, out_channels)
 
-    @property
     def out_dim(self) -> int:
-        """Return the output feature dimension after the Q-Former."""
+        """Return the output feature dimension after the Q-Former.
+
+        Returns:
+            int: Output feature dimension.
+        """
         return self.out_feats if self.out_feats is not None else self.hidden_dim
 
     def out_channels(self) -> int:
-        """Return the output feature dimension after the Q-Former."""
+        """Return the output feature dimension after the Q-Former.
+
+        Returns:
+            int: Output feature dimension.
+        """
         return self.out_feats if self.out_feats is not None else self.hidden_dim
 
     @property
     def output_is_normalized(self) -> bool:
-        return True if self.out_feats is None else False
+        """Return whether the output is normalized by the module.
+
+        Returns:
+            bool: ``True`` when no output projection is used.
+        """
+        return self.out_feats is None
 
     def forward(
         self,
         query_embeds: torch.Tensor,
-        feats: Union[torch.Tensor, List[torch.Tensor]],
+        feats: Union[torch.Tensor, Sequence[torch.Tensor]],
         feats_lengths: Optional[
-            Union[torch.Tensor, List[Optional[torch.Tensor]]]
+            Union[torch.Tensor, Sequence[Optional[torch.Tensor]]]
         ] = None,
         start_pos: int = 0,
     ) -> torch.Tensor:
@@ -351,9 +389,12 @@ class QFormerV2(NetArch):
         Args:
             query_embeds: Query tensor of shape `(batch, query_len, hidden_dim)`.
             feats: Encoder representations; either a single tensor `(batch, seq_len, in_feats)`
-                or a list of tensors when `multilayer_input` is enabled.
+                or a sequence of tensors when `multilayer_input` is enabled.
             feats_lengths: Optional sequence-length tensor(s) used to build attention masks.
             start_pos: Starting rotary/cache position for cross-attention.
+
+        Returns:
+            torch.Tensor: Output tensor with shape `(batch, query_len, out_dim)`.
 
         """
         if self.multilayer_input:
@@ -368,9 +409,9 @@ class QFormerV2(NetArch):
     def forward_singlelayer_input(
         self,
         query_embeds: torch.Tensor,
-        feats: Union[torch.Tensor, List[torch.Tensor]],
+        feats: Union[torch.Tensor, Sequence[torch.Tensor]],
         feats_lengths: Optional[
-            Union[torch.Tensor, List[Optional[torch.Tensor]]]
+            Union[torch.Tensor, Sequence[Optional[torch.Tensor]]]
         ] = None,
         start_pos: int = 0,
     ) -> torch.Tensor:
@@ -378,23 +419,26 @@ class QFormerV2(NetArch):
 
         Args:
             query_embeds: Query tensor `(batch, query_len, hidden_dim)`.
-            feats: Encoder features `(batch, seq_len, in_feats)` or a singleton list containing them.
+            feats: Encoder features `(batch, seq_len, in_feats)` or a singleton sequence containing them.
             feats_lengths: Optional sequence-length tensor(s) aligned with `feats`.
             start_pos: Starting rotary/cache position for cross-attention.
+
+        Returns:
+            torch.Tensor: Output tensor with shape `(batch, query_len, out_dim)`.
 
         """
         query_dtype = query_embeds.dtype
         query_device = query_embeds.device
-        if isinstance(feats, list):
+        if isinstance(feats, (list, tuple)):
             if len(feats) != 1:
                 raise ValueError(
-                    "forward_singlelayer_input expects a single feature tensor when feats is a list"
+                    "forward_singlelayer_input expects a single feature tensor when feats is a sequence"
                 )
             feats_tensor = feats[0]
-            if isinstance(feats_lengths, list):
+            if isinstance(feats_lengths, (list, tuple)):
                 if len(feats_lengths) != 1:
                     raise ValueError(
-                        "forward_singlelayer_input expects a single sequence length entry when feats is a list"
+                        "forward_singlelayer_input expects a single sequence length entry when feats is a sequence"
                     )
                 feats_lengths = feats_lengths[0]
         else:
@@ -477,9 +521,9 @@ class QFormerV2(NetArch):
     def forward_multilayer_input(
         self,
         query_embeds: torch.Tensor,
-        feats: List[torch.Tensor],
+        feats: Sequence[torch.Tensor],
         feats_lengths: Optional[
-            Union[torch.Tensor, List[Optional[torch.Tensor]]]
+            Union[torch.Tensor, Sequence[Optional[torch.Tensor]]]
         ] = None,
         start_pos: int = 0,
     ) -> torch.Tensor:
@@ -487,12 +531,15 @@ class QFormerV2(NetArch):
 
         Args:
             query_embeds: Query tensor `(batch, query_len, hidden_dim)`.
-            feats: List of encoder feature tensors, one per cross-attention layer.
+            feats: Sequence of encoder feature tensors, one per cross-attention layer.
             feats_lengths: Optional sequence lengths. It can be:
                 - a single tensor shared by all `feats` entries (all entries must have
                   the same temporal length), or
-                - a list matching `feats`, potentially with per-entry lengths.
+                - a sequence matching `feats`, potentially with per-entry lengths.
             start_pos: Starting rotary/cache position for cross-attention.
+
+        Returns:
+            torch.Tensor: Output tensor with shape `(batch, query_len, out_dim)`.
 
         """
         if not isinstance(feats, (list, tuple)):
@@ -611,8 +658,15 @@ class QFormerV2(NetArch):
             logging.warning("non-finite x-out-avg=%f", torch.mean(out_feats))
         return out_feats
 
-    def get_config(self, no_class_name: bool = False) -> dict:
-        """Return a JSON-serializable snapshot of the constructor arguments."""
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Return a JSON-serializable snapshot of the constructor arguments.
+
+        Args:
+            no_class_name: If ``True``, omit the ``class_name`` entry from the base config.
+
+        Returns:
+            Dict[str, Any]: Configuration dictionary for reconstructing the module.
+        """
         config = {
             "in_feats": self.in_feats,
             "att_type": self.att_type,
@@ -665,7 +719,7 @@ class QFormerV2(NetArch):
 
         """
         if override_dropouts:
-            logging.info("chaning convnext1d dropouts")
+            logging.info("changing qformer dropouts")
             self.change_dropouts(drop_path_rate, att_dropout_rate)
 
     def change_dropouts(self, drop_path_rate: float, att_dropout_rate: float) -> None:
@@ -678,14 +732,31 @@ class QFormerV2(NetArch):
         """
         from ..layers import DropPath1d
 
-        for module in self.modules():
-            if isinstance(module, DropPath1d):
-                module.p *= drop_path_rate / self.drop_path_rate
+        drop_rates = (
+            torch.linspace(
+                0.0,
+                drop_path_rate,
+                steps=max(self.num_untied_layers, 1),
+                dtype=torch.float32,
+            ).tolist()
+            if drop_path_rate > 0.0
+            else [0.0] * max(self.num_untied_layers, 1)
+        )
 
+        for block, module_drop_rate in zip(self.trans_blocks, drop_rates):
+            if block.drop_path is None:
+                if module_drop_rate > 0.0:
+                    block.drop_path = DropPath1d(module_drop_rate)
+                    block.drop_path.train(self.training)
+            else:
+                block.drop_path.p = module_drop_rate
+
+        for module in self.modules():
             if isinstance(module, ScaledDotProdAttV2):
                 module.dropout_rate = att_dropout_rate
 
         self.drop_path_rate = drop_path_rate
+        self.att_dropout_rate = att_dropout_rate
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
@@ -693,6 +764,9 @@ class QFormerV2(NetArch):
 
         Args:
             **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by ``__init__``.
 
         """
         return filter_func_args(QFormerV2.__init__, kwargs)
@@ -716,141 +790,184 @@ class QFormerV2(NetArch):
             parser = ArgumentParser(prog="")
 
         if skip is None:
-            skip = set([])
+            skip = set()
+
+        def add_argument(name: str, *args: Any, **kwargs: Any) -> None:
+            if name not in skip:
+                parser.add_argument(*args, **kwargs)
 
         if "in_feats" not in skip:
             parser.add_argument("--in-feats", type=int, help="input features dimension")
 
-        parser.add_argument(
+        add_argument(
+            "att_type",
             "--att-type",
             default=TransformerV2AttType.TORCH_SDP.value,
             choices=TransformerV2AttType.choices(),
             help="type of attention layer in [sdp, torch_sdp, flash_sdp]",
         )
-        parser.add_argument(
+        add_argument(
+            "num_layers",
             "--num-layers",
             default=3,
             type=int,
             help="transformer block repeats in each encoder stage",
         )
-        parser.add_argument(
+        add_argument(
+            "hidden_dim",
             "--hidden-dim",
             default=768,
             type=int,
             help="transformer block hidden features in each encoder stage",
         )
-        parser.add_argument(
-            "--num-heads", default=12, type=int, help="num of attention heads"
+        add_argument(
+            "num_heads",
+            "--num-heads",
+            default=12,
+            type=int,
+            help="num of attention heads",
         )
-        parser.add_argument(
+        add_argument(
+            "num_kv_heads",
             "--num-kv-heads",
             default=None,
             type=int,
             help="num. of key, value attention heads when using GQA",
         )
-        parser.add_argument(
+        add_argument(
+            "cross_att_freq",
             "--cross-att-freq",
             default=1,
             type=int,
             help="The frequency of adding cross-attention to the Transformer layers.",
         )
-        parser.add_argument(
-            "--att-dropout-rate", default=0.0, type=float, help="attention dropout rate"
+        add_argument(
+            "att_dropout_rate",
+            "--att-dropout-rate",
+            default=0.0,
+            type=float,
+            help="attention dropout rate",
         )
-        parser.add_argument(
+        add_argument(
+            "att_bias",
             "--att-bias",
             default=False,
             action=ActionYesNo,
             help="use bias in Linear layers of attention blocks",
         )
-        parser.add_argument(
+        add_argument(
+            "ff_type",
             "--ff-type",
             default=TransformerV2FeedForwardType.MLP.value,
             choices=TransformerV2FeedForwardType.choices(),
             help="type of feed forward layer in [mlp, convnext]",
         )
-        parser.add_argument(
+        add_argument(
+            "ff_dim_multiplier",
             "--ff-dim-multiplier",
             default=4,
             type=int,
             help="number that multiplies the hidden dimension to get the inv. bottleneck dimension",
         )
-        parser.add_argument(
+        add_argument(
+            "ff_multiple_of",
             "--ff-multiple-of",
             default=256,
             type=int,
             help="the inv bottleneck dim has to be a multiple of this",
         )
-        parser.add_argument(
+        add_argument(
+            "ff_kernel_size",
             "--ff-kernel-size",
             default=7,
             type=int,
             help="kernel size when using convnext feed forward layer",
         )
-        parser.add_argument(
+        add_argument(
+            "ff_dilation",
             "--ff-dilation",
             default=1,
             type=int,
             help="dilation when using convnext feedforward layers",
         )
-        parser.add_argument(
-            "--ff-act", default="silu", help="activation of feedforward layers"
+        add_argument(
+            "ff_act",
+            "--ff-act",
+            default="silu",
+            help="activation of feedforward layers",
         )
-        parser.add_argument(
+        add_argument(
+            "ff_bias",
             "--ff-bias",
             default=False,
             action=ActionYesNo,
             help="use bias in Linear layers of feed forward blocks",
         )
-        parser.add_argument(
-            "--rope-theta", default=50000, type=float, help="ROPE base theta"
+        add_argument(
+            "rope_theta",
+            "--rope-theta",
+            default=50000,
+            type=float,
+            help="ROPE base theta",
         )
-        parser.add_argument(
+        add_argument(
+            "rope_scale_freqs",
             "--rope-scale-freqs",
             default=True,
             action=ActionYesNo,
             help="scale ROPE frequencies when seq lenght is larger than the maximmum length of the original training sequences",
         )
-        parser.add_argument(
+        add_argument(
+            "rope_update_max_seq_length",
             "--rope-update-max-seq-length",
             default=True,
             action=ActionYesNo,
             help="update the invernal ROPE variable that keeps track of the max seq length seen on training",
         )
-        parser.add_argument(
+        add_argument(
+            "rope_original_max_seq_length",
             "--rope-original-max-seq-length",
             default=None,
             type=int,
             help="sets manually the max seq length seen in training for ROPE",
         )
-        parser.add_argument(
-            "--rope-scaling-factor", default=8, type=float, help="ROPE scaling factors"
+        add_argument(
+            "rope_scaling_factor",
+            "--rope-scaling-factor",
+            default=8,
+            type=float,
+            help="ROPE scaling factors",
         )
-        parser.add_argument(
+        add_argument(
+            "rope_low_freq_factor",
             "--rope-low-freq-factor",
             default=1,
             type=float,
             help="ROPE frequencies are not scaled for wavelengths < max_seq_length / self.low_freq_factor",
         )
-        parser.add_argument(
+        add_argument(
+            "rope_high_freq_factor",
             "--rope-high-freq-factor",
             default=4,
             type=float,
             help="ROPE frequencies are scaled by scaling for wavelengths > max_seq_length / self.high_freq_factor",
         )
-        parser.add_argument(
+        add_argument(
+            "rope_in_self_att",
             "--rope-in-self-att",
             default=False,
             action=ActionYesNo,
             help="use Rotary positional encoder or not positional encoder at all in self-attention",
         )
-        parser.add_argument(
+        add_argument(
+            "rope_in_cross_att",
             "--rope-in-cross-att",
             default=False,
             action=ActionYesNo,
             help="use Rotary positional encoder or not positional encoder at all in cross-attention",
         )
-        parser.add_argument(
+        add_argument(
+            "distribute_query_across_layers",
             "--distribute-query-across-layers",
             default=False,
             action=ActionYesNo,
@@ -858,49 +975,64 @@ class QFormerV2(NetArch):
                     the first group is used as input to the first cross-attention layer,
                     the nth group is concantenated to input of the nth cross-attention layer""",
         )
-        parser.add_argument(
+        add_argument(
+            "tied_layers",
             "--tied-layers",
             default=False,
             action=ActionYesNo,
             help="whether the encoder encoder layers are tied or not.",
         )
-        parser.add_argument(
+        add_argument(
+            "multilayer_input",
             "--multilayer-input",
             default=False,
             action=ActionYesNo,
             help="Input are hidden featues from several encoder layers",
         )
-        parser.add_argument(
+        add_argument(
+            "use_layer_idx_encoder",
             "--use-layer-idx-encoder",
             default=False,
             action=ActionYesNo,
             help="add a learned embedding of the encoder layer index to cross-attention inputs",
         )
-        parser.add_argument(
+        add_argument(
+            "out_feats",
             "--out-feats",
             default=None,
             type=int,
             help="features for ouptut projection, if None, no output proj is done",
         )
-        parser.add_argument(
-            "--drop-path-rate", default=0.0, type=float, help="drop path rate"
+        add_argument(
+            "drop_path_rate",
+            "--drop-path-rate",
+            default=0.0,
+            type=float,
+            help="drop path rate",
         )
-        parser.add_argument(
+        add_argument(
+            "sdp_backend",
             "--sdp-backend",
             default=SDPBackendType.default().value,
             choices=SDPBackendType.choices(),
             help="Preferred sequence of SDP kernels to attempt when calling Torch SDP function",
         )
-        parser.add_argument(
+        add_argument(
+            "norm_layer",
             "--norm-layer",
             default=TransformerV2NormLayerType.LAYERNORM.value,
             choices=TransformerV2NormLayerType.choices(),
             help="type of norm layer in [layer-norm, rms-norm]",
         )
-        parser.add_argument(
-            "--norm-eps", default=1e-5, type=float, help="eps for layer norms"
+        add_argument(
+            "norm_eps",
+            "--norm-eps",
+            default=1e-5,
+            type=float,
+            help="eps for layer norms",
         )
-        parser.add_argument(
+        add_argument(
+            "model_parallel",
             "--model-parallel",
             default=False,
             action=ActionYesNo,
@@ -917,12 +1049,17 @@ class QFormerV2(NetArch):
         Args:
             **kwargs: Candidate keyword arguments.
 
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by ``change_config``.
+
         """
         return filter_func_args(QFormerV2.change_config, kwargs)
 
     @staticmethod
     def add_finetune_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set([])
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
     ) -> None:
         """Register fine-tuning specific overrides with a JSONArgParse parser.
 
@@ -936,38 +1073,44 @@ class QFormerV2(NetArch):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        try:
-            parser.add_argument(
-                "--override-dropouts",
-                default=False,
-                action=ActionYesNo,
-                help=(
-                    "whether to use the dropout probabilities passed in the "
-                    "arguments instead of the defaults in the pretrained model."
-                ),
-            )
-        except:
-            pass
+        if skip is None:
+            skip = set()
 
-        try:
-            parser.add_argument(
-                "--drop-path-rate",
-                default=0,
-                type=float,
-                help="layer drop probability",
-            )
-        except:
-            pass
+        if "override_dropouts" not in skip:
+            try:
+                parser.add_argument(
+                    "--override-dropouts",
+                    default=False,
+                    action=ActionYesNo,
+                    help=(
+                        "whether to use the dropout probabilities passed in the "
+                        "arguments instead of the defaults in the pretrained model."
+                    ),
+                )
+            except Exception:
+                pass
 
-        try:
-            parser.add_argument(
-                "--att-dropout-rate",
-                default=0,
-                type=float,
-                help="attention layers dropout rate",
-            )
-        except:
-            pass
+        if "drop_path_rate" not in skip:
+            try:
+                parser.add_argument(
+                    "--drop-path-rate",
+                    default=0,
+                    type=float,
+                    help="layer drop probability",
+                )
+            except Exception:
+                pass
+
+        if "att_dropout_rate" not in skip:
+            try:
+                parser.add_argument(
+                    "--att-dropout-rate",
+                    default=0,
+                    type=float,
+                    help="attention layers dropout rate",
+                )
+            except Exception:
+                pass
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

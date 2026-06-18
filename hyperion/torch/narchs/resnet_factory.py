@@ -3,7 +3,10 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Any, Callable, Dict, Optional, Sequence, Type, Union
+
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+import torch.nn as nn
 
 from .resnet import *
 
@@ -139,31 +142,68 @@ resnet_dict = {
 
 
 class ResNetFactory:
+    """Factory helpers for constructing ResNet variants.
+
+    Attributes:
+        resnet_dict: Mapping from lowercase architecture names to concrete classes.
+    """
+
     @staticmethod
     def create(
-        resnet_type,
-        in_channels,
-        conv_channels=64,
-        base_channels=64,
-        out_units=0,
-        hid_act={"name": "relu", "inplace": True},
-        out_act=None,
-        in_kernel_size=7,
-        in_stride=2,
-        zero_init_residual=False,
-        groups=1,
-        replace_stride_with_dilation=None,
-        dropout_rate=0,
-        norm_layer=None,
-        norm_before=True,
-        do_maxpool=True,
-        in_norm=True,
-        se_r=16,
-        in_feats=None,
-        res2net_scale=4,
-        res2net_width_factor=1,
-        freq_pos_enc=False,
-    ):
+        resnet_type: str,
+        in_channels: int,
+        conv_channels: int = 64,
+        base_channels: int = 64,
+        out_units: int = 0,
+        hid_act: Union[str, Dict[str, Any]] = {"name": "relu", "inplace": True},
+        out_act: Optional[Union[str, Dict[str, Any]]] = None,
+        in_kernel_size: int = 7,
+        in_stride: int = 2,
+        zero_init_residual: bool = False,
+        groups: int = 1,
+        replace_stride_with_dilation: Optional[Sequence[bool]] = None,
+        dropout_rate: float = 0,
+        norm_layer: Optional[
+            Union[str, Type[nn.Module], Callable[[int], nn.Module]]
+        ] = None,
+        norm_before: bool = True,
+        do_maxpool: bool = True,
+        in_norm: bool = True,
+        se_r: int = 16,
+        in_feats: Optional[int] = None,
+        res2net_scale: int = 4,
+        res2net_width_factor: int = 1,
+        freq_pos_enc: bool = False,
+    ) -> ResNet:
+        """Create a ResNet instance from a registered architecture name.
+
+        Args:
+            resnet_type: Lowercase key in :data:`resnet_dict`.
+            in_channels: Number of input channels.
+            conv_channels: Stem convolution width.
+            base_channels: Base residual width.
+            out_units: Output head size; ``0`` disables the head.
+            hid_act: Hidden activation specification.
+            out_act: Optional output activation specification.
+            in_kernel_size: Stem convolution kernel size.
+            in_stride: Stem convolution stride.
+            zero_init_residual: If ``True``, zero-initialize the last BN in each residual branch.
+            groups: Number of groups in grouped convolutions.
+            replace_stride_with_dilation: Optional stage-dilation flags.
+            dropout_rate: Residual dropout probability.
+            norm_layer: Normalization-layer constructor or alias.
+            norm_before: If ``True``, apply normalization before activation.
+            do_maxpool: If ``True``, keep the max-pooling layer in the stem.
+            in_norm: If ``True``, normalize the input tensor.
+            se_r: Squeeze-excitation reduction ratio.
+            in_feats: Input feature size required by time/frequency SE variants.
+            res2net_scale: Res2Net scale factor.
+            res2net_width_factor: Res2Net width multiplier.
+            freq_pos_enc: If ``True``, enable frequency positional encoding.
+
+        Returns:
+            ResNet: The instantiated architecture.
+        """
         try:
             resnet_class = resnet_dict[resnet_type]
         except:
@@ -195,7 +235,15 @@ class ResNetFactory:
 
         return resnet
 
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter generic ResNet constructor arguments from a larger mapping.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Subset accepted by :meth:`create`.
+        """
         if "no_maxpool" in kwargs:
             kwargs["do_maxpool"] = not kwargs["no_maxpool"]
             del kwargs["no_maxpool"]
@@ -230,7 +278,13 @@ class ResNetFactory:
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register command-line arguments for ResNet creation.
+
+        Args:
+            parser: Parser that receives the new arguments.
+            prefix: Optional namespace prefix used for nested parsers.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -370,7 +424,15 @@ class ResNetFactory:
     add_argparse_args = add_class_args
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter finetuning-only ResNet arguments.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Subset accepted by :meth:`add_finetune_args`.
+        """
         valid_args = (
             "override_dropouts",
             "dropout_rate",
@@ -379,7 +441,13 @@ class ResNetFactory:
         return args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register command-line arguments for ResNet finetuning.
+
+        Args:
+            parser: Parser that receives the new arguments.
+            prefix: Optional namespace prefix used for nested parsers.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

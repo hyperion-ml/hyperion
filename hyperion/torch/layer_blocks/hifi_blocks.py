@@ -140,4 +140,5 @@ class HiFiBlock(nn.Module):
         Removes weight normalization from all convolutional layers.
         """
         for l in self.convs1 + self.convs2:
-            remove_parametrizations(l, "weight")
+            if is_parametrized(l):
+                remove_parametrizations(l, "weight")

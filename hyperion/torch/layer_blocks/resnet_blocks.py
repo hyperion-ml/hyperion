@@ -604,3 +604,4 @@ class ResNetEndpointBlock(nn.Module):
             x = self.upsample(x)
 
         return x
+

@@ -21,17 +21,29 @@ from .net_arch import NetArch
 
 
 class HydraHeadType(str, Enum):
-    """Enumeration of supported Hydra head types."""
+    """Enumeration of supported Hydra head types.
+
+    Attributes:
+        CLASSIF: Classification head implemented by `HydraClassifHead`.
+    """
 
     CLASSIF = "classif"
 
     @staticmethod
     def choices() -> List[str]:
+        """Return the supported Hydra head type names.
+
+        Returns:
+            List[str]: Supported head type identifiers.
+        """
         return [e.value for e in HydraHeadType]
 
     @staticmethod
     def to_class(value: "HydraHeadType") -> Type["HydraHead"]:
         """Map the head type to its corresponding class.
+
+        Args:
+            value: Hydra head type identifier.
 
         Returns:
             Type[HydraHead]: The class associated with the head type.
@@ -43,7 +55,10 @@ class HydraHeadType(str, Enum):
 
     @staticmethod
     def from_instance(head_instance: "HydraHead") -> "HydraHeadType":
-        """Map a Hydra head class to its corresponding type.
+        """Map a Hydra head instance to its corresponding type.
+
+        Args:
+            head_instance: Hydra head instance to inspect.
 
         Returns:
             HydraHeadType: The head type associated with the class.
@@ -55,7 +70,14 @@ class HydraHeadType(str, Enum):
 
 
 class HydraClassifLossType(str, Enum):
-    """Enumeration of supported classification loss types."""
+    """Enumeration of supported classification loss types.
+
+    Attributes:
+        SOFTMAX: Standard linear classifier head.
+        COS_SOFTMAX: CosFace-style margin softmax head.
+        ARC_SOFTMAX: ArcFace-style angular margin softmax head.
+        SUBCENTER_ARC_SOFTMAX: Sub-center ArcFace head.
+    """
 
     SOFTMAX = "softmax"
     COS_SOFTMAX = "cos-softmax"
@@ -64,12 +86,24 @@ class HydraClassifLossType(str, Enum):
 
     @staticmethod
     def choices() -> List[str]:
+        """Return the supported classification loss type names.
+
+        Returns:
+            List[str]: Supported loss type identifiers.
+        """
         return [e.value for e in HydraClassifLossType]
 
 
 @dataclass
 class HydraClassifHeadOutput:
-    """Output structure for Hydra classification head forward pass."""
+    """Output structure for Hydra classification head forward pass.
+
+    Attributes:
+        logits: Classification logits for each class.
+        loss: Optional cross-entropy loss value.
+        prototype_code_rate: Optional code-rate regularizer value for the class
+            prototypes.
+    """
 
     logits: torch.Tensor
     loss: Optional[torch.Tensor] = None
@@ -78,18 +112,23 @@ class HydraClassifHeadOutput:
 
 @dataclass
 class HydraRegressionHeadOutput:
-    """Output structure for Hydra regression head forward pass."""
+    """Output structure for Hydra regression head forward pass.
+
+    Attributes:
+        preds: Regression predictions.
+        loss: Optional regression loss value.
+    """
 
     preds: torch.Tensor
     loss: Optional[torch.Tensor] = None
 
 
 class HydraHead(NetArch):
-    """Base class for Hydra Heads
+    """Base class for Hydra heads.
 
     Attributes:
-       enable_loss: if True, the forward method computes the loss if targets are provided
-       reduction: reduction method for the loss ('mean', 'sum', 'none')
+        enable_loss: If True, `forward` computes the loss when targets are provided.
+        reduction: Reduction method for the loss (`mean`, `sum`, or `none`).
 
     """
 
@@ -106,6 +145,10 @@ class HydraHead(NetArch):
 
     def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Return a serializable configuration for this head.
+
+        Args:
+            no_class_name: If True, omit the class name from the returned
+                configuration.
 
         Returns:
             Dict[str, Any]: Configuration values needed to rebuild the head.
@@ -224,6 +267,7 @@ class HydraClassifHead(HydraHead):
         self.num_subcenters = num_subcenters
         self.enable_prototype_code_rate = enable_prototype_code_rate
         self.code_rate_eps = code_rate_eps
+        self.label_smoothing = label_smoothing
 
         # output layer
         if loss_type == HydraClassifLossType.SOFTMAX:
@@ -292,7 +336,7 @@ class HydraClassifHead(HydraHead):
 
     @property
     def normalized_prototypes(self) -> torch.Tensor:
-        """Return the learned prototypes (class centers) of the head."""
+        """Return the normalized learned prototypes (class centers) of the head."""
         if self.loss_type == HydraClassifLossType.SOFTMAX:
             return nn.functional.normalize(self.output.weight, p=2, dim=1)
 
@@ -422,6 +466,7 @@ class HydraClassifHead(HydraHead):
         self.enable_loss = enable_loss
         self.enable_prototype_code_rate = enable_prototype_code_rate
         self.code_rate_eps = code_rate_eps
+        self.label_smoothing = label_smoothing
         return self
 
     def set_margin(self, margin: float) -> None:
@@ -595,6 +640,10 @@ class HydraClassifHead(HydraHead):
     def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Return a configuration dictionary for checkpoint serialization.
 
+        Args:
+            no_class_name: If True, omit the class name from the returned
+                configuration.
+
         Returns:
             Dict[str, Any]: Configuration compatible with `from_json`.
         """
@@ -609,7 +658,7 @@ class HydraClassifHead(HydraHead):
             "intertop_k": self.intertop_k,
             "intertop_margin": self.intertop_margin,
             "num_subcenters": self.num_subcenters,
-            "label_smoothing": self.loss.label_smoothing if self.enable_loss else 0.0,
+            "label_smoothing": self.label_smoothing,
             "enable_prototype_code_rate": self.enable_prototype_code_rate,
             "code_rate_eps": self.code_rate_eps,
         }

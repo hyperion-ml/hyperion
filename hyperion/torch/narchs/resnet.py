@@ -33,7 +33,7 @@ class ResNet(NetArch):
     Attributes:
         block (Union[str, Type[nn.Module]]): Identifier or class describing which residual cell
             to use (``"basic"``, ``"bn"``, ``"sebasic"``, ``"sebn"``, ``"res2basic"``, ``"res2bn"``,
-            ``"seres2basic"``, ``"seres2bn"`` or a custom implementation).
+            ``"seres2bn"`` or a custom implementation).
         num_layers (Sequence[int]): Number of residual blocks in each of the four stages.
         in_channels (int): Number of channels expected by the stem convolution.
         conv_channels (int): Channels produced by the stem convolution block.
@@ -96,6 +96,38 @@ class ResNet(NetArch):
         time_se: bool = False,
         freq_pos_enc: bool = False,
     ) -> None:
+        """Create a configurable 2-D ResNet backbone.
+
+        Args:
+            block: Residual block type or custom block class.
+            num_layers: Number of residual blocks in each stage.
+            in_channels: Number of input channels.
+            conv_channels: Number of channels produced by the stem convolution.
+            base_channels: Number of channels in the first residual stage.
+            out_units: Size of the optional classification head; ``0`` disables it.
+            hid_act: Hidden activation specification.
+            out_act: Optional output activation specification.
+            in_kernel_size: Kernel size of the stem convolution.
+            in_stride: Stride of the stem convolution.
+            zero_init_residual: If ``True``, zero-initialize the last BN in each residual branch.
+            multilevel: If ``True``, expose intermediate endpoint features.
+            endpoint_channels: Output channels for multilevel endpoint projections.
+            groups: Number of groups in grouped convolutions.
+            replace_stride_with_dilation: Flags that replace stage strides with dilation.
+            dropout_rate: Dropout probability inside residual blocks.
+            norm_layer: Normalization-layer constructor or alias.
+            norm_before: If ``True``, apply normalization before activation.
+            do_maxpool: If ``True``, keep the max-pooling layer in the stem.
+            in_norm: If ``True``, apply normalization to the input tensor.
+            se_r: Squeeze-excitation reduction ratio.
+            se_type: Squeeze-excitation pooling type.
+            in_feats: Input feature size required by time/frequency SE variants.
+            res2net_scale: Res2Net scale factor.
+            res2net_width_factor: Width multiplier for Res2Net blocks.
+            resb_channels: Optional per-stage residual channel sizes.
+            time_se: If ``True``, use time-only squeeze-excitation pooling.
+            freq_pos_enc: If ``True``, enable frequency positional encoding in SE blocks.
+        """
         super().__init__()
         logging.info("{}".format(locals()))
         self.block: Union[str, Type[nn.Module]] = block
@@ -119,6 +151,10 @@ class ResNet(NetArch):
             elif block == "res2bn":
                 self._block = Res2NetBNBlock
                 self.is_res2net = True
+            elif block == "seres2basic":
+                self._block = Res2NetBasicBlock
+                self.has_se = True
+                self.is_res2net = True
             elif block in ("seres2bn", "tseres2bn"):
                 self._block = Res2NetBNBlock
                 self.has_se = True
@@ -127,6 +163,8 @@ class ResNet(NetArch):
                 raise ValueError(f"Unsupported ResNet block type: {block}")
         else:
             self._block = block
+            self.has_se = getattr(block, "has_se", False)
+            self.is_res2net = issubclass(block, (Res2NetBasicBlock, Res2NetBNBlock))
 
         assert not self.has_se and not freq_pos_enc or in_feats is not None
 
@@ -304,6 +342,18 @@ class ResNet(NetArch):
         stride: int = 1,
         dilate: bool = False,
     ) -> nn.Sequential:
+        """Build one residual stage.
+
+        Args:
+            block: Residual block class used for the stage.
+            channels: Output channels for the stage.
+            num_blocks: Number of residual blocks to stack.
+            stride: Stride for the first block in the stage.
+            dilate: If ``True``, replace the first stride with dilation.
+
+        Returns:
+            nn.Sequential: The assembled residual stage.
+        """
         previous_dilation = self.dilation
         if dilate:
             self.dilation *= stride
@@ -388,7 +438,7 @@ class ResNet(NetArch):
 
         return out_size
 
-    def _compute_hid_sizes(self, in_size: int, layers: List[int]) -> int:
+    def _compute_hid_sizes(self, in_size: int, layers: List[int]) -> List[int]:
         """Compute spatial resolutions after intermediate ResNet stages.
 
         Args:
@@ -396,27 +446,27 @@ class ResNet(NetArch):
             layers (List[int]): Which stages (0=post-stem, 1-3=residual stages) to report.
 
         Returns:
-            List[int]: Spatial sizes for the requested stages, ordered as ``layers`` increases.
+            List[int]: Spatial sizes for the requested stages, in the same order as ``layers``.
         """
-        sizes = []
+        sizes = {}
         out_size = int((in_size - 1) // self.in_stride + 1)
         if self.do_maxpool:
             out_size = int((out_size - 1) // 2 + 1)
 
         if 0 in layers:
-            sizes.append(out_size)
+            sizes[0] = out_size
 
         if 1 in layers:
-            sizes.append(out_size)
+            sizes[1] = out_size
 
         for i in range(3):
             if not self.replace_stride_with_dilation[i]:
                 out_size = int((out_size - 1) // 2 + 1)
 
             if (i + 2) in layers:
-                sizes.append(out_size)
+                sizes[i + 2] = out_size
 
-        return sizes
+        return [sizes[i] for i in layers]
 
     def in_context(self) -> Tuple[int, int]:
         """Return the receptive-field context ``(past, future)`` in frames.
@@ -525,6 +575,17 @@ class ResNet(NetArch):
         in_lengths: torch.Tensor,
         max_in_length: int,
     ) -> torch.Tensor:
+        """Forward a stage while tracking valid sequence lengths.
+
+        Args:
+            layer: Residual stage to execute.
+            x: Input feature map.
+            in_lengths: Valid lengths for the original input tensor.
+            max_in_length: Original unpadded temporal length before resizing.
+
+        Returns:
+            torch.Tensor: Output feature map after masking padded positions.
+        """
         x_lengths = scale_seq_lengths(in_lengths, x.size(-1), max_in_length)
         x_mask = seq_lengths_to_mask(x_lengths, x.size(-1), time_dim=3, dtype=x.dtype)
 
@@ -540,6 +601,16 @@ class ResNet(NetArch):
     def _forward_layer_with_mask(
         layer: nn.Sequential, x: torch.Tensor, x_mask: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Forward a stage using an existing validity mask.
+
+        Args:
+            layer: Residual stage to execute.
+            x: Input feature map.
+            x_mask: Mask marking valid temporal positions.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Updated feature map and mask.
+        """
 
         for sub_layer in layer:
             if sub_layer.stride > 1:
@@ -638,6 +709,8 @@ class ResNet(NetArch):
         assert layers is not None or return_output
         if layers is None:
             layers = []
+        if len(layers) == 0 and not return_output:
+            return []
 
         if return_output:
             last_layer = 4
@@ -965,37 +1038,73 @@ class SELResNext50_4x4d(ResNet):
 
 
 class TSEResNet18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["time_se"] = True
         super().__init__("sebasic", [2, 2, 2, 2], in_channels, **kwargs)
 
 
 class TSEResNet34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["time_se"] = True
         super().__init__("sebasic", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class TSEResNet50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["time_se"] = True
         super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class TSEResNet101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["time_se"] = True
         super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class TSEResNet152(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["time_se"] = True
         super().__init__("sebn", [3, 8, 36, 3], in_channels, **kwargs)
 
 
 class TSEResNext50_32x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 128
         kwargs["time_se"] = True
@@ -1003,7 +1112,13 @@ class TSEResNext50_32x4d(ResNet):
 
 
 class TSEResNext101_32x8d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 256
         kwargs["time_se"] = True
@@ -1011,21 +1126,39 @@ class TSEResNext101_32x8d(ResNet):
 
 
 class TSEWideResNet50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["time_se"] = True
         super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class TSEWideResNet101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["time_se"] = True
         super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class TSELResNet18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["time_se"] = True
@@ -1033,7 +1166,13 @@ class TSELResNet18(ResNet):
 
 
 class TSELResNet34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["time_se"] = True
@@ -1041,7 +1180,13 @@ class TSELResNet34(ResNet):
 
 
 class TSELResNet50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["time_se"] = True
@@ -1049,7 +1194,13 @@ class TSELResNet50(ResNet):
 
 
 class TSELResNext50_4x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 4
         kwargs["base_channels"] = 16
         kwargs["time_se"] = True
@@ -1060,37 +1211,73 @@ class TSELResNext50_4x4d(ResNet):
 
 
 class FwSEResNet18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "fw-se"
         super().__init__("sebasic", [2, 2, 2, 2], in_channels, **kwargs)
 
 
 class FwSEResNet34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "fw-se"
         super().__init__("sebasic", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class FwSEResNet50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "fw-se"
         super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class FwSEResNet101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "fw-se"
         super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class FwSEResNet152(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "fw-se"
         super().__init__("sebn", [3, 8, 36, 3], in_channels, **kwargs)
 
 
 class FwSEResNext50_32x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "fw-se"
@@ -1098,7 +1285,13 @@ class FwSEResNext50_32x4d(ResNet):
 
 
 class FwSEResNext101_32x8d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 256
         kwargs["se_type"] = "fw-se"
@@ -1106,21 +1299,39 @@ class FwSEResNext101_32x8d(ResNet):
 
 
 class FwSEWideResNet50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "fw-se"
         super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class FwSEWideResNet101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "fw-se"
         super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class FwSELResNet18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "fw-se"
@@ -1128,7 +1339,13 @@ class FwSELResNet18(ResNet):
 
 
 class FwSELResNet34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "fw-se"
@@ -1136,7 +1353,13 @@ class FwSELResNet34(ResNet):
 
 
 class FwSELResNet50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "fw-se"
@@ -1144,7 +1367,13 @@ class FwSELResNet50(ResNet):
 
 
 class FwSELResNext50_4x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 4
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "fw-se"
@@ -1152,7 +1381,13 @@ class FwSELResNext50_4x4d(ResNet):
 
 
 class FwSEIdRndResNet100(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["resb_channels"] = [128, 128, 256, 256]
         kwargs["se_type"] = "fw-se"
@@ -1160,7 +1395,13 @@ class FwSEIdRndResNet100(ResNet):
 
 
 class FwSEIdRndResNet202(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["resb_channels"] = [128, 128, 256, 256]
         kwargs["se_type"] = "fw-se"
@@ -1171,37 +1412,73 @@ class FwSEIdRndResNet202(ResNet):
 
 
 class CFwSEResNet18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "cfw-se"
         super().__init__("sebasic", [2, 2, 2, 2], in_channels, **kwargs)
 
 
 class CFwSEResNet34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "cfw-se"
         super().__init__("sebasic", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class CFwSEResNet50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "cfw-se"
         super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class CFwSEResNet101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "cfw-se"
         super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class CFwSEResNet152(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "cfw-se"
         super().__init__("sebn", [3, 8, 36, 3], in_channels, **kwargs)
 
 
 class CFwSEResNext50_32x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "cfw-se"
@@ -1209,7 +1486,13 @@ class CFwSEResNext50_32x4d(ResNet):
 
 
 class CFwSEResNext101_32x8d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 256
         kwargs["se_type"] = "cfw-se"
@@ -1217,21 +1500,39 @@ class CFwSEResNext101_32x8d(ResNet):
 
 
 class CFwSEWideResNet50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "cfw-se"
         super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class CFwSEWideResNet101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "cfw-se"
         super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class CFwSELResNet18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "cfw-se"
@@ -1239,7 +1540,13 @@ class CFwSELResNet18(ResNet):
 
 
 class CFwSELResNet34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "cfw-se"
@@ -1247,7 +1554,13 @@ class CFwSELResNet34(ResNet):
 
 
 class CFwSELResNet50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "cfw-se"
@@ -1255,7 +1568,13 @@ class CFwSELResNet50(ResNet):
 
 
 class CFwSELResNext50_4x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 4
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "cfw-se"
@@ -1263,7 +1582,13 @@ class CFwSELResNext50_4x4d(ResNet):
 
 
 class CFwSEIdRndResNet100(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["resb_channels"] = [128, 128, 256, 256]
         kwargs["se_type"] = "cfw-se"
@@ -1271,7 +1596,13 @@ class CFwSEIdRndResNet100(ResNet):
 
 
 class CFwSEIdRndResNet202(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["resb_channels"] = [128, 128, 256, 256]
         kwargs["se_type"] = "cfw-se"
@@ -1283,65 +1614,131 @@ class CFwSEIdRndResNet202(ResNet):
 
 # Standard Res2Nets
 class Res2Net18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         super().__init__("res2basic", [2, 2, 2, 2], in_channels, **kwargs)
 
 
 class Res2Net34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         super().__init__("res2basic", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class Res2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         super().__init__("res2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class Res2Net101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         super().__init__("res2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class Res2Net152(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         super().__init__("res2bn", [3, 8, 36, 3], in_channels, **kwargs)
 
 
 class Res2Next50_32x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 128
         super().__init__("res2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class Res2Next101_32x8d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 256
         super().__init__("res2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class WideRes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         super().__init__("res2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class WideRes2Net101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         super().__init__("res2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class LRes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         super().__init__("res2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class LRes2Next50_4x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 4
         kwargs["base_channels"] = 16
         super().__init__("res2bn", [3, 4, 6, 3], in_channels, **kwargs)
@@ -1349,65 +1746,131 @@ class LRes2Next50_4x4d(ResNet):
 
 # Squezee-Excitation Res2Nets
 class SERes2Net18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         super().__init__("seres2basic", [2, 2, 2, 2], in_channels, **kwargs)
 
 
 class SERes2Net34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         super().__init__("seres2basic", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class SERes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class SERes2Net101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class SERes2Net152(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         super().__init__("seres2bn", [3, 8, 36, 3], in_channels, **kwargs)
 
 
 class SERes2Next50_32x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 128
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class SERes2Next101_32x8d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 256
         super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class SEWideRes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class SEWideRes2Net101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class SELRes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class SELRes2Next50_4x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 4
         kwargs["base_channels"] = 16
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
@@ -1415,37 +1878,73 @@ class SELRes2Next50_4x4d(ResNet):
 
 # Time dimension Squezee-Excitation Res2Nets
 class TSERes2Net18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["time_se"] = True
-        super().__init__("se2basic", [2, 2, 2, 2], in_channels, **kwargs)
+        super().__init__("seres2basic", [2, 2, 2, 2], in_channels, **kwargs)
 
 
 class TSERes2Net34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["time_se"] = True
-        super().__init__("se2basic", [3, 4, 6, 3], in_channels, **kwargs)
+        super().__init__("seres2basic", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class TSERes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["time_se"] = True
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class TSERes2Net101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["time_se"] = True
         super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class TSERes2Net152(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["time_se"] = True
         super().__init__("seres2bn", [3, 8, 36, 3], in_channels, **kwargs)
 
 
 class TSERes2Next50_32x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 128
         kwargs["time_se"] = True
@@ -1453,7 +1952,13 @@ class TSERes2Next50_32x4d(ResNet):
 
 
 class TSERes2Next101_32x8d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 256
         kwargs["time_se"] = True
@@ -1461,21 +1966,39 @@ class TSERes2Next101_32x8d(ResNet):
 
 
 class TSEWideRes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["time_se"] = True
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class TSEWideRes2Net101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["time_se"] = True
         super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class TSELRes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["time_se"] = True
@@ -1483,7 +2006,13 @@ class TSELRes2Net50(ResNet):
 
 
 class TSELRes2Next50_4x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 4
         kwargs["base_channels"] = 16
         kwargs["time_se"] = True
@@ -1492,37 +2021,73 @@ class TSELRes2Next50_4x4d(ResNet):
 
 # frequency-wise  Squezee-Excitation Res2Nets
 class FwSERes2Net18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "fw-se"
-        super().__init__("se2basic", [2, 2, 2, 2], in_channels, **kwargs)
+        super().__init__("seres2basic", [2, 2, 2, 2], in_channels, **kwargs)
 
 
 class FwSERes2Net34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "fw-se"
-        super().__init__("se2basic", [3, 4, 6, 3], in_channels, **kwargs)
+        super().__init__("seres2basic", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class FwSERes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "fw-se"
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class FwSERes2Net101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "fw-se"
         super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class FwSERes2Net152(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "fw-se"
         super().__init__("seres2bn", [3, 8, 36, 3], in_channels, **kwargs)
 
 
 class FwSERes2Next50_32x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "fw-se"
@@ -1530,7 +2095,13 @@ class FwSERes2Next50_32x4d(ResNet):
 
 
 class FwSERes2Next101_32x8d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 256
         kwargs["se_type"] = "fw-se"
@@ -1538,21 +2109,39 @@ class FwSERes2Next101_32x8d(ResNet):
 
 
 class FwSEWideRes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "fw-se"
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class FwSEWideRes2Net101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "fw-se"
         super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class FwSELRes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "fw-se"
@@ -1560,7 +2149,13 @@ class FwSELRes2Net50(ResNet):
 
 
 class FwSELRes2Next50_4x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 4
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "fw-se"
@@ -1569,37 +2164,73 @@ class FwSELRes2Next50_4x4d(ResNet):
 
 # channel-frequency-wise  Squezee-Excitation Res2Nets
 class CFwSERes2Net18(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "cfw-se"
-        super().__init__("se2basic", [2, 2, 2, 2], in_channels, **kwargs)
+        super().__init__("seres2basic", [2, 2, 2, 2], in_channels, **kwargs)
 
 
 class CFwSERes2Net34(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "cfw-se"
-        super().__init__("se2basic", [3, 4, 6, 3], in_channels, **kwargs)
+        super().__init__("seres2basic", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class CFwSERes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "cfw-se"
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class CFwSERes2Net101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "cfw-se"
         super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class CFwSERes2Net152(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["se_type"] = "cfw-se"
         super().__init__("seres2bn", [3, 8, 36, 3], in_channels, **kwargs)
 
 
 class CFwSERes2Next50_32x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "cfw-se"
@@ -1607,7 +2238,13 @@ class CFwSERes2Next50_32x4d(ResNet):
 
 
 class CFwSERes2Next101_32x8d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 32
         kwargs["base_channels"] = 256
         kwargs["se_type"] = "cfw-se"
@@ -1615,21 +2252,39 @@ class CFwSERes2Next101_32x8d(ResNet):
 
 
 class CFwSEWideRes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "cfw-se"
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 class CFwSEWideRes2Net101(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["base_channels"] = 128
         kwargs["se_type"] = "cfw-se"
         super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
 class CFwSELRes2Net50(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "cfw-se"
@@ -1637,7 +2292,13 @@ class CFwSELRes2Net50(ResNet):
 
 
 class CFwSELRes2Next50_4x4d(ResNet):
-    def __init__(self, in_channels, **kwargs):
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize this ResNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional ResNet constructor keyword arguments.
+        """
         kwargs["groups"] = 4
         kwargs["base_channels"] = 16
         kwargs["se_type"] = "cfw-se"

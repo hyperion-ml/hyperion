@@ -3,6 +3,8 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Any, Dict, Optional, Tuple, Union
+
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
@@ -18,58 +20,81 @@ class TransformerEncoderV1(NetArch):
     """Transformer encoder module.
 
     Attributes:
-      in_feats: input features dimension
-      d_model: encoder blocks feature dimension
-      num_heads: number of heads
-      num_blocks: number of self attn blocks
-      att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
-      att_context: maximum context range for local attention
-      ff_type: string in ['linear', 'conv1dx2', 'conv1d-linear']
-      d_ff: dimension of middle layer in feed_forward block
-      ff_kernel_size: kernel size for convolutional versions of ff block
-
-      ff_dropout_rate: dropout rate for ff block
-      pos_dropout_rate: dropout rate for positional encoder
-      att_dropout_rate: dropout rate for attention block
-      in_layer_type: input layer block type in ['linear','conv2d-sub', 'embed', None]
-      rel_pos_enc: if True, use relative postional encodings, absolute encodings otherwise.
-      causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
-                      that query q_i only attents to key k_j when j<=i
-      hid_act:  hidden activations in ff and input blocks
-      norm_before: if True, use layer norm before layers, otherwise after
-      concat_after: if True, if concats attention input and output and apply linear transform, i.e.,
-                             y = x + linear(concat(x, att(x)))
-                    if False, y = x + att(x)
-      padding_idx: padding idx for embed layer
-      in_time_dim: time dimension in the input Tensor
-      out_time_dim: dimension that we want to be time in the output tensor
-
+      in_feats: Input feature dimension.
+      d_model: Encoder block feature dimension.
+      num_heads: Number of attention heads.
+      num_blocks: Number of self-attention blocks.
+      att_type: Attention type in ["scaled-dot-prod-v1", "local-scaled-dot-prod-v1"].
+      att_context: Maximum context range for local attention.
+      ff_type: Feed-forward type in ["linear", "conv1dx2", "conv1dlinear", "conv1d-linear"].
+      d_ff: Hidden dimension in the feed-forward block.
+      ff_kernel_size: Kernel size for convolutional feed-forward variants.
+      ff_dropout_rate: Dropout rate for feed-forward layers.
+      pos_dropout_rate: Dropout rate for positional encoder.
+      att_dropout_rate: Dropout rate for attention block.
+      in_layer_type: Input layer type in ["linear", "conv2d-sub", "embed", None].
+      rel_pos_enc: Whether to use relative positional encodings.
+      causal_pos_enc: Whether relative positional encodings are causal.
+      hid_act: Hidden activation used in feed-forward and input blocks.
+      norm_before: Whether to apply layer normalization before sublayers.
+      concat_after: Whether to concatenate attention input and output before projection.
+      padding_idx: Padding index for the embedding input layer.
+      in_time_dim: Time dimension in the input tensor.
+      out_time_dim: Time dimension in the output tensor.
+      in_layer: Input projection / subsampling module.
+      blocks: Transformer encoder blocks stacked in the network.
+      norm: Final layer normalization, created when ``norm_before`` is True.
     """
 
     def __init__(
         self,
-        in_feats,
-        d_model=256,
-        num_heads=4,
-        num_blocks=6,
-        att_type="scaled-dot-prod-v1",
-        att_context=25,
-        ff_type="linear",
-        d_ff=2048,
-        ff_kernel_size=1,
-        ff_dropout_rate=0.1,
-        pos_dropout_rate=0.1,
-        att_dropout_rate=0.0,
-        in_layer_type="conv2d-sub",
-        rel_pos_enc=False,
-        causal_pos_enc=False,
-        hid_act="relu",
-        norm_before=True,
-        concat_after=False,
-        padding_idx=-1,
-        in_time_dim=-1,
-        out_time_dim=1,
-    ):
+        in_feats: int,
+        d_model: int = 512,
+        num_heads: int = 4,
+        num_blocks: int = 6,
+        att_type: str = "scaled-dot-prod-v1",
+        att_context: int = 25,
+        ff_type: str = "linear",
+        d_ff: int = 2048,
+        ff_kernel_size: int = 3,
+        ff_dropout_rate: float = 0.1,
+        pos_dropout_rate: float = 0.1,
+        att_dropout_rate: float = 0.0,
+        in_layer_type: Union[str, nn.Module, None] = "linear",
+        rel_pos_enc: bool = False,
+        causal_pos_enc: bool = False,
+        hid_act: str = "relu",
+        norm_before: bool = True,
+        concat_after: bool = False,
+        padding_idx: int = -1,
+        in_time_dim: int = -1,
+        out_time_dim: int = 1,
+    ) -> None:
+        """Initialize a transformer encoder architecture.
+
+        Args:
+          in_feats: Input feature dimension.
+          d_model: Encoder block feature dimension.
+          num_heads: Number of attention heads.
+          num_blocks: Number of encoder blocks.
+          att_type: Attention type string.
+          att_context: Maximum context range for local attention.
+          ff_type: Feed-forward type string.
+          d_ff: Hidden dimension in the feed-forward block.
+          ff_kernel_size: Kernel size for convolutional feed-forward variants.
+          ff_dropout_rate: Dropout rate for feed-forward layers.
+          pos_dropout_rate: Dropout rate for positional encoding layers.
+          att_dropout_rate: Dropout rate for attention layers.
+          in_layer_type: Input layer type or module.
+          rel_pos_enc: Whether to use relative positional encodings.
+          causal_pos_enc: Whether relative positional encodings are causal.
+          hid_act: Hidden activation used in feed-forward and input blocks.
+          norm_before: Whether to apply layer normalization before sublayers.
+          concat_after: Whether to concatenate attention input and output before projection.
+          padding_idx: Padding index for the embedding input layer.
+          in_time_dim: Time dimension index in the input tensor.
+          out_time_dim: Time dimension index in the output tensor.
+        """
 
         super().__init__()
         self.in_feats = in_feats
@@ -80,6 +105,8 @@ class TransformerEncoderV1(NetArch):
         self.att_type = att_type
         self.att_context = att_context
 
+        if ff_type == "conv1dlinear":
+            ff_type = "conv1d-linear"
         self.ff_type = ff_type
         self.d_ff = d_ff
         self.ff_kernel_size = ff_kernel_size
@@ -124,7 +151,8 @@ class TransformerEncoderV1(NetArch):
         if self.norm_before:
             self.norm = nn.LayerNorm(d_model)
 
-    def _make_in_layer(self):
+    def _make_in_layer(self) -> None:
+        """Construct the input projection or subsampling layer."""
 
         in_feats = self.in_feats
         d_model = self.d_model
@@ -159,16 +187,22 @@ class TransformerEncoderV1(NetArch):
         else:
             raise ValueError("unknown in_layer_type: " + self.in_layer_type)
 
-    def forward(self, x, mask=None, target_shape=None):
-        """Forward pass function
+    def forward(
+        self,
+        x: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+        target_shape: Optional[Tuple[int, ...]] = None,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Run the transformer encoder forward pass.
 
         Args:
-          x: input tensor with size=(batch, time, num_feats)
-          mask: mask to indicate valid time steps for x (batch, time)
+          x: Input tensor with shape ``(batch, time, num_feats)``.
+          mask: Optional mask indicating valid time steps for ``x`` with shape
+            ``(batch, time)``.
+          target_shape: Reserved compatibility argument. It is currently ignored.
 
         Returns:
-           Tensor with output features
-           Tensor with mask
+           Output tensor, or ``(output, mask)`` when a mask is provided.
         """
         if isinstance(self.in_layer, Conv2dSubsampler):
             x, mask = self.in_layer(x, mask)
@@ -197,10 +231,14 @@ class TransformerEncoderV1(NetArch):
 
         return x, mask
 
-    def get_config(self, no_class_name: bool = False):
-        """Gets network config
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Get the configuration dictionary for this architecture.
+
+        Args:
+          no_class_name: If ``True``, omit the class name entry from the base config.
+
         Returns:
-           dictionary with config params
+          Dictionary with the serialized configuration parameters.
         """
         config = {
             "in_feats": self.in_feats,
@@ -229,7 +267,16 @@ class TransformerEncoderV1(NetArch):
         base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
-    def change_dropouts(self, pos_dropout_rate, att_dropout_rate, ff_dropout_rate):
+    def change_dropouts(
+        self, pos_dropout_rate: float, att_dropout_rate: float, ff_dropout_rate: float
+    ) -> None:
+        """Update dropout rates in the encoder and its submodules.
+
+        Args:
+          pos_dropout_rate: New dropout rate for positional encoders.
+          att_dropout_rate: New dropout rate for attention layers.
+          ff_dropout_rate: New dropout rate for feed-forward layers.
+        """
 
         assert pos_dropout_rate == 0 or self.pos_dropout_rate > 0
         assert att_dropout_rate == 0 or self.att_dropout_rate > 0
@@ -254,28 +301,35 @@ class TransformerEncoderV1(NetArch):
         self.att_dropout_rate = att_dropout_rate
         self.ff_dropout_rate = ff_dropout_rate
 
-    def in_context(self):
-        return (self.att_context, self.att_context)
-
-    def in_shape(self):
-        """Input shape for network
+    def in_context(self) -> Tuple[int, int]:
+        """Return the left/right temporal context required by the encoder.
 
         Returns:
-           Tuple describing input shape
+          Tuple with the left and right context in frames.
+        """
+        return (self.att_context, self.att_context)
+
+    def in_shape(self) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+        """Return the expected input shape for the encoder.
+
+        Returns:
+           Tuple describing the input shape.
         """
         if self.in_time_dim == 1:
             return (None, None, self.in_feats)
         else:
             return (None, self.in_feats, None)
 
-    def out_shape(self, in_shape=None):
-        """Infers the network output shape given the input shape
+    def out_shape(
+        self, in_shape: Optional[Tuple[Optional[int], Optional[int], Optional[int]]] = None
+    ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+        """Infer the output shape given an input shape.
 
         Args:
-          in_shape: input shape tuple
+          in_shape: Input shape tuple.
 
         Returns:
-          Tuple with the output shape
+          Tuple with the output shape.
         """
         if in_shape is None:
             out_t = None
@@ -299,15 +353,14 @@ class TransformerEncoderV1(NetArch):
             return (batch_size, self.d_model, out_t)
 
     @staticmethod
-    def filter_args(**kwargs):
-        """Filters arguments correspondin to TransformerXVector
-            from args dictionary
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments for :class:`TransformerEncoderV1`.
 
         Args:
-          kwargs: args dictionary
+          kwargs: Input argument dictionary.
 
         Returns:
-          args dictionary
+          Dictionary containing only supported constructor arguments.
         """
 
         valid_args = (
@@ -328,17 +381,23 @@ class TransformerEncoderV1(NetArch):
             "rel_pos_enc",
             "causal_pos_enc",
             "concat_after",
+            "padding_idx",
+            "in_time_dim",
+            "out_time_dim",
         )
 
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None, in_feats=False):
-        """Adds Transformer config parameters to argparser
+    def add_class_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, in_feats: bool = False
+    ) -> None:
+        """Add transformer encoder config parameters to an argument parser.
 
         Args:
-           parser: argparse object
-           prefix: prefix string to add to the argument names
+           parser: Argument parser to extend.
+           prefix: Prefix string to add to the argument names.
+           in_feats: Whether to expose the input feature dimension argument.
         """
         if prefix is not None:
             outer_parser = parser
@@ -381,7 +440,7 @@ class TransformerEncoderV1(NetArch):
         parser.add_argument(
             "--ff-type",
             default="linear",
-            choices=["linear", "conv1dx2", "conv1dlinear"],
+            choices=["linear", "conv1dx2", "conv1dlinear", "conv1d-linear"],
             help=("type of feed forward layers in transformer block"),
         )
 

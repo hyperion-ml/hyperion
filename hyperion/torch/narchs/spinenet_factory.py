@@ -2,6 +2,8 @@
  Copyright 2020 Magdalena Rybicka
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+from typing import Any, Dict, Optional
+
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from .spinenet import *
@@ -32,37 +34,75 @@ spinenet_dict = {
 
 
 class SpineNetFactory(object):
+    """Factory helpers for SpineNet variants.
+
+    Attributes:
+        spinenet_dict: Mapping from lowercase architecture names to classes.
+    """
+
     @staticmethod
     def create(
-        spinenet_type,
-        in_channels,
-        output_levels=[3, 4, 5, 6, 7],
-        endpoints_num_filters=256,
-        resample_alpha=0.5,
-        block_repeats=1,
-        filter_size_scale=1.0,
-        conv_channels=64,
-        base_channels=64,
-        out_units=0,
-        hid_act={"name": "relu", "inplace": True},
-        out_act=None,
-        in_kernel_size=7,
-        in_stride=2,
-        zero_init_residual=False,
-        groups=1,
-        dropout_rate=0,
-        norm_layer=None,
-        norm_before=True,
-        do_maxpool=True,
-        in_norm=True,
-        se_r=16,
-        in_feats=None,
-        res2net_scale=4,
-        res2net_width_factor=1,
-    ):
+        spinenet_type: str,
+        in_channels: int,
+        output_levels: list[int] = [3, 4, 5, 6, 7],
+        endpoints_num_filters: int = 256,
+        resample_alpha: float = 0.5,
+        block_repeats: int = 1,
+        filter_size_scale: float = 1.0,
+        conv_channels: int = 64,
+        base_channels: int = 64,
+        out_units: int = 0,
+        hid_act: Any = {"name": "relu", "inplace": True},
+        out_act: Any = None,
+        in_kernel_size: int = 7,
+        in_stride: int = 2,
+        zero_init_residual: bool = False,
+        groups: int = 1,
+        dropout_rate: float = 0,
+        norm_layer: Optional[str] = None,
+        norm_before: bool = True,
+        do_maxpool: bool = True,
+        in_norm: bool = True,
+        se_r: int = 16,
+        in_feats: Optional[int] = None,
+        res2net_scale: int = 4,
+        res2net_width_factor: int = 1,
+    ) -> SpineNet:
+        """Create a SpineNet variant from its registry key.
+
+        Args:
+            spinenet_type: Lowercase key in :data:`spinenet_dict`.
+            in_channels: Number of input channels.
+            output_levels: Output levels returned by the backbone.
+            endpoints_num_filters: Channel width used in endpoint blocks.
+            resample_alpha: Resampling interpolation factor.
+            block_repeats: Number of repeated blocks at each level.
+            filter_size_scale: Multiplier applied to base channel counts.
+            conv_channels: Number of channels in the stem convolution.
+            base_channels: Base width for the permuted blocks.
+            out_units: Output head size; ``0`` disables the head.
+            hid_act: Hidden activation specification.
+            out_act: Optional output activation specification.
+            in_kernel_size: Kernel size of the first convolution.
+            in_stride: Stride of the first convolution.
+            zero_init_residual: If ``True``, zero-initialize residual branches.
+            groups: Number of grouped-convolution groups in residual blocks.
+            dropout_rate: Dropout probability used in residual blocks.
+            norm_layer: Normalization layer name or alias.
+            norm_before: If ``True``, normalize before activation.
+            do_maxpool: If ``True``, keep the stem max-pooling layer.
+            in_norm: If ``True``, normalize the input tensor.
+            se_r: Squeeze-excitation reduction ratio.
+            in_feats: Input feature size used by time-SE variants.
+            res2net_scale: Res2Net scale factor.
+            res2net_width_factor: Res2Net internal width multiplier.
+
+        Returns:
+            SpineNet: Instantiated SpineNet variant.
+        """
         try:
             spinenet_class = spinenet_dict[spinenet_type]
-        except:
+        except KeyError:
             raise Exception("%s is not valid SpineNet network" % (spinenet_type))
 
         spinenet = spinenet_class(
@@ -94,7 +134,16 @@ class SpineNetFactory(object):
 
         return spinenet
 
-    def filter_args(**kwargs):
+    @staticmethod
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter constructor arguments for :meth:`create`.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by :meth:`create`.
+        """
 
         if "norm_after" in kwargs:
             kwargs["norm_before"] = not kwargs["norm_after"]
@@ -107,7 +156,7 @@ class SpineNetFactory(object):
         valid_args = (
             "spinenet_type",
             "in_channels",
-            "ouput_levels",
+            "output_levels",
             "endpoints_num_filters",
             "resample_alpha",
             "block_repeats",
@@ -136,7 +185,13 @@ class SpineNetFactory(object):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register SpineNet constructor arguments on a parser.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional nested prefix for grouped arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -268,7 +323,16 @@ class SpineNetFactory(object):
     add_argparse_args = add_class_args
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter finetuning-only SpineNet arguments.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by
+            :meth:`add_finetune_args`.
+        """
 
         valid_args = (
             "override_dropouts",
@@ -278,7 +342,13 @@ class SpineNetFactory(object):
         return args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register SpineNet finetuning arguments on a parser.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional nested prefix for grouped arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

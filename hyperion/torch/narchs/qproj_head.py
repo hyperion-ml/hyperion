@@ -55,7 +55,7 @@ class QProjHead(NetArch):
         self.use_norm = use_norm
         self.bias = bias
 
-        self._norm_layer: Union[nn.Module, None] = None
+        self._norm_layer: Optional[nn.Module] = None
         if use_norm:
             norm_cls = TransformerV2NormLayerType.to_class(self.norm_layer)
             self._norm_layer = norm_cls(in_feats)
@@ -79,7 +79,16 @@ class QProjHead(NetArch):
         return x
 
     def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
-        """Return a JSON-serialisable snapshot of the constructor arguments."""
+        """Return a JSON-serialisable snapshot of the constructor arguments.
+
+        Args:
+            no_class_name: If ``True``, omit the base class name from the
+                returned configuration.
+
+        Returns:
+            Dict[str, Any]: Configuration dictionary that can reconstruct the
+            module.
+        """
         config = {
             "in_feats": self.in_feats,
             "out_feats": self.out_feats,
@@ -92,7 +101,15 @@ class QProjHead(NetArch):
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
-        """Filter keyword arguments so only constructor parameters remain."""
+        """Filter keyword arguments so only constructor parameters remain.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by
+            ``QProjHead.__init__``.
+        """
         return filter_func_args(QProjHead.__init__, kwargs)
 
     @staticmethod
@@ -115,6 +132,13 @@ class QProjHead(NetArch):
             parser = ArgumentParser(prog="")
         else:
             outer_parser = None
+
+        if "in_feats" not in skip:
+            parser.add_argument(
+                "--in-feats",
+                type=int,
+                help="dimensionality of the flattened q-matrix input",
+            )
 
         if "out_feats" not in skip:
             parser.add_argument(
@@ -150,3 +174,5 @@ class QProjHead(NetArch):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    add_argparse_args = add_class_args

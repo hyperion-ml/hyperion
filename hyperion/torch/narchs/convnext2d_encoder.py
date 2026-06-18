@@ -5,7 +5,7 @@
 
 import logging
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
@@ -19,11 +19,14 @@ from ..layer_blocks import (
     ConvNext2dStemBlock,
 )
 from ..layers import ActivationFactory as AF
+from ..layers import RMSNorm
 from ..utils import scale_seq_lengths, seq_lengths_to_mask
 from .net_arch import NetArch
 
 
 class ConvNext2dShortName(str, Enum):
+    """Short-name presets for the 2D ConvNeXt encoder."""
+
     ATTO = "atto"
     FEMTO = "femto"
     PICO = "pico"
@@ -36,11 +39,30 @@ class ConvNext2dShortName(str, Enum):
     HUGE = "huge"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return the supported preset names.
+
+        Returns:
+            List[str]: Valid preset identifiers.
+        """
         return [o.value for o in ConvNext2dShortName]
 
     @staticmethod
-    def to_config(short_name):
+    def to_config(
+        short_name: Union[str, "ConvNext2dShortName"]
+    ) -> Tuple[List[int], List[int], List[int]]:
+        """Map a preset name to the corresponding encoder layout.
+
+        Args:
+            short_name: Preset identifier as a string or enum value.
+
+        Returns:
+            Tuple[List[int], List[int], List[int]]: Repeats, channels, and
+            downsampling strides for the preset.
+        """
+        if not isinstance(short_name, ConvNext2dShortName):
+            short_name = ConvNext2dShortName(short_name)
+
         if short_name == ConvNext2dShortName.ATTO:
             repeats = [2, 2, 6, 2]
             channels = [40, 80, 160, 320]
@@ -79,35 +101,62 @@ class ConvNext2dShortName(str, Enum):
 
 
 class ConvNextNormLayerType(str, Enum):
+    """Normalization families supported by the 2D ConvNeXt encoder."""
+
     LAYERNORM = "layer-norm"
     RMSNORM = "rms-norm"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return the supported normalization layer names.
+
+        Returns:
+            List[str]: Valid normalization identifiers.
+        """
         return [o.value for o in ConvNextNormLayerType]
+
+    @staticmethod
+    def to_class(value: Optional[Union[str, "ConvNextNormLayerType"]]) -> Type[nn.Module]:
+        """Map a normalization identifier to the corresponding module class.
+
+        Args:
+            value: Normalization identifier as a string or enum value.
+
+        Returns:
+            Type[nn.Module]: Normalization module constructor.
+        """
+        if value is None:
+            return nn.LayerNorm
+        if not isinstance(value, ConvNextNormLayerType):
+            value = ConvNextNormLayerType(value)
+        if value == ConvNextNormLayerType.LAYERNORM:
+            return nn.LayerNorm
+        if value == ConvNextNormLayerType.RMSNORM:
+            return RMSNorm
+        raise ValueError(f"unsupported normalization layer {value}")
 
 
 class ConvNext2dEncoder(NetArch):
-    """ConvNext2d V2 2d Encoder.
+    """ConvNeXtV2 2D encoder.
 
     Attributes:
-        in_channels:    input channels
-        in_kernel_size: kernel size of the stem layer
-        in_stride:      stride of the stem layer
-        short_name:     short_name of the configuration repeats and channel numbers per block
-        convb_repeats:  List of repeats of convolutional layers in each superblock
-        convb_channels: List of channels of convolutional layers in each superblock
-        downb_strides:  List of downsampling strides after each superblock
-        head_channels:  number of channels in the output, if 0, no output layers
-        hid_act:        hidden activation string
-        head_act:       activation in the head, if head_channels > 0
+        in_channels: Input channels.
+        in_kernel_size: Kernel size of the stem layer.
+        in_stride: Stride of the stem layer.
+        short_name: Optional preset name that overrides the stage layout.
+        convb_repeats: Repeats of convolutional layers in each superblock.
+        convb_channels: Channels of convolutional layers in each superblock.
+        downb_strides: Downsampling strides after each superblock.
+        head_channels: Output channels in the head. If ``0``, no head is built.
+        hid_act: Hidden activation name.
+        head_act: Activation in the head, if ``head_channels > 0``.
         drop_path_rate: stochastic layer dropout, for stochastic network depth
-        norm_layer:     type of normalization layer string
-        multilayer:     if aggregates the features of the superblocks
-        multilayer_concat: if True, it does aggregation by concat, otherwise by mean.
-        endpoint_channels: number of channels in the endpoints when doing multilayer
-        endpoint_layers:   which layers are endpoints, if None, all of them are
-        endpoint_scale_layer: which layer is used to get the downsampling scale used as endpoint
+        norm_layer: Normalization layer family.
+        multilayer: If ``True``, aggregate intermediate superblock outputs.
+        multilayer_concat: If ``True``, concatenate endpoints before projection.
+        endpoint_channels: Output channels used by endpoint projections.
+        endpoint_layers: 1-based superblock indices used as endpoints. If ``None``, all are used.
+        endpoint_scale_layer: Superblock index used to define the endpoint scale.
     """
 
     def __init__(
@@ -115,7 +164,7 @@ class ConvNext2dEncoder(NetArch):
         in_channels: int = 1,
         in_kernel_size: int = 4,
         in_stride: int = 4,
-        short_name: Optional[str] = None,
+        short_name: Optional[Union[str, ConvNext2dShortName]] = None,
         convb_repeats: List[int] = [3, 3, 27, 3],
         convb_channels: List[int] = [128, 256, 512, 1024],
         downb_strides: List[int] = [2],
@@ -123,19 +172,42 @@ class ConvNext2dEncoder(NetArch):
         hid_act: str = "gelu",
         head_act: Optional[str] = None,
         drop_path_rate: float = 0.0,
-        norm_layer: ConvNextNormLayerType = ConvNextNormLayerType.LAYERNORM,
+        norm_layer: Optional[Union[str, ConvNextNormLayerType]] = ConvNextNormLayerType.LAYERNORM,
         multilayer: bool = False,
-        multilayer_concat=False,
+        multilayer_concat: bool = False,
         endpoint_channels: Optional[int] = None,
         endpoint_layers: Optional[List[int]] = None,
         endpoint_scale_layer: int = -1,
-    ):
+    ) -> None:
+        """Initialize the encoder.
+
+        Args:
+            in_channels: Number of input channels.
+            in_kernel_size: Kernel size of the stem convolution.
+            in_stride: Stride of the stem convolution.
+            short_name: Optional preset overriding the block layout.
+            convb_repeats: Repeats of ConvNeXt blocks per stage.
+            convb_channels: Channels of ConvNeXt blocks per stage.
+            downb_strides: Downsampling strides between stages.
+            head_channels: Channels of the optional output head.
+            hid_act: Hidden activation name.
+            head_act: Activation name for the head.
+            drop_path_rate: Maximum stochastic depth rate.
+            norm_layer: Normalization layer family.
+            multilayer: Whether to aggregate intermediate stage outputs.
+            multilayer_concat: Whether endpoint aggregation concatenates features.
+            endpoint_channels: Output channels for endpoint projections.
+            endpoint_layers: Stage indices used as endpoints.
+            endpoint_scale_layer: Stage index used as the reference output scale.
+        """
 
         super().__init__()
         self.in_channels = in_channels
         self.in_kernel_size = in_kernel_size
         self.in_stride = in_stride
-        self.short_name = short_name
+        self.short_name = (
+            short_name.value if isinstance(short_name, ConvNext2dShortName) else short_name
+        )
         if short_name is not None:
             convb_repeats, convb_channels, downb_strides = (
                 ConvNext2dShortName.to_config(short_name)
@@ -155,11 +227,13 @@ class ConvNext2dEncoder(NetArch):
         self.head_act = head_act
         self.drop_path_rate = drop_path_rate
         # self.in_feats = in_feats
-        self.norm_layer = norm_layer
-        if norm_layer is None or norm_layer == ConvNextNormLayerType.LAYERNORM:
-            self._norm_layer = nn.LayerNorm
+        if norm_layer is None:
+            self.norm_layer = ConvNextNormLayerType.LAYERNORM
+        elif isinstance(norm_layer, ConvNextNormLayerType):
+            self.norm_layer = norm_layer
         else:
-            raise Exception("TODO")
+            self.norm_layer = ConvNextNormLayerType(norm_layer)
+        self._norm_layer = ConvNextNormLayerType.to_class(self.norm_layer)
 
         # stem block
         in_block = ConvNext2dStemBlock(
@@ -272,19 +346,35 @@ class ConvNext2dEncoder(NetArch):
 
         # head feature block
         if self.head_channels > 0:
-            self.head_norm = self._norm_layer(convb_channels[-1], eps=1e-6)
-            self.head = nn.Linear(convb_channels[-1], head_channels)
+            self.head_norm = self._norm_layer(self.endpoint_channels, eps=1e-6)
+            self.head = nn.Linear(self.endpoint_channels, head_channels)
+            if self.head_act is not None:
+                self.head_act_layer = AF.create(self.head_act)
 
         self._init_weights()
 
-    def _init_weights(self):
+    def _init_weights(self) -> None:
+        """Initialize convolutional and linear weights."""
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
     @staticmethod
-    def _standarize_resblocks_param(p, num_blocks, p_name):
+    def _standarize_resblocks_param(
+        p: Union[int, List[int]], num_blocks: int, p_name: str
+    ) -> List[int]:
+        """Broadcast a stage-wise parameter to the requested number of blocks.
+
+        Args:
+            p: Integer value or list of values to standardize.
+            num_blocks: Expected number of blocks.
+            p_name: Parameter name used in error messages.
+
+        Returns:
+            List[int]: A list with ``num_blocks`` elements.
+        """
         if isinstance(p, int):
             p = [p] * num_blocks
         elif isinstance(p, list):
@@ -301,7 +391,15 @@ class ConvNext2dEncoder(NetArch):
 
         return p
 
-    def _compute_out_size(self, in_size):
+    def _compute_out_size(self, in_size: int) -> int:
+        """Compute the output spatial size for a single dimension.
+
+        Args:
+            in_size: Input size along one spatial dimension.
+
+        Returns:
+            int: Output size after all strided operations.
+        """
         out_size = int((in_size - 1) // self.in_stride + 1)
 
         for stride in self.downb_strides:
@@ -309,13 +407,33 @@ class ConvNext2dEncoder(NetArch):
 
         return out_size
 
-    def in_context(self):
+    def in_context(self) -> Tuple[int, int]:
+        """Return the effective input context of the encoder.
+
+        Returns:
+            Tuple[int, int]: Left/right context in spatial units.
+        """
         return (self._context, self._context)
 
-    def in_shape(self):
+    def in_shape(self) -> Tuple[Optional[int], int, Optional[int], Optional[int]]:
+        """Return the expected input shape.
+
+        Returns:
+            Tuple[None, int, None, None]: Shape specification ``(N, C, H, W)``.
+        """
         return (None, self.in_channels, None, None)
 
-    def out_shape(self, in_shape=None):
+    def out_shape(
+        self, in_shape: Optional[Tuple[Optional[int], ...]] = None
+    ) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
+        """Return the output shape for an optional input shape.
+
+        Args:
+            in_shape: Optional input shape specification ``(N, C, H, W)``.
+
+        Returns:
+            Tuple[Optional[int], ...]: Output shape specification.
+        """
 
         out_channels = (
             self.head_channels if self.head_channels > 0 else self.endpoint_channels
@@ -338,8 +456,21 @@ class ConvNext2dEncoder(NetArch):
 
     @staticmethod
     def _update_mask(
-        x: torch.Tensor, x_lengths: torch.Tensor, x_mask: Optional[torch.Tensor] = None
-    ):
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor],
+        x_mask: Optional[torch.Tensor] = None,
+    ) -> Optional[torch.Tensor]:
+        """Update or reuse the validity mask for the current tensor.
+
+        Args:
+            x: Current feature tensor.
+            x_lengths: Sequence lengths for the batch.
+            x_mask: Previously computed mask, if any.
+
+        Returns:
+            Optional[torch.Tensor]: Mask for the current feature width or
+            ``None`` when no lengths are provided.
+        """
         if x_lengths is None:
             return None
 
@@ -349,7 +480,15 @@ class ConvNext2dEncoder(NetArch):
         return seq_lengths_to_mask(x_lengths, x.size(-1), time_dim=3)
 
     @staticmethod
-    def _match_lens(endpoints):
+    def _match_lens(endpoints: List[torch.Tensor]) -> List[torch.Tensor]:
+        """Center-crop endpoints to a shared temporal length.
+
+        Args:
+            endpoints: Endpoint tensors to align.
+
+        Returns:
+            List[torch.Tensor]: Cropped endpoints with the same last dimension.
+        """
         lens = [e.shape[-1] for e in endpoints]
         min_len = min(lens)
         for i in range(len(endpoints)):
@@ -360,16 +499,25 @@ class ConvNext2dEncoder(NetArch):
 
         return endpoints
 
-    def _merge_endpoints(self, endpoints):
+    def _merge_endpoints(self, endpoints: List[torch.Tensor]) -> torch.Tensor:
+        """Merge endpoint tensors into a single representation.
+
+        Args:
+            endpoints: Endpoint tensors already projected to a common scale.
+
+        Returns:
+            torch.Tensor: Merged endpoint representation.
+        """
         endpoints = self._match_lens(endpoints)
         if self.multilayer_concat:
             try:
                 x = torch.cat(endpoints, dim=1)
-            except:
+            except RuntimeError as exc:
                 for k in range(len(endpoints)):
                     logging.error(
                         f"cat shape error ep={k},  shape{endpoints[k].size()}"
                     )
+                raise RuntimeError("failed to concatenate endpoint tensors") from exc
 
             x = self.concat_endpoint_block(x)
         else:
@@ -377,7 +525,18 @@ class ConvNext2dEncoder(NetArch):
 
         return x
 
-    def forward(self, x: torch.Tensor, x_lengths: Optional[torch.Tensor] = None):
+    def forward(
+        self, x: torch.Tensor, x_lengths: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Run the encoder forward pass.
+
+        Args:
+            x: Input tensor with shape ``(batch, channels, height, width)``.
+            x_lengths: Optional valid-length vector for the last dimension.
+
+        Returns:
+            torch.Tensor: Encoded feature tensor.
+        """
 
         x_mask = None
         endpoints = []
@@ -407,10 +566,20 @@ class ConvNext2dEncoder(NetArch):
         if self.head_channels > 0:
             x = self.head_norm(torch.mean(x, dim=(2, 3)))
             x = self.head(x)
+            if self.head_act is not None:
+                x = self.head_act_layer(x)
 
         return x
 
-    def get_config(self, no_class_name: bool = False):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Return a serializable configuration dictionary.
+
+        Args:
+            no_class_name: If ``True``, omit the class name from the base config.
+
+        Returns:
+            Dict[str, Any]: Model configuration.
+        """
 
         head_act = self.head_act
         hid_act = self.hid_act
@@ -437,12 +606,23 @@ class ConvNext2dEncoder(NetArch):
         base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
-    def change_config(self, override_dropouts, drop_path_rate):
+    def change_config(self, override_dropouts: bool, drop_path_rate: float) -> None:
+        """Update the model for finetuning-time overrides.
+
+        Args:
+            override_dropouts: If ``True``, replace dropout probabilities.
+            drop_path_rate: New stochastic depth rate.
+        """
         if override_dropouts:
-            logging.info("chaning convnext2d dropouts")
+            logging.info("changing convnext2d dropouts")
             self.change_dropouts(drop_path_rate)
 
-    def change_dropouts(self, drop_path_rate):
+    def change_dropouts(self, drop_path_rate: float) -> None:
+        """Rescale any stochastic-depth modules to a new drop-path rate.
+
+        Args:
+            drop_path_rate: New stochastic depth rate.
+        """
         from ..layers import DropPath2d
 
         for module in self.modules():
@@ -452,60 +632,85 @@ class ConvNext2dEncoder(NetArch):
         self.drop_path_rate = drop_path_rate
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter constructor kwargs to the supported arguments.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Subset accepted by :meth:`__init__`.
+        """
         return filter_func_args(ConvNext2dEncoder.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Optional[set[str]] = None
+    ) -> None:
+        """Register constructor arguments on a parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix to add as a nested parser.
+            skip: Optional set of argument names to omit.
+        """
+        skip = set() if skip is None else skip
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument(
-            "--in-channels", type=int, default=1, help=("input channel dimension")
-        )
+        if "in_channels" not in skip:
+            parser.add_argument(
+                "--in-channels", type=int, default=1, help=("input channel dimension")
+            )
 
-        parser.add_argument(
-            "--in-kernel-size",
-            default=4,
-            type=int,
-            help=("kernel size of input convolution"),
-        )
+        if "in_kernel_size" not in skip:
+            parser.add_argument(
+                "--in-kernel-size",
+                default=4,
+                type=int,
+                help=("kernel size of input convolution"),
+            )
 
-        parser.add_argument(
-            "--in-stride", default=4, type=int, help=("stride of input convolution")
-        )
+        if "in_stride" not in skip:
+            parser.add_argument(
+                "--in-stride", default=4, type=int, help=("stride of input convolution")
+            )
 
-        parser.add_argument(
-            "--short-name",
-            default=None,
-            choices=ConvNext2dShortName.choices(),
-            help="short_name of the configuration repeats and channel numbers per block",
-        )
+        if "short_name" not in skip:
+            parser.add_argument(
+                "--short-name",
+                default=None,
+                choices=ConvNext2dShortName.choices(),
+                help="short_name of the configuration repeats and channel numbers per block",
+            )
 
-        parser.add_argument(
-            "--convb-repeats",
-            default=[3, 3, 27, 3],
-            type=int,
-            nargs="+",
-            help=("conv-blocks repeats in each encoder stage"),
-        )
+        if "convb_repeats" not in skip:
+            parser.add_argument(
+                "--convb-repeats",
+                default=[3, 3, 27, 3],
+                type=int,
+                nargs="+",
+                help=("conv-blocks repeats in each encoder stage"),
+            )
 
-        parser.add_argument(
-            "--convb-channels",
-            default=[128, 256, 512, 1024],
-            type=int,
-            nargs="+",
-            help=("conv-blocks channels for each stage"),
-        )
+        if "convb_channels" not in skip:
+            parser.add_argument(
+                "--convb-channels",
+                default=[128, 256, 512, 1024],
+                type=int,
+                nargs="+",
+                help=("conv-blocks channels for each stage"),
+            )
 
-        parser.add_argument(
-            "--downb-strides",
-            default=[2],
-            nargs="+",
-            type=int,
-            help=("resb-blocks strides for each encoder stage"),
-        )
+        if "downb_strides" not in skip:
+            parser.add_argument(
+                "--downb-strides",
+                default=[2],
+                nargs="+",
+                type=int,
+                help=("resb-blocks strides for each encoder stage"),
+            )
 
         if "head_channels" not in skip:
             parser.add_argument(
@@ -515,67 +720,76 @@ class ConvNext2dEncoder(NetArch):
                 help=("channels in the last conv block of encoder"),
             )
 
-        try:
-            parser.add_argument("--hid-act", default="gelu", help="hidden activation")
-        except:
-            pass
+        if "hid_act" not in skip:
+            try:
+                parser.add_argument("--hid-act", default="gelu", help="hidden activation")
+            except Exception:
+                pass
 
-        parser.add_argument(
-            "--head-act", default=None, help="activation in encoder head"
-        )
+        if "head_act" not in skip:
+            parser.add_argument(
+                "--head-act", default=None, help="activation in encoder head"
+            )
 
-        parser.add_argument(
-            "--drop-path-rate",
-            default=0,
-            type=float,
-            help="stochastic depth drop probability",
-        )
+        if "drop_path_rate" not in skip:
+            parser.add_argument(
+                "--drop-path-rate",
+                default=0,
+                type=float,
+                help="stochastic depth drop probability",
+            )
 
-        parser.add_argument(
-            "--norm-layer",
-            default=ConvNextNormLayerType.LAYERNORM.value,
-            choices=ConvNextNormLayerType.choices(),
-            help="type of normalization layer",
-        )
+        if "norm_layer" not in skip:
+            parser.add_argument(
+                "--norm-layer",
+                default=ConvNextNormLayerType.LAYERNORM.value,
+                choices=ConvNextNormLayerType.choices(),
+                help="type of normalization layer",
+            )
 
-        parser.add_argument(
-            "--multilayer",
-            default=False,
-            action=ActionYesNo,
-            help="use multilayer feature aggregation (mfa)",
-        )
+        if "multilayer" not in skip:
+            parser.add_argument(
+                "--multilayer",
+                default=False,
+                action=ActionYesNo,
+                help="use multilayer feature aggregation (mfa)",
+            )
 
-        parser.add_argument(
-            "--multilayer-concat",
-            default=False,
-            action=ActionYesNo,
-            help="use concatenation for mfa",
-        )
+        if "multilayer_concat" not in skip:
+            parser.add_argument(
+                "--multilayer-concat",
+                default=False,
+                action=ActionYesNo,
+                help="use concatenation for mfa",
+            )
 
-        parser.add_argument(
-            "--endpoint-channels",
-            default=None,
-            type=int,
-            help=("num. endpoint channels when using mfa"),
-        )
+        if "endpoint_channels" not in skip:
+            parser.add_argument(
+                "--endpoint-channels",
+                default=None,
+                type=int,
+                help=("num. endpoint channels when using mfa"),
+            )
 
-        parser.add_argument(
-            "--endpoint-layers",
-            default=None,
-            nargs="+",
-            type=int,
-            help=(
-                "layers to aggreagate in mfa, "
-                "if None, all residual blocks are aggregated"
-            ),
-        )
+        if "endpoint_layers" not in skip:
+            parser.add_argument(
+                "--endpoint-layers",
+                default=None,
+                nargs="+",
+                type=int,
+                help=(
+                    "layers to aggreagate in mfa, "
+                    "if None, all residual blocks are aggregated"
+                ),
+            )
 
-        parser.add_argument(
-            "--endpoint-scale-layer",
-            default=-1,
-            type=int,
-            help=("layer number which indicates the time scale in mfa"),
-        )
+        if "endpoint_scale_layer" not in skip:
+            parser.add_argument(
+                "--endpoint-scale-layer",
+                default=-1,
+                type=int,
+                help=("layer number which indicates the time scale in mfa"),
+            )
 
         # parser.add_argument(
         #     "--time-se",
@@ -588,7 +802,15 @@ class ConvNext2dEncoder(NetArch):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter kwargs for finetuning-time configuration updates.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Subset accepted by :meth:`change_config`.
+        """
 
         valid_args = (
             "override_dropouts",
@@ -598,33 +820,45 @@ class ConvNext2dEncoder(NetArch):
         return args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None, skip=set([])):
+    def add_finetune_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Optional[set[str]] = None
+    ) -> None:
+        """Register finetuning arguments on a parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix to add as a nested parser.
+            skip: Optional set of argument names to omit.
+        """
+        skip = set() if skip is None else skip
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        try:
-            parser.add_argument(
-                "--override-dropouts",
-                default=False,
-                action=ActionYesNo,
-                help=(
-                    "whether to use the dropout probabilities passed in the "
-                    "arguments instead of the defaults in the pretrained model."
-                ),
-            )
-        except:
-            pass
+        if "override_dropouts" not in skip:
+            try:
+                parser.add_argument(
+                    "--override-dropouts",
+                    default=False,
+                    action=ActionYesNo,
+                    help=(
+                        "whether to use the dropout probabilities passed in the "
+                        "arguments instead of the defaults in the pretrained model."
+                    ),
+                )
+            except Exception:
+                pass
 
-        try:
-            parser.add_argument(
-                "--drop-path-rate",
-                default=0,
-                type=float,
-                help="layer drop probability",
-            )
-        except:
-            pass
+        if "drop_path_rate" not in skip:
+            try:
+                parser.add_argument(
+                    "--drop-path-rate",
+                    default=0,
+                    type=float,
+                    help="layer drop probability",
+                )
+            except Exception:
+                pass
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

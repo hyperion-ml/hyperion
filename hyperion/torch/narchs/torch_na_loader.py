@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import torch
@@ -25,7 +25,7 @@ from .tdnn import TDNNV1
 from .transformer_encoder_v1 import TransformerEncoderV1
 
 
-class TorchNALoader(object):
+class TorchNALoader:
     @staticmethod
     def load(file_path, extra_objs={}):
 

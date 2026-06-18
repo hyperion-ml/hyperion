@@ -1,10 +1,11 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
 import math
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
 import torch
@@ -29,37 +30,102 @@ from .net_arch import NetArch
 
 
 class ResNet1dEncoder(NetArch):
+    """1D ResNet encoder.
+
+    Attributes:
+        in_feats (int): Input feature dimension.
+        in_conv_channels (int): Channels in the stem convolution block.
+        in_kernel_size (int): Kernel size of the stem convolution.
+        in_stride (int): Stride of the stem convolution.
+        resb_type (str): Residual block family.
+        resb_repeats (List[int]): Number of residual blocks per stage.
+        resb_channels (List[int]): Output channels per stage.
+        resb_kernel_sizes (List[int]): Kernel sizes per stage.
+        resb_strides (List[int]): Strides per stage.
+        resb_dilations (List[int]): Dilations per stage.
+        resb_groups (int): Number of convolution groups in residual blocks.
+        head_channels (int): Optional output channels in the head block.
+        hid_act (Any): Hidden activation specification.
+        head_act (Any): Head activation specification.
+        dropout_rate (float): Dropout probability.
+        drop_connect_rate (float): Drop-connect probability.
+        se_r (int): Squeeze-excitation reduction ratio.
+        res2net_width_factor (float): Res2Net width scaling factor.
+        res2net_scale (int): Res2Net scale factor.
+        multilayer (bool): Enable multi-layer feature aggregation.
+        multilayer_concat (bool): Concatenate instead of averaging endpoints.
+        endpoint_channels (Optional[int]): Output channels for endpoint blocks.
+        endpoint_layers (Optional[Sequence[int]]): Endpoint stage indices.
+        endpoint_scale_layer (int): Stage that defines the endpoint time scale.
+        use_norm (bool): Whether normalization layers are enabled.
+        norm_layer (Optional[str]): Normalization layer factory name.
+        norm_before (bool): Whether normalization precedes activation.
+        upsampling_mode (str): Upsampling mode for endpoint alignment.
+    """
+
     def __init__(
         self,
-        in_feats,
-        in_conv_channels=128,
-        in_kernel_size=3,
-        in_stride=1,
-        resb_type="basic",
-        resb_repeats=[1, 1, 1],
-        resb_channels=128,
-        resb_kernel_sizes=3,
-        resb_strides=2,
-        resb_dilations=1,
-        resb_groups=1,
-        head_channels=0,
-        hid_act="relu",
-        head_act=None,
-        dropout_rate=0,
-        drop_connect_rate=0,
-        se_r=16,
-        res2net_width_factor=1,
-        res2net_scale=4,
-        multilayer=False,
-        multilayer_concat=False,
-        endpoint_channels=None,
-        endpoint_layers=None,
-        endpoint_scale_layer=-1,
-        use_norm=True,
-        norm_layer=None,
-        norm_before=True,
-        upsampling_mode="nearest",
-    ):
+        in_feats: int,
+        in_conv_channels: int = 128,
+        in_kernel_size: int = 3,
+        in_stride: int = 1,
+        resb_type: str = "basic",
+        resb_repeats: List[int] = [1, 1, 1],
+        resb_channels: Union[int, Sequence[int]] = 128,
+        resb_kernel_sizes: Union[int, Sequence[int]] = 3,
+        resb_strides: Union[int, Sequence[int]] = 2,
+        resb_dilations: Union[int, Sequence[int]] = 1,
+        resb_groups: int = 1,
+        head_channels: int = 0,
+        hid_act: Union[str, Dict[str, Any]] = "relu",
+        head_act: Optional[Union[str, Dict[str, Any]]] = None,
+        dropout_rate: float = 0,
+        drop_connect_rate: float = 0,
+        se_r: int = 16,
+        res2net_width_factor: float = 1,
+        res2net_scale: int = 4,
+        multilayer: bool = False,
+        multilayer_concat: bool = False,
+        endpoint_channels: Optional[int] = None,
+        endpoint_layers: Optional[Sequence[int]] = None,
+        endpoint_scale_layer: int = -1,
+        use_norm: bool = True,
+        norm_layer: Optional[str] = None,
+        norm_before: bool = True,
+        upsampling_mode: str = "nearest",
+    ) -> None:
+        """Build the encoder.
+
+        Args:
+            in_feats: Input feature dimension.
+            in_conv_channels: Channels in the stem block.
+            in_kernel_size: Kernel size of the stem block.
+            in_stride: Stride of the stem block.
+            resb_type: Residual block variant.
+            resb_repeats: Number of blocks in each stage.
+            resb_channels: Output channels for each stage.
+            resb_kernel_sizes: Kernel sizes for each stage.
+            resb_strides: Strides for each stage.
+            resb_dilations: Dilations for each stage.
+            resb_groups: Number of convolution groups in residual blocks.
+            head_channels: Channels in the optional head block.
+            hid_act: Hidden activation specification.
+            head_act: Head activation specification.
+            dropout_rate: Dropout probability.
+            drop_connect_rate: Drop-connect probability.
+            se_r: Squeeze-excitation reduction ratio.
+            res2net_width_factor: Res2Net width scaling factor.
+            res2net_scale: Res2Net scale factor.
+            multilayer: Enable multi-layer feature aggregation.
+            multilayer_concat: Concatenate instead of averaging endpoints.
+            endpoint_channels: Output channels for endpoint blocks.
+            endpoint_layers: Endpoint stage indices.
+            endpoint_scale_layer: Stage that defines the endpoint time scale.
+            use_norm: Whether to use normalization layers.
+            norm_layer: Normalization layer factory name.
+            norm_before: Whether normalization precedes activation.
+            upsampling_mode: Upsampling mode for endpoint alignment.
+        """
 
         super().__init__()
 
@@ -84,6 +150,8 @@ class ResNet1dEncoder(NetArch):
                 self._block = Res2Net1dBasicBlock
             else:
                 self._block = Res2Net1dBNBlock
+        else:
+            raise ValueError(f"unsupported resb_type={resb_type}")
 
         self.in_feats = in_feats
         self.in_conv_channels = in_conv_channels
@@ -117,7 +185,7 @@ class ResNet1dEncoder(NetArch):
         self.norm_layer = norm_layer
         norm_groups = None
         if norm_layer == "group-norm":
-            norm_groups = min(np.min(resb_channels) // 2, 32)
+            norm_groups = min(min(self.resb_channels) // 2, 32)
             norm_groups = max(norm_groups, resb_groups)
         self._norm_layer = NLF.create(norm_layer, norm_groups)
 
@@ -153,7 +221,9 @@ class ResNet1dEncoder(NetArch):
             # if there is downsampling the dilation of the first block
             # is set to 1
             dilation_i1 = dilation_i if stride_i == 1 else 1
-            drop_i = drop_connect_rate * k / (total_blocks - 1)
+            drop_i = (
+                0.0 if total_blocks <= 1 else drop_connect_rate * k / (total_blocks - 1)
+            )
             block_i1 = self._block(
                 cur_in_channels,
                 channels_i,
@@ -177,7 +247,11 @@ class ResNet1dEncoder(NetArch):
             self.resb_scales.append(self._downsample_factor)
 
             for j in range(repeats_i - 1):
-                drop_i = drop_connect_rate * k / (total_blocks - 1)
+                drop_i = (
+                    0.0
+                    if total_blocks <= 1
+                    else drop_connect_rate * k / (total_blocks - 1)
+                )
                 block_ij = self._block(
                     channels_i,
                     channels_i,
@@ -288,7 +362,14 @@ class ResNet1dEncoder(NetArch):
 
         self._init_weights(hid_act)
 
-    def _init_weights(self, hid_act):
+    def _init_weights(self, hid_act: Union[str, Dict[str, Any]]) -> None:
+        """Initialize convolution and normalization weights.
+
+        Args:
+            hid_act: Hidden activation specification used to select the
+                Kaiming initializer nonlinearity.
+        """
+        act_name = "relu"
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
                 if isinstance(hid_act, str):
@@ -310,7 +391,19 @@ class ResNet1dEncoder(NetArch):
                 nn.init.constant_(m.bias, 0)
 
     @staticmethod
-    def _standarize_resblocks_param(p, num_blocks, p_name):
+    def _standarize_resblocks_param(
+        p: Union[int, List[int]], num_blocks: int, p_name: str
+    ) -> List[int]:
+        """Normalize a residual-stage parameter to a list.
+
+        Args:
+            p: Scalar or sequence value to normalize.
+            num_blocks: Number of residual stages.
+            p_name: Parameter name used in error messages.
+
+        Returns:
+            A list with one entry per residual stage.
+        """
         if isinstance(p, int):
             p = [p] * num_blocks
         elif isinstance(p, list):
@@ -327,11 +420,22 @@ class ResNet1dEncoder(NetArch):
 
         return p
 
-    def _compute_out_size(self, in_size):
+    def _compute_out_size(self, in_size: int) -> int:
+        """Compute the output temporal length for a given input length.
+
+        Args:
+            in_size: Input temporal size.
+
+        Returns:
+            Output temporal size after all encoder stages.
+        """
         out_size = int((in_size - 1) // self.in_stride + 1)
 
         if self.multilayer:
-            strides = self.resb_strides[self.endpoint_scale_layer]
+            endpoint_idx = self.endpoint_scale_layer
+            if endpoint_idx < 0:
+                endpoint_idx += len(self.resb_strides)
+            strides = self.resb_strides[: endpoint_idx + 1]
         else:
             strides = self.resb_strides
 
@@ -340,13 +444,33 @@ class ResNet1dEncoder(NetArch):
 
         return out_size
 
-    def in_context(self):
+    def in_context(self) -> Tuple[int, int]:
+        """Return the receptive-field context required by the encoder.
+
+        Returns:
+            A symmetric `(left, right)` context tuple.
+        """
         return (self._context, self._context)
 
-    def in_shape(self):
+    def in_shape(self) -> Tuple[Optional[int], int, Optional[int]]:
+        """Return the expected input shape.
+
+        Returns:
+            The expected `(batch, channels, time)` shape.
+        """
         return (None, self.in_feats, None)
 
-    def out_shape(self, in_shape=None):
+    def out_shape(
+        self, in_shape: Optional[Sequence[Optional[int]]] = None
+    ) -> Tuple[Optional[int], int, Optional[int]]:
+        """Return the output shape for a given input shape.
+
+        Args:
+            in_shape: Optional `(batch, channels, time)` input shape.
+
+        Returns:
+            The output `(batch, channels, time)` shape.
+        """
         out_channels = (
             self.head_channels if self.head_channels > 0 else self.endpoint_channels
         )
@@ -362,7 +486,15 @@ class ResNet1dEncoder(NetArch):
         return (in_shape[0], out_channels, T)
 
     @staticmethod
-    def _match_lens(endpoints):
+    def _match_lens(endpoints: List[torch.Tensor]) -> List[torch.Tensor]:
+        """Center-crop a list of endpoint tensors to a common length.
+
+        Args:
+            endpoints: Endpoint tensors to align.
+
+        Returns:
+            The cropped endpoint tensors.
+        """
         lens = [e.shape[-1] for e in endpoints]
         min_len = min(lens)
         for i in range(len(endpoints)):
@@ -374,7 +506,21 @@ class ResNet1dEncoder(NetArch):
         return endpoints
 
     @staticmethod
-    def _update_mask(x, x_lengths, x_mask=None):
+    def _update_mask(
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor],
+        x_mask: Optional[torch.Tensor] = None,
+    ) -> Optional[torch.Tensor]:
+        """Build or reuse a time mask for a batch.
+
+        Args:
+            x: Input tensor.
+            x_lengths: Sequence lengths for `x`.
+            x_mask: Optional precomputed mask.
+
+        Returns:
+            A time mask or `None` when `x_lengths` is not provided.
+        """
         if x_lengths is None:
             return None
 
@@ -383,16 +529,17 @@ class ResNet1dEncoder(NetArch):
 
         return seq_lengths_to_mask(x_lengths, x.size(-1), time_dim=2, dtype=x.dtype)
 
-    def forward(self, x, x_lengths=None):
-        """forward function
+    def forward(
+        self, x: torch.Tensor, x_lengths: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Run the encoder forward pass.
 
         Args:
-           x: input tensor of size=(batch, C, time)
-           x_lengths:  it contains the lengths of the sequences.
-        Returns:
-           Tensor with output logits of size=(batch, out_units) if out_units>0,
-           otherwise, it returns tensor of represeantions of size=(batch, Cout, out_time)
+            x: Input tensor of shape `(batch, channels, time)`.
+            x_lengths: Optional sequence lengths for masking.
 
+        Returns:
+            The encoded tensor.
         """
 
         x_mask = self._update_mask(x, x_lengths)
@@ -401,7 +548,7 @@ class ResNet1dEncoder(NetArch):
 
         for i, superblock in enumerate(self.blocks):
             for j, block in enumerate(superblock):
-                #x_mask = self._update_mask(x, x_lengths, x_mask)
+                # x_mask = self._update_mask(x, x_lengths, x_mask)
                 if x_mask is not None and block.stride > 1:
                     x_mask = x_mask[..., :: block.stride]
 
@@ -429,12 +576,31 @@ class ResNet1dEncoder(NetArch):
                 x = torch.mean(torch.stack(endpoints), 0)
 
         if self.head_channels > 0:
-            #x_mask = self._update_mask(x, x_lengths, x_mask)
+            # x_mask = self._update_mask(x, x_lengths, x_mask)
             x = self.head_block(x)
 
         return x
 
-    def forward_hid_feats(self, x, x_lengths=None, layers=None, return_output=False):
+    def forward_hid_feats(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        layers: Optional[Sequence[int]] = None,
+        return_output: bool = False,
+    ) -> Union[List[torch.Tensor], Tuple[List[torch.Tensor], torch.Tensor]]:
+        """Return hidden features from selected encoder layers.
+
+        Args:
+            x: Input tensor of shape `(batch, channels, time)`.
+            x_lengths: Optional sequence lengths for masking.
+            layers: Layer indices to collect. Layer `0` is the stem block and
+                subsequent values refer to residual stages.
+            return_output: Whether to also return the final encoder output.
+
+        Returns:
+            Either the collected hidden features or a tuple with the features
+            and the final encoder output when `return_output` is `True`.
+        """
 
         assert layers is not None or return_output
         if layers is None:
@@ -445,15 +611,20 @@ class ResNet1dEncoder(NetArch):
         else:
             last_layer = max(layers)
 
+        x_mask = self._update_mask(x, x_lengths)
+
         h = []
-        x = self.in_block(x)
+        x = self.in_block(x, x_mask=x_mask)
         if 0 in layers:
             h.append(x)
 
         endpoints = []
         for i, superblock in enumerate(self.blocks):
             for j, block in enumerate(superblock):
-                x = block(x)
+                if x_mask is not None and block.stride > 1:
+                    x_mask = x_mask[..., :: block.stride]
+
+                x = block(x, x_mask=x_mask)
 
             if i + 1 in layers:
                 h.append(x)
@@ -472,6 +643,7 @@ class ResNet1dEncoder(NetArch):
             return h
 
         if self.multilayer:
+            endpoints = self._match_lens(endpoints)
             if self.multilayer_concat:
                 x = torch.cat(endpoints, dim=1)
                 x = self.concat_endpoint_block(x)
@@ -483,7 +655,16 @@ class ResNet1dEncoder(NetArch):
 
         return h, x
 
-    def get_config(self, no_class_name: bool = False):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Return the serializable configuration.
+
+        Args:
+            no_class_name: If `True`, omit the class metadata from the base
+                configuration.
+
+        Returns:
+            A dictionary with the encoder configuration.
+        """
 
         head_act = self.head_act
         hid_act = self.hid_act
@@ -522,24 +703,50 @@ class ResNet1dEncoder(NetArch):
         base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
-    def change_config(self, override_dropouts, dropout_rate, drop_connect_rate):
+    def change_config(
+        self, override_dropouts: bool, dropout_rate: float, drop_connect_rate: float
+    ) -> None:
+        """Update dropout configuration from a pretrained model.
+
+        Args:
+            override_dropouts: Whether to apply the provided dropout values.
+            dropout_rate: New dropout probability.
+            drop_connect_rate: New drop-connect probability.
+        """
         if override_dropouts:
             logging.info("chaning resnet1d dropouts")
             self.change_dropouts(dropout_rate, drop_connect_rate)
 
-    def change_dropouts(self, dropout_rate, drop_connect_rate):
+    def change_dropouts(self, dropout_rate: float, drop_connect_rate: float) -> None:
+        """Update dropout and drop-connect probabilities.
+
+        Args:
+            dropout_rate: New dropout probability.
+            drop_connect_rate: New drop-connect probability.
+        """
         super().change_dropouts(dropout_rate)
         from ..layers import DropConnect1d
 
         for module in self.modules():
             if isinstance(module, DropConnect1d):
-                module.p *= drop_connect_rate / self.drop_connect_rate
+                if self.drop_connect_rate == 0:
+                    module.p = drop_connect_rate
+                else:
+                    module.p *= drop_connect_rate / self.drop_connect_rate
 
         self.drop_connect_rate = drop_connect_rate
         self.dropout_rate = dropout_rate
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments accepted by the encoder constructor.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            The subset accepted by :meth:`__init__`.
+        """
         return filter_func_args(ResNet1dEncoder.__init__, kwargs)
         # valid_args = (
         #     "in_feats",
@@ -577,7 +784,18 @@ class ResNet1dEncoder(NetArch):
         # return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set(["in_feats"])):
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Set[str] = set(["in_feats"]),
+    ) -> None:
+        """Add command-line arguments for this encoder.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional argument namespace prefix.
+            skip: Argument names to skip.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -821,7 +1039,15 @@ class ResNet1dEncoder(NetArch):
     add_argparse_args = add_class_args
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments accepted by the finetuning helpers.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            The subset accepted by :meth:`change_config`.
+        """
 
         valid_args = (
             "override_dropouts",
@@ -832,7 +1058,16 @@ class ResNet1dEncoder(NetArch):
         return args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None, skip=set([])):
+    def add_finetune_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set([])
+    ) -> None:
+        """Add command-line arguments used when adapting a pretrained model.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional argument namespace prefix.
+            skip: Argument names to skip.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

@@ -7,7 +7,7 @@ import logging
 import math
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
@@ -57,10 +57,32 @@ class TransformerEncoderState(HyperDataClass):
     block_states: List[TransformerBlockState] = field(default_factory=list)
 
     def __len__(self) -> int:
+        """Return the number of block cache entries.
+
+        Returns:
+            int: Number of cached transformer blocks.
+        """
         return len(self.block_states)
 
 
 class TransformerEncoderV2ShortName(str, Enum):
+    """Preset short names for common `TransformerEncoderV2` configurations.
+
+    Attributes:
+        ATTO: Smallest preset.
+        FEMTO: Very small preset.
+        PICO: Small preset.
+        NANO: Small preset with more stages.
+        TINY: Compact preset.
+        SMALL: Mid-sized preset.
+        BASE: Base-size preset.
+        BASE_GQA: Base-size preset using grouped-query attention.
+        LARGE: Large preset.
+        LARGE_GQA: Large preset using grouped-query attention.
+        XLARGE: Extra-large preset.
+        HUGE: Largest preset in this file.
+    """
+
     ATTO = "atto"
     FEMTO = "femto"
     PICO = "pico"
@@ -72,11 +94,17 @@ class TransformerEncoderV2ShortName(str, Enum):
     LARGE = "large"
     LARGE_GQA = "large_gqa"
     XLARGE = "xlarge"
+    XLARGE_GQA = "xlarge_gqa"
     HUGE = "huge"
+    HUGE_GQA = "huge_gqa"
 
     @staticmethod
     def choices() -> List[str]:
-        """Return every available short-name preset."""
+        """Return every available short-name preset.
+
+        Returns:
+            List[str]: String values accepted by the configuration parser.
+        """
         return [o.value for o in TransformerEncoderV2ShortName]
 
     @staticmethod
@@ -91,7 +119,17 @@ class TransformerEncoderV2ShortName(str, Enum):
         int,
         List[int],
     ]:
-        """Map a short-name preset to the canonical transformer hyper-parameters."""
+        """Map a short-name preset to canonical transformer hyper-parameters.
+
+        Args:
+            short_name: Preset name to translate.
+
+        Returns:
+            Tuple[List[int], List[int], int, Optional[int], float, int, List[int]]:
+            Transformer stage repeats, hidden dimensions, number of heads,
+            optional key/value heads, feed-forward multiplier, feed-forward
+            rounding multiple, and downsample strides.
+        """
         strides = [1]
         ff_dim_multiplier = 4
         num_kv_heads = None
@@ -128,20 +166,42 @@ class TransformerEncoderV2ShortName(str, Enum):
             repeats = 4 * [3]
             channels = 4 * [768]
             num_heads = 12
-            num_kv_heads = 6
+            num_kv_heads = 4
         elif short_name == TransformerEncoderV2ShortName.LARGE:
             repeats = 6 * [4]
             channels = 6 * [1024]
-            num_heads = 24
+            num_heads = 16
             ff_dim_multiplier = 3.5
         elif short_name == TransformerEncoderV2ShortName.LARGE_GQA:
             repeats = 6 * [4]
             channels = 6 * [1024]
-            num_heads = 24
-            num_kv_heads = 8
+            num_heads = 16
+            num_kv_heads = 4
             ff_dim_multiplier = 3.5
+        elif short_name == TransformerEncoderV2ShortName.XLARGE:
+            repeats = 8 * [4]
+            channels = 8 * [1280]
+            num_heads = 20
+            ff_dim_multiplier = 3.5
+        elif short_name == TransformerEncoderV2ShortName.XLARGE_GQA:
+            repeats = 8 * [4]
+            channels = 8 * [1280]
+            num_heads = 20
+            num_kv_heads = 5
+            ff_dim_multiplier = 3
+        elif short_name == TransformerEncoderV2ShortName.HUGE:
+            repeats = 8 * [5]
+            channels = 8 * [1536]
+            num_heads = 24
+            ff_dim_multiplier = 2.7
+        elif short_name == TransformerEncoderV2ShortName.HUGE_GQA:
+            repeats = 8 * [5]
+            channels = 8 * [1536]
+            num_heads = 24
+            num_kv_heads = 6
+            ff_dim_multiplier = 2.7
         else:
-            raise ValueError(f"wrong ConvNext short name {short_name.value}")
+            raise ValueError(f"wrong TransformerEncoderV2 short name {short_name}")
 
         return (
             repeats,
@@ -198,7 +258,7 @@ class TransformerEncoderV2(NetArch):
         multilayer (bool): Whether to enable multi-layer feature aggregation (MFA).
         multilayer_concat (bool): Whether MFA concatenates features instead of summing them.
         endpoint_channels (Optional[int]): Target channel size for MFA endpoints.
-        endpoint_layers (Optional[List[int]]): Indices of encoder stages used as MFA endpoints.
+        endpoint_layers (Optional[List[int]]): Zero-based indices of encoder stages used as MFA endpoints.
         endpoint_scale_layer (int): Stage index defining the temporal scale for MFA.
         model_parallel (bool): Enables FairScale tensor model parallelism for projections.
     """
@@ -248,7 +308,7 @@ class TransformerEncoderV2(NetArch):
         endpoint_layers: Optional[List[int]] = None,
         endpoint_scale_layer: int = -1,
         model_parallel: bool = False,
-    ):
+    ) -> None:
         """Instantiate a Transformer encoder with optional multi-scale aggregation.
 
         Args:
@@ -292,7 +352,7 @@ class TransformerEncoderV2(NetArch):
             multilayer (bool, optional): Enables multi-layer feature aggregation (MFA). Defaults to ``False``.
             multilayer_concat (bool, optional): If ``True``, MFA concatenates endpoints before projection. Defaults to ``False``.
             endpoint_channels (Optional[int], optional): Target channel width for MFA endpoints. Defaults to ``None``.
-            endpoint_layers (Optional[List[int]], optional): Stage indices exported as MFA endpoints. Defaults to ``None``.
+            endpoint_layers (Optional[List[int]], optional): Zero-based stage indices exported as MFA endpoints. Defaults to ``None``.
             endpoint_scale_layer (int, optional): Stage index defining the temporal resolution for MFA. Defaults to ``-1``.
             model_parallel (bool, optional): Enables FairScale tensor model-parallel linear layers. Defaults to ``False``.
         """
@@ -432,7 +492,7 @@ class TransformerEncoderV2(NetArch):
                     num_feats=hidden_dim_i,
                     num_heads=self.num_heads,
                     num_kv_heads=self.num_kv_heads,
-                    ff_intermediate_feats=hidden_dim_i * self.ff_dim_multiplier,
+                    ff_intermediate_feats=int(hidden_dim_i * self.ff_dim_multiplier),
                     ff_kernel_size=ff_kernel_size_i,
                     ff_dilation=ff_dilation_i,
                     ff_activation=self.ff_act,
@@ -455,19 +515,39 @@ class TransformerEncoderV2(NetArch):
 
         # code for multilayer aggregation
         if multilayer:
+            if endpoint_scale_layer < -num_superblocks or endpoint_scale_layer >= num_superblocks:
+                raise ValueError(
+                    "endpoint_scale_layer contains an invalid stage index "
+                    f"{endpoint_scale_layer}; valid range is [{-num_superblocks}, {num_superblocks - 1}]"
+                )
+
             if endpoint_layers is None:
-                # if is None all layers are endpoints
-                endpoint_layers = [i + 1 for i in range(num_superblocks)]
+                # if None, all encoder stages are endpoints
+                endpoint_layers = list(range(num_superblocks))
+            else:
+                endpoint_layers = list(dict.fromkeys(endpoint_layers))
+                if len(endpoint_layers) == 0:
+                    raise ValueError(
+                        "endpoint_layers must contain at least one stage when multilayer=True"
+                    )
+
+                invalid_layers = [
+                    layer
+                    for layer in endpoint_layers
+                    if layer < 0 or layer >= num_superblocks
+                ]
+                if invalid_layers:
+                    raise ValueError(
+                        "endpoint_layers contains invalid 0-based stage indices "
+                        f"{invalid_layers}; valid range is [0, {num_superblocks - 1}]"
+                    )
 
             if endpoint_channels is None:
                 # if None, the number of endpoint channels matches the one of the endpoint level
                 endpoint_channels = self.hidden_dims[endpoint_scale_layer]
 
-            # which layers are enpoints
-            self.is_endpoint = [
-                True if i + 1 in endpoint_layers else False
-                for i in range(num_superblocks)
-            ]
+            # which layers are endpoints
+            self.is_endpoint = [i in endpoint_layers for i in range(num_superblocks)]
             # which endpoints have a projection layer ConvNext1dEndpoint
             self.has_endpoint_block = [False] * num_superblocks
             # relates endpoint layers to their ResNet1dEndpoint object
@@ -536,7 +616,8 @@ class TransformerEncoderV2(NetArch):
 
         self._init_weights()
 
-    def _init_weights(self):
+    def _init_weights(self) -> None:
+        """Initialize learnable weights with truncated normal values."""
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
@@ -548,7 +629,19 @@ class TransformerEncoderV2(NetArch):
                     m.weight.data[m.padding_idx].zero_()
 
     @staticmethod
-    def _standarize_resblocks_param(p, num_blocks, p_name):
+    def _standarize_resblocks_param(
+        p: Union[int, List[int]], num_blocks: int, p_name: str
+    ) -> List[int]:
+        """Normalize a residual-block parameter to one value per block.
+
+        Args:
+            p: Scalar or list-valued parameter.
+            num_blocks: Required number of values.
+            p_name: Parameter name used in error messages.
+
+        Returns:
+            List[int]: Parameter expanded to ``num_blocks`` entries.
+        """
         if isinstance(p, int):
             p = [p] * num_blocks
         elif isinstance(p, list):
@@ -565,7 +658,15 @@ class TransformerEncoderV2(NetArch):
 
         return p
 
-    def _compute_out_size(self, in_size):
+    def _compute_out_size(self, in_size: int) -> int:
+        """Compute the encoder time length after all convolutions.
+
+        Args:
+            in_size: Input time length.
+
+        Returns:
+            int: Output time length after stem and downsampling blocks.
+        """
         out_size = in_size
         for stride in self.stem_strides:
             out_size = int((out_size + stride - 1) // stride)
@@ -575,13 +676,34 @@ class TransformerEncoderV2(NetArch):
 
         return out_size
 
-    def in_context(self):
+    def in_context(self) -> Tuple[int, int]:
+        """Return the encoder receptive-field context.
+
+        Returns:
+            Tuple[int, int]: Symmetric left/right context in frames.
+        """
         return (self._context, self._context)
 
-    def in_shape(self):
+    def in_shape(self) -> Tuple[Optional[int], Optional[int], int]:
+        """Return the expected input tensor shape.
+
+        Returns:
+            Tuple[Optional[int], Optional[int], int]: Expected shape
+            ``(batch, time, features)``.
+        """
         return (None, None, self.in_feats)
 
-    def out_shape(self, in_shape=None):
+    def out_shape(
+        self, in_shape: Optional[Tuple[Optional[int], Optional[int], int]] = None
+    ) -> Tuple[Optional[int], Optional[int], int]:
+        """Return the output tensor shape for a given input shape.
+
+        Args:
+            in_shape: Optional input shape ``(batch, time, features)``.
+
+        Returns:
+            Tuple[Optional[int], Optional[int], int]: Output shape.
+        """
         out_channels = (
             self.out_feats if self.out_feats is not None else self.endpoint_channels
         )
@@ -598,18 +720,39 @@ class TransformerEncoderV2(NetArch):
 
     @staticmethod
     def _update_mask(
-        x: torch.Tensor, x_lengths: torch.Tensor, x_mask: Optional[torch.Tensor] = None
-    ):
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor],
+        x_mask: Optional[torch.Tensor] = None,
+    ) -> Optional[torch.Tensor]:
+        """Refresh a time mask for the current sequence length.
+
+        Args:
+            x: Current tensor shaped ``(batch, time, features)``.
+            x_lengths: Valid sequence lengths for the current tensor.
+            x_mask: Optional mask already matching the current time dimension.
+
+        Returns:
+            Optional[torch.Tensor]: Mask aligned with ``x`` or ``None`` when
+            lengths are unavailable.
+        """
         if x_lengths is None:
             return None
 
-        if x_mask is not None and x.size(-1) == x_mask.size(-1):
+        if x_mask is not None and x.size(1) == x_mask.size(1):
             return x_mask
 
-        return seq_lengths_to_mask(x_lengths, x.size(-1), time_dim=1)
+        return seq_lengths_to_mask(x_lengths, x.size(1), time_dim=1)
 
     @staticmethod
-    def _match_lens(endpoints):
+    def _match_lens(endpoints: List[torch.Tensor]) -> List[torch.Tensor]:
+        """Center-crop endpoint tensors so they share a common time length.
+
+        Args:
+            endpoints: Endpoint tensors to align.
+
+        Returns:
+            List[torch.Tensor]: Cropped endpoint tensors with equal time length.
+        """
         lens = [e.shape[1] for e in endpoints]
         min_len = min(lens)
         for i in range(len(endpoints)):
@@ -620,16 +763,25 @@ class TransformerEncoderV2(NetArch):
 
         return endpoints
 
-    def _merge_endpoints(self, endpoints):
+    def _merge_endpoints(self, endpoints: List[torch.Tensor]) -> torch.Tensor:
+        """Merge multi-layer endpoints into a single representation.
+
+        Args:
+            endpoints: Endpoint tensors to combine.
+
+        Returns:
+            torch.Tensor: Aggregated endpoint tensor.
+        """
         endpoints = self._match_lens(endpoints)
         if self.multilayer_concat:
             try:
                 x = torch.cat(endpoints, dim=2)
-            except:
+            except Exception:
                 for k in range(len(endpoints)):
                     logging.error(
                         f"cat shape error ep={k},  shape{endpoints[k].size()}"
                     )
+                raise
 
             x = self.concat_endpoint_block(x)
         else:
@@ -692,7 +844,8 @@ class TransformerEncoderV2(NetArch):
         Args:
             x (torch.Tensor): Input tensor shaped `(batch, time, features)`.
             x_lengths (Optional[torch.Tensor]): Valid lengths for each sequence.
-            start_pos (int, optional): Global starting position used when writing into caches.
+            start_pos (int, optional): Global starting position in the input-frame time base;
+                it is rescaled as the sequence is downsampled before cache writes.
             state (Optional[TransformerEncoderState]): Optional cache state returned by :meth:`init_state`.
 
         Returns:
@@ -701,11 +854,14 @@ class TransformerEncoderV2(NetArch):
         """
 
         x_mask = None
-        max_length = x.size(-1)
         if not torch.all(torch.isfinite(x)):
             logging.warning("non-finite x-in-avg=%f", torch.mean(x))
 
         _, x, x_lengths = self.stem_block(x, x_lengths)
+        x_mask = self._update_mask(x, x_lengths, x_mask)
+        for stride in self.stem_strides:
+            if stride > 1:
+                start_pos = start_pos // stride
         endpoints = []
         if not torch.all(torch.isfinite(x)):
             logging.warning("non-finite x-stem-avg=%f", torch.mean(x))
@@ -717,16 +873,15 @@ class TransformerEncoderV2(NetArch):
         block_idx = 0
 
         for i in range(self.num_superblocks):
-            # downsample if needed and recalculate lengths
-            # max_length = x.size(-1)
+            prev_length = x.size(1)
             x = self.downsample_blocks[i](x)
+            x_lengths = scale_seq_lengths(
+                x_lengths, max_out_length=x.size(1), max_in_length=prev_length
+            )
+            x_mask = self._update_mask(x, x_lengths, x_mask)
             if i > 0:
                 stride_i = self.downb_strides[i - 1]
                 if stride_i > 1:
-                    # x_lengths = scale_seq_lengths(
-                    #     x_lengths, max_out_length=x.size(-1), max_in_length=max_length
-                    # )
-                    # x_mask = self._update_mask(x, x_lengths, x_mask)
                     start_pos = start_pos // stride_i
 
             for j in range(self.encb_repeats[i]):
@@ -772,16 +927,21 @@ class TransformerEncoderV2(NetArch):
         if self.out_feats is not None:
             x = self.out_proj(x)
 
-        x_lengths = scale_seq_lengths(
-            x_lengths, max_out_length=x.size(-1), max_in_length=max_length
-        )
         if not torch.all(torch.isfinite(x)):
             logging.warning("non-finite x-out-%d-%d-avg=%f", i, j, torch.mean(x))
         if state is not None:
             return x, x_lengths, TransformerEncoderState(block_states=updated_states)
         return x, x_lengths
 
-    def get_config(self, no_class_name: bool = False):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Return a serializable configuration dictionary.
+
+        Args:
+            no_class_name: Whether to omit class metadata from the base config.
+
+        Returns:
+            Dict[str, Any]: Configuration dictionary for reconstructing the model.
+        """
 
         config = {
             "in_feats": self.in_feats,
@@ -834,333 +994,421 @@ class TransformerEncoderV2(NetArch):
 
     def change_config(
         self, override_dropouts: bool, drop_path_rate: float, att_dropout_rate: float
-    ):
+    ) -> None:
+        """Update configurable dropout values in-place when requested.
+
+        Args:
+            override_dropouts: Whether the provided dropout values should be applied.
+            drop_path_rate: New stochastic depth rate.
+            att_dropout_rate: New attention dropout rate.
+        """
         if override_dropouts:
             logging.info("changing transformer dropouts")
             self.change_dropouts(drop_path_rate, att_dropout_rate)
 
-    def change_dropouts(self, drop_path_rate: float, att_dropout_rate: float):
+    def change_dropouts(self, drop_path_rate: float, att_dropout_rate: float) -> None:
+        """Update stochastic-depth and attention dropout probabilities.
+
+        Args:
+            drop_path_rate: New stochastic depth rate.
+            att_dropout_rate: New attention dropout rate.
+        """
         from ..layers import DropPath1d
 
-        for module in self.modules():
-            if isinstance(module, DropPath1d):
-                module.p *= drop_path_rate / self.drop_path_rate
+        drop_rates = [
+            x.item() for x in torch.linspace(0, drop_path_rate, sum(self.encb_repeats))
+        ]
+        count = 0
+        for stage_blocks in self.trans_blocks:
+            for block in stage_blocks:
+                module_drop_rate = drop_rates[count]
+                if block.drop_path is None:
+                    if module_drop_rate > 0.0:
+                        block.drop_path = DropPath1d(module_drop_rate)
+                        block.drop_path.train(self.training)
+                else:
+                    block.drop_path.p = module_drop_rate
+                count += 1
 
+        for module in self.modules():
             if isinstance(module, ScaledDotProdAttV2):
                 module.dropout_rate = att_dropout_rate
 
         self.drop_path_rate = drop_path_rate
+        self.att_dropout_rate = att_dropout_rate
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments accepted by the constructor.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by ``__init__``.
+        """
         return filter_func_args(TransformerEncoderV2.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
+    ) -> None:
+        """Register constructor arguments on an argument parser.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional prefix used to namespace the arguments.
+            skip: Argument names that should not be added.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument(
-            "--in-feats", default=80, type=int, help="input features dimension"
-        )
-        parser.add_argument(
-            "--stem-type",
-            default=TransformerEncoderV2StemType.CONV2D.value,
-            choices=TransformerEncoderV2StemType.choices(),
-            help="Types of stem block in [conv1d, conv2d]",
-        )
-        parser.add_argument(
-            "--stem-hidden-channels",
-            default=[512, 512],
-            type=int,
-            nargs="+",
-            help="hidden channels of the stem's conv layers",
-        )
-        parser.add_argument(
-            "--stem-kernel-sizes",
-            default=[5, 3],
-            type=int,
-            nargs="+",
-            help="kernels of the stem's conv layers",
-        )
-        parser.add_argument(
-            "--stem-strides",
-            default=[1, 2],
-            type=int,
-            nargs="+",
-            help="strides of the stem's conv layers",
-        )
-        parser.add_argument(
-            "--stem-act", default="silu", help="activation of the stem layers"
-        )
-        parser.add_argument(
-            "--stem-dropout-rate",
-            default=0.1,
-            type=float,
-            help="dropout rate at the stem output",
-        )
-        parser.add_argument(
-            "--short-name",
-            default=None,
-            choices=TransformerEncoderV2ShortName.choices(),
-            help="short_name of the configuration for the transformer size",
-        )
-        parser.add_argument(
-            "--att-type",
-            default=TransformerV2AttType.TORCH_SDP.value,
-            choices=TransformerV2AttType.choices(),
-            help="type of attention layer in [sdp, torch_sdp, hf_flash_sdp]",
-        )
-        parser.add_argument(
-            "--encb-repeats",
-            default=4 * [3],
-            type=int,
-            nargs="+",
-            help="transformer block repeats in each encoder stage",
-        )
-        parser.add_argument(
-            "--hidden-dims",
-            default=4 * [768],
-            type=int,
-            nargs="+",
-            help="transformer block hidden features in each encoder stage",
-        )
-        parser.add_argument(
-            "--num-heads", default=12, type=int, help="num of attention heads"
-        )
-        parser.add_argument(
-            "--num-kv-heads",
-            default=None,
-            type=int,
-            help="num. of key, value attention heads when using GQA",
-        )
-        parser.add_argument(
-            "--att-dropout-rate", default=0.0, type=float, help="attention dropout rate"
-        )
-        parser.add_argument(
-            "--att-bias",
-            default=False,
-            action=ActionYesNo,
-            help="use bias in Linear layers of attention blocks",
-        )
-        parser.add_argument(
-            "--ff-type",
-            default=TransformerV2FeedForwardType.MLP.value,
-            choices=TransformerV2FeedForwardType.choices(),
-            help="type of feed forward layer in [mlp, convnext]",
-        )
-        parser.add_argument(
-            "--ff-dim-multiplier",
-            default=4,
-            type=float,
-            help="number that multiplies the hidden dimension to get the inv. bottleneck dimension",
-        )
-        parser.add_argument(
-            "--ff-multiple-of",
-            default=256,
-            type=int,
-            help="the inv bottleneck dim has to be a multiple of this",
-        )
-        parser.add_argument(
-            "--ff-kernel-sizes",
-            default=[7],
-            type=int,
-            nargs="+",
-            help="kernels sizes when using convnext feed forward layer",
-        )
-        parser.add_argument(
-            "--ff-dilations",
-            default=[1],
-            type=int,
-            nargs="+",
-            help="dilations when using convnext feedforward layers",
-        )
-        parser.add_argument(
-            "--ff-act", default="silu", help="activation of feedforward layers"
-        )
-        parser.add_argument(
-            "--ff-bias",
-            default=False,
-            action=ActionYesNo,
-            help="use bias in Linear layers of feed forward blocks",
-        )
-        parser.add_argument(
-            "--downb-strides",
-            default=[1],
-            type=int,
-            nargs="+",
-            help="strides to be downsample feature maps before each encoder stage",
-        )
-        parser.add_argument(
-            "--rope-theta", default=50000, type=float, help="ROPE base theta"
-        )
-        parser.add_argument(
-            "--rope-scale-freqs",
-            default=True,
-            action=ActionYesNo,
-            help="scale ROPE frequencies when seq lenght is larger than the maximmum length of the original training sequences",
-        )
-        parser.add_argument(
-            "--rope-update-max-seq-length",
-            default=True,
-            action=ActionYesNo,
-            help="update the invernal ROPE variable that keeps track of the max seq length seen on training",
-        )
-        parser.add_argument(
-            "--rope-original-max-seq-length",
-            default=None,
-            type=int,
-            help="sets manually the max seq length seen in training for ROPE",
-        )
-        parser.add_argument(
-            "--rope-scaling-factor", default=8, type=float, help="ROPE scaling factors"
-        )
-        parser.add_argument(
-            "--rope-low-freq-factor",
-            default=1,
-            type=float,
-            help="ROPE frequencies are not scaled for wavelengths < max_seq_length / self.low_freq_factor",
-        )
-        parser.add_argument(
-            "--rope-high-freq-factor",
-            default=4,
-            type=float,
-            help="ROPE frequencies are scaled by scaling for wavelengths > max_seq_length / self.high_freq_factor",
-        )
-        parser.add_argument(
-            "--out-feats",
-            default=None,
-            type=int,
-            help="features for output projection, if None, no output proj is done",
-        )
-        parser.add_argument(
-            "--drop-path-rate", default=0.0, type=float, help="drop path rate"
-        )
-        parser.add_argument(
-            "--norm-layer",
-            default=TransformerV2NormLayerType.LAYERNORM.value,
-            choices=TransformerV2NormLayerType.choices(),
-            help="type of norm layer in [layer-norm, rms-norm]",
-        )
-        parser.add_argument(
-            "--norm-eps", default=1e-5, type=float, help="eps for layer norms"
-        )
-        parser.add_argument(
-            "--use-cache",
-            default=False,
-            action=ActionYesNo,
-            help="use cache for previous key, value states",
-        )
-        parser.add_argument(
-            "--is-causal",
-            default=False,
-            action=ActionYesNo,
-            help="attention mask is causal",
-        )
-        parser.add_argument(
-            "--att-sliding-window",
-            default=None,
-            type=int,
-            help="sliding window size for attention when using local attention",
-        )
-        parser.add_argument(
-            "--sdp-backend",
-            default=SDPBackendType.default().value,
-            choices=SDPBackendType.choices(),
-            help="backend to use for native torch scaled dot product attention",
-        )
-        parser.add_argument(
-            "--model-parallel",
-            default=False,
-            action=ActionYesNo,
-            help="train with model parallel using external tools (no built-in support)",
-        )
+        original_add_argument = parser.add_argument
 
-        parser.add_argument(
-            "--multilayer",
-            default=False,
-            action=ActionYesNo,
-            help="use multilayer feature aggregation (mfa)",
-        )
+        def add_argument(*args: Any, **kwargs: Any) -> Any:
+            if args:
+                arg_name = args[0]
+                if isinstance(arg_name, str):
+                    skip_name = arg_name.lstrip("-").replace("-", "_")
+                    if skip_name in skip:
+                        return None
+            return original_add_argument(*args, **kwargs)
 
-        parser.add_argument(
-            "--multilayer-concat",
-            default=False,
-            action=ActionYesNo,
-            help="use concatenation for mfa",
-        )
-
-        parser.add_argument(
-            "--endpoint-channels",
-            default=None,
-            type=int,
-            help=("num. endpoint channels when using mfa"),
-        )
-
-        parser.add_argument(
-            "--endpoint-layers",
-            default=None,
-            nargs="+",
-            type=int,
-            help=(
-                "layers to aggregate in mfa, "
-                "if None, all residual blocks are aggregated"
-            ),
-        )
-
-        parser.add_argument(
-            "--endpoint-scale-layer",
-            default=-1,
-            type=int,
-            help=("layer number which indicates the time scale in mfa"),
-        )
+        parser.add_argument = add_argument  # type: ignore[method-assign]
+        try:
+            parser.add_argument(
+                "--in-feats", default=80, type=int, help="input features dimension"
+            )
+            parser.add_argument(
+                "--stem-type",
+                default=TransformerEncoderV2StemType.CONV2D.value,
+                choices=TransformerEncoderV2StemType.choices(),
+                help="Types of stem block in [conv1d, conv2d]",
+            )
+            parser.add_argument(
+                "--stem-hidden-channels",
+                default=[512, 512],
+                type=int,
+                nargs="+",
+                help="hidden channels of the stem's conv layers",
+            )
+            parser.add_argument(
+                "--stem-kernel-sizes",
+                default=[5, 3],
+                type=int,
+                nargs="+",
+                help="kernels of the stem's conv layers",
+            )
+            parser.add_argument(
+                "--stem-strides",
+                default=[1, 2],
+                type=int,
+                nargs="+",
+                help="strides of the stem's conv layers",
+            )
+            parser.add_argument(
+                "--stem-act", default="silu", help="activation of the stem layers"
+            )
+            parser.add_argument(
+                "--stem-dropout-rate",
+                default=0.1,
+                type=float,
+                help="dropout rate at the stem output",
+            )
+            parser.add_argument(
+                "--short-name",
+                default=None,
+                choices=TransformerEncoderV2ShortName.choices(),
+                help="short_name of the configuration for the transformer size",
+            )
+            parser.add_argument(
+                "--att-type",
+                default=TransformerV2AttType.TORCH_SDP.value,
+                choices=TransformerV2AttType.choices(),
+                help="type of attention layer in [sdp, torch_sdp, hf_flash_sdp]",
+            )
+            parser.add_argument(
+                "--encb-repeats",
+                default=4 * [3],
+                type=int,
+                nargs="+",
+                help="transformer block repeats in each encoder stage",
+            )
+            parser.add_argument(
+                "--hidden-dims",
+                default=4 * [768],
+                type=int,
+                nargs="+",
+                help="transformer block hidden features in each encoder stage",
+            )
+            parser.add_argument(
+                "--num-heads", default=12, type=int, help="num of attention heads"
+            )
+            parser.add_argument(
+                "--num-kv-heads",
+                default=None,
+                type=int,
+                help="num. of key, value attention heads when using GQA",
+            )
+            parser.add_argument(
+                "--att-dropout-rate",
+                default=0.0,
+                type=float,
+                help="attention dropout rate",
+            )
+            parser.add_argument(
+                "--att-bias",
+                default=False,
+                action=ActionYesNo,
+                help="use bias in Linear layers of attention blocks",
+            )
+            parser.add_argument(
+                "--ff-type",
+                default=TransformerV2FeedForwardType.MLP.value,
+                choices=TransformerV2FeedForwardType.choices(),
+                help="type of feed forward layer in [mlp, convnext]",
+            )
+            parser.add_argument(
+                "--ff-dim-multiplier",
+                default=4,
+                type=float,
+                help="number that multiplies the hidden dimension to get the inv. bottleneck dimension",
+            )
+            parser.add_argument(
+                "--ff-multiple-of",
+                default=256,
+                type=int,
+                help="the inv bottleneck dim has to be a multiple of this",
+            )
+            parser.add_argument(
+                "--ff-kernel-sizes",
+                default=[7],
+                type=int,
+                nargs="+",
+                help="kernels sizes when using convnext feed forward layer",
+            )
+            parser.add_argument(
+                "--ff-dilations",
+                default=[1],
+                type=int,
+                nargs="+",
+                help="dilations when using convnext feedforward layers",
+            )
+            parser.add_argument(
+                "--ff-act", default="silu", help="activation of feedforward layers"
+            )
+            parser.add_argument(
+                "--ff-bias",
+                default=False,
+                action=ActionYesNo,
+                help="use bias in Linear layers of feed forward blocks",
+            )
+            parser.add_argument(
+                "--downb-strides",
+                default=[1],
+                type=int,
+                nargs="+",
+                help="strides to be downsample feature maps before each encoder stage",
+            )
+            parser.add_argument(
+                "--rope-theta", default=50000, type=float, help="ROPE base theta"
+            )
+            parser.add_argument(
+                "--rope-scale-freqs",
+                default=True,
+                action=ActionYesNo,
+                help="scale ROPE frequencies when seq lenght is larger than the maximmum length of the original training sequences",
+            )
+            parser.add_argument(
+                "--rope-update-max-seq-length",
+                default=True,
+                action=ActionYesNo,
+                help="update the invernal ROPE variable that keeps track of the max seq length seen on training",
+            )
+            parser.add_argument(
+                "--rope-original-max-seq-length",
+                default=None,
+                type=int,
+                help="sets manually the max seq length seen in training for ROPE",
+            )
+            parser.add_argument(
+                "--rope-scaling-factor",
+                default=8,
+                type=float,
+                help="ROPE scaling factors",
+            )
+            parser.add_argument(
+                "--rope-low-freq-factor",
+                default=1,
+                type=float,
+                help="ROPE frequencies are not scaled for wavelengths < max_seq_length / self.low_freq_factor",
+            )
+            parser.add_argument(
+                "--rope-high-freq-factor",
+                default=4,
+                type=float,
+                help="ROPE frequencies are scaled by scaling for wavelengths > max_seq_length / self.high_freq_factor",
+            )
+            parser.add_argument(
+                "--out-feats",
+                default=None,
+                type=int,
+                help="features for output projection, if None, no output proj is done",
+            )
+            parser.add_argument(
+                "--drop-path-rate", default=0.0, type=float, help="drop path rate"
+            )
+            parser.add_argument(
+                "--norm-layer",
+                default=TransformerV2NormLayerType.LAYERNORM.value,
+                choices=TransformerV2NormLayerType.choices(),
+                help="type of norm layer in [layer-norm, rms-norm]",
+            )
+            parser.add_argument(
+                "--norm-eps", default=1e-5, type=float, help="eps for layer norms"
+            )
+            parser.add_argument(
+                "--is-causal",
+                default=False,
+                action=ActionYesNo,
+                help="attention mask is causal",
+            )
+            parser.add_argument(
+                "--att-sliding-window",
+                default=None,
+                type=int,
+                help="sliding window size for attention when using local attention",
+            )
+            parser.add_argument(
+                "--sdp-backend",
+                default=SDPBackendType.default().value,
+                choices=SDPBackendType.choices(),
+                help="backend to use for native torch scaled dot product attention",
+            )
+            parser.add_argument(
+                "--model-parallel",
+                default=False,
+                action=ActionYesNo,
+                help="train with model parallel using external tools (no built-in support)",
+            )
+            parser.add_argument(
+                "--multilayer",
+                default=False,
+                action=ActionYesNo,
+                help="use multilayer feature aggregation (mfa)",
+            )
+            parser.add_argument(
+                "--multilayer-concat",
+                default=False,
+                action=ActionYesNo,
+                help="use concatenation for mfa",
+            )
+            parser.add_argument(
+                "--endpoint-channels",
+                default=None,
+                type=int,
+                help=("num. endpoint channels when using mfa"),
+            )
+            parser.add_argument(
+                "--endpoint-layers",
+                default=None,
+                nargs="+",
+                type=int,
+                help=(
+                    "0-based encoder stage indices to aggregate in mfa; "
+                    "if None, all encoder stages are aggregated"
+                ),
+            )
+            parser.add_argument(
+                "--endpoint-scale-layer",
+                default=-1,
+                type=int,
+                help=(
+                    "encoder stage index that indicates the MFA time scale; "
+                    "supports Python-style negative indexing"
+                ),
+            )
+        finally:
+            parser.add_argument = original_add_argument  # type: ignore[method-assign]
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments accepted by fine-tuning helpers.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by ``change_config``.
+        """
         return filter_func_args(TransformerEncoderV2.change_config, kwargs)
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None, skip=set([])):
+    def add_finetune_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set([])
+    ) -> None:
+        """Register fine-tuning arguments on an argument parser.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional prefix used to namespace the arguments.
+            skip: Argument names that should not be added.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        try:
-            parser.add_argument(
-                "--override-dropouts",
-                default=False,
-                action=ActionYesNo,
-                help=(
-                    "whether to use the dropout probabilities passed in the "
-                    "arguments instead of the defaults in the pretrained model."
-                ),
-            )
-        except:
-            pass
+        original_add_argument = parser.add_argument
 
-        try:
-            parser.add_argument(
-                "--drop-path-rate",
-                default=0,
-                type=float,
-                help="layer drop probability",
-            )
-        except:
-            pass
+        def add_argument(*args: Any, **kwargs: Any) -> Any:
+            if args:
+                arg_name = args[0]
+                if isinstance(arg_name, str):
+                    skip_name = arg_name.lstrip("-").replace("-", "_")
+                    if skip_name in skip:
+                        return None
+            return original_add_argument(*args, **kwargs)
 
+        parser.add_argument = add_argument  # type: ignore[method-assign]
         try:
-            parser.add_argument(
-                "--att-dropout-rate",
-                default=0,
-                type=float,
-                help="attention layers dropout rate",
-            )
-        except:
-            pass
+            try:
+                parser.add_argument(
+                    "--override-dropouts",
+                    default=False,
+                    action=ActionYesNo,
+                    help=(
+                        "whether to use the dropout probabilities passed in the "
+                        "arguments instead of the defaults in the pretrained model."
+                    ),
+                )
+            except Exception:
+                pass
+
+            try:
+                parser.add_argument(
+                    "--drop-path-rate",
+                    default=0,
+                    type=float,
+                    help="layer drop probability",
+                )
+            except Exception:
+                pass
+
+            try:
+                parser.add_argument(
+                    "--att-dropout-rate",
+                    default=0,
+                    type=float,
+                    help="attention layers dropout rate",
+                )
+            except Exception:
+                pass
+        finally:
+            parser.add_argument = original_add_argument  # type: ignore[method-assign]
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

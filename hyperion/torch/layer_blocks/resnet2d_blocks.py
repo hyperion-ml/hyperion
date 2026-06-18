@@ -11,6 +11,7 @@ from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
 from ..layers.activation_factory import ActivationSpec
+from ..layers.interpolate import Interpolate
 from ..layers.subpixel_convs import SubPixelConv2d
 from .se_blocks import SEBlock2d
 
@@ -1165,4 +1166,96 @@ class SEResNet2dBNDecBlock(ResNet2dBNDecBlock):
         if self.dropout_rate > 0:
             x = self.dropout(x)
 
+        return x
+
+
+class ResNet2dEndpoint(nn.Module):
+    """ResNet 2D endpoint block for multilevel feature aggregation.
+
+    Attributes:
+      in_channels: Input channels.
+      channels: Output channels.
+      in_scale: Resolution scale of the input feature maps.
+      scale: Resolution scale of the output feature maps.
+      upsampling_mode: Algorithm used for upsampling.
+      activation: Activation specification accepted by ActivationFactory.
+      use_norm: If True, normalization layers are enabled.
+      norm_layer: Normalization layer constructor, if any.
+      norm_before: If True, normalization is before activation.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        channels: int,
+        in_scale: int,
+        scale: int,
+        upsampling_mode: str = "nearest",
+        activation: ActivationSpec = "relu",
+        use_norm: bool = True,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+    ) -> None:
+        """Initialize a ResNet 2D endpoint projection block.
+
+        Args:
+          in_channels: Input channels.
+          channels: Output channels.
+          in_scale: Resolution scale of the input feature map.
+          scale: Resolution scale of the output feature map.
+          upsampling_mode: Interpolation mode used when upsampling.
+          activation: Activation specification.
+          use_norm: If True, use normalization layers.
+          norm_layer: Normalization layer constructor, if any.
+          norm_before: If True, normalize before activation.
+        """
+
+        super().__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+
+        self.in_channels = in_channels
+        self.channels = channels
+        self.use_norm = use_norm
+        self.norm_before = norm_before
+        self.rel_scale = in_scale / scale
+
+        if scale >= in_scale:
+            stride = int(scale / in_scale)
+            self.resample = _make_downsample(
+                in_channels, channels, stride, norm_layer, norm_before
+            )
+        else:
+            stride = int(in_scale / scale)
+            if norm_before:
+                layers = [
+                    _conv1x1(in_channels, channels, stride=1, bias=False),
+                    norm_layer(channels),
+                ]
+            else:
+                layers = [_conv1x1(in_channels, channels, stride=1, bias=True)]
+
+            layers.append(Interpolate(scale_factor=stride, mode=upsampling_mode))
+            self.resample = nn.Sequential(*layers)
+
+        self.act = AF.create(activation)
+        if use_norm and not self.norm_before:
+            self.bn = norm_layer(channels)
+
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the endpoint projection.
+
+        Args:
+          x: Input tensor with shape=(batch, in_channels, height, width).
+          x_mask: Unused.
+
+        Returns:
+          Tensor with shape=(batch, out_channels, height, width).
+        """
+        x = self.resample(x)
+        x = self.act(x)
+        if self.use_norm and not self.norm_before:
+            x = self.bn(x)
         return x

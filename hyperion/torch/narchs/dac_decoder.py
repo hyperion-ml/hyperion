@@ -43,6 +43,14 @@ class DACDecoder(NetArch):
         kernel_size: Kernel size for stem/final convs (assumed odd if using same padding).
         strides: Per-stage upsampling strides. Defaults to [8, 8, 4, 2] if None.
         dilations: Dilations used inside each residual block. Defaults to [1, 3, 9] if None.
+
+    Attributes:
+        in_feats: Number of input feature channels.
+        out_feats: Number of output feature channels.
+        init_inner_channels: Number of channels after the stem convolution.
+        kernel_size: Kernel size used by the stem and residual blocks.
+        strides: Per-stage upsampling strides.
+        dilations: Dilation rates used inside residual blocks.
     """
 
     def __init__(
@@ -53,7 +61,18 @@ class DACDecoder(NetArch):
         kernel_size: int = 7,
         strides: Optional[List[int]] = None,
         dilations: Optional[List[int]] = None,
-    ):
+    ) -> None:
+        """
+        Create a DAC decoder.
+
+        Args:
+            in_feats: Number of input feature channels.
+            out_feats: Number of output feature channels.
+            init_inner_channels: Number of channels after the stem convolution.
+            kernel_size: Kernel size used by the stem and residual blocks.
+            strides: Per-stage upsampling strides. Defaults to [8, 8, 4, 2].
+            dilations: Dilation rates used inside residual blocks.
+        """
         if strides is None:
             strides = [8, 8, 4, 2]
         if dilations is None:
@@ -106,9 +125,12 @@ class DACDecoder(NetArch):
         )
         self.init_weights()
 
-    def get_config(self, no_class_name: bool = False):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """
         Return constructor configuration merged with `NetArch` base config.
+
+        Args:
+            no_class_name: If True, omit the class name entry from the config.
 
         Returns:
             dict: A JSON-serializable configuration dictionary.
@@ -150,13 +172,16 @@ class DACDecoder(NetArch):
 
     def max_out_length(self, max_in_length: int) -> int:
         """
-        Returns the maximum output length given an input length.
+        Compute the tensor time length produced by `forward()` for an input length.
+
+        This predicts the allocated output shape, not the number of fully valid
+        output samples.
 
         Args:
             max_in_length (int): Maximum input length in samples.
 
         Returns:
-            int: Maximum output length in samples.
+            int: Output tensor length in samples.
         """
         max_out_length = max_in_length
         for block in self.blocks:
@@ -166,28 +191,43 @@ class DACDecoder(NetArch):
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:
         """
-        Returns the output lengths given input lengths.
+        Compute valid output lengths given input lengths.
+
+        Unlike :meth:`max_out_length`, this excludes output samples whose
+        receptive field depends on padded or otherwise invalid input positions.
+
         Args:
             in_lengths (torch.Tensor): Input lengths in samples.
 
         Returns:
-            torch.Tensor: Output lengths in frames.
+            torch.Tensor: Valid output lengths in samples.
         """
         out_lengths = in_lengths
         for block in self.blocks:
             out_lengths = block.out_lengths(out_lengths)
         return out_lengths
 
-    def out_shape(self, in_shape: Tuple[int, ...]) -> Tuple[int, ...]:
+    def out_shape(
+        self, in_shape: Tuple[int, Optional[int], int]
+    ) -> Tuple[int, Optional[int], int]:
+        """
+        Compute the output tensor shape given an input shape.
+
+        Args:
+            in_shape: Tuple (B, T_in, in_feats), where T_in may be `None`.
+
+        Returns:
+            Tuple (B, out_feats, T_out), where T_out may be `None`.
+        """
         B = in_shape[0]
         T = in_shape[1]
         if T is None:
-            return (B, None, self.out_feats)
+            return (B, self.out_feats, None)
         else:
             out_length = self.max_out_length(T)
-            return (B, out_length, self.out_feats)
+            return (B, self.out_feats, out_length)
 
-    def init_weights(self):
+    def init_weights(self) -> None:
         """
         Initialize convolutional weights with N(0, 0.01) and zero biases.
 
@@ -221,14 +261,15 @@ class DACDecoder(NetArch):
         x_lengths: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
-        Encode a time-channel sequence.
+        Decode a time-channel sequence.
 
         Args:
             x: Input tensor of shape (B, T, in_feats).
             x_lengths: Optional valid lengths per batch element (B,).
 
         Returns:
-            Tensor of shape (B, T', out_feats), where T' depends on strides/padding.
+            Tensor of shape (B, out_feats, T_out), where `T_out` matches
+            :meth:`max_out_length` for the provided latent length.
         """
         x = x.transpose(1, 2).contiguous()  # (B, T, in_feats) -> (B, in_feats, T)
 
@@ -261,9 +302,12 @@ class DACDecoder(NetArch):
             block.remove_weight_norm()
 
     @staticmethod
-    def filter_args(**kwargs) -> Dict[str, Any]:
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """
         Filter keyword arguments relevant to `DACDecoder.__init__`.
+
+        Args:
+            **kwargs: Candidate keyword arguments for `DACDecoder.__init__`.
 
         Returns:
             dict: Filtered kwargs usable to instantiate `DACDecoder`.
@@ -272,7 +316,7 @@ class DACDecoder(NetArch):
 
     @staticmethod
     def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set = set()
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
     ) -> None:
         """
         Register Decoder hyperparameters on a CLI parser.

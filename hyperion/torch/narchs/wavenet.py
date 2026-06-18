@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn.utils.parametrizations import weight_norm
-from torch.nn.utils.parametrize import remove_parametrizations
+from torch.nn.utils.parametrize import is_parametrized, remove_parametrizations
 
 from ...utils.misc import filter_func_args
 from ..utils import seq_lengths_to_mask
@@ -21,7 +21,9 @@ from .net_arch import NetArch
 
 
 @torch.jit.script
-def add_tanh_sigmoid_multiply(x: torch.Tensor, y: torch.Tensor, num_channels: int):
+def add_tanh_sigmoid_multiply(
+    x: torch.Tensor, y: torch.Tensor, num_channels: int
+) -> torch.Tensor:
     """
     Fused element-wise addition, gated tanh-sigmoid activation, and multiplication.
 
@@ -51,10 +53,10 @@ class WaveNet(NetArch):
     Attributes:
         num_layers (int): Number of dilated convolution layers.
         hidden_channels (int): Number of channels in the hidden layers.
-        kernel_size (int): Size of the convolutional kernel (must be odd).
+        kernel_size (Tuple[int]): Size of the convolutional kernel stored as a 1-tuple (must be odd).
         dilation_rate (int): Dilation base (layer i uses dilation_rate ** i).
-        cond_channels (int, optional): Number of conditioning input channels. Default is 0 (no conditioning).
-        dropout_rate (float, optional): Dropout rate applied after gated activations. Default is 0.
+        cond_channels (int): Number of conditioning input channels. Default is 0 (no conditioning).
+        dropout_rate (float): Dropout rate applied after gated activations. Default is 0.
     """
 
     def __init__(
@@ -65,7 +67,18 @@ class WaveNet(NetArch):
         dilation_rate: int,
         cond_channels: int = 0,
         dropout_rate: float = 0,
-    ):
+    ) -> None:
+        """
+        Initialize a WaveNet stack.
+
+        Args:
+            num_layers (int): Number of dilated convolution layers.
+            hidden_channels (int): Number of channels in the residual stack.
+            kernel_size (int): Size of each convolutional kernel. Must be odd.
+            dilation_rate (int): Dilation base used for layer ``i`` as ``dilation_rate ** i``.
+            cond_channels (int): Number of conditioning channels. Set to 0 to disable conditioning.
+            dropout_rate (float): Dropout probability applied after gated activations.
+        """
         super().__init__()
         assert kernel_size % 2 == 1
         self.hidden_channels = hidden_channels
@@ -112,7 +125,7 @@ class WaveNet(NetArch):
         x_lengths: Optional[torch.Tensor] = None,
         x_mask: Optional[torch.Tensor] = None,
         condition: Optional[torch.Tensor] = None,
-    ):
+    ) -> torch.Tensor:
         """
         Forward pass of the WaveNet module.
 
@@ -126,11 +139,18 @@ class WaveNet(NetArch):
             torch.Tensor: Output tensor of shape (B, C, T).
         """
         if x_mask is None:
+            if x_lengths is None:
+                raise ValueError("x_lengths must be provided when x_mask is None")
             x_mask = seq_lengths_to_mask(x_lengths, x.shape[2], time_dim=2)
+        x_mask = x_mask.to(device=x.device, dtype=x.dtype)
 
         output = torch.zeros_like(x)
 
         if condition is not None:
+            if self.cond_channels == 0:
+                raise ValueError(
+                    "condition was provided but this WaveNet was initialized with cond_channels=0"
+                )
             condition = self.cond_layer(condition)
 
         for i in range(self.num_layers):
@@ -160,17 +180,19 @@ class WaveNet(NetArch):
         # output = output.transpose(1, 2).contiguous()
         return output
 
-    def remove_weight_norm(self):
+    def remove_weight_norm(self) -> None:
         """
         Removes weight normalization from all convolutional layers, including the
         conditioning layer if it exists. This is typically called after training
         to improve inference efficiency.
         """
-        if self.cond_channels != 0:
+        if self.cond_channels != 0 and is_parametrized(self.cond_layer):
             remove_parametrizations(self.cond_layer, "weight")
 
         for l in self.dconv_layers:
-            remove_parametrizations(l, "weight")
+            if is_parametrized(l):
+                remove_parametrizations(l, "weight")
 
         for l in self.pwconv_layers:
-            remove_parametrizations(l, "weight")
+            if is_parametrized(l):
+                remove_parametrizations(l, "weight")

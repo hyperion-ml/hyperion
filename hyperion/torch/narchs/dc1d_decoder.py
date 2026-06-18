@@ -4,6 +4,7 @@
 """
 
 import math
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
@@ -19,25 +20,66 @@ from .net_arch import NetArch
 
 
 class DC1dDecoder(NetArch):
+    """1D convolutional decoder architecture.
+
+    Attributes:
+        in_channels: Number of input feature channels.
+        in_conv_channels: Number of channels in the stem convolution.
+        in_kernel_size: Kernel size of the stem convolution.
+        in_stride: Stride of the stem convolution.
+        conv_repeats: Number of blocks in each superblock.
+        conv_channels: Output channels for each superblock.
+        conv_kernel_sizes: Kernel size for each superblock.
+        conv_strides: Stride for each superblock.
+        conv_dilations: Dilation for repeated blocks in each superblock.
+        head_channels: Number of output channels in the head block.
+        hid_act: Hidden activation specification.
+        head_act: Activation specification for the head block.
+        dropout_rate: Dropout probability used in the convolution blocks.
+        use_norm: Whether normalization layers are enabled.
+        norm_layer: Normalization layer type.
+        norm_before: Whether normalization is applied before activation.
+    """
+
     def __init__(
         self,
-        in_channels=32,
-        in_conv_channels=32,
-        in_kernel_size=3,
-        in_stride=1,
-        conv_repeats=[1, 1, 1],
-        conv_channels=[64, 128, 128],
-        conv_kernel_sizes=3,
-        conv_strides=2,
-        conv_dilations=1,
-        head_channels=0,
-        hid_act="relu",
-        head_act=None,
-        dropout_rate=0,
-        use_norm=True,
-        norm_layer=None,
-        norm_before=True,
-    ):
+        in_channels: int = 32,
+        in_conv_channels: int = 32,
+        in_kernel_size: int = 3,
+        in_stride: int = 1,
+        conv_repeats: Sequence[int] = [1, 1, 1],
+        conv_channels: Union[int, Sequence[int]] = [64, 128, 128],
+        conv_kernel_sizes: Union[int, Sequence[int]] = 3,
+        conv_strides: Union[int, Sequence[int]] = 2,
+        conv_dilations: Union[int, Sequence[int]] = 1,
+        head_channels: int = 0,
+        hid_act: Any = "relu",
+        head_act: Optional[str] = None,
+        dropout_rate: float = 0,
+        use_norm: bool = True,
+        norm_layer: Optional[str] = None,
+        norm_before: bool = True,
+    ) -> None:
+        """Initialize a 1D convolutional decoder.
+
+        Args:
+            in_channels: Number of input feature channels.
+            in_conv_channels: Number of channels in the stem convolution.
+            in_kernel_size: Kernel size of the stem convolution.
+            in_stride: Stride of the stem convolution.
+            conv_repeats: Number of blocks in each superblock.
+            conv_channels: Output channels for each superblock.
+            conv_kernel_sizes: Kernel size for each superblock.
+            conv_strides: Stride for each superblock.
+            conv_dilations: Dilation for repeated blocks in each superblock.
+            head_channels: Number of output channels in the head block.
+            hid_act: Hidden activation specification.
+            head_act: Activation specification for the head block.
+            dropout_rate: Dropout probability used in the convolution blocks.
+            use_norm: Whether to enable normalization layers.
+            norm_layer: Normalization layer type.
+            norm_before: If True, apply normalization before activation.
+        """
 
         super().__init__()
         self.in_channels = in_channels
@@ -146,7 +188,14 @@ class DC1dDecoder(NetArch):
 
         self._init_weights(hid_act)
 
-    def _init_weights(self, hid_act):
+    def _init_weights(self, hid_act: Any) -> None:
+        """Initialize convolution and batch-normalization parameters.
+
+        Args:
+            hid_act: Hidden activation specification used to choose the
+                Kaiming initialization nonlinearity.
+        """
+        act_name = "relu"
         if isinstance(hid_act, str):
             act_name = hid_act
         if isinstance(hid_act, dict):
@@ -180,12 +229,24 @@ class DC1dDecoder(NetArch):
                     ICNR1d(m.conv.weight, stride=m.stride, initializer=init_f2)
 
     @staticmethod
-    def _standarize_convblocks_param(p, num_blocks, p_name):
+    def _standarize_convblocks_param(
+        p: Union[int, Sequence[int]], num_blocks: int, p_name: str
+    ) -> List[int]:
+        """Normalize a per-block argument to one value per superblock.
+
+        Args:
+            p: Scalar or sequence parameter to normalize.
+            num_blocks: Number of superblocks expected.
+            p_name: Parameter name used in error messages.
+
+        Returns:
+            List[int]: Parameter values expanded to `num_blocks`.
+        """
         if isinstance(p, int):
             p = [p] * num_blocks
-        elif isinstance(p, list):
+        elif isinstance(p, (list, tuple)):
             if len(p) == 1:
-                p = p * num_blocks
+                p = list(p) * num_blocks
 
             assert len(p) == num_blocks, "len(%s)(%d)!=%d" % (
                 p_name,
@@ -197,7 +258,15 @@ class DC1dDecoder(NetArch):
 
         return p
 
-    def _compute_out_size(self, in_size):
+    def _compute_out_size(self, in_size: int) -> int:
+        """Compute the output temporal length after all strided stages.
+
+        Args:
+            in_size: Input temporal length.
+
+        Returns:
+            int: Output temporal length.
+        """
         out_size = in_size * self.in_stride
 
         for stride in self.conv_strides:
@@ -205,14 +274,35 @@ class DC1dDecoder(NetArch):
 
         return out_size
 
-    def in_context(self):
+    def in_context(self) -> Tuple[int, int]:
+        """Return the left and right temporal context.
+
+        Returns:
+            Tuple[int, int]: Symmetric temporal context in frames.
+        """
         in_context = int(math.ceil(self._context / self._upsample_factor))
         return (in_context, in_context)
 
-    def in_shape(self):
+    def in_shape(self) -> Tuple[Optional[int], int, Optional[int]]:
+        """Return the expected input shape.
+
+        Returns:
+            Tuple[Optional[int], int, Optional[int]]: Batch, channel, and
+            temporal dimensions.
+        """
         return (None, self.in_channels, None)
 
-    def out_shape(self, in_shape=None):
+    def out_shape(
+        self, in_shape: Optional[Sequence[Optional[int]]] = None
+    ) -> Tuple[Optional[int], int, Optional[int]]:
+        """Return the output shape for an optional input shape.
+
+        Args:
+            in_shape: Optional input shape used to infer the output length.
+
+        Returns:
+            Tuple[Optional[int], int, Optional[int]]: Output shape.
+        """
 
         out_channels = (
             self.head_channels if self.head_channels > 0 else self.conv_channels[-1]
@@ -228,7 +318,19 @@ class DC1dDecoder(NetArch):
 
         return (in_shape[0], out_channels, T)
 
-    def _match_shape(self, x, target_shape):
+    def _match_shape(
+        self, x: torch.Tensor, target_shape: Sequence[Optional[int]]
+    ) -> torch.Tensor:
+        """Crop the decoder output to match a target temporal length.
+
+        Args:
+            x: Decoder output tensor.
+            target_shape: Target shape whose last dimension defines the desired
+                temporal length.
+
+        Returns:
+            torch.Tensor: Cropped tensor.
+        """
         t = x.size(-1)
         target_t = target_shape[-1]
         surplus = t - target_t
@@ -238,7 +340,18 @@ class DC1dDecoder(NetArch):
 
         return x
 
-    def forward(self, x, target_shape=None):
+    def forward(
+        self, x: torch.Tensor, target_shape: Optional[Sequence[Optional[int]]] = None
+    ) -> torch.Tensor:
+        """Run the decoder on an input tensor.
+
+        Args:
+            x: Input tensor of shape ``(B, C, T)``.
+            target_shape: Optional target shape used to crop the output length.
+
+        Returns:
+            torch.Tensor: Decoded tensor.
+        """
 
         x = self.in_block(x)
         for idx, block in enumerate(self.blocks):
@@ -252,7 +365,15 @@ class DC1dDecoder(NetArch):
 
         return x
 
-    def get_config(self, no_class_name: bool = False):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Return the configuration needed to recreate the module.
+
+        Args:
+            no_class_name: If True, omit the class name from the base config.
+
+        Returns:
+            Dict[str, Any]: Serializable configuration dictionary.
+        """
 
         head_act = self.head_act
         hid_act = self.hid_act
@@ -280,7 +401,15 @@ class DC1dDecoder(NetArch):
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter a kwargs dictionary down to decoder constructor arguments.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by the constructor.
+        """
         # if "wo_norm" in kwargs:
         #     kwargs["use_norm"] = not kwargs["wo_norm"]
         #     del kwargs["wo_norm"]
@@ -301,7 +430,7 @@ class DC1dDecoder(NetArch):
             "conv_dilations",
             "head_channels",
             "hid_act",
-            "had_act",
+            "head_act",
             "dropout_rate",
             "use_norm",
             "norm_layer",
@@ -313,7 +442,18 @@ class DC1dDecoder(NetArch):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, head_channels=False):
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        head_channels: bool = False,
+    ) -> None:
+        """Add decoder arguments to an argument parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix used to create a nested parser entry.
+            head_channels: If True, expose the ``head_channels`` argument.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -394,7 +534,7 @@ class DC1dDecoder(NetArch):
             pass
 
         parser.add_argument(
-            "--head-act", default=None, help="activation in encoder head"
+            "--head-act", default=None, help="activation in decoder head"
         )
 
         try:
@@ -444,7 +584,7 @@ class DC1dDecoder(NetArch):
             "--norm-before",
             default=True,
             action=ActionYesNo,
-            help="batch normalizaton before activation",
+            help="batch normalization before activation",
         )
 
         if prefix is not None:

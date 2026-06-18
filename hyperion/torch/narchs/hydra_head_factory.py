@@ -3,7 +3,7 @@ Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Optional, Type
+from typing import Any, Optional, Set, Type
 
 from jsonargparse import ActionParser, ArgumentParser
 
@@ -20,21 +20,32 @@ _HYDRA_HEAD_REGISTRY: dict[HydraHeadType, Type[HydraHead]] = {
 
 
 class HydraHeadFactory:
-    """Factory class for Hydra head modules."""
+    """Factory class for Hydra head modules.
+
+    Attributes:
+        DEFAULT_TYPE: Default Hydra head type used when none is provided.
+    """
 
     DEFAULT_TYPE = HydraHeadType.CLASSIF
 
     @staticmethod
     def supported_types() -> list[str]:
-        """Return available head identifiers."""
+        """Return available Hydra head type identifiers.
+
+        Returns:
+            list[str]: Supported Hydra head type names.
+        """
         return HydraHeadType.choices()
 
     @staticmethod
-    def create(head_type: HydraHeadType = DEFAULT_TYPE, **kwargs) -> HydraHead:
+    def create(
+        head_type: HydraHeadType | str | None = DEFAULT_TYPE, **kwargs: Any
+    ) -> HydraHead:
         """Instantiate a Hydra head of the requested type.
 
         Args:
-            head_type: Identifier of the head to build.
+            head_type: Identifier of the head to build, or `None` to use the
+                default type.
             **kwargs: Keyword arguments forwarded to the concrete head constructor.
 
         Returns:
@@ -56,12 +67,13 @@ class HydraHeadFactory:
         return head_class(**params)
 
     @staticmethod
-    def reconfig_or_create(head: HydraHead, **kwargs) -> HydraHead:
+    def reconfig_or_create(head: HydraHead, **kwargs: Any) -> HydraHead:
         """Reconfigure an existing head or create a new one if necessary.
 
         Args:
             head: Existing head instance to reconfigure.
-            **kwargs: Keyword arguments forwarded to the head constructor or reconfiguration method.
+            **kwargs: Keyword arguments forwarded to the head constructor or
+                reconfiguration method.
         Returns:
             HydraHead: Reconfigured or newly created head instance.
         """
@@ -80,7 +92,7 @@ class HydraHeadFactory:
     def add_class_args(
         parser: ArgumentParser,
         prefix: Optional[str] = None,
-        skip: Optional[set[str]] = None,
+        skip: Optional[Set[str]] = None,
     ) -> None:
         """Register CLI/config arguments for Hydra heads.
 

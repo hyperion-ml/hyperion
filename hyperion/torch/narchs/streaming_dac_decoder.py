@@ -39,6 +39,7 @@ class StreamingDACDecoderState(HyperDataClass):
     out_conv_state: Dict[str, Any] = field(default_factory=dict)
 
     def __len__(self) -> int:
+        """Return the number of cached state components."""
         return len(self.block_states) + 2  # in_conv + out_conv
 
 
@@ -55,6 +56,15 @@ class StreamingDACDecoder(NetArch):
         Input:  (B, T_in, in_feats)
         Output: (B, out_feats, T_out) where T_out ≈ T_in * prod(strides)
                 (exact length depends on padding/transpose-conv details)
+
+    Attributes:
+        in_feats: Number of input feature channels.
+        out_feats: Number of output feature channels.
+        init_inner_channels: Channels after the stem convolution.
+        kernel_size: Kernel size for stem/final convs.
+        strides: Per-stage upsampling strides. If None, defaults to [8, 8, 4, 2].
+        dilations: Dilations used inside each residual block. If None, defaults to [1, 3, 9].
+        look_aheads: Placeholder for future use, if needed.
 
     Args:
         in_feats: Number of input feature channels.
@@ -75,7 +85,19 @@ class StreamingDACDecoder(NetArch):
         strides: Optional[List[int]] = None,
         dilations: Optional[List[int]] = None,
         look_aheads: Optional[List[int]] = None,
-    ):
+    ) -> None:
+        """
+        Create a streaming DAC decoder.
+
+        Args:
+            in_feats: Number of input feature channels.
+            out_feats: Number of output feature channels.
+            init_inner_channels: Channels after the stem convolution.
+            kernel_size: Kernel size for stem/final convs.
+            strides: Per-stage upsampling strides.
+            dilations: Dilations used inside each residual block.
+            look_aheads: Placeholder for future use, if needed.
+        """
         if strides is None:
             strides = [8, 8, 4, 2]
         if dilations is None:
@@ -127,9 +149,12 @@ class StreamingDACDecoder(NetArch):
         )
         self.init_weights()
 
-    def get_config(self, no_class_name: bool = False):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """
         Return constructor configuration merged with `NetArch` base config.
+
+        Args:
+            no_class_name: If True, omit the class name entry from the config.
 
         Returns:
             dict: A JSON-serializable configuration dictionary.
@@ -149,12 +174,12 @@ class StreamingDACDecoder(NetArch):
 
     def in_context(self) -> Tuple[int, int]:
         """
-        Returns the input context (left, right) in samples.
+        Return the input context (left, right) in latent frames.
 
         Notes:
-            This is the number of input samples that affect each output sample.
-            For example, a context of (2, 3) means that to compute each output
-            sample y[t], the model needs access to x[t-2:t+3] (5 input samples).
+            The internal accumulation is fractional because transposed-conv stages
+            are measured back in the decoder input frame rate. The returned values
+            are rounded up to whole frames.
         """
         left_context = self.kernel_size - 1
         right_context = 0
@@ -166,6 +191,7 @@ class StreamingDACDecoder(NetArch):
             stride *= s
 
         left_context = int(math.ceil(left_context + (self.kernel_size - 1) / stride))
+        right_context = int(math.ceil(right_context))
         return (left_context, right_context)
 
     def max_out_length(self, max_in_length: int) -> int:
@@ -201,21 +227,29 @@ class StreamingDACDecoder(NetArch):
         return out_lengths
 
     def out_shape(self, in_shape: Tuple[int, ...]) -> Tuple[int, ...]:
+        """
+        Compute the output tensor shape given an input shape.
+
+        Args:
+            in_shape: Tuple (B, T_in, in_feats).
+
+        Returns:
+            Tuple (B, out_feats, T_out).
+        """
         B = in_shape[0]
         T = in_shape[1]
         if T is None:
-            return (B, None, self.out_feats)
+            return (B, self.out_feats, None)
         else:
             out_length = self.max_out_length(T)
-            return (B, out_length, self.out_feats)
+            return (B, self.out_feats, out_length)
 
-    def init_weights(self):
+    def init_weights(self) -> None:
         """
         Initialize convolutional weights with N(0, 0.01) and zero biases.
 
-        Notes:
-            If a layer is parametrized (e.g., `weight_norm`), initialize the
-            underlying `weight` parameter (`parametrizations.weight.original`).
+        If a layer is parametrized (e.g., `weight_norm`), initialize the
+        underlying `weight` parameter.
         """
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.ConvTranspose1d)):
@@ -243,14 +277,14 @@ class StreamingDACDecoder(NetArch):
         x_lengths: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
-        Encode a time-channel sequence.
+        Decode a time-channel sequence.
 
         Args:
             x: Input tensor of shape (B, T, in_feats).
             x_lengths: Optional valid lengths per batch element (B,).
 
         Returns:
-            Tensor of shape (B, T', out_feats), where T' depends on strides/padding.
+            Tensor of shape (B, out_feats, T'), where T' depends on strides/padding.
         """
         x = x.transpose(1, 2).contiguous()  # (B, T, in_feats) -> (B, in_feats, T)
 
@@ -274,7 +308,7 @@ class StreamingDACDecoder(NetArch):
         batch_size: int,
         device: Optional[torch.device] = None,
         dtype: Optional[torch.dtype] = None,
-    ) -> List[Any]:
+    ) -> StreamingDACDecoderState:
         """
         Initialize the states of all decoder blocks for streaming inference.
 
@@ -282,6 +316,9 @@ class StreamingDACDecoder(NetArch):
             batch_size: Batch size for which to initialize states.
             device: Device on which to create the states.
             dtype: Data type of the states.
+
+        Returns:
+            StreamingDACDecoderState: Initial streaming state.
         """
         in_conv_state = self.in_conv.init_state(batch_size, device=device, dtype=dtype)
         out_conv_state = self.out_conv.init_state(
@@ -307,16 +344,16 @@ class StreamingDACDecoder(NetArch):
         flush: bool = False,
     ) -> Tuple[torch.Tensor, StreamingDACDecoderState]:
         """
-        Streaming forward pass of the encoder.
+        Streaming forward pass of the decoder.
 
         Args:
             x: Input tensor of shape (B, T, in_feats).
-            state: Aggregated encoder state.
+            state: Aggregated decoder state.
             flush: If True, flush buffered overlap/look-ahead on the final chunk.
 
         Returns:
-            y: Output tensor of shape (B, T_out, out_feats).
-            new_state: Updated encoder state.
+            y: Output tensor of shape (B, out_feats, T_out).
+            new_state: Updated decoder state.
         """
         x = x.transpose(1, 2)  # (B, in_feats, T)
 
@@ -360,6 +397,9 @@ class StreamingDACDecoder(NetArch):
         """
         Filter keyword arguments relevant to `StreamingDACDecoder.__init__`.
 
+        Args:
+            kwargs: Keyword arguments to filter.
+
         Returns:
             dict: Filtered kwargs usable to instantiate `StreamingDACDecoder`.
         """
@@ -367,7 +407,7 @@ class StreamingDACDecoder(NetArch):
 
     @staticmethod
     def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set = set()
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
     ) -> None:
         """
         Register Decoder hyperparameters on a CLI parser.
@@ -435,11 +475,25 @@ def stream_dac_decoder_demo(
     chunk: int = 1,
     device: str = "cpu",
     dtype: torch.dtype = torch.float32,
-):
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Compare full forward vs streaming for StreamingDACDecoder.
 
-    Returns tuple (y_stream, y_ref).
+    Args:
+        B: Batch size.
+        Cin: Input feature channels.
+        Cout: Output feature channels.
+        init_inner_channels: Initial internal channel count.
+        kernel_size: Residual block kernel size.
+        strides: Optional per-stage upsampling strides.
+        dilations: Optional residual-block dilation rates.
+        T: Total input length in latent frames.
+        chunk: Streaming chunk length in latent frames.
+        device: Device on which to run the demo.
+        dtype: Tensor dtype to use.
+
+    Returns:
+        Tuple `(y_stream, y_ref)` with streaming and reference outputs.
     """
     torch.manual_seed(0)
     dec = StreamingDACDecoder(

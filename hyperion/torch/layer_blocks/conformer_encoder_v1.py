@@ -300,7 +300,7 @@ class ConformerEncoderBlockV1(nn.Module):
                 num_feats, hid_feats, kernel_size, activation, dropout_rate, time_dim=1
             )
 
-        if ff_type == "conv1d-linear":
+        if ff_type in ("conv1d-linear", "conv1dlinear"):
             return Conv1dLinear(
                 num_feats, hid_feats, kernel_size, activation, dropout_rate, time_dim=1
             )

@@ -1,16 +1,15 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
-from ..layer_blocks import FCBlock
 from ..layers import ActivationFactory as AF
 from ..layers import CosLossOutput
 from ..layers import NormLayer1dFactory as NLF
@@ -18,46 +17,68 @@ from .net_arch import NetArch
 
 
 class DINOHead(NetArch):
-    """Classification Head for DINO x-vector style networks
+    """Classification head for DINO x-vector style networks.
 
     Attributes:
-       in_feats: input features
-       num_classes: number of output classes
-       hid_feats: dimension of hidding layer
-       bottleneck_feats: dimension of bottleneck layer before output
-       num_hid_layers: number of hidden layers
-       hid_act: str or dict hidden activation type in ['relu', 'relu6', 'swish', ... ]
-       output_type: type of output layer that will be used with the x-vector in ['softmax', 'cos-softmax'],
-                  corresponding to standard cross-entorpy, cosine scoring
-       norm_layer: norm_layer object or str indicating type norm layer, if None it uses BatchNorm1d
-       use_norm: it True it uses layer/batch-normalization
-       norm_before: if True, layer-norm is before the activation function
-       use_in_norm: put batchnorm at the input
+        in_feats: Input feature dimension.
+        num_classes: Number of output classes.
+        hid_feats: Hidden-layer dimension.
+        bottleneck_feats: Bottleneck dimension before the output layer.
+        num_hid_layers: Number of hidden layers.
+        hid_act: Hidden activation type or configuration.
+        output_type: Output layer type, either ``softmax`` or
+            ``cos-softmax``.
+        norm_layer: Normalization-layer type. If ``None``, BatchNorm1d is
+            used.
+        use_norm: Whether to apply normalization layers in the hidden stack.
+        norm_before: If ``True``, normalization is applied before activation.
+        dropout_rate: Dropout rate applied between hidden layers.
+        use_in_norm: If ``True``, apply normalization at the input.
     """
 
     def __init__(
         self,
-        in_feats,
-        num_classes,
-        hid_feats=2048,
-        bottleneck_feats=256,
-        num_hid_layers=3,
-        hid_act="gelu",
-        output_type="softmax",
-        norm_layer=None,
-        use_norm=False,
-        norm_before=True,
-        dropout_rate=0,
-        use_in_norm=False,
-    ):
-        super().__init__()
-        assert num_hid_layers >= 1, "num_layers (%d < 1)" % num_hid_layers
+        in_feats: int,
+        num_classes: int,
+        hid_feats: int = 2048,
+        bottleneck_feats: int = 256,
+        num_hid_layers: int = 3,
+        hid_act: Any = "gelu",
+        output_type: str = "softmax",
+        norm_layer: Optional[str] = None,
+        use_norm: bool = False,
+        norm_before: bool = True,
+        dropout_rate: float = 0,
+        use_in_norm: bool = False,
+    ) -> None:
+        """Build the DINO classification head.
 
-        self.num_hid_ayers = num_hid_layers
+        Args:
+            in_feats: Input feature dimension.
+            num_classes: Number of output classes.
+            hid_feats: Hidden-layer dimension.
+            bottleneck_feats: Bottleneck dimension before the output layer.
+            num_hid_layers: Number of hidden layers.
+            hid_act: Hidden activation type or configuration.
+            output_type: Output layer type, either ``softmax`` or
+                ``cos-softmax``.
+            norm_layer: Normalization-layer type.
+            use_norm: Whether to apply normalization layers in the hidden
+                stack.
+            norm_before: If ``True``, normalization is applied before
+                activation.
+            dropout_rate: Dropout rate applied between hidden layers.
+            use_in_norm: If ``True``, apply normalization at the input.
+        """
+        super().__init__()
+        assert num_hid_layers >= 1, "num_hid_layers (%d < 1)" % num_hid_layers
+
+        self.num_hid_layers = num_hid_layers
         self.in_feats = in_feats
         self.hid_feats = hid_feats
         self.bottleneck_feats = bottleneck_feats
         self.num_classes = num_classes
+        self.hid_act = hid_act
         self.norm_layer = norm_layer
         self.use_in_norm = use_in_norm
 
@@ -76,10 +97,12 @@ class DINOHead(NetArch):
         self.output_type = output_type
         if use_in_norm:
             assert not self.norm_before
+            assert self._norm_layer is not None, "use_in_norm requires use_norm"
             self.in_norm = self._norm_layer(in_feats)
 
+        layers = []
         if num_hid_layers == 1:
-            self.fc_layers = nn.Linear(in_feats, bottleneck_feats)
+            layers.append(nn.Linear(in_feats, bottleneck_feats))
         else:
             use_bias = False if use_norm and norm_before else True
             layers = [nn.Linear(in_feats, hid_feats, bias=use_bias)]
@@ -102,7 +125,7 @@ class DINOHead(NetArch):
                     layers.append(nn.Dropout(self.dropout_rate))
 
             layers.append(nn.Linear(hid_feats, bottleneck_feats))
-            self.hid_layers = nn.Sequential(*layers)
+        self.hid_layers = nn.Sequential(*layers)
 
         self.apply(self._init_weights)
         if output_type == "softmax":
@@ -113,7 +136,7 @@ class DINOHead(NetArch):
             self.output.weight_g.requires_grad = False
         elif output_type == "cos-softmax":
             self.output = CosLossOutput(
-                hid_feats,
+                bottleneck_feats,
                 num_classes,
                 cos_scale=1,
                 margin=0,
@@ -122,43 +145,32 @@ class DINOHead(NetArch):
                 intertop_margin=0,
             )
         else:
-            raise ValueError(f"wrong loss_type={output_type}")
+            raise ValueError(f"wrong output_type={output_type}")
 
-    # def before_cloning(self):
-    #     if self.output_type == "cos-softmax":
-    #         return None, None
+    def _init_weights(self, m: nn.Module) -> None:
+        """Initialize linear-layer weights.
 
-    #     torch.nn.utils.remove_weight_norm(self.output)
-    #     return None, None
-    #     cloned_output = self._clone_output()
-    #     output = self.output
-    #     self.output = None
-    #     return output, cloned_output
-
-    # def after_cloning(self, output: nn.Module):
-    #     if self.output_type == "cos-softmax":
-    #         return
-
-    #     self.output = nn.utils.weight_norm(self.output)
-    #     self.output.weight_g.data.fill_(1)
-    #     self.output.weight_g.requires_grad = False
-
-    # def _clone_output(self):
-    #     output = nn.utils.weight_norm(
-    #         nn.Linear(self.bottleneck_feats, self.num_classes, bias=False)
-    #     )
-    #     output.weight_g.data.fill_(1)
-    #     output.weight_v.data = self.output_v.data.detach()
-    #     output.weight_g.requires_grad = False
-    #     return output
-
-    def _init_weights(self, m):
+        Args:
+            m: Module to initialize.
+        """
         if isinstance(m, nn.Linear):
             nn.init.trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x: torch.Tensor, y: Optional[torch.Tensor] = None):
+    def forward(
+        self, x: torch.Tensor, y: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Compute output logits for an input batch.
+
+        Args:
+            x: Input tensor with shape ``(batch, in_feats)``.
+            y: Optional target labels required by cosine-based outputs during
+                training.
+
+        Returns:
+            Output tensor with shape ``(batch, num_classes)``.
+        """
         if self.use_in_norm:
             x = self.in_norm(x)
         # assert not torch.any(
@@ -172,14 +184,25 @@ class DINOHead(NetArch):
         # assert not torch.any(
         #     torch.isnan(x)
         # ), f"x_l2 is nan  {x.size()} {torch.sum(torch.isnan(x))}"
-        x = self.output(x)
+        if self.output_type == "softmax":
+            x = self.output(x)
+        else:
+            x = self.output(x, y)
         # assert not torch.any(
         #     torch.isnan(x)
         # ), f"out is nan  {x.size()} {torch.sum(torch.isnan(x))}"
         return x
 
-    def get_config(self, no_class_name: bool = False):
-        hid_act = AF.get_config(self.fc_blocks[0].activation)
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Return a serializable configuration for the head.
+
+        Args:
+            no_class_name: If ``True``, omit the class name from the config.
+
+        Returns:
+            Dictionary containing the constructor arguments.
+        """
+        hid_act = self.hid_act
 
         config = {
             "in_feats": self.in_feats,
@@ -200,7 +223,15 @@ class DINOHead(NetArch):
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter constructor keyword arguments to the supported subset.
+
+        Args:
+            **kwargs: Candidate constructor keyword arguments.
+
+        Returns:
+            Dictionary with unsupported keys removed and aliases normalized.
+        """
         # if "wo_norm" in kwargs:
         #     kwargs["use_norm"] = not kwargs["wo_norm"]
         #     del kwargs["wo_norm"]
@@ -209,17 +240,30 @@ class DINOHead(NetArch):
         #     kwargs["norm_before"] = not kwargs["norm_after"]
         #     del kwargs["norm_after"]
 
-        args = filter_func_args(DINOHead.__init__, kwargs)
-        return args
+        if "botteneck_feats" in kwargs:
+            kwargs["bottleneck_feats"] = kwargs["botteneck_feats"]
+            del kwargs["botteneck_feats"]
+
+        if "output_layer" in kwargs:
+            kwargs["output_type"] = kwargs["output_layer"]
+            del kwargs["output_layer"]
+
+        return filter_func_args(DINOHead.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register CLI arguments for configuring the head.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional prefix used to nest the arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            "--botteneck-feats",
+            "--bottleneck-feats",
             default=256,
             type=int,
             help=("bottleneck dimension before output layer"),
@@ -238,6 +282,7 @@ class DINOHead(NetArch):
             pass
 
         parser.add_argument(
+            "--output-type",
             "--output-layer",
             default="softmax",
             choices=["softmax", "cos-softmax"],

@@ -6,7 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 import math
 from enum import Enum
-from typing import List, Optional, Set, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
@@ -48,7 +48,7 @@ class WaveNetPosteriorEncoder(NetArch):
         dilation_rate: int = 1,
         cond_channels: int = 0,
         dropout_rate: float = 0.1,
-    ):
+    ) -> None:
         """
         Initialize the WaveNetPosteriorEncoder.
 
@@ -103,16 +103,20 @@ class WaveNetPosteriorEncoder(NetArch):
         Perform a forward pass through the posterior encoder.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (B, T, in_feats), where B = batch size, T = time steps.
-            x_lengths (torch.Tensor, optional): Lengths of each input sequence (used to create a mask).
-            condition (torch.Tensor, optional): Optional conditioning input (e.g., speaker embedding) of shape (B, Cc, T).
-            deterministic (bool): If True, returns the mean of the posterior distribution instead of sampling.
+            x: Input tensor of shape ``(B, T, in_feats)``, where ``B`` is the
+                batch size and ``T`` is the number of time steps.
+            x_lengths: Optional sequence lengths used to create a time mask.
+            condition: Optional conditioning input. A 2D tensor is interpreted
+                as ``(B, Cc)`` and expanded to a length-1 sequence. A 3D tensor
+                is interpreted as ``(B, T, Cc)`` and transposed to
+                ``(B, Cc, T)`` before being passed to the WaveNet.
+            deterministic: If ``True``, return the posterior mean instead of a
+                random sample.
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-                - z (Tensor): Sampled latent representation of shape (B, T, out_feats).
-                - m (Tensor): Predicted mean of the posterior (B, out_feats, T, out_feats).
-                - logs (Tensor): Predicted log standard deviation (B, T, out_feats).
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: A tuple
+            ``(z, mean_z, logs_z)`` where each tensor has shape
+            ``(B, T, out_feats)``.
         """
         x = x.transpose(1, 2)  # (B, T, in_feats) -> (B, in_feats, T)
         if condition is not None:
@@ -124,7 +128,13 @@ class WaveNetPosteriorEncoder(NetArch):
 
             condition = condition.contiguous()
 
-        x_mask = seq_lengths_to_mask(x_lengths, x.size(2), time_dim=2).to(x.dtype)
+        x_mask = seq_lengths_to_mask(x_lengths, x.size(2), time_dim=2)
+        if x_mask is None:
+            x_mask = torch.ones(
+                x.size(0), 1, x.size(2), device=x.device, dtype=x.dtype
+            )
+        else:
+            x_mask = x_mask.to(device=x.device, dtype=x.dtype)
         x = self.in_conv(x) * x_mask
         x = self.wavenet(x, x_mask=x_mask, condition=condition)
         stats = self.out_conv(x) * x_mask
@@ -139,15 +149,21 @@ class WaveNetPosteriorEncoder(NetArch):
 
         return z, mean_z, logs_z
 
-    def remove_weight_norm(self):
+    def remove_weight_norm(self) -> None:
+        """Remove weight normalization from the internal WaveNet."""
         self.wavenet.remove_weight_norm()
 
-    def get_config(self, no_class_name: bool = False):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """
         Returns the encoder configuration as a dictionary.
 
+        Args:
+            no_class_name: If ``True``, omit the base class name from the
+                configuration returned by :meth:`super().get_config`.
+
         Returns:
-            Dict[str, Any]: Configuration values used to initialize the encoder.
+            A dictionary with the constructor arguments used to initialize the
+            encoder.
         """
         config = {
             "num_layers": self.num_layers,
@@ -163,14 +179,22 @@ class WaveNetPosteriorEncoder(NetArch):
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def add_class_args(parser, prefix: Optional[str] = None, skip: Set = set()):
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
         """
         Adds encoder arguments to the CLI parser.
 
         Args:
-            parser (ArgumentParser): Argument parser object.
-            prefix (str, optional): Optional prefix for argument names.
+            parser: Argument parser object.
+            prefix: Optional prefix for argument names.
+            skip: Optional set of argument names to omit.
         """
+        if skip is None:
+            skip = set()
+
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

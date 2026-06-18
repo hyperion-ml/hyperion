@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn.utils.parametrizations import weight_norm
-from torch.nn.utils.parametrize import remove_parametrizations
+from torch.nn.utils.parametrize import is_parametrized, remove_parametrizations
 
 from ...utils.misc import filter_func_args
 from ..layer_blocks.hifi_blocks import HiFiBlock
@@ -38,8 +38,26 @@ class HiFiGenerator(NetArch):
         upsample_init_channels (int): Number of channels before the first upsample layer.
         upsample_kernel_sizes (List[int]): Kernel sizes for transposed conv layers.
         upsample_strides (List[int]): Stride values for each upsampling stage.
-        activation (Union[str, nn.Module], optional): Activation function to use. Default is 'leakyrelu'.
+        activation (Union[str, Dict[str, Any], nn.Module], optional): Activation function to use. Default is 'leakyrelu'.
         cond_channels (int, optional): Number of conditioning channels. Default is 0.
+
+    Attributes:
+        in_feats (int): Number of input feature channels.
+        out_feats (int): Number of output channels.
+        resb_kernel_sizes (List[int]): Kernel sizes used in residual blocks.
+        resb_dilations (List[int]): Dilation pattern used in residual blocks.
+        upsample_init_channels (int): Number of channels before the first upsample layer.
+        upsample_kernel_sizes (List[int]): Kernel sizes for transposed-convolution upsampling layers.
+        upsample_strides (List[int]): Stride values for each upsampling stage.
+        cond_channels (int): Number of conditioning channels.
+        activation (nn.Module): Activation module applied between convolutions.
+        num_kernels (int): Number of residual blocks per upsampling stage.
+        num_upsamples (int): Number of upsampling stages.
+        in_conv (nn.Conv1d): Initial projection convolution.
+        upsample_layers (nn.ModuleList): Transposed-convolution upsampling layers.
+        blocks (nn.ModuleList): Residual HiFi blocks.
+        out_conv (nn.Conv1d): Final output projection convolution.
+        cond_layer (Optional[nn.Conv1d]): Optional conditioning projection layer.
     """
 
     def __init__(
@@ -53,7 +71,22 @@ class HiFiGenerator(NetArch):
         upsample_strides: List[int] = [10, 8, 2, 2],
         activation: Union[str, Dict[str, Any], nn.Module] = "leakyrelu",
         cond_channels: int = 0,
-    ):
+    ) -> None:
+        """
+        Initialize the HiFi generator.
+
+        Args:
+            in_feats: Number of input feature channels.
+            out_feats: Number of output channels.
+            resb_kernel_sizes: Kernel sizes for the residual blocks.
+            resb_dilations: Dilation pattern used in each residual block.
+            upsample_init_channels: Number of channels before the first upsampling stage.
+            upsample_kernel_sizes: Kernel sizes for each transposed-convolution layer.
+            upsample_strides: Stride values for each upsampling layer.
+            activation: Activation specification passed to
+                :func:`~hyperion.torch.layers.activation_factory.ActivationFactory.create`.
+            cond_channels: Number of conditioning channels. Set to ``0`` to disable conditioning.
+        """
         super().__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
@@ -133,19 +166,32 @@ class HiFiGenerator(NetArch):
     def stride(self) -> int:
         """
         Returns the stride of the generator.
-        The stride is the product of all upsample strides.
+
+        Returns:
+            int: Product of all upsample strides.
         """
         return math.prod(self.upsample_strides)
 
-    def init_weights(self):
+    def init_weights(self) -> None:
         """
         Initialize all convolutional weights with normal distribution.
         """
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.ConvTranspose1d)):
-                m.weight.data.normal_(0.0, 0.01)
+                if (
+                    is_parametrized(m)
+                    and hasattr(m, "parametrizations")
+                    and "weight" in m.parametrizations
+                ):
+                    g = m.parametrizations.weight.original0
+                    v = m.parametrizations.weight.original1
+                    nn.init.normal_(v, 0.0, 0.01)
+                    with torch.no_grad():
+                        g.copy_(v.flatten(1).norm(dim=1, keepdim=True).view_as(g))
+                else:
+                    nn.init.normal_(m.weight, 0.0, 0.01)
                 if m.bias is not None:
-                    m.bias.data.zero_()
+                    nn.init.constant_(m.bias, 0.0)
 
     def forward(
         self,
@@ -158,10 +204,12 @@ class HiFiGenerator(NetArch):
 
         Args:
             x (Tensor): Input tensor of shape (B, T, in_feats).
+            x_lengths (Tensor, optional): Valid frame counts for each batch item used to mask padded frames.
             condition (Tensor, optional): Optional global conditioning tensor of shape (B, T, cond_channels).
+                A 2D tensor of shape (B, cond_channels) is also accepted and will be broadcast across time.
 
         Returns:
-            Tensor: Output waveform tensor of shape (B, 1, T_out).
+            Tensor: Output waveform tensor of shape (B, out_feats, T_out).
         """
         x = x.transpose(1, 2).contiguous()  # (B, T, in_feats) -> (B, in_feats, T)
         if condition is not None:
@@ -174,6 +222,10 @@ class HiFiGenerator(NetArch):
             condition = condition.contiguous()
 
         if x_lengths is not None:
+            if x_lengths.device != x.device:
+                raise ValueError(
+                    "x_lengths must be on the same device as x"
+                )
             x_mask = seq_lengths_to_mask(x_lengths, x.size(2), time_dim=2).to(x.dtype)
             x = x * x_mask
         else:
@@ -220,20 +272,27 @@ class HiFiGenerator(NetArch):
             x = x * x_mask
         return x
 
-    def remove_weight_norm(self):
+    def remove_weight_norm(self) -> None:
         """
         Removes weight normalization from all layers for efficient inference.
         """
         logging.info("Removing weight norm...")
         for l in self.upsample_layers:
-            remove_parametrizations(l, "weight")
+            if is_parametrized(l):
+                remove_parametrizations(l, "weight")
 
         for block in self.blocks:
             block.remove_weight_norm()
 
-    def get_config(self, no_class_name: bool = False):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """
-        Returns the generator configuration dictionary.
+        Returns a serializable configuration dictionary.
+
+        Args:
+            no_class_name: If ``True``, omit the base ``class_name`` entry.
+
+        Returns:
+            Dict[str, Any]: Configuration dictionary for reconstructing the generator.
         """
         activation = AF.get_config(self.activation)
         config = {
@@ -252,14 +311,15 @@ class HiFiGenerator(NetArch):
 
     @staticmethod
     def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set = set()
-    ):
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
+    ) -> None:
         """
         Adds generator arguments to the CLI parser.
 
         Args:
             parser (ArgumentParser): Argument parser object.
             prefix (str, optional): Optional prefix for argument names.
+            skip (Set[str], optional): Argument names to omit from the parser.
         """
         if prefix is not None:
             outer_parser = parser
@@ -276,46 +336,52 @@ class HiFiGenerator(NetArch):
                 default=1,
                 help="Output feature channels (e.g., 1 for mono audio).",
             )
-        parser.add_argument(
-            "--resb-kernel-sizes",
-            type=int,
-            nargs="+",
-            default=[3, 7, 11],
-            help="Residual block kernel sizes.",
-        )
-        parser.add_argument(
-            "--resb-dilations",
-            type=int,
-            nargs="+",
-            default=[1, 3, 5],
-            help="Dilation rates for residual blocks.",
-        )
-        parser.add_argument(
-            "--upsample-init-channels",
-            type=int,
-            default=512,
-            help="Initial number of channels before upsampling.",
-        )
-        parser.add_argument(
-            "--upsample-kernel-sizes",
-            type=int,
-            nargs="+",
-            default=[16, 16, 4, 4],
-            help="Upsample kernel sizes.",
-        )
-        parser.add_argument(
-            "--upsample-strides",
-            type=int,
-            nargs="+",
-            default=[10, 8, 2, 2],
-            help="Upsample stride sizes.",
-        )
-        parser.add_argument(
-            "--activation",
-            type=str,
-            default="leakyrelu",
-            help="Activation function type.",
-        )
+        if "resb_kernel_sizes" not in skip:
+            parser.add_argument(
+                "--resb-kernel-sizes",
+                type=int,
+                nargs="+",
+                default=[3, 7, 11],
+                help="Residual block kernel sizes.",
+            )
+        if "resb_dilations" not in skip:
+            parser.add_argument(
+                "--resb-dilations",
+                type=int,
+                nargs="+",
+                default=[1, 3, 5],
+                help="Dilation rates for residual blocks.",
+            )
+        if "upsample_init_channels" not in skip:
+            parser.add_argument(
+                "--upsample-init-channels",
+                type=int,
+                default=512,
+                help="Initial number of channels before upsampling.",
+            )
+        if "upsample_kernel_sizes" not in skip:
+            parser.add_argument(
+                "--upsample-kernel-sizes",
+                type=int,
+                nargs="+",
+                default=[16, 16, 4, 4],
+                help="Upsample kernel sizes.",
+            )
+        if "upsample_strides" not in skip:
+            parser.add_argument(
+                "--upsample-strides",
+                type=int,
+                nargs="+",
+                default=[10, 8, 2, 2],
+                help="Upsample stride sizes.",
+            )
+        if "activation" not in skip:
+            parser.add_argument(
+                "--activation",
+                type=str,
+                default="leakyrelu",
+                help="Activation function type.",
+            )
         if "cond_channels" not in skip:
             parser.add_argument(
                 "--cond-channels",

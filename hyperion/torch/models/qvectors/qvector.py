@@ -404,11 +404,11 @@ class QVector(HyperTorchModel):
             )
             proj_uses_norm = not self.output_feats_agg_qformer.output_is_normalized
             proj_norm_layer = self.output_feats_agg_qformer.norm_layer
-            qformer_out_feats = self.output_feats_agg_qformer.out_dim
+            qformer_out_feats = self.output_feats_agg_qformer.out_dim()
         else:
             proj_uses_norm = not self.hidden_feats_agg_qformer.output_is_normalized
             proj_norm_layer = self.hidden_feats_agg_qformer.norm_layer
-            qformer_out_feats = self.hidden_feats_agg_qformer.out_dim
+            qformer_out_feats = self.hidden_feats_agg_qformer.out_dim()
 
         qmatrix_dim = (
             num_hidden_feats_queries + num_output_feats_queries
@@ -478,9 +478,9 @@ class QVector(HyperTorchModel):
         num_queries = self.num_hidden_feats_queries + self.num_output_feats_queries
         qformer_out_feats = 0
         if self.hidden_feats_agg_qformer is not None:
-            qformer_out_feats = self.hidden_feats_agg_qformer.out_dim
+            qformer_out_feats = self.hidden_feats_agg_qformer.out_dim()
         elif self.output_feats_agg_qformer is not None:
-            qformer_out_feats = self.output_feats_agg_qformer.out_dim
+            qformer_out_feats = self.output_feats_agg_qformer.out_dim()
         return (num_queries, qformer_out_feats)
 
     @property

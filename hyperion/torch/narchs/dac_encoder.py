@@ -61,6 +61,17 @@ class DACEncoder(NetArch):
         strides: Optional[List[int]] = None,
         dilations: Optional[List[int]] = None,
     ) -> None:
+        """
+        Create a DAC encoder.
+
+        Args:
+            in_feats: Number of input feature channels.
+            out_feats: Number of output feature channels.
+            init_inner_channels: Number of channels after the stem convolution.
+            kernel_size: Kernel size used by the stem and residual blocks.
+            strides: Per-stage downsampling strides. Defaults to [2, 4, 8, 8].
+            dilations: Dilation rates used inside residual blocks.
+        """
         if strides is None:
             strides = [2, 4, 8, 8]
         if dilations is None:
@@ -111,6 +122,9 @@ class DACEncoder(NetArch):
     def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """
         Return constructor configuration merged with `NetArch` base config.
+
+        Args:
+            no_class_name: If True, omit the class name entry from the config.
 
         Returns:
             dict: A JSON-serializable configuration dictionary.
@@ -185,7 +199,8 @@ class DACEncoder(NetArch):
         Prepare input for the encoder.
 
         - Ensures channels-first layout (B, in_feats, T).
-        - Pads sequence length to a multiple of total stride.
+        - Pads sequence length to a multiple of total stride so `forward()`
+          can produce a tensor with predictable shape.
 
         Args:
             x: Input tensor of shape (B, T, in_feats) or (B, T).
@@ -207,13 +222,17 @@ class DACEncoder(NetArch):
 
     def max_out_length(self, max_in_length: int) -> int:
         """
-        Compute maximum output length for a given input length.
+        Compute the tensor time length produced by `forward()` for an input length.
+
+        This accounts for the right-padding applied by :meth:`preprocess`, so it
+        predicts the allocated output shape, not the number of fully valid output
+        frames.
 
         Args:
             max_in_length: Maximum input length in samples.
 
         Returns:
-            Maximum output length in samples after all downsampling.
+            Output tensor length in frames after all downsampling.
         """
         hop_length = self.stride
         max_in_length = math.ceil(max_in_length / hop_length) * hop_length
@@ -224,28 +243,33 @@ class DACEncoder(NetArch):
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:
         """
-        Compute output lengths for a batch of input lengths.
+        Compute valid output lengths for a batch of input lengths.
+
+        Unlike :meth:`max_out_length`, this excludes output frames whose receptive
+        field depends on the right-padding introduced by :meth:`preprocess`.
 
         Args:
             in_lengths: Tensor of shape (B,) with input lengths in samples.
 
         Returns:
-            Tensor of shape (B,) with output lengths in samples.
+            Tensor of shape (B,) with valid output lengths in frames.
         """
         out_lengths = in_lengths
         for block in self.blocks:
             out_lengths = block.out_lengths(out_lengths)
         return out_lengths
 
-    def out_shape(self, in_shape: Tuple[int, ...]) -> Tuple[int, ...]:
+    def out_shape(
+        self, in_shape: Tuple[int, Optional[int], int]
+    ) -> Tuple[int, Optional[int], int]:
         """
         Compute the output tensor shape given an input shape.
 
         Args:
-            in_shape: Tuple (B, T_in, in_feats).
+            in_shape: Tuple (B, T_in, in_feats), where T_in may be `None`.
 
         Returns:
-            Tuple (B, T_out, out_feats).
+            Tuple (B, T_out, out_feats), where T_out may be `None`.
         """
 
         B = in_shape[0]
@@ -269,7 +293,8 @@ class DACEncoder(NetArch):
             x_lengths: Optional tensor of shape (B,) with valid lengths.
 
         Returns:
-            Tensor of shape (B, T_out, out_feats).
+            Tensor of shape (B, T_out, out_feats), where `T_out` matches
+            :meth:`max_out_length` after encoder preprocessing/padding.
         """
 
         x = self.preprocess(x)
@@ -302,9 +327,12 @@ class DACEncoder(NetArch):
             block.remove_weight_norm()
 
     @staticmethod
-    def filter_args(**kwargs) -> Dict[str, Any]:
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """
         Filter keyword arguments relevant to `DACEncoder.__init__`.
+
+        Args:
+            **kwargs: Candidate keyword arguments for `DACEncoder.__init__`.
 
         Returns:
             dict: Filtered kwargs usable to instantiate `DACEncoder`.
@@ -313,7 +341,7 @@ class DACEncoder(NetArch):
 
     @staticmethod
     def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set = set()
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
     ) -> None:
         """
         Register encoder hyperparameters on a CLI parser.

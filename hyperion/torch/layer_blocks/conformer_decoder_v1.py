@@ -176,6 +176,7 @@ class ConformerDecoderBlockV1(ConformerEncoderBlockV1):
         if cache is None:
             x_q = x
             mask_q = mask
+            x_kv = x
         else:
             # compute only the last frame query keeping dim: max_time_out -> 1
             assert_cache_shape = (x.size(0), x.size(1) - 1, x.size(2))
@@ -185,11 +186,12 @@ class ConformerDecoderBlockV1(ConformerEncoderBlockV1):
             x_q = x[:, -1:, :]
             residual = residual[:, -1:, :]
             mask_q = None if mask is None else mask[:, -1:, :]
+            x_kv = torch.cat((cache, x_q), dim=1)
 
         if pos_emb is None:
-            x_att = self.self_attn(x_q, x, x, mask=mask_q)
+            x_att = self.self_attn(x_q, x_kv, x_kv, mask=mask_q)
         else:
-            x_att = self.self_attn(x_q, x, x, pos_emb=pos_emb, mask=mask_q)
+            x_att = self.self_attn(x_q, x_kv, x_kv, pos_emb=pos_emb, mask=mask_q)
 
         if self.concat_after:
             x = torch.cat((x_q, x_att), dim=-1)
