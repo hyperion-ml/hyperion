@@ -202,20 +202,18 @@ class HFWav2XVector(HyperTorchModel):
         classification head. In this case the ouput variable is a dictionary.
 
         Args:
-          x: input features tensor with shape=(batch, in_feats, time)
-          x_lengths: time lengths of the features with shape=(batch,)
+          x: Input waveform tensor with shape ``(batch, num_samples)``.
+          x_lengths: Time lengths of the waveform tensor with shape ``(batch,)``.
           y: target classes torch.long tensor with shape=(batch,)
-          return_feat_layers: list of integers indicating, which wav2vec layers
-                             we should return. If None, no wav2vec layers are returned.
-          return_enc_layers: list of integers indicating, which encoder layers
-                             we should return. If None, no encoder layers are returned.
-          return_enc_layers: list of integers indicating, which classification head layers
-                             we should return. If None, no head layers are returned.
-          return_logits: if True, it adds the logits to the output dictionary.
+          return_feat_layers: HF hidden-layer indices to return. If ``None``, no HF
+            hidden states are added to the output.
+          return_enc_layers: Encoder layers to return from the backend x-vector.
+          return_classif_layers: Classification-head layers to return from the backend x-vector.
+          return_logits: If ``True``, the backend output includes logits.
+
         Returns:
           Tensor with class logits with shape=(batch, num_classes) or
-          Dictionary with "logits", "h_enc" (list of hidden encoder layers),
-          "h_classif" (list hidden classification head layers), "h_feats" (wav2vec features)
+          dictionary with ``logits``, ``h_enc``, ``h_classif``, and optionally ``h_feats``.
         """
         feats, hid_feats, feat_lengths = self.forward_feats(
             x, x_lengths, return_feat_layers
@@ -477,15 +475,18 @@ class HFWav2XVector(HyperTorchModel):
         if mode == self._train_mode:
             return
 
+        xvector_mode = "full"
         if mode == "full":
             self.unfreeze()
         elif mode == "frozen":
             self.freeze()
+            xvector_mode = "frozen"
         elif mode == "ft-embed-affine":
             self.unfreeze()
             self.freeze_feat_fuser()
             self.freeze_hf_feats()
             self.xvector.freeze_preembed_layers()
+            xvector_mode = "ft-embed-affine"
         elif mode in ["ft-xvector", "ft-xvector-nograd"]:
             self.unfreeze()
             self.freeze_hf_feats()
@@ -519,6 +520,7 @@ class HFWav2XVector(HyperTorchModel):
         else:
             self._hf_context = contextlib.nullcontext()
 
+        self.xvector.set_train_mode(xvector_mode)
         self._train_mode = mode
 
     def _train(self, train_mode: str) -> None:
@@ -538,7 +540,7 @@ class HFWav2XVector(HyperTorchModel):
         elif train_mode == "ft-embed-affine":
             self.hf_feats.train()
             self.feat_fuser.train()
-            self.xvector._train("ft-embed_affine")
+            self.xvector._train("ft-embed-affine")
         elif train_mode in [
             "ft-xvector",
             "hf-feats-frozen",

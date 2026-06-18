@@ -16,17 +16,13 @@ from .hf_wav2xvector import HFWav2XVector
 
 
 class HFHubert2ConformerV1XVector(HFWav2XVector):
-    """Class extracting Hubert + ConformerV1 x-vectors from waveform.
+    """Wrapper that combines HuBERT features with a Conformer backend.
 
     Attributes:
-      Attributes:
-      hf_feats: HFHubert configuration dictionary or object.
-                This is a warpper over Hugging Face Hubert model.
-      xvector: ConformerV1XVector configuration dictionary or object.
-      feat_fusion_start: the input to x-vector model will fuse the Hubert layers from "feat_fusion_start" to
-                         the Hubert "num_layers".
-      feat_fusion_method: method to fuse the hidden layers from the Hubert model, when more
-                           than one layer is used.
+      hf_feats: HuBERT feature extractor or configuration dictionary.
+      feat_fuser: Feature-fusion configuration dictionary.
+      xvector: Conformer backend or configuration dictionary.
+      feat_fusion_start: First HuBERT layer used by the feature fuser.
     """
 
     def __init__(
@@ -36,6 +32,14 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
         xvector: Union[Dict[str, Any], ConformerV1XVector],
         feat_fusion_start: int = 0,
     ) -> None:
+        """Initializes the wrapper.
+
+        Args:
+          hf_feats: HuBERT feature extractor instance or configuration dictionary.
+          feat_fuser: Feature-fusion configuration dictionary or object.
+          xvector: Conformer backend instance or configuration dictionary.
+          feat_fusion_start: First HuBERT layer used by the feature fuser.
+        """
         if isinstance(hf_feats, dict):
             hf_feats = HFHubert(**hf_feats)
         else:
@@ -52,6 +56,14 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters constructor arguments for this wrapper.
+
+        Args:
+          kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         base_args = HFWav2XVector.filter_args(**kwargs)
         child_args = HFHubert.filter_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
@@ -61,6 +73,12 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
 
     @staticmethod
     def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds CLI arguments for this wrapper.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -74,6 +92,14 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
 
     @staticmethod
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters fine-tuning configuration for this wrapper.
+
+        Args:
+          kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         base_args = {}
         child_args = HFHubert.filter_finetune_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
@@ -83,6 +109,12 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
 
     @staticmethod
     def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds fine-tuning CLI arguments for this wrapper.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

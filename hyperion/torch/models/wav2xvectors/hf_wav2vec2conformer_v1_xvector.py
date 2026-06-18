@@ -16,16 +16,13 @@ from .hf_wav2xvector import HFWav2XVector
 
 
 class HFWav2Vec2ConformerV1XVector(HFWav2XVector):
-    """Class extracting Wav2Vec2 + ConformerV1 x-vectors from waveform.
+    """Wrapper that combines Wav2Vec2 features with a Conformer backend.
 
     Attributes:
-      hf_feats: HFWav2Vec configuration dictionary or object.
-                This is a warpper over Hugging Face Wav2Vec model.
-      xvector: ConformerV1XVector configuration dictionary or object.
-      feat_fusion_start: the input to x-vector model will fuse the wav2vec layers from "feat_fusion_start" to
-                         the wav2vec "num_layers".
-      feat_fusion_method: method to fuse the hidden layers from the wav2vec model, when more
-                           than one layer is used.
+      hf_feats: Wav2Vec2 feature extractor or configuration dictionary.
+      feat_fuser: Feature-fusion configuration dictionary.
+      xvector: Conformer backend or configuration dictionary.
+      feat_fusion_start: First Wav2Vec2 layer used by the feature fuser.
     """
 
     def __init__(
@@ -35,6 +32,14 @@ class HFWav2Vec2ConformerV1XVector(HFWav2XVector):
         xvector: Union[Dict[str, Any], ConformerV1XVector],
         feat_fusion_start: int = 0,
     ) -> None:
+        """Initializes the wrapper.
+
+        Args:
+          hf_feats: Wav2Vec2 feature extractor instance or configuration dictionary.
+          feat_fuser: Feature-fusion configuration dictionary or object.
+          xvector: Conformer backend instance or configuration dictionary.
+          feat_fusion_start: First Wav2Vec2 layer used by the feature fuser.
+        """
         if isinstance(hf_feats, dict):
             if "class_name" in hf_feats:
                 del hf_feats["class_name"]
@@ -55,6 +60,14 @@ class HFWav2Vec2ConformerV1XVector(HFWav2XVector):
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters constructor arguments for this wrapper.
+
+        Args:
+          kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         base_args = HFWav2XVector.filter_args(**kwargs)
         child_args = HFWav2Vec2.filter_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
@@ -64,6 +77,12 @@ class HFWav2Vec2ConformerV1XVector(HFWav2XVector):
 
     @staticmethod
     def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds CLI arguments for this wrapper.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -77,6 +96,14 @@ class HFWav2Vec2ConformerV1XVector(HFWav2XVector):
 
     @staticmethod
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters fine-tuning configuration for this wrapper.
+
+        Args:
+          kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         base_args = {}
         child_args = HFWav2Vec2.filter_finetune_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
@@ -86,6 +113,12 @@ class HFWav2Vec2ConformerV1XVector(HFWav2XVector):
 
     @staticmethod
     def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds fine-tuning CLI arguments for this wrapper.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

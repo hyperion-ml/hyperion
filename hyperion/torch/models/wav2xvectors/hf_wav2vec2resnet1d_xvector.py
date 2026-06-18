@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
+from typing import Any, Dict, Optional, Union
 from typing import Dict, Optional, Union
 
 import torch
@@ -16,25 +17,30 @@ from .hf_wav2xvector import HFWav2XVector
 
 
 class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
-    """Class extracting Wav2Vec2 + ResNet1d x-vectors from waveform.
+    """Wrapper that combines Wav2Vec2 features with a ResNet1d x-vector backend.
 
     Attributes:
-      hf_feats: HFWav2Vec configuration dictionary or object.
-                This is a warpper over Hugging Face Wav2Vec model.
-      xvector: ResNet1dXVector configuration dictionary or object.
-      feat_fusion_start: the input to x-vector model will fuse the wav2vec layers from "feat_fusion_start" to
-                         the wav2vec "num_layers".
-      feat_fusion_method: method to fuse the hidden layers from the wav2vec model, when more
-                           than one layer is used.
+      hf_feats: Wav2Vec2 feature extractor or configuration dictionary.
+      feat_fuser: Feature-fusion configuration dictionary.
+      xvector: ResNet1d backend or configuration dictionary.
+      feat_fusion_start: First Wav2Vec2 layer used by the feature fuser.
     """
 
     def __init__(
         self,
-        hf_feats: Union[Dict, HFWav2Vec2],
-        feat_fuser: Union[Dict, FeatFuserMVN],
-        xvector: Union[Dict, ResNet1dXVector],
+        hf_feats: Union[Dict[str, Any], HFWav2Vec2],
+        feat_fuser: Union[Dict[str, Any], FeatFuserMVN],
+        xvector: Union[Dict[str, Any], ResNet1dXVector],
         feat_fusion_start: int = 0,
-    ):
+    ) -> None:
+        """Initializes the wrapper.
+
+        Args:
+          hf_feats: Wav2Vec2 feature extractor instance or configuration dictionary.
+          feat_fuser: Feature-fusion configuration dictionary or object.
+          xvector: ResNet1d backend instance or configuration dictionary.
+          feat_fusion_start: First Wav2Vec2 layer used by the feature fuser.
+        """
         if isinstance(hf_feats, dict):
             if "class_name" in hf_feats:
                 del hf_feats["class_name"]
@@ -55,7 +61,15 @@ class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
         # feat_fusion_method)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters constructor arguments for this wrapper.
+
+        Args:
+          kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         base_args = HFWav2XVector.filter_args(**kwargs)
         child_args = HFWav2Vec2.filter_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
@@ -64,7 +78,13 @@ class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
         return base_args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds CLI arguments for this wrapper.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -77,8 +97,16 @@ class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
-        base_args = {}
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters fine-tuning configuration for this wrapper.
+
+        Args:
+          kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
+        base_args: Dict[str, Any] = {}
         child_args = HFWav2Vec2.filter_finetune_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
         child_args = ResNet1dXVector.filter_finetune_args(**kwargs["xvector"])
@@ -86,7 +114,13 @@ class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds fine-tuning CLI arguments for this wrapper.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

@@ -4,6 +4,7 @@
 """
 
 import logging
+from typing import Any, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -14,17 +15,24 @@ from .wav2xvector import Wav2XVector
 
 
 class Wav2TransformerV2XVector(Wav2XVector):
-    """Class extracting TransformerV2 x-vectors from waveform.
-    It contains acoustic feature extraction, feature normalization and
-    TransformerV2XVector extractor.
+    """Wrapper that combines waveform features with a Transformer V2 x-vector backend.
 
     Attributes:
-      Attributes:
-      feats: feature extractor object of class AudioFeatsMVN or dictionary of options to instantiate AudioFeatsMVN object.
-      xvector: TransformerV2XVector configuration dictionary or object.
+      feats: Acoustic feature extractor or configuration dictionary.
+      xvector: Transformer V2 backend or configuration dictionary.
     """
 
-    def __init__(self, feats, xvector):
+    def __init__(
+        self,
+        feats: Any,
+        xvector: Union[Dict[str, Any], TransformerV2XVector],
+    ) -> None:
+        """Initializes the wrapper.
+
+        Args:
+          feats: Acoustic feature extractor instance or configuration dictionary.
+          xvector: Transformer V2 backend instance or configuration dictionary.
+        """
         if isinstance(xvector, dict):
             xvector = TransformerV2XVector.filter_args(**xvector)
             xvector = TransformerV2XVector(**xvector)
@@ -34,12 +42,15 @@ class Wav2TransformerV2XVector(Wav2XVector):
         super().__init__(feats, xvector)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
-        """Adds Wav2TransformerV2XVector options to parser.
+    def add_class_args(
+        parser: Any,
+        prefix: Optional[str] = None,
+    ) -> None:
+        """Adds CLI arguments for this wrapper.
 
         Args:
-          parser: Arguments parser
-          prefix: Options prefix.
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
         """
         if prefix is not None:
             outer_parser = parser
@@ -52,14 +63,31 @@ class Wav2TransformerV2XVector(Wav2XVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
-        base_args = {}
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters fine-tuning configuration for this wrapper.
+
+        Args:
+          kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
+        base_args: Dict[str, Any] = {}
         child_args = TransformerV2XVector.filter_finetune_args(**kwargs["xvector"])
         base_args["xvector"] = child_args
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(
+        parser: Any,
+        prefix: Optional[str] = None,
+    ) -> None:
+        """Adds fine-tuning CLI arguments for this wrapper.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -70,14 +98,31 @@ class Wav2TransformerV2XVector(Wav2XVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_dino_teacher_args(**kwargs):
-        base_args = {}
+    def filter_dino_teacher_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters DINO-teacher configuration for this wrapper.
+
+        Args:
+          kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
+        base_args: Dict[str, Any] = {}
         child_args = TransformerV2XVector.filter_dino_teacher_args(**kwargs["xvector"])
         base_args["xvector"] = child_args
         return base_args
 
     @staticmethod
-    def add_dino_teacher_args(parser, prefix=None):
+    def add_dino_teacher_args(
+        parser: Any,
+        prefix: Optional[str] = None,
+    ) -> None:
+        """Adds DINO-teacher CLI arguments for this wrapper.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

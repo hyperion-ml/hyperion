@@ -5,7 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import contextlib
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -17,14 +17,24 @@ from ...utils import collate_seqs_1d, collate_seqs_2d, remove_silence
 
 
 class Wav2XVector(HyperTorchModel):
-    """Base class for models that integrate the acoustic feature extractor and and x-vector model that takes acoustic features as input.
+    """Base class for waveform-to-x-vector wrappers.
 
     Attributes:
-      feats: feature extractor object of class AudioFeatsMVN or dictionary of options to instantiate AudioFeatsMVN object.
-      xvector: x-vector model object.
+      feats: Acoustic feature extractor or configuration dictionary.
+      xvector: Backend x-vector model or configuration dictionary.
     """
 
-    def __init__(self, feats, xvector):
+    def __init__(
+        self,
+        feats: Union[Dict[str, Any], AudioFeatsMVN],
+        xvector: Union[Dict[str, Any], HyperTorchModel],
+    ) -> None:
+        """Initializes the wrapper.
+
+        Args:
+          feats: Acoustic feature extractor instance or configuration dictionary.
+          xvector: Backend x-vector model instance or configuration dictionary.
+        """
         super().__init__()
 
         if isinstance(feats, dict):
@@ -39,11 +49,13 @@ class Wav2XVector(HyperTorchModel):
         self._feats_context = contextlib.nullcontext()
 
     @property
-    def sample_frequency(self):
+    def sample_frequency(self) -> int:
+        """Returns the sampling frequency expected by the feature extractor."""
         return self.feats.sample_frequency
 
     @property
-    def embed_dim(self):
+    def embed_dim(self) -> int:
+        """Returns the embedding dimension of the backend x-vector model."""
         return self.xvector.embed_dim
 
     # def clone(self):
@@ -55,7 +67,8 @@ class Wav2XVector(HyperTorchModel):
     #     new_self.xvector.after_cloning(*cloned_modules)
     #     return new_self
 
-    def compute_prototype_affinity(self):
+    def compute_prototype_affinity(self) -> torch.Tensor:
+        """Returns the prototype-affinity tensor from the backend x-vector model."""
         return self.xvector.compute_prototype_affinity()
 
     def update_loss_margin(self, epoch: int):
@@ -77,7 +90,19 @@ class Wav2XVector(HyperTorchModel):
         intertop_k: int = 5,
         intertop_margin: float = 0.0,
         num_subcenters: int = 2,
-    ):
+    ) -> None:
+        """Rebuilds or retunes the backend classification layer.
+
+        Args:
+          num_classes: Number of target classes to rebuild the layer for.
+          loss_type: Loss type for the classification head.
+          cos_scale: Cosine-logit scale.
+          margin: Margin used by margin-based softmax losses.
+          margin_warmup_epochs: Number of epochs used for margin warmup.
+          intertop_k: Number of hardest impostor classes for inter-top margin.
+          intertop_margin: Additional inter-top margin.
+          num_subcenters: Number of class subcenters.
+        """
         self.xvector.rebuild_output_layer(
             num_classes=num_classes,
             loss_type=loss_type,
@@ -89,11 +114,17 @@ class Wav2XVector(HyperTorchModel):
             num_subcenters=num_subcenters,
         )
 
-    def change_config(self, xvector):
+    def change_config(self, xvector: Dict[str, Any]) -> None:
+        """Applies runtime configuration updates to the backend x-vector model.
+
+        Args:
+          xvector: Configuration updates for the x-vector backend.
+        """
         logging.info("changing wav2xvector config")
         self.xvector.change_config(**xvector)
 
-    def cancel_output_layer_grads(self):
+    def cancel_output_layer_grads(self) -> None:
+        """Clears gradients on the backend output layer."""
         self.xvector.cancel_output_layer_grads()
 
     def forward(
@@ -106,7 +137,22 @@ class Wav2XVector(HyperTorchModel):
         return_enc_layers: Optional[List[int]] = None,
         return_classif_layers: Optional[List[int]] = None,
         return_logits: bool = True,
-    ):
+    ) -> Any:
+        """Runs acoustic feature extraction and forwards the result through the backend.
+
+        Args:
+          x: Input waveform tensor with shape ``(batch, num_samples)``.
+          x_lengths: Optional valid lengths for ``x``.
+          y: Target labels.
+          vad_samples: Optional voiced-sample mask for waveform silence removal.
+          vad_feats: Optional voiced-frame mask for feature silence removal.
+          return_enc_layers: Encoder layers to return from the backend model.
+          return_classif_layers: Classification-head layers to return from the backend model.
+          return_logits: Whether the backend should return logits.
+
+        Returns:
+          Backend output, typically a tensor or structured output object.
+        """
         with self._feats_context:
             if vad_samples is not None:
                 x, x_lengths = remove_silence(x, vad_samples, x_lengths)
@@ -133,7 +179,21 @@ class Wav2XVector(HyperTorchModel):
         chunk_length: float = 0,
         embed_layer: Optional[int] = None,
         detach_chunks: bool = False,
-    ):
+    ) -> torch.Tensor:
+        """Extracts speaker embeddings from waveform input.
+
+        Args:
+          x: Input waveform tensor with shape ``(batch, num_samples)``.
+          x_lengths: Optional valid lengths for ``x``.
+          vad_samples: Optional voiced-sample mask for waveform silence removal.
+          vad_feats: Optional voiced-frame mask for feature silence removal.
+          chunk_length: Chunk length in seconds used during embedding extraction.
+          embed_layer: Backend embedding layer selector.
+          detach_chunks: Whether to detach chunk outputs.
+
+        Returns:
+          Embedding tensor returned by the backend x-vector model.
+        """
         with self._feats_context:
             if vad_samples is not None:
                 x, x_lengths = remove_silence(x, vad_samples, x_lengths)
@@ -161,7 +221,23 @@ class Wav2XVector(HyperTorchModel):
         chunk_length: float = 0.0,
         embed_layer: Optional[int] = None,
         detach_chunks: bool = False,
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor], List[torch.Tensor]]:
+        """Extracts sliding-window embeddings and their output time stamps.
+
+        Args:
+          x: Input waveform tensor with shape ``(batch, num_samples)``.
+          x_lengths: Optional valid lengths for ``x``.
+          vad_t_start: Optional per-utterance voiced-region start times in seconds.
+          vad_t_end: Optional per-utterance voiced-region end times in seconds.
+          win_length: Sliding-window duration in seconds.
+          win_shift: Sliding-window shift in seconds.
+          chunk_length: Max accumulated voiced duration before running the backend.
+          embed_layer: Backend embedding layer selector.
+          detach_chunks: Whether to detach chunk outputs.
+
+        Returns:
+          Padded embeddings, embedding lengths, start times, and end times.
+        """
         if vad_t_start is not None:
             assert vad_t_end is not None
             assert len(vad_t_start) == len(vad_t_end)
@@ -263,11 +339,17 @@ class Wav2XVector(HyperTorchModel):
         out_embeds, embeds_lengths = collate_seqs_2d(out_embeds)
         return out_embeds, embeds_lengths, out_t_start, out_t_end
 
-    def trainable_param_groups(self):
+    def trainable_param_groups(self) -> List[Dict[str, Any]]:
+        """Returns the backend trainable parameter groups."""
         param_groups = self.xvector.trainable_param_groups()
         return param_groups
 
-    def set_train_mode(self, mode):
+    def set_train_mode(self, mode: str) -> None:
+        """Sets the training mode on the wrapper and backend model.
+
+        Args:
+          mode: Training mode name.
+        """
         if mode == self._train_mode:
             return
         logging.info("setting Wav2XVector train mode to %s", mode)
@@ -285,7 +367,12 @@ class Wav2XVector(HyperTorchModel):
         self.xvector.set_train_mode(xvector_mode)
         self._train_mode = mode
 
-    def _train(self, train_mode: str):
+    def _train(self, train_mode: str) -> None:
+        """Applies the internal training mode used by ``HyperTorchModel.train``.
+
+        Args:
+          train_mode: Internal training mode name.
+        """
         self.feats.train()
         if train_mode in ["frozen"]:
             super()._train(train_mode)
@@ -297,7 +384,8 @@ class Wav2XVector(HyperTorchModel):
             raise ValueError(f"invalid train_mode={train_mode}")
 
     @staticmethod
-    def valid_train_modes():
+    def valid_train_modes() -> List[str]:
+        """Returns the supported training modes."""
         return [
             "full",
             "frozen",
@@ -305,7 +393,12 @@ class Wav2XVector(HyperTorchModel):
             "full-feats-grad",
         ]
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Serializes the wrapper configuration.
+
+        Returns:
+          Configuration dictionary for recreating this wrapper.
+        """
         feat_cfg = self.feats.get_config()
         xvector_cfg = self.xvector.get_config()
         config = {
@@ -317,14 +410,14 @@ class Wav2XVector(HyperTorchModel):
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def filter_args(**kwargs):
-        """Filters Wav2XVector class arguments from arguments dictionary.
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters constructor arguments for this wrapper.
 
         Args:
-          kwargs: Arguments dictionary.
+          kwargs: Candidate keyword arguments.
 
         Returns:
-          Dictionary with SpecAugment options.
+          Dictionary with the supported constructor keys.
         """
         valid_args = (
             "feats",
@@ -334,12 +427,15 @@ class Wav2XVector(HyperTorchModel):
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
-        """Adds Wav2XVector options common to all child classes to parser.
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+    ) -> None:
+        """Adds CLI arguments common to all child classes.
 
         Args:
-          parser: Arguments parser
-          prefix: Options prefix.
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
         """
         if prefix is not None:
             outer_parser = parser

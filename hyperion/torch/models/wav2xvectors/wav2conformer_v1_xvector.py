@@ -15,21 +15,24 @@ from .wav2xvector import Wav2XVector
 
 
 class Wav2ConformerV1XVector(Wav2XVector):
-    """Class extracting ConformerV1 x-vectors from waveform.
-    It contains acoustic feature extraction, feature normalization and
-    ConformerV1XVector extractor.
+    """Wrapper that combines waveform features with a Conformer x-vector backend.
 
     Attributes:
-      Attributes:
-      feats: feature extractor object of class AudioFeatsMVN or dictionary of options to instantiate AudioFeatsMVN object.
-      xvector: ConformerV1XVector configuration dictionary or object.
+      feats: Acoustic feature extractor or configuration dictionary.
+      xvector: Conformer backend or configuration dictionary.
     """
 
     def __init__(
         self,
-        feats: Union[Dict[str, Any], Any],
+        feats: Any,
         xvector: Union[Dict[str, Any], ConformerV1XVector],
     ) -> None:
+        """Initializes the wrapper.
+
+        Args:
+          feats: Acoustic feature extractor instance or configuration dictionary.
+          xvector: Conformer x-vector backend instance or configuration dictionary.
+        """
         if isinstance(xvector, dict):
             xvector = ConformerV1XVector.filter_args(**xvector)
             xvector = ConformerV1XVector(**xvector)
@@ -40,11 +43,11 @@ class Wav2ConformerV1XVector(Wav2XVector):
 
     @staticmethod
     def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
-        """Adds Wav2ConformerV1XVector options to parser.
+        """Adds CLI arguments for this wrapper.
 
         Args:
-          parser: Arguments parser
-          prefix: Options prefix.
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
         """
         if prefix is not None:
             outer_parser = parser
@@ -58,13 +61,27 @@ class Wav2ConformerV1XVector(Wav2XVector):
 
     @staticmethod
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
-        base_args = {}
+        """Filters fine-tuning configuration for this wrapper.
+
+        Args:
+          kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
+        base_args: Dict[str, Any] = {}
         child_args = ConformerV1XVector.filter_finetune_args(**kwargs["xvector"])
         base_args["xvector"] = child_args
         return base_args
 
     @staticmethod
     def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds fine-tuning CLI arguments for this wrapper.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -76,13 +93,27 @@ class Wav2ConformerV1XVector(Wav2XVector):
 
     @staticmethod
     def filter_dino_teacher_args(**kwargs: Any) -> Dict[str, Any]:
-        base_args = {}
+        """Filters DINO-teacher configuration for this wrapper.
+
+        Args:
+          kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
+        base_args: Dict[str, Any] = {}
         child_args = ConformerV1XVector.filter_dino_teacher_args(**kwargs["xvector"])
         base_args["xvector"] = child_args
         return base_args
 
     @staticmethod
     def add_dino_teacher_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds DINO-teacher CLI arguments for this wrapper.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
