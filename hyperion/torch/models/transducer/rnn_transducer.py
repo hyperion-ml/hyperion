@@ -5,7 +5,7 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
@@ -24,6 +24,15 @@ from ...hyper_torch_model import HyperTorchModel
 
 @dataclass
 class RNNTransducerOutput(HyperDataClass):
+    """Output container for RNN-T training.
+
+    Attributes:
+      loss: Total training loss.
+      loss_simple: Optional unpruned RNNT loss component.
+      loss_pruned: Optional pruned RNNT loss component.
+      h_feats: Optional intermediate hidden features.
+    """
+
     loss: torch.Tensor
     loss_simple: Optional[torch.Tensor] = None
     loss_pruned: Optional[torch.Tensor] = None
@@ -31,22 +40,24 @@ class RNNTransducerOutput(HyperDataClass):
 
 
 class RNNTransducer(HyperTorchModel):
-    """Base-class for RNN-T in
-    "Sequence Transduction with Recurrent Neural Networks"
-    https://arxiv.org/pdf/1211.3711.pdf
+    """Base class for RNN-T models.
 
     Attributes:
-      encoder: Encoder network module
-      rnnt_decoder: RNN-T Decoder config. dictionary or module.
+      encoder: Optional encoder network module.
+      rnnt_decoder: RNN-T decoder module.
     """
 
     def __init__(
         self,
-        encoder: Union[HyperTorchModel, None],
-        rnnt_decoder: Union[Dict, RNNTransducerDecoder],
-        rnnt_weight: float = 1.0,
-        ctc_weight: float = 0.0,
-    ):
+        encoder: Optional[HyperTorchModel],
+        rnnt_decoder: Union[Dict[str, Any], RNNTransducerDecoder],
+    ) -> None:
+        """Initializes the transducer model.
+
+        Args:
+          encoder: Optional encoder network.
+          rnnt_decoder: Decoder configuration dictionary or module instance.
+        """
         super().__init__()
         if encoder is not None:
             assert isinstance(encoder, HyperTorchModel)
@@ -66,15 +77,17 @@ class RNNTransducer(HyperTorchModel):
         x_lengths: torch.Tensor,
         y: k2.RaggedTensor,
     ) -> RNNTransducerOutput:
-        """
+        """Computes RNNT training losses.
+
         Args:
-          x: input features with shape = (N, T, C)
-          x_lengths: feature number for frames with shape = (N,)
-          y: ragged tensor with 2 axes [utt][label]. It contains labels of each
-            utterance.
+          x: Input features with shape ``(N, T, C)``.
+          x_lengths: Number of valid frames for each utterance with shape
+            ``(N,)``.
+          y: Ragged tensor with axes ``[utt][label]`` containing labels for
+            each utterance.
+
         Returns:
-          - Token logits with shape = (N, vocab_size)
-          - RNN-T loss.
+          RNN-T output container with the computed losses.
         """
         assert x.ndim == 3, x.shape
         assert x_lengths.ndim == 1, x_lengths.shape
@@ -97,21 +110,25 @@ class RNNTransducer(HyperTorchModel):
         self,
         x: torch.Tensor,
         x_lengths: torch.Tensor,
-        decoding_method="time_sync_beam_search",
+        decoding_method: str = "time_sync_beam_search",
         beam_width: int = 5,
         max_sym_per_frame: int = 3,
         max_sym_per_utt: int = 1000,
     ) -> List[List[int]]:
-        """
-        ASR tokens inference
+        """Decodes a batch of feature sequences.
+
         Args:
-          x: input features with shape = (N, T, C)
-          x_lengths: feature number for frames with shape = (N,)
-          decoding_method: greedy, time_sync_beam_search or align_length_sync_beam_search
-          max_sym_per_frame: maximum number of symbols RNN-T can emit in 1 frame.
-          max_sym_per_utt: maximimum number of symbols in a single utterance.
+          x: Input features with shape ``(N, T, C)``.
+          x_lengths: Number of valid frames for each utterance with shape
+            ``(N,)``.
+          decoding_method: Decoding algorithm to use.
+          beam_width: Beam width for beam search decoders.
+          max_sym_per_frame: Maximum number of symbols the RNNT can emit in
+            one frame.
+          max_sym_per_utt: Maximum number of symbols in a single utterance.
+
         Returns:
-          List of list of integer indexes of the recognizer's symbols.
+          A list with one decoded token-id sequence per input utterance.
         """
         assert x.ndim == 3, x.shape
         assert x_lengths.ndim == 1, x_lengths.shape
@@ -136,7 +153,12 @@ class RNNTransducer(HyperTorchModel):
 
         return y
 
-    def set_train_mode(self, mode):
+    def set_train_mode(self, mode: str) -> None:
+        """Updates the model train/eval mode selector.
+
+        Args:
+          mode: Either ``"full"`` or ``"frozen"``.
+        """
         if mode == self._train_mode:
             return
 
@@ -149,17 +171,32 @@ class RNNTransducer(HyperTorchModel):
 
         self._train_mode = mode
 
-    def _train(self, train_mode: str):
+    def _train(self, train_mode: str) -> None:
+        """Internal training-mode switch used by the base class.
+
+        Args:
+          train_mode: Either ``"full"`` or ``"frozen"``.
+        """
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
 
     @staticmethod
-    def valid_train_modes():
+    def valid_train_modes() -> List[str]:
+        """Returns the supported training modes.
+
+        Returns:
+          List of supported training modes.
+        """
         return ["full", "frozen"]
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Serializes the model configuration.
+
+        Returns:
+          Configuration dictionary suitable for reconstruction.
+        """
         if self.encoder is None:
             enc_cfg = None
         else:
@@ -176,15 +213,31 @@ class RNNTransducer(HyperTorchModel):
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def filter_args(**kwargs):
-        # get arguments for pooling
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters nested configuration dictionaries for construction.
+
+        Args:
+          kwargs: Full configuration dictionary.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         args = {}
         rnnt_decoder_args = RNNTransducerDecoder.filter_args(**kwargs["rnnt_decoder"])
         args["rnnt_decoder"] = rnnt_decoder_args
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: Any, prefix: Optional[str] = None, skip: Optional[Set[str]] = None
+    ) -> None:
+        """Registers CLI arguments for this class.
+
+        Args:
+          parser: Argument parser where options are registered.
+          prefix: Optional namespace prefix for nested parser injection.
+          skip: Unused compatibility argument.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -196,13 +249,26 @@ class RNNTransducer(HyperTorchModel):
 
     def change_config(
         self,
-        rnnt_decoder: Dict,
-    ):
+        rnnt_decoder: Dict[str, Any],
+    ) -> None:
+        """Applies runtime configuration changes to the decoder.
+
+        Args:
+          rnnt_decoder: Decoder configuration updates.
+        """
         logging.info("changing rnnt_decoder config")
         self.rnnt_decoder.change_config(**rnnt_decoder)
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters fine-tuning configuration dictionaries.
+
+        Args:
+          kwargs: Full configuration dictionary.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         args = {}
         rnnt_decoder_args = RNNTransducerDecoder.filter_finetune_args(
             **kwargs["rnnt_decoder"]
@@ -211,7 +277,13 @@ class RNNTransducer(HyperTorchModel):
         return args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Registers fine-tuning CLI arguments.
+
+        Args:
+          parser: Argument parser where options are registered.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -222,7 +294,13 @@ class RNNTransducer(HyperTorchModel):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def add_infer_args(parser, prefix=None):
+    def add_infer_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Registers inference CLI arguments.
+
+        Args:
+          parser: Argument parser where options are registered.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -257,5 +335,13 @@ class RNNTransducer(HyperTorchModel):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_infer_args(**kwargs):
+    def filter_infer_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters inference configuration dictionaries.
+
+        Args:
+          kwargs: Full configuration dictionary.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         return filter_func_args(RNNTransducer.infer, kwargs)

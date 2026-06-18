@@ -5,8 +5,12 @@
 
 import contextlib
 import logging
-from dataclasses import dataclass
-from typing import Dict, List, Union
+from typing import Any, ContextManager, Dict, List, Optional, Set, Union
+
+try:
+    import k2
+except ModuleNotFoundError:
+    from ...utils import dummy_k2 as k2
 
 import torch
 import torch.nn as nn
@@ -18,29 +22,35 @@ from ..transducer import RNNTransducer, RNNTransducerOutput
 
 
 class HFWav2RNNTransducer(HyperTorchModel):
-    """Abstract Base class for RNN-T transducer models that use a Hugging Face Model as feature extractor.
+    """Base class for RNN-T models backed by Hugging Face features.
 
     Attributes:
-       hf_feats: hugging face model wrapper object.
-       transducer: transducer model object.
-       feat_fusion_start: the input to x-vector model will fuse the wav2vec layers from "feat_fusion_start" to
-                          the wav2vec "num_layers".
-       feat_fusion_method: method to fuse the hidden layers from the wav2vec model, when more
-                           than one layer is used.
+       hf_feats: Hugging Face feature-extractor wrapper.
+       transducer: Backend transducer model.
+       feat_fusion_start: First hidden-state layer used for fusion.
+       feat_fusion_method: Method used to fuse hidden-state layers.
     """
 
     def __init__(
         self,
         hf_feats: HyperTorchModel,
-        transducer: Union[Dict, HyperTorchModel],
+        transducer: Union[Dict[str, Any], HyperTorchModel],
         feat_fusion_start: int = 0,
         feat_fusion_method: str = "weighted-avg",
-    ):
+    ) -> None:
+        """Initializes the wrapper.
+
+        Args:
+          hf_feats: Hugging Face feature-extractor wrapper.
+          transducer: Backend transducer instance or configuration dictionary.
+          feat_fusion_start: First hidden-state layer used for fusion.
+          feat_fusion_method: Hidden-state fusion method.
+        """
 
         super().__init__()
         self.hf_feats = hf_feats
         if isinstance(transducer, dict):
-            transducer["decoder"]["in_feats"] = hf_feats.hidden_size
+            transducer["rnnt_decoder"]["in_feats"] = hf_feats.hidden_size
             if "class_name" in transducer:
                 del transducer["class_name"]
 
@@ -49,7 +59,7 @@ class HFWav2RNNTransducer(HyperTorchModel):
         else:
             assert isinstance(transducer, RNNTransducer)
             if transducer.encoder is None:
-                assert transducer.decoder.in_feats == hf_feats.hidden_size
+                assert transducer.rnnt_decoder.in_feats == hf_feats.hidden_size
 
         self.transducer = transducer
         self.feat_fusion_start = feat_fusion_start
@@ -57,7 +67,8 @@ class HFWav2RNNTransducer(HyperTorchModel):
         self._hf_context = contextlib.nullcontext()
         self._make_fuser()
 
-    def _make_fuser(self):
+    def _make_fuser(self) -> None:
+        """Creates the hidden-state fusion module for Hugging Face features."""
         if self.feat_fusion_method == "last":
             self.feat_fuser = None
             return
@@ -72,14 +83,14 @@ class HFWav2RNNTransducer(HyperTorchModel):
         elif self.feat_fusion_method == "cat":
             self.feat_fuser = nn.Linear(num_layers * layer_dim, layer_dim, bias=False)
 
-    def _fuse_hid_feats(self, hid_feats):
-        """Fuses the hidden features from the Wav2Vec model.
+    def _fuse_hid_feats(self, hid_feats: List[torch.Tensor]) -> torch.Tensor:
+        """Fuses hidden features from the Hugging Face model.
 
         Args:
-          hid_feats: list of hidden features Tensors from Wav2Vec model.
+          hid_feats: Hidden-state tensors from the Hugging Face model.
 
         Returns:
-          Tensor of fused features (batch, channels, time)
+          Fused feature tensor.
         """
         if len(hid_feats) == 1:
             # There is only one layer of features
@@ -102,8 +113,26 @@ class HFWav2RNNTransducer(HyperTorchModel):
         return feats
 
     def forward_feats(
-        self, x, x_lengths, return_feat_layers=None, chunk_length=0, detach_chunks=False
-    ):
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor],
+        return_feat_layers: Optional[List[int]] = None,
+        chunk_length: int = 0,
+        detach_chunks: bool = False,
+    ) -> tuple[torch.Tensor, Optional[List[torch.Tensor]], torch.Tensor]:
+        """Extracts and optionally fuses Hugging Face hidden features.
+
+        Args:
+          x: Input waveform tensor.
+          x_lengths: Number of valid samples in each waveform.
+          return_feat_layers: Optional hidden-state layer indices to return.
+          chunk_length: Optional chunk length forwarded to the HF frontend.
+          detach_chunks: Whether chunk outputs should be detached.
+
+        Returns:
+          Tuple with fused features, optional selected hidden layers, and
+          feature lengths.
+        """
         return_hid_states = (
             False
             if return_feat_layers is None and self.feat_fusion_method == "last"
@@ -128,7 +157,7 @@ class HFWav2RNNTransducer(HyperTorchModel):
         feats = feats.transpose(1, 2)
         if return_feat_layers is not None:
             # add hidden feats from wav2vec to the output. We transpose to be (batch, C, time)
-            # as the hidden features of the x-vector encoder.
+            # as the hidden features expected by the backend transducer.
             hid_feats = [
                 f.transpose(1, 2)
                 for i, f in enumerate(hid_feats)
@@ -141,30 +170,25 @@ class HFWav2RNNTransducer(HyperTorchModel):
 
     def forward(
         self,
-        x,
-        x_lengths=None,
-        y=None,
-        return_feat_layers=None,
-        # return_enc_layers=None,
-        return_logits=True,
-    ):
-        """Forward function. If returns the logits posteriors of the classes.
-        It can also returns the hidden representations in the wav2vec feature extractor,
-        the x-vector encoder and the
-        classification head. In this case the ouput variable is a dictionary.
+        x: torch.Tensor,
+        y: k2.RaggedTensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        return_feat_layers: Optional[List[int]] = None,
+        return_logits: bool = True,
+    ) -> RNNTransducerOutput:
+        """Runs the Hugging Face frontend and backend transducer.
 
         Args:
-          x: input features tensor with shape=(batch, in_feats, time)
-          x_lengths: time lengths of the features with shape=(batch,)
-          y: target classes torch.long tensor with shape=(batch,)
-          return_feat_layers: list of integers indicating, which wav2vec layers
-                             we should return. If None, no wav2vec layers are returned.
-          return_enc_layers: list of integers indicating, which encoder layers
-                             we should return. If None, no encoder layers are returned.
-          return_logits: if True, it adds the logits to the output dictionary.
+          x: Input waveform tensor.
+          y: Ragged tensor containing target token sequences.
+          x_lengths: Number of valid samples in each waveform.
+          return_feat_layers: Optional hidden-state layer indices to attach to
+            the output.
+          return_logits: Unused compatibility argument.
+
         Returns:
-          Dataclass with losses, "h_enc" (list of hidden encoder layers),
-          "h_feats" (wav2vec features)
+          RNN-T output container, optionally augmented with selected hidden
+          features.
         """
         feats, hid_feats, feat_lengths = self.forward_feats(
             x, x_lengths, return_feat_layers
@@ -186,21 +210,24 @@ class HFWav2RNNTransducer(HyperTorchModel):
         self,
         x: torch.Tensor,
         x_lengths: torch.Tensor,
-        decoding_method="time_sync_beam_search",
+        decoding_method: str = "time_sync_beam_search",
         beam_width: int = 5,
         max_sym_per_frame: int = 3,
         max_sym_per_utt: int = 1000,
-    ):
-        """
-        ASR tokens inference
+    ) -> List[List[int]]:
+        """Decodes token sequences from waveform input.
+
         Args:
-          x: input features with shape = (N, T, C)
-          x_lengths: feature number for frames with shape = (N,)
-          decoding_method: greedy, time_sync_beam_search or align_length_sync_beam_search
-          max_sym_per_frame: maximum number of symbols RNN-T can emit in 1 frame.
-          max_sym_per_utt: maximimum number of symbols in a single utterance.
+          x: Input waveform tensor.
+          x_lengths: Number of valid samples in each waveform.
+          decoding_method: Decoding algorithm to use.
+          beam_width: Beam width for beam-search decoders.
+          max_sym_per_frame: Maximum number of symbols the RNNT can emit in
+            one frame.
+          max_sym_per_utt: Maximum number of emitted symbols per utterance.
+
         Returns:
-          List of list of integer indexes of the recognizer's symbols.
+          One decoded token-id sequence per input utterance.
         """
 
         feats, _, feat_lengths = self.forward_feats(x, x_lengths)
@@ -217,7 +244,8 @@ class HFWav2RNNTransducer(HyperTorchModel):
         )
         return y
 
-    def freeze_feat_fuser(self):
+    def freeze_feat_fuser(self) -> None:
+        """Disables gradients on the hidden-state fusion module."""
         if self.feat_fuser is None:
             return
 
@@ -228,13 +256,20 @@ class HFWav2RNNTransducer(HyperTorchModel):
         for param in self.feat_fuser.parameters():
             param.requires_grad = False
 
-    def freeze_hf_feats(self):
+    def freeze_hf_feats(self) -> None:
+        """Disables gradients on the Hugging Face frontend."""
         self.hf_feats.freeze()
 
-    def freeze_hf_feature_encoder(self):
+    def freeze_hf_feature_encoder(self) -> None:
+        """Disables gradients on the HF feature encoder submodule."""
         self.hf_feats.freeze_feature_encoder()
 
-    def set_train_mode(self, mode):
+    def set_train_mode(self, mode: str) -> None:
+        """Updates the wrapper train-mode policy.
+
+        Args:
+          mode: Training mode selector.
+        """
         if mode == self._train_mode:
             return
 
@@ -265,7 +300,12 @@ class HFWav2RNNTransducer(HyperTorchModel):
 
         self._train_mode = mode
 
-    def _train(self, train_mode: str):
+    def _train(self, train_mode: str) -> None:
+        """Internal training-mode switch used by the base class.
+
+        Args:
+          train_mode: Training mode selector.
+        """
 
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
@@ -282,11 +322,15 @@ class HFWav2RNNTransducer(HyperTorchModel):
             raise ValueError(f"invalid train_mode={train_mode}")
 
     @staticmethod
-    def valid_train_modes():
+    def valid_train_modes() -> List[str]:
+        """Returns the supported training modes.
+
+        Returns:
+          List of supported training modes.
+        """
         return [
             "full",
             "frozen",
-            "ft-embed-affine",
             "ft-transducer",
             "hf-feats-frozen",
             "ft-transducer-nograd",
@@ -295,7 +339,15 @@ class HFWav2RNNTransducer(HyperTorchModel):
         ]
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters constructor arguments from a configuration dictionary.
+
+        Args:
+          kwargs: Full configuration dictionary.
+
+        Returns:
+          Subset of arguments accepted by this wrapper.
+        """
         valid_args = (
             "hf_feats",
             "transducer",
@@ -305,7 +357,12 @@ class HFWav2RNNTransducer(HyperTorchModel):
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Serializes the wrapper configuration.
+
+        Returns:
+          Configuration dictionary suitable for reconstruction.
+        """
         hf_cfg = self.hf_feats.get_config()
         tran_cfg = self.transducer.get_config()
         del hf_cfg["class_name"]
@@ -320,13 +377,30 @@ class HFWav2RNNTransducer(HyperTorchModel):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def change_config(self, hf_feats, transducer):
+    def change_config(
+        self, hf_feats: Dict[str, Any], transducer: Dict[str, Any]
+    ) -> None:
+        """Applies runtime configuration changes to child modules.
+
+        Args:
+          hf_feats: Configuration updates for the Hugging Face frontend.
+          transducer: Configuration updates for the backend transducer.
+        """
         logging.info("changing hf wav2transducer config")
         self.hf_feats.change_config(**hf_feats)
         self.transducer.change_config(**transducer)
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: Any, prefix: Optional[str] = None, skip: Optional[Set[str]] = None
+    ) -> None:
+        """Adds wrapper CLI arguments to a parser.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+          skip: Unused compatibility argument.
+        """
 
         if prefix is not None:
             outer_parser = parser
@@ -337,7 +411,7 @@ class HFWav2RNNTransducer(HyperTorchModel):
             default=0,
             type=int,
             help="""
-            the input to x-vector model will fuse the wav2vec 
+            the input to the transducer will fuse the wav2vec 
             layers from feat_fusion_start to
             the wav2vec num_layers""",
         )
@@ -358,7 +432,13 @@ class HFWav2RNNTransducer(HyperTorchModel):
             )
 
     @staticmethod
-    def add_infer_args(parser, prefix=None):
+    def add_infer_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds inference CLI arguments to a parser.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -369,5 +449,13 @@ class HFWav2RNNTransducer(HyperTorchModel):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_infer_args(**kwargs):
+    def filter_infer_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters inference arguments from a configuration dictionary.
+
+        Args:
+          kwargs: Full configuration dictionary.
+
+        Returns:
+          Subset of arguments accepted by :meth:`infer`.
+        """
         return RNNTransducer.filter_infer_args(**kwargs)

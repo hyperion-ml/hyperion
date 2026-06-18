@@ -4,7 +4,7 @@
 """
 
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Set, Union
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
@@ -16,23 +16,29 @@ except ModuleNotFoundError:
 import torch
 
 from ...narchs import ConformerEncoderV1
+from ...narchs import RNNTransducerDecoder
 from .rnn_transducer import RNNTransducer
 
 
 class ConformerV1RNNTransducer(RNNTransducer):
-    """RNN-T with Conformer Encoder
+    """RNN-T with a Conformer encoder.
 
     Attributes:
-      encoder: dictionary of options to initialize RNNEncoder class or RNNEncoder object
-      decoder: RNN-T Decoder config. dictionary or module.
-
+      encoder: Conformer encoder module.
+      rnnt_decoder: RNN-T decoder module.
     """
 
     def __init__(
         self,
         encoder: Union[Dict[str, Any], ConformerEncoderV1],
-        rnnt_decoder: Union[Dict[str, Any], Any],
+        rnnt_decoder: Union[Dict[str, Any], RNNTransducerDecoder],
     ) -> None:
+        """Initializes the Conformer-RNN transducer.
+
+        Args:
+          encoder: Encoder configuration dictionary or module instance.
+          rnnt_decoder: Decoder configuration dictionary or module instance.
+        """
         if isinstance(encoder, dict):
             encoder = ConformerEncoderV1(**encoder)
         else:
@@ -42,6 +48,14 @@ class ConformerV1RNNTransducer(RNNTransducer):
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters nested configuration dictionaries for construction.
+
+        Args:
+          kwargs: Full configuration dictionary.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         args = RNNTransducer.filter_args(**kwargs)
         encoder_args = ConformerEncoderV1.filter_args(**kwargs["encoder"])
         args["encoder"] = encoder_args
@@ -49,14 +63,21 @@ class ConformerV1RNNTransducer(RNNTransducer):
 
     @staticmethod
     def add_class_args(
-        parser: Any, prefix: Optional[str] = None, skip: set = set()
+        parser: Any, prefix: Optional[str] = None, skip: Optional[Set[str]] = None
     ) -> None:
+        """Registers CLI arguments for this class.
+
+        Args:
+          parser: Argument parser where options are registered.
+          prefix: Optional namespace prefix for nested parser injection.
+          skip: Optional set of arguments to skip in nested registration.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
         ConformerEncoderV1.add_class_args(parser, prefix="encoder", skip=skip)
-        RNNTransducer.add_class_args(parser)
+        RNNTransducer.add_class_args(parser, skip=skip)
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
@@ -65,12 +86,26 @@ class ConformerV1RNNTransducer(RNNTransducer):
         encoder: Dict[str, Any],
         rnnt_decoder: Dict[str, Any],
     ) -> None:
+        """Applies runtime configuration changes to both submodules.
+
+        Args:
+          encoder: Encoder configuration updates.
+          rnnt_decoder: Decoder configuration updates.
+        """
         logging.info("changing transducer encoder config")
         self.encoder.change_config(**encoder)
-        super().chage_config(**rnnt_decoder)
+        super().change_config(rnnt_decoder)
 
     @staticmethod
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters fine-tuning configuration dictionaries.
+
+        Args:
+          kwargs: Full configuration dictionary.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         args = RNNTransducer.filter_finetune_args(**kwargs)
         encoder_args = ConformerEncoderV1.filter_finetune_args(**kwargs["encoder"])
         args["encoder"] = encoder_args
@@ -78,6 +113,12 @@ class ConformerV1RNNTransducer(RNNTransducer):
 
     @staticmethod
     def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Registers fine-tuning CLI arguments.
+
+        Args:
+          parser: Argument parser where options are registered.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

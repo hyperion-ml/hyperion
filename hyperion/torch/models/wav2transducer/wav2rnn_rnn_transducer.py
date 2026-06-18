@@ -3,32 +3,34 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
-import torch
-import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
-from ...tpm import HFWav2Vec2
+from ...narchs import AudioFeatsMVN
 from ..transducer import RNNRNNTransducer
 from .wav2rnn_transducer import Wav2RNNTransducer
 
 
 class Wav2RNNRNNTransducer(Wav2RNNTransducer):
-    """Class for RNN-T LSTM encoder and acoustic feature input
+    """Class for RNN-T with an RNN encoder and acoustic feature input.
 
     Attributes:
-      Attributes:
-      feats: feature extractor object of class AudioFeatsMVN or dictionary of options to instantiate AudioFeatsMVN object.
+      feats: Audio feature extractor object or configuration dictionary.
       transducer: Transducer configuration dictionary or object.
     """
 
     def __init__(
         self,
-        feats: Union[Dict, HFWav2Vec2],
-        transducer: Union[Dict, RNNRNNTransducer],
-    ):
+        feats: Union[Dict[str, Any], AudioFeatsMVN],
+        transducer: Union[Dict[str, Any], RNNRNNTransducer],
+    ) -> None:
+        """Initializes the wrapper.
+
+        Args:
+          feats: Audio feature extractor instance or configuration dictionary.
+          transducer: Backend transducer instance or configuration dictionary.
+        """
 
         if isinstance(transducer, dict):
             if "class_name" in transducer:
@@ -41,7 +43,13 @@ class Wav2RNNRNNTransducer(Wav2RNNTransducer):
         super().__init__(feats, transducer)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds wrapper CLI arguments to a parser.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -53,14 +61,28 @@ class Wav2RNNRNNTransducer(Wav2RNNTransducer):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters fine-tuning arguments from a configuration dictionary.
+
+        Args:
+          kwargs: Full configuration dictionary.
+
+        Returns:
+          Subset of fine-tuning arguments accepted by this wrapper.
+        """
         base_args = {}
         child_args = RNNRNNTransducer.filter_finetune_args(**kwargs["transducer"])
         base_args["transducer"] = child_args
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: Any, prefix: Optional[str] = None) -> None:
+        """Adds fine-tuning CLI arguments to a parser.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix for nested parser injection.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
