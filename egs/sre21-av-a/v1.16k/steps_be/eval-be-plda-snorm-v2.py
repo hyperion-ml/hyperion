@@ -1,29 +1,29 @@
 #!/usr/bin/env python
 """
-  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
-  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
-  Evals PLDA LLR
+Evals PLDA LLR
 """
-import sys
-import os
+
 import argparse
-import time
 import logging
-from jsonargparse import ArgumentParser, namespace_to_dict
+import os
+import sys
+import time
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from jsonargparse import ArgumentParser, namespace_to_dict
 
-from hyperion.hyp_defs import float_cpu, config_logger
-from hyperion.utils import TrialNdx, TrialScores, Utt2Info
-from hyperion.helpers import TrialDataReader as TDR
 from hyperion.helpers import PLDAFactory as F
-from hyperion.np.transforms import TransformList
-from hyperion.np.score_norm import AdaptSNorm as SNorm
+from hyperion.helpers import TrialDataReader as TDR
+from hyperion.hyp_defs import config_logger, float_cpu
 from hyperion.io import RandomAccessDataReaderFactory as DRF
-
+from hyperion.np.score_norm import AdaptSNorm as SNorm
+from hyperion.np.transforms import TransformList
+from hyperion.utils import TrialNdx, TrialScores, Utt2Info
 
 conds = [
     "cts_eng",
@@ -225,7 +225,7 @@ def eval_plda(
 
     t1 = time.time()
     logging.info("computing llr")
-    scores = model.llr_Nvs1(x_e, x_t, method="vavg-lnorm", ids1=ids_e)
+    scores = model.llr_Nvs1(x_e, x_t, method="lnorm-vavg", ids1=ids_e)
 
     dt = time.time() - t1
     num_trials = len(enroll) * x_t.shape[0]

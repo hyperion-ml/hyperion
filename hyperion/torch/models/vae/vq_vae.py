@@ -9,11 +9,12 @@ from typing import Any, Dict, Optional
 import torch
 import torch.distributions as pdf
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
+from ...hyper_torch_model import HyperTorchModel
 from ...layers import tensor2pdf as t2pdf
 from ...layers import vq
 from ...narchs import TorchNALoader
-from ...hyper_torch_model import HyperTorchModel
 
 
 class VQVAE(HyperTorchModel):
