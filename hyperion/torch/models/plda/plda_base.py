@@ -1,7 +1,8 @@
 """
- Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import math
 import time
@@ -366,7 +367,10 @@ class PLDABase(HyperTorchModel):
         order: int = 2,
         sample_weight: Optional[torch.Tensor] = None,
         scale_factor: float = 1,
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    ) -> Union[
+        Tuple[torch.Tensor, torch.Tensor],
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    ]:
         """Compute hard-assignment sufficient statistics.
 
         Args:
@@ -439,7 +443,7 @@ class PLDABase(HyperTorchModel):
         Returns:
             Score matrix with shape ``(num_enroll_sides, num_test)``.
         """
-        method = PLDALLRNvsMMethod(getattr(method, "value", method))
+        method = PLDALLRNvsMMethod(method)
 
         if self.preprocessor is not None and preproc:
             x1 = self.preprocessor(x1)

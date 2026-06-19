@@ -34,7 +34,21 @@ from ...narchs import (
 
 @dataclass
 class QVectorOutput(HyperDataClass):
-    """Container for q-vector inference artifacts."""
+    """Container for q-vector inference artifacts.
+
+    Attributes:
+        qmatrix: Per-query embeddings returned by the output aggregation
+            Q-former.
+        qvector: Projected embedding for each input example.
+        head_output: Optional downstream Hydra head output.
+        backbone_output_feats: Optional list of backbone output features.
+        backbone_output_feats_lengths: Optional lengths for
+            ``backbone_output_feats``.
+        backbone_hidden_feats: Optional list of backbone hidden features.
+        backbone_hidden_feats_lengths: Optional lengths for
+            ``backbone_hidden_feats``.
+        qmatrix_code_rate: Optional code-rate value for the Q-matrix.
+    """
 
     qmatrix: torch.Tensor
     """Per-query embeddings returned by the output aggregation Q-former (batch, num_queries, dim)."""
@@ -56,7 +70,10 @@ class QVectorOutput(HyperDataClass):
     backbone_hidden_feats: Optional[List[torch.Tensor]] = None
     """Optional hidden-layer feature maps captured from the backbone encoder."""
 
-    backbone_hidden_feats_lengths: Optional[torch.Tensor] = None
+    backbone_hidden_feats_lengths: Optional[Union[List[torch.Tensor], torch.Tensor]] = (
+        None
+    )
+
     """Lengths matching `backbone_hidden_feats` for variable-length inputs."""
 
     qmatrix_code_rate: Optional[torch.Tensor] = None
@@ -64,7 +81,14 @@ class QVectorOutput(HyperDataClass):
 
     @classmethod
     def concatenate(cls, outputs: List["QVectorOutput"]) -> "QVectorOutput":
-        """Concatenate multiple QVectorOutput instances along the batch dimension."""
+        """Concatenate multiple outputs along the batch dimension.
+
+        Args:
+            outputs: Sequence of chunk-level outputs to concatenate.
+
+        Returns:
+            QVectorOutput: Single output covering the concatenated batch.
+        """
         if not outputs:
             raise ValueError("Cannot concatenate an empty list of QVectorOutput.")
 
@@ -95,6 +119,34 @@ class QVectorOutput(HyperDataClass):
             for idx in range(num_entries):
                 concatenated.append(
                     torch.cat([t_list[idx] for t_list in tensor_lists], dim=0)
+                )
+            return concatenated
+
+        def _cat_optional_tensor_or_tensor_lists(
+            attr: str,
+        ) -> Optional[Union[List[torch.Tensor], torch.Tensor]]:
+            tensors_or_lists = [getattr(out, attr) for out in outputs]
+            if any(t is None for t in tensors_or_lists):
+                return None
+
+            if all(isinstance(t, torch.Tensor) for t in tensors_or_lists):
+                return torch.cat(tensors_or_lists, dim=0)
+
+            if not all(isinstance(t, list) for t in tensors_or_lists):
+                raise ValueError(
+                    f"Inconsistent {attr} across outputs: mixed tensor and list values."
+                )
+
+            num_entries = len(tensors_or_lists[0])
+            if any(len(t_list) != num_entries for t_list in tensors_or_lists):
+                raise ValueError(
+                    f"Inconsistent {attr} across outputs: list lengths differ."
+                )
+
+            concatenated: List[torch.Tensor] = []
+            for idx in range(num_entries):
+                concatenated.append(
+                    torch.cat([t_list[idx] for t_list in tensors_or_lists], dim=0)
                 )
             return concatenated
 
@@ -131,9 +183,9 @@ class QVectorOutput(HyperDataClass):
                     prototype_rates = torch.stack(
                         [h.prototype_code_rate for h in head_outputs]
                     )
-                    prototype_code_rate = (
-                        torch.sum(prototype_rates * weights) / torch.sum(weights)
-                    )
+                    prototype_code_rate = torch.sum(
+                        prototype_rates * weights
+                    ) / torch.sum(weights)
                 head_output = HydraClassifHeadOutput(
                     logits=logits,
                     loss=loss,
@@ -161,7 +213,7 @@ class QVectorOutput(HyperDataClass):
                 "backbone_output_feats_lengths"
             ),
             backbone_hidden_feats=_cat_optional_tensor_lists("backbone_hidden_feats"),
-            backbone_hidden_feats_lengths=_cat_optional_tensor(
+            backbone_hidden_feats_lengths=_cat_optional_tensor_or_tensor_lists(
                 "backbone_hidden_feats_lengths"
             ),
             qmatrix_code_rate=_avg_optional_scalar("qmatrix_code_rate"),
@@ -174,7 +226,17 @@ class QVectorOutput(HyperDataClass):
         audio_index: torch.Tensor,
         chunk_weights: Optional[torch.Tensor] = None,
     ) -> "QVectorOutput":
-        """Aggregate chunk-level outputs into per-example averages using weights."""
+        """Aggregate chunk-level outputs into per-example averages.
+
+        Args:
+            concatenated_output: Concatenated chunk-level output.
+            audio_index: Tensor mapping each chunk to its source example.
+            chunk_weights: Optional per-chunk weights. When omitted, each chunk
+                contributes equally.
+
+        Returns:
+            QVectorOutput: Output averaged back to the original example level.
+        """
         if concatenated_output.qvector.size(0) != audio_index.size(0):
             raise ValueError(
                 "audio_index length must match the number of chunk outputs."
@@ -280,7 +342,11 @@ class QVectorTrainMode(str, Enum):
 
     @staticmethod
     def choices() -> List[str]:
-        """Return the list of valid training-mode strings."""
+        """Return the list of valid training-mode strings.
+
+        Returns:
+            List of accepted training-mode values.
+        """
         return [o.value for o in QVectorTrainMode]
 
 
@@ -459,7 +525,7 @@ class QVector(HyperTorchModel):
         else:
             self.qmatrix_code_rate = None
 
-    def _init_queries(self):
+    def _init_queries(self) -> None:
         """Initialise the learnable query tensors using a truncated normal draw."""
         if self.hidden_feats_queries is not None:
             nn.init.trunc_normal_(self.hidden_feats_queries, std=0.02)
@@ -469,12 +535,20 @@ class QVector(HyperTorchModel):
 
     @property
     def max_chunk_length(self) -> int:
-        """Maximum chunk length (in samples) seen during training."""
+        """Maximum chunk length (in samples) seen during training.
+
+        Returns:
+            Current maximum chunk length, measured in samples.
+        """
         return int(self.max_input_length.item())
 
     @property
-    def qmatrix_shape(self) -> int:
-        """Shape of the q-matrix output by the aggregation Q-formers."""
+    def qmatrix_shape(self) -> Tuple[int, int]:
+        """Shape of the q-matrix output by the aggregation Q-formers.
+
+        Returns:
+            Tuple containing ``(num_queries, qformer_output_dim)``.
+        """
         num_queries = self.num_hidden_feats_queries + self.num_output_feats_queries
         qformer_out_feats = 0
         if self.hidden_feats_agg_qformer is not None:
@@ -484,88 +558,147 @@ class QVector(HyperTorchModel):
         return (num_queries, qformer_out_feats)
 
     @property
-    def num_classes(self):
+    def num_classes(self) -> Optional[int]:
+        """Return the number of classes exposed by the head, if any.
+
+        Returns:
+            Number of classes, or ``None`` when unavailable.
+        """
         if hasattr(self.head, "num_classes"):
             return self.head.num_classes
         else:
             return None
 
     @property
-    def has_hidden_feats_agg(self):
+    def has_hidden_feats_agg(self) -> bool:
+        """Whether hidden-feature aggregation is enabled.
+
+        Returns:
+            ``True`` when hidden-feature aggregation is configured.
+        """
         return self.hidden_feats_agg_qformer is not None
 
     @property
-    def has_output_feats_agg(self):
+    def has_output_feats_agg(self) -> bool:
+        """Whether output-feature aggregation is enabled.
+
+        Returns:
+            ``True`` when output-feature aggregation is configured.
+        """
         return self.output_feats_agg_qformer is not None
 
     @property
     def requires_max_train_length(self) -> bool:
+        """Whether training requires a maximum chunk length.
+
+        Returns:
+            ``False`` for the base implementation.
+        """
         return False
 
     @property
-    def sample_frequency(self):
+    def sample_frequency(self) -> int:
+        """Return the sample rate expected by the model.
+
+        Returns:
+            Sampling frequency in hertz.
+        """
         raise NotImplementedError()
 
-    def _infer_backbone_layers_indices(self):
+    def _infer_backbone_layers_indices(self) -> None:
+        """Infer which backbone layers should be returned by subclasses."""
         raise NotImplementedError()
 
     @property
-    def num_classes(self):
-        if hasattr(self.head, "num_classes"):
-            return self.head.num_classes
-        else:
-            return None
+    def cos_scale(self) -> Optional[float]:
+        """Return the angular-margin scale used by the head, if exposed.
 
-    @property
-    def cos_scale(self):
+        Returns:
+            Cosine scaling factor, or ``None`` when unavailable.
+        """
         if hasattr(self.head, "cos_scale"):
             return self.head.cos_scale
         else:
             return None
 
     @property
-    def margin(self):
+    def margin(self) -> float:
+        """Return the current margin used by the head.
+
+        Returns:
+            Current margin value.
+        """
         if hasattr(self.head, "margin"):
             return self.head.margin
         else:
             return 0.0
 
     @property
-    def margin_warmup_steps(self):
+    def margin_warmup_steps(self) -> int:
+        """Return the margin warmup schedule length, if exposed.
+
+        Returns:
+            Number of warmup steps, or ``0`` when unavailable.
+        """
         if hasattr(self.head, "margin_warmup_steps"):
             return self.head.margin_warmup_steps
         else:
             return 0
 
     @property
-    def intertop_k(self):
+    def intertop_k(self) -> int:
+        """Return the InterTopK `k` value, if exposed.
+
+        Returns:
+            InterTopK `k`, or ``0`` when unavailable.
+        """
         if hasattr(self.head, "intertop_k"):
             return self.head.intertop_k
         else:
             return 0
 
     @property
-    def intertop_margin(self):
+    def intertop_margin(self) -> float:
+        """Return the InterTopK margin, if exposed.
+
+        Returns:
+            InterTopK margin, or ``0.0`` when unavailable.
+        """
         if hasattr(self.head, "intertop_margin"):
             return self.head.intertop_margin
         else:
             return 0.0
 
     @property
-    def num_subcenters(self):
+    def num_subcenters(self) -> int:
+        """Return the number of subcenters used by the head, if exposed.
+
+        Returns:
+            Number of subcenters, or ``0`` when unavailable.
+        """
         if hasattr(self.head, "num_subcenters"):
             return self.head.num_subcenters
         else:
             return 0
 
     @property
-    def loss_type(self):
+    def loss_type(self) -> Any:
+        """Return the loss type reported by the head.
+
+        Returns:
+            Loss type value reported by the active head.
+        """
         if hasattr(self.head, "loss_type"):
             return self.head.loss_type
         else:
             raise ValueError("head has no loss_type attribute")
 
-    def has_param_groups(self):
+    def has_param_groups(self) -> bool:
+        """Return whether the model exposes custom optimizer parameter groups.
+
+        Returns:
+            ``True`` when custom optimizer parameter groups are defined.
+        """
         return (
             super().has_param_groups()
             or self.qformer_weight_decay is not None
@@ -573,8 +706,12 @@ class QVector(HyperTorchModel):
             or self.head_weight_decay is not None
         )
 
-    def trainable_param_groups(self):
-        """Return parameter groups with custom weight decay for different model components."""
+    def trainable_param_groups(self) -> List[Dict[str, Any]]:
+        """Return optimizer parameter groups for the trainable components.
+
+        Returns:
+            Parameter groups with optional component-specific weight decay.
+        """
         if (
             self.qformer_weight_decay is None
             and self.proj_head_weight_decay is None
@@ -630,7 +767,7 @@ class QVector(HyperTorchModel):
 
         return trainable_params
 
-    def update_train_length(self, input_length: int):
+    def update_train_length(self, input_length: int) -> None:
         """Update the maximum input length seen during training.
 
         Args:
@@ -642,7 +779,7 @@ class QVector(HyperTorchModel):
             # Keep the buffer registered by mutating the tensor rather than reassigning.
             self.max_input_length.fill_(input_length)
 
-    def update_loss_margin(self, global_step: int):
+    def update_loss_margin(self, global_step: int) -> None:
         """Update margin scheduling for large-margin losses when supported.
 
         Args:
@@ -652,7 +789,7 @@ class QVector(HyperTorchModel):
         if hasattr(self.head, "update_margin"):
             self.head.update_margin(global_step)
 
-    def update_hyperparams(self, global_step: int):
+    def update_hyperparams(self, global_step: int) -> None:
         """Refresh any head hyperparameters that evolve during training.
 
         Args:
@@ -660,7 +797,7 @@ class QVector(HyperTorchModel):
         """
         self.update_loss_margin(global_step)
 
-    def init_from_xvector(self, xvector_model: HyperTorchModel):
+    def init_from_xvector(self, xvector_model: HyperTorchModel) -> None:
         """Initialize q-vector model backbone parameters from a pre-trained x-vector model.
 
         Args:
@@ -692,7 +829,12 @@ class QVector(HyperTorchModel):
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor] = None,
         return_hidden_feats: bool = False,
-    ):
+    ) -> Tuple[
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Optional[List[torch.Tensor]],
+        Optional[Union[List[torch.Tensor], torch.Tensor]],
+    ]:
         """Compute backbone features for the provided input signal.
 
         Args:
@@ -715,8 +857,15 @@ class QVector(HyperTorchModel):
         backbone_output_feats: torch.Tensor,
         backbone_output_feats_lengths: Optional[torch.Tensor] = None,
         backbone_hidden_feats: Optional[List[torch.Tensor]] = None,
-        backbone_hidden_feats_lengths: Optional[List[torch.Tensor]] = None,
-    ):
+        backbone_hidden_feats_lengths: Optional[
+            Union[List[torch.Tensor], torch.Tensor]
+        ] = None,
+    ) -> Tuple[
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Optional[List[torch.Tensor]],
+        Optional[Union[List[torch.Tensor], torch.Tensor]],
+    ]:
         """Adapt backbone outputs before they are consumed by the Q-formers.
 
         Args:
@@ -725,8 +874,8 @@ class QVector(HyperTorchModel):
                 ``backbone_output_feats``.
             backbone_hidden_feats: Optional list of hidden feature maps captured inside
                 the backbone.
-            backbone_hidden_feats_lengths: Optional lengths for each hidden feature
-                tensor.
+            backbone_hidden_feats_lengths: Optional shared lengths tensor for all
+                hidden features, or per-hidden-feature length tensors.
 
         Returns:
             Tuple of possibly transformed backbone outputs, lengths, hidden features,
@@ -747,13 +896,13 @@ class QVector(HyperTorchModel):
         target_mask: Optional[torch.Tensor] = None,
         return_backbone_feats: bool = False,
         return_head_output: bool = True,
-    ):
+    ) -> QVectorOutput:
         """Run a forward pass through the q-vector pipeline.
 
         Args:
-            x: Input tensor with shape ``(batch, feats, time)``.
-            x_lengths: Optional sequence-length tensor describing valid frames in
-                ``x``.
+            audio: Input tensor with shape ``(batch, samples)``.
+            audio_lengths: Optional sequence-length tensor describing valid frames
+                in ``audio``.
             target: Optional class labels used when the head computes a loss.
             target_mask: Optional boolean tensor indicating which targets are valid.
             return_backbone_feats: When ``True``, include backbone features in the
@@ -1333,13 +1482,24 @@ class QVector(HyperTorchModel):
         self,
         qvector_dim: Optional[int] = None,
         override_head: bool = False,
-        head: Union[Dict[str, Any], HydraHead] = None,
+        head: Optional[Union[Dict[str, Any], HydraHead]] = None,
         qformer_weight_decay: Optional[float] = None,
         proj_head_weight_decay: Optional[float] = None,
         head_weight_decay: Optional[float] = None,
         bias_weight_decay: Optional[float] = None,
-    ):
-        """Change the model configuration on the fly."""
+    ) -> None:
+        """Change the model configuration on the fly.
+
+        Args:
+            qvector_dim: Optional new q-vector dimensionality.
+            override_head: When ``True``, rebuild or replace the head explicitly.
+            head: Optional head configuration or module used when overriding.
+            qformer_weight_decay: Optional weight-decay override for Q-formers.
+            proj_head_weight_decay: Optional weight-decay override for the
+                projection head.
+            head_weight_decay: Optional weight-decay override for the head.
+            bias_weight_decay: Optional bias-only weight decay override.
+        """
         if qvector_dim is not None and qvector_dim != self.qvector_dim:
             logging.info(f"overriding qvector dim with new value: {qvector_dim}")
             self.qvector_dim = qvector_dim
@@ -1391,7 +1551,7 @@ class QVector(HyperTorchModel):
             )
             self.head_weight_decay = head_weight_decay
 
-    def set_train_mode(self, mode: Union[str, QVectorTrainMode]):
+    def set_train_mode(self, mode: Union[str, QVectorTrainMode]) -> None:
         """Switch between predefined training regimes.
 
         Args:
@@ -1426,13 +1586,16 @@ class QVector(HyperTorchModel):
             self.freeze_backbone()
             self.freeze_adapters()
         elif mode == QVectorTrainMode.OUTPUT_FEATS_QFORMER:
+            if self.output_feats_agg_qformer is None:
+                raise ValueError("output_feats_agg_qformer is not initialized")
             self._backbone_context = torch.no_grad()
             self._adapter_context = torch.no_grad()
             self._hidden_feats_agg_context = torch.no_grad()
             self.unfreeze()
             self.freeze_backbone()
             self.freeze_adapters()
-            self.hidden_feats_agg_qformer.freeze()
+            if self.hidden_feats_agg_qformer is not None:
+                self.hidden_feats_agg_qformer.freeze()
         elif mode == QVectorTrainMode.PROJ_HEAD:
             self._backbone_context = torch.no_grad()
             self._adapter_context = torch.no_grad()
@@ -1453,7 +1616,7 @@ class QVector(HyperTorchModel):
 
         self._train_mode = mode
 
-    def _train(self, train_mode: Union[str, QVectorTrainMode]):
+    def _train(self, train_mode: Union[str, QVectorTrainMode]) -> None:
         """Override ``nn.Module.train`` to honour custom training regimes.
 
         Args:
@@ -1523,47 +1686,47 @@ class QVector(HyperTorchModel):
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
 
-    def freeze_backbone_feat_extractor(self):
-        """Freeze backbone feature extractor parameters. Subclasses must implement the details."""
-        pass
+    def freeze_backbone_feat_extractor(self) -> None:
+        """Freeze backbone feature extractor parameters."""
+        raise NotImplementedError("freeze_backbone_feat_extractor is not implemented")
 
-    def freeze_backbone(self):
-        """Freeze backbone parameters. Subclasses must implement the details."""
+    def freeze_backbone(self) -> None:
+        """Freeze backbone parameters."""
         raise NotImplementedError("set_freeze_backbone not implemented")
 
-    def freeze_adapters(self):
-        """Freeze adapter modules. Subclasses must implement the details."""
+    def freeze_adapters(self) -> None:
+        """Freeze adapter modules."""
         raise NotImplementedError("set_freeze_adapters not implemented")
 
-    def set_backbone_feat_extractor_in_train_mode(self):
-        """Put the backbone feature extractor into training mode. Subclasses decide the specifics."""
+    def set_backbone_feat_extractor_in_train_mode(self) -> None:
+        """Put the backbone feature extractor into training mode."""
         raise NotImplementedError(
             "set_backbone_feat_extractor_in_train_mode not implemented"
         )
 
-    def set_backbone_feat_extractor_in_eval_mode(self):
-        """Put the backbone feature extractor into evaluation mode. Subclasses decide the specifics."""
+    def set_backbone_feat_extractor_in_eval_mode(self) -> None:
+        """Put the backbone feature extractor into evaluation mode."""
         raise NotImplementedError(
             "set_backbone_feat_extractor_in_eval_mode not implemented"
         )
 
-    def set_backbone_in_train_mode(self):
-        """Put the backbone into training mode. Subclasses decide the specifics."""
+    def set_backbone_in_train_mode(self) -> None:
+        """Put the backbone into training mode."""
         raise NotImplementedError("set_backbone_in_train_mode not implemented")
 
-    def set_backbone_in_eval_mode(self):
-        """Put the backbone into evaluation mode. Subclasses decide the specifics."""
+    def set_backbone_in_eval_mode(self) -> None:
+        """Put the backbone into evaluation mode."""
         raise NotImplementedError("set_backbone_in_eval_mode not implemented")
 
-    def set_adapters_in_train_mode(self):
-        """Put adapter modules into training mode. Subclasses must implement it."""
+    def set_adapters_in_train_mode(self) -> None:
+        """Put adapter modules into training mode."""
         raise NotImplementedError("set_adapters_in_train_mode not implemented")
 
-    def set_adapters_in_eval_mode(self):
-        """Put adapter modules into evaluation mode. Subclasses must implement it."""
+    def set_adapters_in_eval_mode(self) -> None:
+        """Put adapter modules into evaluation mode."""
         raise NotImplementedError("set_adapters_in_eval_mode not implemented")
 
-    def compute_prototype_affinity(self):
+    def compute_prototype_affinity(self) -> torch.Tensor:
         """Return prototype affinity matrix when the head exposes it.
 
         Returns:
@@ -1582,7 +1745,12 @@ class QVector(HyperTorchModel):
             )
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Return constructor-compatible keyword arguments.
+
+        Returns:
+            Keyword arguments accepted by ``QVector.__init__``.
+        """
         return filter_func_args(QVector.__init__, kwargs)
 
     @staticmethod
@@ -1709,7 +1877,12 @@ class QVector(HyperTorchModel):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Return fine-tuning keyword arguments accepted by ``change_config``.
+
+        Returns:
+            Keyword arguments accepted by ``QVector.change_config``.
+        """
         args = filter_func_args(QVector.change_config, kwargs)
         return args
 

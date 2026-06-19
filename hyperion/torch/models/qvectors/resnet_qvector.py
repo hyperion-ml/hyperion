@@ -151,7 +151,12 @@ class ResNetQVector(QVector):
         self._infer_backbone_layers_indices()
         self._make_adapters()
 
-    def has_param_groups(self):
+    def has_param_groups(self) -> bool:
+        """Return whether the model exposes custom optimizer parameter groups.
+
+        Returns:
+            ``True`` when custom parameter groups are configured.
+        """
         return (
             super().has_param_groups()
             or self.resnet_weight_decay is not None
@@ -160,7 +165,12 @@ class ResNetQVector(QVector):
             or self.adapter_lr is not None
         )
 
-    def trainable_param_groups(self):
+    def trainable_param_groups(self) -> List[Dict[str, Any]]:
+        """Return optimizer parameter groups for the trainable components.
+
+        Returns:
+            Parameter groups with optional component-specific weight decay.
+        """
         if (
             self.resnet_weight_decay is None
             and self.resnet_lr is None
@@ -245,11 +255,19 @@ class ResNetQVector(QVector):
 
     @property
     def sample_frequency(self) -> int:
-        """int: Sampling frequency assumed by ``acoustic_feats``."""
+        """Return the sampling frequency assumed by ``acoustic_feats``.
+
+        Returns:
+            Sampling frequency in hertz.
+        """
         return self.acoustic_feats.sample_frequency
 
     def _infer_backbone_layers_indices(self) -> None:
-        """Determine which backbone layers to capture for aggregation."""
+        """Determine which backbone layers to capture for aggregation.
+
+        Returns:
+            None.
+        """
         if self.output_feats_agg_qformer is None:
             self.backbone_layers = [1, 2, 3, 4]
             self.backbone_return_output = False
@@ -289,7 +307,7 @@ class ResNetQVector(QVector):
         else:
             self.output_feats_adapter = None
 
-    def init_from_xvector(self, xvector_model: RXVec):
+    def init_from_xvector(self, xvector_model: RXVec) -> None:
         """Initialize q-vector model backbone parameters from a pre-trained x-vector model.
 
         Args:
@@ -303,19 +321,33 @@ class ResNetQVector(QVector):
             xvector_model.xvector.encoder_net.state_dict()
         )
 
-    def freeze_backbone(self):
+    def freeze_backbone(self) -> None:
+        """Freeze the ResNet backbone."""
         self.resnet_encoder.freeze()
 
-    def set_backbone_in_train_mode(self):
+    def freeze_adapters(self) -> None:
+        """Freeze the adapter modules."""
+        if self.hidden_feats_adapter is not None:
+            for param in self.hidden_feats_adapter.parameters():
+                param.requires_grad = False
+        if self.output_feats_adapter is not None:
+            for param in self.output_feats_adapter.parameters():
+                param.requires_grad = False
+
+    def set_backbone_in_train_mode(self) -> None:
+        """Put the ResNet backbone into training mode."""
         self.resnet_encoder.train()
 
-    def set_backbone_in_eval_mode(self):
+    def set_backbone_in_eval_mode(self) -> None:
+        """Put the ResNet backbone into evaluation mode."""
         self.resnet_encoder.eval()
 
-    def set_adapters_in_train_mode(self):
+    def set_adapters_in_train_mode(self) -> None:
+        """Put adapter modules into training mode."""
         pass
 
-    def set_adapters_in_eval_mode(self):
+    def set_adapters_in_eval_mode(self) -> None:
+        """Put adapter modules into evaluation mode."""
         pass
 
     def change_config(
@@ -325,8 +357,8 @@ class ResNetQVector(QVector):
         resnet_weight_decay: Optional[float] = None,
         adapter_lr: Optional[float] = None,
         adapter_weight_decay: Optional[float] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Change model configuration at runtime.
 
         Args:
@@ -560,11 +592,15 @@ class ResNetQVector(QVector):
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
-        """Return only keyword args that match the constructor signature."""
+        """Return only keyword args that match the constructor signature.
+
+        Returns:
+            Keyword arguments accepted by ``ResNetQVector.__init__``.
+        """
         return filter_func_args(ResNetQVector.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Register CLI/configuration arguments for this model.
 
         Args:
@@ -607,14 +643,25 @@ class ResNetQVector(QVector):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Return fine-tuning keyword arguments accepted by ``change_config``.
+
+        Returns:
+            Keyword arguments accepted by ``ResNetQVector.change_config``.
+        """
         base_args = QVector.filter_finetune_args(**kwargs)
         child_args = filter_func_args(ResNetQVector.change_config, kwargs)
         base_args.update(child_args)
         return base_args
 
     @staticmethod
-    def add_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register fine-tuning CLI/configuration arguments for this model.
+
+        Args:
+            parser: ``ArgumentParser`` that receives the fine-tuning arguments.
+            prefix: Optional namespace prefix for grouped argument registration.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

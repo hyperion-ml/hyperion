@@ -145,7 +145,11 @@ class HFWav2Vec2QVector(HFWav2QVector):
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
-        """Return only keyword args matching this constructor signature."""
+        """Return only keyword args matching this constructor signature.
+
+        Returns:
+            Keyword arguments accepted by ``HFWav2Vec2QVector.__init__``.
+        """
         base_args = HFWav2QVector.filter_args(**kwargs)
         hf_feats = kwargs.get("hf_feats", None)
         if isinstance(hf_feats, dict):
@@ -191,7 +195,11 @@ class HFWav2Vec2QVector(HFWav2QVector):
 
     @staticmethod
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
-        """Return fine-tuning keyword args relevant to this model."""
+        """Return fine-tuning keyword args relevant to this model.
+
+        Returns:
+            Keyword arguments accepted by ``HFWav2Vec2QVector.change_config``.
+        """
         base_args = HFWav2QVector.filter_finetune_args(**kwargs)
         hf_feats = kwargs.get("hf_feats", None)
         if isinstance(hf_feats, dict):

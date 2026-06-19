@@ -176,6 +176,11 @@ class HFWav2QVector(QVector):
         self._make_adapters()
 
     def has_param_groups(self) -> bool:
+        """Return whether the model exposes custom optimizer parameter groups.
+
+        Returns:
+            ``True`` when custom parameter groups are configured.
+        """
         return (
             super().has_param_groups()
             or self.backbone_weight_decay is not None
@@ -187,6 +192,11 @@ class HFWav2QVector(QVector):
         )
 
     def trainable_param_groups(self) -> List[Dict[str, Any]]:
+        """Return optimizer parameter groups for the trainable components.
+
+        Returns:
+            Parameter groups with optional component-specific weight decay.
+        """
         if (
             self.backbone_weight_decay is None
             and self.backbone_lr is None
@@ -332,7 +342,11 @@ class HFWav2QVector(QVector):
 
     @property
     def sample_frequency(self) -> int:
-        """int: Sampling frequency assumed by ``hf_feats``."""
+        """Return the sampling frequency assumed by ``hf_feats``.
+
+        Returns:
+            Sampling frequency in hertz.
+        """
         return self.hf_feats.sample_frequency
 
     def _make_adapters(self) -> None:
@@ -349,6 +363,7 @@ class HFWav2QVector(QVector):
                         [adapter]
                         * (
                             self.hf_feats.num_encoder_layers
+                            + 1
                             - self.hidden_feats_agg_start
                         )
                     )
@@ -356,12 +371,14 @@ class HFWav2QVector(QVector):
                     self.hidden_feats_adapter = None
             else:
                 self.hidden_feats_adapter = nn.ModuleList(
-                    [nn.Linear(in_feats, hfa_qformer_in_feats)]
-                    * (
-                        self.hf_feats.num_encoder_layers
-                        + 1
-                        - self.hidden_feats_agg_start
-                    )
+                    [
+                        nn.Linear(in_feats, hfa_qformer_in_feats)
+                        for _ in range(
+                            self.hf_feats.num_encoder_layers
+                            + 1
+                            - self.hidden_feats_agg_start
+                        )
+                    ]
                 )
         else:
             self.hidden_feats_adapter = None
@@ -399,12 +416,15 @@ class HFWav2QVector(QVector):
         self.feat_fuser = FeatFuserMVN(**feat_fuser)
 
     def freeze_backbone(self) -> None:
+        """Freeze the backbone module."""
         self.hf_feats.freeze()
 
     def freeze_backbone_feat_extractor(self) -> None:
+        """Freeze the feature-extraction front-end."""
         self.hf_feats.freeze_feature_encoder()
 
     def freeze_adapters(self) -> None:
+        """Freeze adapter and fusion modules."""
         if self.feat_fuser is not None:
             for param in self.feat_fuser.parameters():
                 param.requires_grad = False
@@ -419,19 +439,35 @@ class HFWav2QVector(QVector):
                 param.requires_grad = False
 
     def set_backbone_in_eval_mode(self) -> None:
+        """Put the backbone module into evaluation mode."""
         self.hf_feats.eval()
 
     def set_backbone_in_train_mode(self) -> None:
+        """Put the backbone module into training mode."""
         self.hf_feats.train()
 
     def set_adapters_in_train_mode(self) -> None:
-        self.feat_fuser.train()
+        """Put adapter and fusion modules into training mode."""
+        if self.feat_fuser is not None:
+            self.feat_fuser.train()
 
     def set_adapters_in_eval_mode(self) -> None:
-        self.feat_fuser.eval()
+        """Put adapter and fusion modules into evaluation mode."""
+        if self.feat_fuser is not None:
+            self.feat_fuser.eval()
 
-    def _infer_backbone_layers_indices(self):
-        pass
+    def _infer_backbone_layers_indices(self) -> None:
+        """Infer which backbone layers should be exposed by the HF backbone.
+
+        Returns:
+            None.
+        """
+        if self.hidden_feats_agg_qformer is not None:
+            self.backbone_layers = list(
+                range(self.hidden_feats_agg_start, self.hf_feats.num_encoder_layers + 1)
+            )
+        else:
+            self.backbone_layers = None
 
     def change_config(
         self,
@@ -442,7 +478,7 @@ class HFWav2QVector(QVector):
         backbone_weight_decay: Optional[float] = None,
         adapter_lr: Optional[float] = None,
         adapter_weight_decay: Optional[float] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Change model configuration at runtime.
 
@@ -517,7 +553,7 @@ class HFWav2QVector(QVector):
         Optional[torch.Tensor],
         Optional[torch.Tensor],
         Optional[List[torch.Tensor]],
-        Optional[List[torch.Tensor]],
+        Optional[Union[List[torch.Tensor], torch.Tensor]],
     ]:
         """Run HF feature extractor/backbone.
 
@@ -528,7 +564,8 @@ class HFWav2QVector(QVector):
 
         Returns:
             Tuple with backbone outputs, their lengths, hidden features, and hidden
-            feature lengths (entries are ``None`` when unavailable).
+            feature lengths. Hidden feature lengths can be a shared tensor when all
+            hidden features have the same temporal length, or a per-layer list.
         """
         return_hid_states = (
             False
@@ -582,12 +619,14 @@ class HFWav2QVector(QVector):
         backbone_output_feats: Optional[torch.Tensor] = None,
         backbone_output_feats_lengths: Optional[torch.Tensor] = None,
         backbone_hidden_feats: Optional[List[torch.Tensor]] = None,
-        backbone_hidden_feats_lengths: Optional[List[torch.Tensor]] = None,
+        backbone_hidden_feats_lengths: Optional[
+            Union[List[torch.Tensor], torch.Tensor]
+        ] = None,
     ) -> Tuple[
         Optional[torch.Tensor],
         Optional[torch.Tensor],
         Optional[List[torch.Tensor]],
-        Optional[List[torch.Tensor]],
+        Optional[Union[List[torch.Tensor], torch.Tensor]],
     ]:
         """Project backbone tensors into the Q-former input spaces.
 
@@ -595,7 +634,8 @@ class HFWav2QVector(QVector):
             backbone_output_feats: Output features returned by the backbone.
             backbone_output_feats_lengths: Optional lengths of the output features.
             backbone_hidden_feats: Optional list of hidden backbone activations.
-            backbone_hidden_feats_lengths: Optional lengths of the hidden activations.
+            backbone_hidden_feats_lengths: Optional shared lengths tensor for all
+                hidden activations, or per-hidden-activation length tensors.
 
         Returns:
             Tuple mirroring the inputs but with tensors mapped through adapters so
@@ -660,7 +700,11 @@ class HFWav2QVector(QVector):
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
-        """Return only keyword args that match the constructor signature."""
+        """Return only keyword args that match the constructor signature.
+
+        Returns:
+            Keyword arguments accepted by ``HFWav2QVector.__init__``.
+        """
         return filter_func_args(HFWav2QVector.__init__, kwargs)
 
     @staticmethod
@@ -756,6 +800,11 @@ class HFWav2QVector(QVector):
 
     @staticmethod
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Return fine-tuning keyword arguments accepted by ``change_config``.
+
+        Returns:
+            Keyword arguments accepted by ``HFWav2QVector.change_config``.
+        """
         base_args = QVector.filter_finetune_args(**kwargs)
         child_args = filter_func_args(HFWav2QVector.change_config, kwargs)
         base_args.update(child_args)
