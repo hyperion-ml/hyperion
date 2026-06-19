@@ -564,6 +564,8 @@ class AudioSpectrogramDiscriminator(HyperTorchModel):
             A list of spectrogram tensors, one per configured frequency band.
         """
         if x.dim() == 3:
+            if x.size(1) > 1:
+                raise ValueError("Input must be mono")
             x = x.squeeze(1)  # (B, 1, T) -> (B, T)
 
         spec = torch.stft(

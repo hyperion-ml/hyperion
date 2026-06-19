@@ -22,11 +22,22 @@ from .freevc import FreeVC
 class HFWavLMFreeVC(FreeVC):
     """
     FreeVC model for voice conversion using Hugging Face WavLM.
-    This class extends the FreeVC model to utilize WavLM as the encoder.
+
+    Attributes:
+        hf_feats: Hugging Face WavLM feature extractor.
+        audio_feats: Audio feature frontend used for reconstruction targets.
+        prior_encoder: Encoder that produces the prior latent distribution.
+        prior_flow: Normalizing flow used to map posterior latents to the prior space.
+        posterior_encoder: Encoder that produces the posterior latent distribution.
+        decoder: Neural vocoder used to synthesize audio from latent features.
+        internal_feats: Internal latent dimensionality used by the model.
+        speaker_feats: Speaker-conditioning feature dimensionality.
+        l2_norm_speaker: Whether speaker features are L2-normalized before use.
     """
+
     def __init__(
         self,
-        hf_feats: Union[Dict, HFWavLM],
+        hf_feats: Union[Dict[str, Any], HFWavLM],
         audio_feats: Union[Dict[str, Any], AudioFeatsMVN],
         prior_encoder: Union[Dict[str, Any], WaveNetPosteriorEncoder],
         prior_flow: Union[Dict[str, Any], NVPFlow],
@@ -35,7 +46,20 @@ class HFWavLMFreeVC(FreeVC):
         internal_feats: int = 192,
         speaker_feats: int = 192,
         l2_norm_speaker: bool = False,
-    ):
+    ) -> None:
+        """Build a FreeVC model configured with WavLM features.
+
+        Args:
+            hf_feats: Feature extractor configuration or module instance.
+            audio_feats: Audio feature frontend configuration or module instance.
+            prior_encoder: Prior encoder configuration or module instance.
+            prior_flow: Flow configuration or module instance.
+            posterior_encoder: Posterior encoder configuration or module instance.
+            decoder: Decoder configuration or module instance.
+            internal_feats: Internal latent dimensionality.
+            speaker_feats: Speaker-conditioning dimensionality.
+            l2_norm_speaker: If ``True``, normalize speaker features before conditioning.
+        """
         if isinstance(hf_feats, dict):
             if "class_name" in hf_feats:
                 del hf_feats["class_name"]
@@ -47,7 +71,13 @@ class HFWavLMFreeVC(FreeVC):
         super().__init__(**super_args)
 
     @staticmethod
-    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Add WavLM-backed FreeVC CLI arguments.
+
+        Args:
+            parser: Target parser.
+            prefix: Optional top-level namespace to nest the arguments under.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

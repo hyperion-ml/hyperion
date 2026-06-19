@@ -16,11 +16,11 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ....utils import HyperDataClass
+from ...hyper_torch_model import HyperTorchModel
 from ...narchs.audio_feats_mvn import AudioFeatsMVN
 from ...narchs.hifi_generator import HiFiGenerator
 from ...narchs.nvp_flow import WaveNetNVPFlow as NVPFlow
 from ...narchs.wavenet_posterior_encoder import WaveNetPosteriorEncoder
-from ...hyper_torch_model import HyperTorchModel
 from ...utils.masking import seq_lengths_to_mask
 from ...utils.misc import slice_segments
 
@@ -31,7 +31,8 @@ class FreeVCFwdMode(str, Enum):
     FEATS_ONLY = "feats-only"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return the valid forward-mode values."""
         return [o.value for o in FreeVCFwdMode]
 
 
@@ -42,15 +43,25 @@ class FreeVCTrainMode(str, Enum):
     HF_FEATS_FROZEN_NOGRAD = "hf-feats-frozen-nograd"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return the valid training-mode values."""
         return [o.value for o in FreeVCTrainMode]
 
 
 @dataclass
 class FreeVCOutput(HyperDataClass):
     """
-    Output data class for FreeVC model.
-    Contains the output tensor and optional metadata.
+    Output container for :class:`FreeVC`.
+
+    Attributes:
+        gen_audio: Generated audio tensor returned by the decoder.
+        z: Posterior latent sample before the flow, if available.
+        z_flow: Latent tensor after the prior flow, if available.
+        prior_z_mean: Mean of the prior latent distribution.
+        prior_z_logs: Log standard deviation of the prior latent distribution.
+        post_z_mean: Mean of the posterior latent distribution.
+        post_z_logs: Log standard deviation of the posterior latent distribution.
+        kldiv_loss: KL-divergence loss, if computed.
     """
 
     gen_audio: torch.Tensor
@@ -66,6 +77,17 @@ class FreeVCOutput(HyperDataClass):
 class FreeVC(HyperTorchModel):
     """
     FreeVC model for voice conversion.
+
+    Attributes:
+        hf_feats: Frozen or partially frozen HuggingFace-style feature encoder.
+        audio_feats: Audio feature frontend used for reconstruction targets.
+        prior_encoder: Encoder that produces the prior latent distribution.
+        prior_flow: Normalizing flow used to map posterior latents to the prior space.
+        posterior_encoder: Encoder that produces the posterior latent distribution.
+        decoder: Neural vocoder used to synthesize audio from latent features.
+        internal_feats: Latent dimensionality used internally by the model.
+        speaker_feats: Speaker-conditioning feature dimensionality.
+        l2_norm_speaker: Whether speaker features are L2-normalized before use.
     """
 
     def __init__(
@@ -79,7 +101,20 @@ class FreeVC(HyperTorchModel):
         internal_feats: int = 192,
         speaker_feats: int = 192,
         l2_norm_speaker: bool = False,
-    ):
+    ) -> None:
+        """Build a FreeVC model.
+
+        Args:
+            hf_feats: Feature extractor used for source audio.
+            audio_feats: Audio feature frontend used for reconstruction targets.
+            prior_encoder: Prior encoder configuration or module instance.
+            prior_flow: Flow configuration or module instance.
+            posterior_encoder: Posterior encoder configuration or module instance.
+            decoder: Decoder configuration or module instance.
+            internal_feats: Internal latent dimensionality.
+            speaker_feats: Speaker-conditioning dimensionality.
+            l2_norm_speaker: If ``True``, normalize speaker features before conditioning.
+        """
         super().__init__()
         self.hf_feats = hf_feats
         self._hf_context = contextlib.nullcontext()
@@ -205,7 +240,15 @@ class FreeVC(HyperTorchModel):
         """
         return self.hf_feats.out_lengths(in_lengths) * self.decoder.stride
 
-    def out_shape(self, in_shape: Tuple[int, ...]) -> Tuple[int, ...]:
+    def out_shape(self, in_shape: Tuple[int, ...]) -> Tuple[int, int, Optional[int]]:
+        """Return the output shape for an input shape.
+
+        Args:
+            in_shape: Input shape tuple.
+
+        Returns:
+            Output shape tuple with the time dimension scaled by the decoder stride.
+        """
         B = in_shape[0]
         T = in_shape[1]
         if T is None:
@@ -217,11 +260,13 @@ class FreeVC(HyperTorchModel):
     def get_input_context_given_input_length(
         self, input_length: int
     ) -> Tuple[int, int]:
-        """Returns the left and right context given an input length.
+        """Return the left and right context for a given input length.
+
         Args:
-            input_length (int): Length of the input audio in samples.
+            input_length: Input audio length in samples.
+
         Returns:
-            Tuple[int, int]: Left and right context in samples.
+            Left and right context in samples.
         """
         max_valid_in_length = (
             self.hf_feats.max_out_length(input_length) * self.hf_feats.frame_shift
@@ -230,10 +275,15 @@ class FreeVC(HyperTorchModel):
         right_context = input_length - left_context - max_valid_in_length
         return left_context, right_context
 
-    def get_input_idxs_matching_output(self, input_length: int) -> List[int]:
-        """Returns the input indices that match the output length."""
-        # max_out_length = self.max_out_length(input_length)
-        # max_valid_in_length = max_out_length * self.hf_feats.frame_shift // self.hf_feats.sample_frequency
+    def get_input_idxs_matching_output(self, input_length: int) -> Tuple[int, int]:
+        """Return the input window that matches the output length.
+
+        Args:
+            input_length: Input audio length in samples.
+
+        Returns:
+            Start and end sample indices for the matched window.
+        """
         max_valid_in_length = (
             self.hf_feats.max_out_length(input_length) * self.hf_feats.frame_shift
         )
@@ -242,27 +292,32 @@ class FreeVC(HyperTorchModel):
 
     def get_input_matching_output(
         self, audios: torch.Tensor, audio_lengths: torch.Tensor
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Returns the input audio tensor and lengths that match the output length.
+        Return input audio cropped to the window that matches the model output.
 
         Args:
-            audio (torch.Tensor): Input audio tensor of shape (B, C, T).
-            audio_lengths (torch.Tensor): Lengths of each sequence in the batch.
+            audios: Input audio tensor of shape ``(B, T)``.
+            audio_lengths: Lengths of each sequence in the batch.
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor]: Tuple containing the matched audio tensor and lengths.
+            Cropped audio tensor and adjusted lengths.
         """
         start_idx, end_idx = self.get_input_idxs_matching_output(audios.shape[-1])
         audios = audios[:, start_idx:end_idx]
         audio_lengths = audio_lengths - start_idx
         audio_lengths = audio_lengths.clamp(min=0, max=audios.shape[-1])
-        return audios[:, start_idx:end_idx], audio_lengths
+        return audios, audio_lengths
 
-    def get_target_idxs_matching_output(self, input_length: int) -> List[int]:
-        """Returns the target indices that match the output length."""
-        # max_out_length = self.max_out_length(input_length)
-        # max_valid_in_length = max_out_length * self.hf_feats.frame_shift // self.hf_feats.sample_frequency
+    def get_target_idxs_matching_output(self, input_length: int) -> Tuple[int, int]:
+        """Return the target window that matches the output length.
+
+        Args:
+            input_length: Input audio length in samples.
+
+        Returns:
+            Start and end sample indices for the matched target window.
+        """
         max_valid_target_length = (
             self.hf_feats.max_out_length(input_length) * self.decoder.stride
         )
@@ -271,17 +326,17 @@ class FreeVC(HyperTorchModel):
 
     def get_target_matching_output(
         self, audios: torch.Tensor, audio_lengths: torch.Tensor, max_input_length: int
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Returns the input audio tensor and lengths that match the output length.
+        Return target audio cropped to the window that matches the model output.
 
         Args:
-            audio (torch.Tensor): Input audio tensor of shape (B, T).
-            audio_lengths (torch.Tensor): Lengths of each sequence in the batch.
-            max_input_length (int): Maximum input length in samples.
+            audios: Input audio tensor of shape ``(B, T)``.
+            audio_lengths: Lengths of each sequence in the batch.
+            max_input_length: Maximum input length in samples.
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor]: Tuple containing the matched audio tensor and lengths.
+            Cropped audio tensor and adjusted lengths.
         """
         start_idx, end_idx = self.get_target_idxs_matching_output(max_input_length)
         audios = audios[:, start_idx:end_idx]
@@ -289,7 +344,8 @@ class FreeVC(HyperTorchModel):
         audio_lengths = audio_lengths.clamp(min=0, max=audios.shape[-1])
         return audios, audio_lengths
 
-    def freeze_hf_feats(self):
+    def freeze_hf_feats(self) -> None:
+        """Freeze the HuggingFace feature encoder."""
         self.hf_feats.freeze()
 
     @staticmethod
@@ -298,9 +354,22 @@ class FreeVC(HyperTorchModel):
         post_z_logs: torch.Tensor,
         prior_z_mean: torch.Tensor,
         prior_z_logs: torch.Tensor,
-        z_lengths: Optional[torch.Tensor] = None,
+        z_lengths: torch.Tensor,
         flow_logdetJ: Optional[torch.Tensor] = None,
-    ):
+    ) -> torch.Tensor:
+        """Compute the KL-divergence loss for the latent distributions.
+
+        Args:
+            z_flow: Flow-transformed latent tensor.
+            post_z_logs: Posterior log standard deviations.
+            prior_z_mean: Prior latent means.
+            prior_z_logs: Prior latent log standard deviations.
+            z_lengths: Valid latent lengths per batch item.
+            flow_logdetJ: Optional log-determinant correction from the flow.
+
+        Returns:
+            Scalar KL-divergence loss.
+        """
         z_mask = seq_lengths_to_mask(
             z_lengths, z_flow.size(1), time_dim=1, ndim=3, dtype=z_flow.dtype
         )
@@ -342,17 +411,16 @@ class FreeVC(HyperTorchModel):
         audio_feat_lengths: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Matches the lengths of features and audio features.
+        Match the time dimension of feature tensors.
 
         Args:
-            feats (torch.Tensor): Input features of shape (B, C, T).
-            feat_lengths (torch.Tensor): Lengths of each sequence in the batch.
-            audio_feats (torch.Tensor): Audio features of shape (B, C, T).
-            audio_feat_lengths (torch.Tensor): Lengths of each audio feature sequence.
+            feats: Input features of shape ``(B, T, C)``.
+            feat_lengths: Lengths of each sequence in the batch.
+            audio_feats: Audio features of shape ``(B, T, C)``.
+            audio_feat_lengths: Lengths of each audio feature sequence.
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-                Matched features and their lengths.
+            Matched features and lengths.
         """
         delta_length = feats.shape[1] - audio_feats.shape[1]
         assert (
@@ -362,7 +430,7 @@ class FreeVC(HyperTorchModel):
             logging.warning("Audio features padded to match feats length")
             audio_feats = torch.nn.functional.pad(
                 audio_feats,
-                (0, 0, 0, -delta_length),
+                (0, 0, 0, delta_length),
                 mode="replicate",
             )
             audio_feat_lengths = feat_lengths
@@ -372,10 +440,25 @@ class FreeVC(HyperTorchModel):
 
         return feats, feat_lengths, audio_feats, audio_feat_lengths
 
-    def forward_hf_feats(self, x, x_lengths, chunk_length=0, detach_chunks=False):
+    def forward_hf_feats(
+        self,
+        x: torch.Tensor,
+        x_lengths: torch.Tensor,
+        chunk_length: int = 0,
+        detach_chunks: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Extract HuggingFace features for source audio.
 
+        Args:
+            x: Input waveform batch.
+            x_lengths: Valid waveform lengths in samples.
+            chunk_length: Optional chunk length for streaming inference.
+            detach_chunks: If ``True``, detach each chunk before concatenation.
+
+        Returns:
+            Feature tensor and feature-length tensor.
+        """
         with self._hf_context:
-            assert not torch.is_grad_enabled(), "Not in no_grad context!"
             hf_output = self.hf_feats(
                 x,
                 x_lengths,
@@ -387,9 +470,19 @@ class FreeVC(HyperTorchModel):
         feat_lengths = hf_output["hidden_states_lengths"]
         return feats, feat_lengths
 
-    def forward_audio_feats(self, x, x_lengths):
+    def forward_audio_feats(
+        self, x: torch.Tensor, x_lengths: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Extract reconstruction features for target audio.
+
+        Args:
+            x: Input waveform batch.
+            x_lengths: Valid waveform lengths in samples.
+
+        Returns:
+            Feature tensor and feature-length tensor.
+        """
         with self._audio_feats_context:
-            assert not torch.is_grad_enabled(), "Not in no_grad context!"
             feats, feat_lengths = self.audio_feats(x, x_lengths)
         return feats, feat_lengths
 
@@ -397,31 +490,39 @@ class FreeVC(HyperTorchModel):
         self,
         source_audios: torch.Tensor,
         source_audio_lengths: torch.Tensor,
-        speaker_feats: torch.Tensor,
+        speaker_feats: Optional[torch.Tensor] = None,
         mode: FreeVCFwdMode = FreeVCFwdMode.RECONS,
         slice_start_idxs: Optional[torch.Tensor] = None,
         slice_segment_length: Optional[int] = None,
         feats: Optional[torch.Tensor] = None,
         feat_lengths: Optional[torch.Tensor] = None,
-    ):
+    ) -> Union[FreeVCOutput, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Forward pass of the FreeVC model.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (B, C, T).
-            x_lengths (torch.Tensor): Lengths of each sequence in the batch.
-            mode (FreeVCMode): Mode of operation (recons or vc).
+            source_audios: Source audio tensor.
+            source_audio_lengths: Valid source lengths in samples.
+            speaker_feats: Speaker-conditioning features.
+            mode: Forward mode.
+            slice_start_idxs: Optional slice start indices for chunked decoding.
+            slice_segment_length: Optional slice length for chunked decoding.
+            feats: Optional precomputed source features.
+            feat_lengths: Optional source feature lengths.
 
         Returns:
-            FreeVCOutput: Output containing the processed tensor and metadata.
+            ``FreeVCOutput`` for ``recons`` and ``vc`` modes, or a
+            ``(feats, feat_lengths)`` tuple for ``feats-only`` mode.
         """
         if feats is None:
             feats, feat_lengths = self.forward_hf_feats(
                 source_audios, source_audio_lengths
             )
-            if mode == FreeVCFwdMode.FEATS_ONLY:
-                # Return only the features without further processing
-                return feats, feat_lengths
+        if mode == FreeVCFwdMode.FEATS_ONLY:
+            return feats, feat_lengths
+
+        if speaker_feats is None:
+            raise ValueError("Speaker features are required for this mode.")
 
         if speaker_feats.dim() == 2:
             speaker_feats = speaker_feats.unsqueeze(1)
@@ -463,16 +564,21 @@ class FreeVC(HyperTorchModel):
         speaker_feats: torch.Tensor,
         slice_start_idxs: Optional[torch.Tensor] = None,
         slice_segment_length: Optional[int] = None,
-    ):
+    ) -> FreeVCOutput:
         """
-        Forward pass for reconstruction mode.
+        Run the reconstruction path.
 
         Args:
-            feats (torch.Tensor): Input features of shape (B, C, T).
-            feat_lengths (torch.Tensor): Lengths of each sequence in the batch.
+            source_audios: Source audio tensor.
+            source_audio_lengths: Valid source lengths in samples.
+            feats: Source features.
+            feat_lengths: Source feature lengths.
+            speaker_feats: Speaker-conditioning features.
+            slice_start_idxs: Optional slice start indices for chunked decoding.
+            slice_segment_length: Optional slice length for chunked decoding.
 
         Returns:
-            torch.Tensor: Reconstructed output tensor.
+            Model output containing the reconstructed audio and latent tensors.
         """
         audio_feats, audio_feat_lengths = self.forward_audio_feats(
             source_audios, source_audio_lengths
@@ -544,16 +650,19 @@ class FreeVC(HyperTorchModel):
         speaker_feats: torch.Tensor,
         slice_start_idxs: Optional[torch.Tensor] = None,
         slice_segment_length: Optional[int] = None,
-    ):
+    ) -> FreeVCOutput:
         """
-        Forward pass for voice conversion mode.
+        Run the voice-conversion path.
 
         Args:
-            feats (torch.Tensor): Input features of shape (B, C, T).
-            feat_lengths (torch.Tensor): Lengths of each sequence in the batch.
+            feats: Source features.
+            feat_lengths: Source feature lengths.
+            speaker_feats: Speaker-conditioning features.
+            slice_start_idxs: Optional slice start indices for chunked decoding.
+            slice_segment_length: Optional slice length for chunked decoding.
 
         Returns:
-            torch.Tensor: Converted output tensor.
+            Model output containing the converted audio and latent tensors.
         """
         prior_z, prior_z_mean, prior_z_logs = self.prior_encoder(feats, feat_lengths)
         z, _ = self.prior_flow(
@@ -584,7 +693,12 @@ class FreeVC(HyperTorchModel):
         )
         return output
 
-    def set_train_mode(self, mode: str):
+    def set_train_mode(self, mode: Union[str, FreeVCTrainMode]) -> None:
+        """Switch the model into a named training mode.
+
+        Args:
+            mode: Training mode name or enum value.
+        """
         if mode == self._train_mode:
             return
         logging.info("setting FreeVC train mode to %s", mode)
@@ -604,13 +718,20 @@ class FreeVC(HyperTorchModel):
         if mode in [FreeVCTrainMode.HF_FEATS_FROZEN_NOGRAD]:
             logging.info("using torch.no_grad for hf_feats")
             self._hf_context = torch.no_grad()
+        else:
+            self._hf_context = contextlib.nullcontext()
 
         logging.info("using torch.no_grad for audio feats")
         self._audio_feats_context = torch.no_grad()
         self.audio_feats.freeze()
         self._train_mode = mode
 
-    def _train(self, train_mode: str):
+    def _train(self, train_mode: Union[str, FreeVCTrainMode]) -> None:
+        """Apply a training-mode transition to the module tree.
+
+        Args:
+            train_mode: Training mode name or enum value.
+        """
         if train_mode in [FreeVCTrainMode.FULL, FreeVCTrainMode.FROZEN]:
             super()._train(train_mode)
         elif train_mode in [
@@ -655,50 +776,64 @@ class FreeVC(HyperTorchModel):
 
     @staticmethod
     def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
-    ):
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
         """
-        Adds FreeVC class arguments to an ArgumentParser.
+        Add FreeVC arguments to a parser.
 
         Args:
-            parser (ArgumentParser): The parser to which the arguments will be added.
-            prefix (Optional[str]): Optional prefix for argument names.
+            parser: Target parser.
+            prefix: Optional top-level namespace to nest the arguments under.
+            skip: Optional set of argument names to omit.
         """
+        skip = set(skip) if skip is not None else set()
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+        else:
+            outer_parser = None
 
-        AudioFeatsMVN.add_class_args(parser, prefix="audio_feats")
-        WaveNetPosteriorEncoder.add_class_args(
-            parser, prefix="prior_encoder", skip={"in_feats", "cond_channels"}
-        )
-        NVPFlow.add_class_args(
-            parser, prefix="prior_flow", skip={"cond_channels", "channels"}
-        )
-        WaveNetPosteriorEncoder.add_class_args(
-            parser, prefix="posterior_encoder", skip={"in_feats", "cond_channels"}
-        )
-        HiFiGenerator.add_class_args(
-            parser, prefix="decoder", skip={"cond_channels", "in_feats"}
-        )
-        parser.add_argument(
-            "--internal-feats",
-            type=int,
-            default=192,
-            help="Number of internal features in the model.",
-        )
-        parser.add_argument(
-            "--speaker-feats",
-            type=int,
-            default=192,
-            help="Number of speaker features in the model.",
-        )
-        parser.add_argument(
-            "--l2-norm-speaker",
-            action=ActionYesNo,
-            default=False,
-            help="Whether to apply L2 normalization to speaker features.",
-        )
+        if "audio_feats" not in skip:
+            AudioFeatsMVN.add_class_args(parser, prefix="audio_feats")
+        if "prior_encoder" not in skip:
+            WaveNetPosteriorEncoder.add_class_args(
+                parser, prefix="prior_encoder", skip={"in_feats", "cond_channels"}
+            )
+        if "prior_flow" not in skip:
+            NVPFlow.add_class_args(
+                parser, prefix="prior_flow", skip={"cond_channels", "channels"}
+            )
+        if "posterior_encoder" not in skip:
+            WaveNetPosteriorEncoder.add_class_args(
+                parser, prefix="posterior_encoder", skip={"in_feats", "cond_channels"}
+            )
+        if "decoder" not in skip:
+            HiFiGenerator.add_class_args(
+                parser, prefix="decoder", skip={"cond_channels", "in_feats"}
+            )
+        if "internal_feats" not in skip:
+            parser.add_argument(
+                "--internal-feats",
+                type=int,
+                default=192,
+                help="Number of internal features in the model.",
+            )
+        if "speaker_feats" not in skip:
+            parser.add_argument(
+                "--speaker-feats",
+                type=int,
+                default=192,
+                help="Number of speaker features in the model.",
+            )
+        if "l2_norm_speaker" not in skip:
+            parser.add_argument(
+                "--l2-norm-speaker",
+                action=ActionYesNo,
+                default=False,
+                help="Whether to apply L2 normalization to speaker features.",
+            )
         # parser.add_argument(
         #     "--output-sample-frequency",
         #     type=int,
