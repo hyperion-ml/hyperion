@@ -6,28 +6,51 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ....utils import HyperDataClass
-from ...layers import ActivationFactory as AF
 from ...hyper_torch_model import HyperTorchModel
+from ...layers import ActivationFactory as AF
 
 
 class AudioDiscriminatorTrainMode(str, Enum):
+    """Training modes supported by the audio discriminator stack.
+
+    Attributes:
+        FULL: Train the discriminator normally.
+        FROZEN: Keep the discriminator frozen.
+    """
+
     FULL = "full"
     FROZEN = "frozen"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return the valid enum values.
+
+        Returns:
+            The list of supported training-mode string values.
+        """
         return [o.value for o in AudioDiscriminatorTrainMode]
 
 
 @dataclass
 class AudioMultiDiscriminatorOutput(HyperDataClass):
+    """Container for the multi-discriminator outputs.
+
+    Attributes:
+        msd_outputs: Outputs from the multi-scale discriminators.
+        mpd_outputs: Outputs from the multi-period discriminators.
+        mrsp_outputs: Outputs from the multi-resolution spectrogram discriminators.
+        msd_fmaps: Feature maps from the multi-scale discriminators.
+        mpd_fmaps: Feature maps from the multi-period discriminators.
+        mrsp_fmaps: Feature maps from the multi-resolution spectrogram discriminators.
+    """
+
     msd_outputs: List[torch.Tensor]
     mpd_outputs: List[torch.Tensor]
     mrsp_outputs: List[torch.Tensor]
@@ -40,9 +63,24 @@ MRSD_BANDS = [(0.0, 0.1), (0.1, 0.25), (0.25, 0.5), (0.5, 0.75), (0.75, 1.0)]
 
 
 class _NormConv2d(nn.Module):
-    """Conv2d with normalization."""
+    """2D convolution wrapped with a normalization parametrization.
 
-    def __init__(self, norm, activation, *args, **kwargs):
+    Attributes:
+        conv: Normalized convolution module.
+        activation: Activation module applied after convolution.
+    """
+
+    def __init__(
+        self, norm: Any, activation: Optional[nn.Module], *args: Any, **kwargs: Any
+    ) -> None:
+        """Wrap a 2D convolution with a normalization parametrization.
+
+        Args:
+            norm: Normalization wrapper applied to the convolution module.
+            activation: Optional activation module applied after the convolution.
+            *args: Positional arguments forwarded to :class:`torch.nn.Conv2d`.
+            **kwargs: Keyword arguments forwarded to :class:`torch.nn.Conv2d`.
+        """
         super().__init__()
         self.conv = norm(nn.Conv2d(*args, **kwargs))
         if activation is None:
@@ -50,14 +88,37 @@ class _NormConv2d(nn.Module):
         else:
             self.activation = activation
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the normalized convolution and activation.
+
+        Args:
+            x: Input tensor.
+
+        Returns:
+            The transformed tensor.
+        """
         return self.activation(self.conv(x))
 
 
 class _NormConv1d(nn.Module):
-    """Conv1d with normalization."""
+    """1D convolution wrapped with a normalization parametrization.
 
-    def __init__(self, norm, activation, *args, **kwargs):
+    Attributes:
+        conv: Normalized convolution module.
+        activation: Activation module applied after convolution.
+    """
+
+    def __init__(
+        self, norm: Any, activation: Optional[nn.Module], *args: Any, **kwargs: Any
+    ) -> None:
+        """Wrap a 1D convolution with a normalization parametrization.
+
+        Args:
+            norm: Normalization wrapper applied to the convolution module.
+            activation: Optional activation module applied after the convolution.
+            *args: Positional arguments forwarded to :class:`torch.nn.Conv1d`.
+            **kwargs: Keyword arguments forwarded to :class:`torch.nn.Conv1d`.
+        """
         super().__init__()
         self.conv = norm(nn.Conv1d(*args, **kwargs))
         if activation is None:
@@ -65,7 +126,15 @@ class _NormConv1d(nn.Module):
         else:
             self.activation = activation
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the normalized convolution and activation.
+
+        Args:
+            x: Input tensor.
+
+        Returns:
+            The transformed tensor.
+        """
         return self.activation(self.conv(x))
 
 
@@ -91,7 +160,17 @@ class AudioPeriodDiscriminator(HyperTorchModel):
         out_kernel_size: int = 3,
         activation: Union[str, nn.Module] = "leakyrelu",
         use_spectral_norm: bool = False,
-    ):
+    ) -> None:
+        """Build a period-based audio discriminator.
+
+        Args:
+            period: Number of samples used to reshape each waveform period.
+            kernel_size: Kernel size for the internal convolution blocks.
+            stride: Stride for the internal convolution blocks.
+            out_kernel_size: Kernel size of the final output convolution.
+            activation: Activation name or module to apply after convolutions.
+            use_spectral_norm: If ``True``, use spectral normalization instead of weight norm.
+        """
         super().__init__()
         self.period = period
         self.kernel_size = kernel_size
@@ -138,14 +217,30 @@ class AudioPeriodDiscriminator(HyperTorchModel):
             norm_f, None, 1024, 1, kernel_size=kernel_size_2d, padding=padding
         )
 
-    def pad_to_period(self, x: torch.Tensor):
+    def pad_to_period(self, x: torch.Tensor) -> torch.Tensor:
+        """Pad the waveform length to an integer multiple of the period.
+
+        Args:
+            x: Input waveform tensor of shape ``(B, C, T)``.
+
+        Returns:
+            The padded waveform tensor.
+        """
         t = x.shape[-1]
         if t % self.period == 0:
             return x
         x = nn.functional.pad(x, (0, self.period - t % self.period), mode="reflect")
         return x
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        """Score the input waveform and collect intermediate feature maps.
+
+        Args:
+            x: Input waveform tensor of shape ``(B, C, T)``.
+
+        Returns:
+            A tuple with the flattened discriminator output and the feature maps.
+        """
         fmaps = []
         x = self.pad_to_period(x)
         x = x.reshape(x.shape[0], x.shape[1], -1, self.period)  # (b, c, l, p)
@@ -159,7 +254,8 @@ class AudioPeriodDiscriminator(HyperTorchModel):
         x = torch.flatten(x, 1, -1)
         return x, fmaps
 
-    def remove_weight_norm(self):
+    def remove_weight_norm(self) -> None:
+        """Remove weight-normalization parametrizations from all convolutions."""
         for layer in self.layers:
             nn.utils.parametrize.remove_parametrizations(
                 layer.conv, "weight", leave_parametrized=False
@@ -191,7 +287,17 @@ class AudioScaleDiscriminator(HyperTorchModel):
         out_kernel_size: int = 3,
         activation: Union[str, nn.Module] = "leakyrelu",
         use_spectral_norm: bool = False,
-    ):
+    ) -> None:
+        """Build a multi-scale waveform discriminator.
+
+        Args:
+            scale: Optional input downsampling factor before the convolutions.
+            kernel_sizes: Convolution kernel sizes for the internal blocks.
+            strides: Convolution strides for the internal blocks.
+            out_kernel_size: Kernel size of the final output convolution.
+            activation: Activation name or module to apply after convolutions.
+            use_spectral_norm: If ``True``, use spectral normalization instead of weight norm.
+        """
         super().__init__()
         self.scale = scale
         self.kernel_sizes = kernel_sizes
@@ -286,7 +392,15 @@ class AudioScaleDiscriminator(HyperTorchModel):
             norm_f, None, 1024, 1, kernel_size=out_kernel_size, padding=padding
         )
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        """Score the input waveform and collect intermediate feature maps.
+
+        Args:
+            x: Input waveform tensor of shape ``(B, C, T)``.
+
+        Returns:
+            A tuple with the flattened discriminator output and the feature maps.
+        """
         fmaps = []
         if self.scale > 1:
             x = self.pooling(x)
@@ -324,13 +438,26 @@ class AudioSpectrogramDiscriminator(HyperTorchModel):
         window_length: int = 1024,
         hop_length: int = 256,
         freq_kernel_sizes: List[int] = [9, 9, 3],
-        time_kernel_sizes: int = [3, 3, 3],
+        time_kernel_sizes: List[int] = [3, 3, 3],
         strides: List[int] = [1, 2, 1],
         out_kernel_size: int = 3,
         bands: List[Tuple[float, float]] = MRSD_BANDS,
         activation: Union[str, nn.Module] = "leakyrelu",
         use_spectral_norm: bool = False,
-    ):
+    ) -> None:
+        """Build a multi-resolution spectrogram discriminator.
+
+        Args:
+            window_length: STFT window length used to compute the spectrogram.
+            hop_length: STFT hop length used to compute the spectrogram.
+            freq_kernel_sizes: Convolution kernel sizes along the frequency axis.
+            time_kernel_sizes: Convolution kernel sizes along the time axis.
+            strides: Convolution strides for the stacked conv blocks.
+            out_kernel_size: Kernel size of the final output convolution.
+            bands: Frequency bands to analyze, normalized to the Nyquist range.
+            activation: Activation name or module to apply after convolutions.
+            use_spectral_norm: If ``True``, use spectral normalization instead of weight norm.
+        """
         super().__init__()
         self.window_length = window_length
         self.hop_length = hop_length
@@ -427,7 +554,15 @@ class AudioSpectrogramDiscriminator(HyperTorchModel):
         window = torch.hann_window(window_length)
         self.register_buffer("window", window)
 
-    def get_spectrogram_bands(self, x):
+    def get_spectrogram_bands(self, x: torch.Tensor) -> List[torch.Tensor]:
+        """Compute the band-limited STFT views used by the discriminator.
+
+        Args:
+            x: Input waveform tensor of shape ``(B, C, T)`` or ``(B, T)``.
+
+        Returns:
+            A list of spectrogram tensors, one per configured frequency band.
+        """
         if x.dim() == 3:
             x = x.squeeze(1)  # (B, 1, T) -> (B, T)
 
@@ -447,7 +582,15 @@ class AudioSpectrogramDiscriminator(HyperTorchModel):
         spec_bands = [spec[..., b[0] : b[1]] for b in self.bands]
         return spec_bands
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        """Score each spectrogram band and collect intermediate feature maps.
+
+        Args:
+            x: Input waveform tensor of shape ``(B, C, T)`` or ``(B, T)``.
+
+        Returns:
+            A tuple with the flattened discriminator output and the feature maps.
+        """
         x_bands = self.get_spectrogram_bands(x)
         fmaps = []
 
@@ -466,7 +609,8 @@ class AudioSpectrogramDiscriminator(HyperTorchModel):
 
         return x, fmaps
 
-    def remove_weight_norm(self):
+    def remove_weight_norm(self) -> None:
+        """Remove weight-normalization parametrizations from all convolutions."""
         for layer_group in self.layers:
             for layer in layer_group:
                 nn.utils.parametrize.remove_parametrizations(
@@ -505,6 +649,15 @@ class AudioMultiDiscriminator(HyperTorchModel):
         mrsp_bands (List[Tuple[float, float]]): Frequency bands for MRSD (normalized 0–1).
         activation (str): Activation function name.
         use_spectral_norm (bool): Whether to use spectral normalization instead of weight norm.
+
+    Attributes:
+        discriminators: Module list containing the enabled sub-discriminators.
+        use_msd: Whether multi-scale discriminators are enabled.
+        use_mpd: Whether multi-period discriminators are enabled.
+        use_mrsd: Whether multi-resolution spectrogram discriminators are enabled.
+        scales: Temporal scales used by the multi-scale discriminators.
+        periods: Periods used by the multi-period discriminators.
+        mrsp_win_sizes: STFT window sizes used by the spectrogram discriminators.
     """
 
     def __init__(
@@ -523,15 +676,43 @@ class AudioMultiDiscriminator(HyperTorchModel):
         mrsp_win_sizes: List[int] = [2048, 1024, 512],
         mrsp_hop_sizes: List[int] = [512, 256, 128],
         mrsp_freq_kernel_sizes: List[int] = [9, 9, 3],
-        mrsp_time_kernel_sizes: int = [3, 3, 3],
+        mrsp_time_kernel_sizes: List[int] = [3, 3, 3],
         mrsp_strides: List[int] = [1, 2, 1],
         out_kernel_size: int = 3,
         mrsp_bands: List[Union[Tuple[float, float], float]] = MRSD_BANDS,
         activation: Union[str, nn.Module] = "leakyrelu",
         use_spectral_norm: bool = False,
-    ):
+    ) -> None:
+        """Build the composite audio discriminator.
+
+        Args:
+            use_msd: Whether to instantiate multi-scale waveform discriminators.
+            use_mpd: Whether to instantiate multi-period waveform discriminators.
+            use_mrsd: Whether to instantiate multi-resolution spectrogram discriminators.
+            scales: Temporal downsampling scales for MSD.
+            msd_kernel_sizes: Kernel sizes for MSD layers.
+            msd_strides: Strides for MSD layers.
+            msd_out_kernel_size: Output convolution kernel size for MSD.
+            periods: Period values for MPD.
+            mpd_kernel_size: Kernel size for MPD conv layers.
+            mpd_stride: Stride for MPD conv layers.
+            mpd_out_kernel_size: Output convolution kernel size for MPD.
+            mrsp_win_sizes: STFT window lengths for MRSD.
+            mrsp_hop_sizes: STFT hop sizes for MRSD.
+            mrsp_freq_kernel_sizes: Frequency-axis kernel sizes for MRSD.
+            mrsp_time_kernel_sizes: Time-axis kernel sizes for MRSD.
+            mrsp_strides: Convolution strides for MRSD.
+            out_kernel_size: Final output convolution kernel size.
+            mrsp_bands: Frequency bands for MRSD, either as tuples or flattened pairs.
+            activation: Activation name or module to apply after convolutions.
+            use_spectral_norm: If ``True``, use spectral normalization instead of weight norm.
+        """
         super().__init__()
-        if not isinstance(mrsp_bands[0], tuple):
+        if len(mrsp_bands) > 0 and not isinstance(mrsp_bands[0], tuple):
+            if len(mrsp_bands) % 2 != 0:
+                raise ValueError(
+                    "mrsp_bands must contain an even number of values when provided as a flattened list"
+                )
             mrsp_bands = list(zip(mrsp_bands[::2], mrsp_bands[1::2]))
 
         self.use_msd = use_msd
@@ -626,6 +807,7 @@ class AudioMultiDiscriminator(HyperTorchModel):
                     p,
                     kernel_size=mpd_kernel_size,
                     stride=mpd_stride,
+                    out_kernel_size=mpd_out_kernel_size,
                     activation=activation,
                     use_spectral_norm=use_spectral_norm,
                 )
@@ -650,13 +832,21 @@ class AudioMultiDiscriminator(HyperTorchModel):
 
         self.discriminators = nn.ModuleList(discs)
 
-    def preprocess(self, x):
+    def preprocess(self, x: torch.Tensor) -> torch.Tensor:
+        """Center and peak-normalize input audio.
+
+        Args:
+            x: Input tensor of shape ``(B, C, T)`` or ``(B, T)``.
+
+        Returns:
+            The normalized tensor.
+        """
         if x.dim() == 2:
             # If input is 2D, assume it is (B, T) and add a channel dimension
             x = x.unsqueeze(1)
 
         # Remove DC offset
-        x = x - x.mean(dim=-1, keepdims=True)
+        x = x - x.mean(dim=-1, keepdim=True)
         # Peak normalize the volume of input audio
         x = 0.8 * x / (x.abs().max(dim=-1, keepdim=True)[0] + 1e-9)
         return x
@@ -664,15 +854,13 @@ class AudioMultiDiscriminator(HyperTorchModel):
     def forward(
         self, x: torch.Tensor
     ) -> Tuple[List[torch.Tensor], List[List[torch.Tensor]]]:
-        """
-        Forward pass through the multi-discriminator.
+        """Run the enabled discriminators on the input waveform.
+
         Args:
-            x (torch.Tensor): Input audio tensor of shape (B, C, T) where B is batch size,
-                              C is number of channels, and T is the number of time steps.
+            x: Input waveform tensor of shape ``(B, C, T)`` or ``(B, T)``.
+
         Returns:
-            Tuple[List[torch.Tensor], List[List[torch.Tensor]]]: A tuple containing:
-                - List of outputs from each discriminator.
-                - List of feature maps from each discriminator.
+            A tuple containing the discriminator outputs and feature maps.
         """
 
         x = self.preprocess(x)
@@ -685,7 +873,12 @@ class AudioMultiDiscriminator(HyperTorchModel):
 
         return outputs, fmaps
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Return the serializable configuration of this module.
+
+        Returns:
+            A dictionary with constructor arguments and base class metadata.
+        """
         config = {
             "use_msd": self.use_msd,
             "use_mpd": self.use_mpd,
@@ -712,135 +905,170 @@ class AudioMultiDiscriminator(HyperTorchModel):
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
+    ) -> None:
+        """Add constructor arguments to a JSONArgParse parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix used for nested parsers.
+            skip: Argument names to omit from the parser.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument(
-            "--use-msd",
-            default=True,
-            action=ActionYesNo,
-            help="Whether to use multi-scale waveform discriminators",
-        )
-        parser.add_argument(
-            "--use-mpd",
-            default=True,
-            action=ActionYesNo,
-            help="Whether to use multi-period waveform discriminators",
-        )
-        parser.add_argument(
-            "--use-mrsd",
-            default=True,
-            action=ActionYesNo,
-            help="Whether to use multi-resolution spectrogram discriminators",
-        )
-        parser.add_argument(
-            "--scales",
-            type=int,
-            nargs="+",
-            default=[1],
-            help="Temporal downsampling scales for MSD",
-        )
-        parser.add_argument(
-            "--msd-kernel-sizes",
-            type=int,
-            nargs="+",
-            default=[15, 41, 5],
-            help="Kernel sizes for MSD layers",
-        )
-        parser.add_argument(
-            "--msd-strides",
-            type=int,
-            nargs="+",
-            default=[1, 4, 1],
-            help="Strides for MSD layers",
-        )
-        parser.add_argument(
-            "--msd-out-kernel-size",
-            type=int,
-            default=3,
-            help="Output convolution kernel size for MSD",
-        )
-        parser.add_argument(
-            "--periods",
-            type=int,
-            nargs="+",
-            default=[2, 3, 5, 7, 11],
-            help="Periods for MPD",
-        )
-        parser.add_argument(
-            "--mpd-kernel-size", type=int, default=5, help="Kernel size for MPD layers"
-        )
-        parser.add_argument(
-            "--mpd-stride", type=int, default=3, help="Stride for MPD layers"
-        )
-        parser.add_argument(
-            "--mpd-out-kernel-size",
-            type=int,
-            default=3,
-            help="Output convolution kernel size for MPD",
-        )
-        parser.add_argument(
-            "--mrsp-win-sizes",
-            type=int,
-            nargs="+",
-            default=[2048, 1024, 512],
-            help="Window sizes for MRSD STFT",
-        )
-        parser.add_argument(
-            "--mrsp-hop-sizes",
-            type=int,
-            nargs="+",
-            default=[512, 256, 128],
-            help="Hop sizes for MRSD STFT",
-        )
-        parser.add_argument(
-            "--mrsp-freq-kernel-sizes",
-            type=int,
-            nargs="+",
-            default=[9, 9, 3],
-            help="Frequency kernel sizes for MRSD",
-        )
-        parser.add_argument(
-            "--mrsp-time-kernel-sizes",
-            type=int,
-            nargs="+",
-            default=[3, 3, 3],
-            help="Time kernel sizes for MRSD",
-        )
-        parser.add_argument(
-            "--mrsp-strides",
-            type=int,
-            nargs="+",
-            default=[1, 2, 1],
-            help="Strides for MRSD conv layers",
-        )
-        parser.add_argument(
-            "--out-kernel-size",
-            type=int,
-            default=3,
-            help="Final output conv kernel size for MRSD",
-        )
-        parser.add_argument(
-            "--mrsp-bands",
-            type=float,
-            nargs="+",
-            default=[v for band in MRSD_BANDS for v in band],
-            help="Frequency bands for MRSD, flattened as list",
-        )
-        parser.add_argument(
-            "--activation",
-            type=str,
-            default="leakyrelu",
-            help="Activation function name",
-        )
-        parser.add_argument(
-            "--use-spectral-norm",
-            default=False,
-            action=ActionYesNo,
-            help="Use spectral normalization instead of weight norm",
-        )
+        if "use_msd" not in skip:
+            parser.add_argument(
+                "--use-msd",
+                default=True,
+                action=ActionYesNo,
+                help="Whether to use multi-scale waveform discriminators",
+            )
+        if "use_mpd" not in skip:
+            parser.add_argument(
+                "--use-mpd",
+                default=True,
+                action=ActionYesNo,
+                help="Whether to use multi-period waveform discriminators",
+            )
+        if "use_mrsd" not in skip:
+            parser.add_argument(
+                "--use-mrsd",
+                default=True,
+                action=ActionYesNo,
+                help="Whether to use multi-resolution spectrogram discriminators",
+            )
+        if "scales" not in skip:
+            parser.add_argument(
+                "--scales",
+                type=int,
+                nargs="+",
+                default=[1],
+                help="Temporal downsampling scales for MSD",
+            )
+        if "msd_kernel_sizes" not in skip:
+            parser.add_argument(
+                "--msd-kernel-sizes",
+                type=int,
+                nargs="+",
+                default=[15, 41, 5],
+                help="Kernel sizes for MSD layers",
+            )
+        if "msd_strides" not in skip:
+            parser.add_argument(
+                "--msd-strides",
+                type=int,
+                nargs="+",
+                default=[1, 4, 1],
+                help="Strides for MSD layers",
+            )
+        if "msd_out_kernel_size" not in skip:
+            parser.add_argument(
+                "--msd-out-kernel-size",
+                type=int,
+                default=3,
+                help="Output convolution kernel size for MSD",
+            )
+        if "periods" not in skip:
+            parser.add_argument(
+                "--periods",
+                type=int,
+                nargs="+",
+                default=[2, 3, 5, 7, 11],
+                help="Periods for MPD",
+            )
+        if "mpd_kernel_size" not in skip:
+            parser.add_argument(
+                "--mpd-kernel-size",
+                type=int,
+                default=5,
+                help="Kernel size for MPD layers",
+            )
+        if "mpd_stride" not in skip:
+            parser.add_argument(
+                "--mpd-stride",
+                type=int,
+                default=3,
+                help="Stride for MPD layers",
+            )
+        if "mpd_out_kernel_size" not in skip:
+            parser.add_argument(
+                "--mpd-out-kernel-size",
+                type=int,
+                default=3,
+                help="Output convolution kernel size for MPD",
+            )
+        if "mrsp_win_sizes" not in skip:
+            parser.add_argument(
+                "--mrsp-win-sizes",
+                type=int,
+                nargs="+",
+                default=[2048, 1024, 512],
+                help="Window sizes for MRSD STFT",
+            )
+        if "mrsp_hop_sizes" not in skip:
+            parser.add_argument(
+                "--mrsp-hop-sizes",
+                type=int,
+                nargs="+",
+                default=[512, 256, 128],
+                help="Hop sizes for MRSD STFT",
+            )
+        if "mrsp_freq_kernel_sizes" not in skip:
+            parser.add_argument(
+                "--mrsp-freq-kernel-sizes",
+                type=int,
+                nargs="+",
+                default=[9, 9, 3],
+                help="Frequency kernel sizes for MRSD",
+            )
+        if "mrsp_time_kernel_sizes" not in skip:
+            parser.add_argument(
+                "--mrsp-time-kernel-sizes",
+                type=int,
+                nargs="+",
+                default=[3, 3, 3],
+                help="Time kernel sizes for MRSD",
+            )
+        if "mrsp_strides" not in skip:
+            parser.add_argument(
+                "--mrsp-strides",
+                type=int,
+                nargs="+",
+                default=[1, 2, 1],
+                help="Strides for MRSD conv layers",
+            )
+        if "out_kernel_size" not in skip:
+            parser.add_argument(
+                "--out-kernel-size",
+                type=int,
+                default=3,
+                help="Final output conv kernel size for MRSD",
+            )
+        if "mrsp_bands" not in skip:
+            parser.add_argument(
+                "--mrsp-bands",
+                type=float,
+                nargs="+",
+                default=[v for band in MRSD_BANDS for v in band],
+                help="Frequency bands for MRSD, flattened as list",
+            )
+        if "activation" not in skip:
+            parser.add_argument(
+                "--activation",
+                type=str,
+                default="leakyrelu",
+                help="Activation function name",
+            )
+        if "use_spectral_norm" not in skip:
+            parser.add_argument(
+                "--use-spectral-norm",
+                default=False,
+                action=ActionYesNo,
+                help="Use spectral normalization instead of weight norm",
+            )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
