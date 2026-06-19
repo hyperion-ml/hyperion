@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 
+from ....np.pdfs.plda.plda_base import PLDALLRNvsMMethod
 from ...hyper_torch_model import HyperTorchModel
 from ...utils.misc import get_selfsim_tarnon, l2_norm
 
@@ -420,7 +421,7 @@ class PLDABase(HyperTorchModel):
         x1: torch.Tensor,
         x2: torch.Tensor,
         y1: Optional[torch.Tensor] = None,
-        method: str = "vavg",
+        method: Union[str, PLDALLRNvsMMethod] = PLDALLRNvsMMethod.vavg,
         preproc: bool = True,
     ) -> torch.Tensor:
         """Compute N-vs-1 log-likelihood ratios.
@@ -429,26 +430,27 @@ class PLDABase(HyperTorchModel):
             x1: Enrollment embeddings with shape ``(num_segments, x_dim)``.
             x2: Test embeddings with shape ``(num_test, x_dim)``.
             y1: Optional hard enrollment-side labels for ``x1``.
-            method: Scoring strategy. Supported values are ``"vavg"``,
-                ``"lnorm-vavg"``, and ``"savg"``. ``"book"`` is not
-                implemented in the torch backend.
+            method: Scoring strategy. Accepts either a
+                :class:`PLDALLRNvsMMethod` value or its string representation.
+                ``PLDALLRNvsMMethod.book`` is not implemented in the torch
+                backend.
             preproc: Whether to apply the preprocessor before scoring.
 
         Returns:
             Score matrix with shape ``(num_enroll_sides, num_test)``.
         """
-        method = getattr(method, "value", method)
+        method = PLDALLRNvsMMethod(getattr(method, "value", method))
 
         if self.preprocessor is not None and preproc:
             x1 = self.preprocessor(x1)
             x2 = self.preprocessor(x2)
 
-        if method == "book":
+        if method == PLDALLRNvsMMethod.book:
             raise NotImplementedError(
                 "Torch PLDA N-vs-1 scoring does not implement the 'book' method"
             )
 
-        if method == "savg":
+        if method == PLDALLRNvsMMethod.savg:
             if y1 is None:
                 y1 = torch.arange(x1.shape[0], device=x1.device, dtype=torch.long)
             scores_1vs1 = self.llr_1vs1(x1, x2, preproc=False)
@@ -459,10 +461,7 @@ class PLDABase(HyperTorchModel):
             N1, F1 = self.compute_stats_hard(x1, y1)
             x1 = F1 / N1.unsqueeze(-1)
 
-        if method not in ("vavg", "lnorm-vavg"):
-            raise ValueError(f"wrong llr {method}")
-
-        if self.lnorm or method == "lnorm-vavg":
+        if method == PLDALLRNvsMMethod.lnorm_vavg or self.lnorm:
             x1 = self.l2_norm(x1)
             x2 = self.l2_norm(x2)
 
