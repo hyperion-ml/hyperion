@@ -372,6 +372,45 @@ class ResidualVectorQuantizer(nn.Module):
                 1.0 - self.quantizer_grad_frac
             )
 
+    def decode_codes(self, codes: torch.Tensor) -> torch.Tensor:
+        """Decode residual VQ codes back to quantized latents.
+
+        Args:
+            codes: Code indices with shape (B, M, ...), where M is the number of
+                residual quantizers represented in the tensor.
+
+        Returns:
+            Quantized latents with shape (B, ..., D_in).
+        """
+        if codes.dim() < 2:
+            raise ValueError(
+                f"`codes` must have shape (B, M, ...), got {tuple(codes.shape)}"
+            )
+
+        num_quantizers = codes.size(1)
+        if num_quantizers > self.num_quantizers:
+            raise ValueError(
+                f"`codes` contains {num_quantizers} quantizers, "
+                f"but this RVQ only has {self.num_quantizers}"
+            )
+
+        z_q = None
+        for i in range(num_quantizers):
+            quantizer = self.quantizers[i]
+            z_q_i = quantizer.decode_codes(codes[:, i])
+            if quantizer.out_proj is not None:
+                z_q_i = quantizer.out_proj(z_q_i)
+
+            if z_q is None:
+                z_q = z_q_i
+            else:
+                z_q = z_q + z_q_i
+
+        if self.out_proj is not None:
+            z_q = self.out_proj(z_q)
+
+        return z_q
+
     def forward(
         self,
         z: torch.Tensor,

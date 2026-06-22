@@ -568,6 +568,78 @@ class StreamingDAC(HyperTorchModel):
         output = DACOutput(x_recons=x_out, vq=vq_output)
         return output, new_state
 
+    @torch.no_grad()
+    def stream_encode(
+        self,
+        x: torch.Tensor,
+        state: StreamingDACEncoderState,
+        flush: bool = False,
+        return_codes: bool = True,
+    ) -> Tuple[torch.Tensor, StreamingDACEncoderState]:
+        """Encode one streaming input chunk into codes or quantized latents.
+
+        In eval mode, decoding the returned codes with :meth:`stream_decode`
+        reproduces the same quantized latents used by :meth:`stream`.
+
+        Args:
+            x: Input waveform chunk, shape (B, T_in) or (B, C, T_in), float in [-1, 1].
+            state: Current encoder cache state.
+            flush: If True, flush encoder buffered context for the final chunk.
+            return_codes: If True, return RVQ code indices with shape (B, M, T_z).
+                If False, return quantized latents `z_q` with shape (B, T_z, D).
+
+        Returns:
+            Encoded chunk representation and the updated encoder cache state.
+        """
+        if self.norm_input_loudness:
+            x, _ = self.loudness_norm(x, return_input_lufs=True)
+
+        z, new_state = self.encoder.stream(x, state, flush=flush)
+
+        if not self.vq_is_valid.item():
+            if return_codes:
+                raise RuntimeError("Cannot return codes before the RVQ is valid")
+            return z, new_state
+
+        vq_output = self.quantizer(z, return_codes=return_codes)
+        if return_codes:
+            if vq_output.codes is None:
+                raise RuntimeError("RVQ did not return codes")
+            return vq_output.codes, new_state
+
+        return vq_output.z_q, new_state
+
+    @torch.no_grad()
+    def stream_decode(
+        self,
+        z: torch.Tensor,
+        state: StreamingDACDecoderState,
+        flush: bool = False,
+        input_is_codes: bool = True,
+    ) -> Tuple[torch.Tensor, StreamingDACDecoderState]:
+        """Decode one streaming code or latent chunk into waveform samples.
+
+        In eval mode, decoding codes returned by :meth:`stream_encode` produces
+        the same waveform chunk as :meth:`stream` for the same decoder state.
+
+        Args:
+            z: RVQ codes with shape (B, M, T_z) when `input_is_codes` is True, or
+                quantized latents `z_q` with shape (B, T_z, D) otherwise.
+            state: Current decoder cache state.
+            flush: If True, flush decoder buffered context for the final chunk.
+            input_is_codes: If True, decode `z` from RVQ codes before waveform
+                synthesis. If False, treat `z` as quantized latents.
+
+        Returns:
+            Reconstructed waveform chunk and the updated decoder cache state.
+        """
+        if input_is_codes:
+            if not self.vq_is_valid.item():
+                raise RuntimeError("Cannot decode codes before the RVQ is valid")
+            z = self.quantizer.decode_codes(z)
+
+        return self.decoder.stream(z, state, flush=flush)
+
     def set_train_mode(self, mode: str) -> None:
         """Set the training mode and freeze/unfreeze submodules.
 
