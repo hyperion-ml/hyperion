@@ -692,7 +692,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         the generator using adversarial and auxiliary losses.
 
         Returns:
-            OrderedDict[str, float]: A dictionary of computed metrics.
+            Tuple[int, Dict[str, Any]]: Batch size and computed metrics.
         """
         batch_size, batch_data = self.preprocess_train_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
@@ -905,7 +905,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         ###########################################
         self.discrim_model.set_train_mode(self.discrim_train_mode)
         with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            enabled=self.use_amp,
+            dtype=self.amp_dtype,
+            device_type=target_audios.device.type,
         ):
             y_real, _ = self.discrim_model(
                 target_audios,
@@ -1192,7 +1194,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         Logs spectrograms and audio samples, and computes validation losses.
 
         Returns:
-            Tuple[int, Dict[str, float]]: Batch size and metrics.
+            Tuple[int, Dict[str, Any]]: Batch size and metrics.
         """
         batch_size, batch_data = self.preprocess_val_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
@@ -1221,7 +1223,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         # 1. Inference Forward Reconstruction #
         #######################################
         with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            enabled=self.use_amp,
+            dtype=self.amp_dtype,
+            device_type=input_audios.device.type,
         ):
             xvector_output = self.xvector_model(
                 input_audios,
@@ -1343,7 +1347,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             speaker_feats, dims=[0]
         )  # reverse the order of speaker feats
         with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            enabled=self.use_amp,
+            dtype=self.amp_dtype,
+            device_type=input_audios.device.type,
         ):
             vc_output = self.vc_model(
                 source_audios=None,
@@ -1415,7 +1421,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """
-        Filters the provided keyword arguments to retain only those valid for the FreeVCTrainer constructor.
+        Filters the provided keyword arguments to retain only those valid for the VIAnonymizerTrainer constructor.
 
         Args:
             **kwargs: Arbitrary keyword arguments.
@@ -1570,8 +1576,10 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             skip = set()
 
         TorchTrainerBase.add_class_args(parser, skip=skip)
-        AudioFeatsMVN.add_class_args(parser, prefix="audio_feats")
-        MultiResolutionFilterBankLoss.add_class_args(parser, prefix="mrfb_loss")
+        if "audio_feats" not in skip:
+            AudioFeatsMVN.add_class_args(parser, prefix="audio_feats")
+        if "mrfb_loss" not in skip:
+            MultiResolutionFilterBankLoss.add_class_args(parser, prefix="mrfb_loss")
         VIAnonymizerTrainer.add_optim_args(parser, skip=skip)
         VIAnonymizerTrainer.add_io_keys_args(parser, skip=skip)
         VIAnonymizerTrainer.add_train_modes_args(parser, skip=skip)
@@ -1581,7 +1589,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
                 "--gen-segment-duration",
                 default=0.64,
                 type=float,
-                help="Duration (in seconds) of the audio segments used as input to the discrimator to be used during training and validation.",
+                help="Duration (in seconds) of the audio segments used as input to the discriminator during training and validation.",
             )
         if "num_val_log_samples" not in skip:
             parser.add_argument(
@@ -1590,7 +1598,8 @@ class VIAnonymizerTrainer(FreeVCTrainer):
                 type=int,
                 help="Number of samples to log during validation (audio + spectrogram).",
             )
-        ContrastiveLoss.add_class_args(parser, prefix="speaker_contrastive_loss")
+        if "speaker_contrastive_loss" not in skip:
+            ContrastiveLoss.add_class_args(parser, prefix="speaker_contrastive_loss")
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

@@ -5,7 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import logging
 from collections import OrderedDict as ODict
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Optional, Set, Tuple, Union
 
 import torch
 from jsonargparse import ActionParser, ArgumentParser
@@ -55,6 +55,7 @@ class QVectorTrainer(SingleModelTrainer):
         fsdp_cpu_offload (bool): Enables CPU offload for FSDP2.
         use_amp (bool): Enables automatic mixed precision.
         amp_dtype (AMPDType): Precision (float16/bfloat16) to use with AMP.
+        bf16_grad_scaler (bool): Enables GradScaler when using bfloat16 AMP.
         log_interval (int): Step interval between progress logs.
         use_tensorboard (bool): Enables TensorBoard logging.
         use_wandb (bool): Enables Weights & Biases logging.
@@ -155,6 +156,7 @@ class QVectorTrainer(SingleModelTrainer):
             fsdp_cpu_offload (bool): Enables FSDP CPU offload.
             use_amp (bool): Enables automatic mixed precision.
             amp_dtype (AMPDType): Precision to use when AMP is enabled.
+            bf16_grad_scaler (bool): Enables GradScaler when using bfloat16 AMP.
             log_interval (int): Steps between logger updates.
             use_tensorboard (bool): Enables TensorBoard logging.
             use_wandb (bool): Enables W&B logging.

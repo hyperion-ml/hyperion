@@ -1048,6 +1048,24 @@ class TorchTrainerBase:
             for k, v in batch_data.items()
         }
 
+    def _get_batch_device_type(self, batch_data: Dict[str, Any]) -> str:
+        """Returns the device type used by tensors in a batch.
+
+        Args:
+            batch_data: Batch dictionary after device transfer.
+
+        Returns:
+            str: Device type string accepted by ``torch.amp.autocast``.
+        """
+        for value in batch_data.values():
+            if isinstance(value, torch.Tensor):
+                return value.device.type
+
+        if self.device is not None:
+            return torch.device(self.device).type
+
+        return "cuda" if torch.cuda.is_available() else "cpu"
+
     def update_models(self) -> Dict[str, float]:
         """
         Applies optimizer updates and gradient clipping.
@@ -1209,10 +1227,11 @@ class TorchTrainerBase:
         """
         batch_size, batch_data = self.preprocess_train_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
+        device_type = self._get_batch_device_type(batch_data)
         with amp.autocast(
             enabled=self.use_amp,
             dtype=self.amp_dtype,
-            device_type="cuda",
+            device_type=device_type,
         ):
             loss, batch_output = self.compute_train_forward(batch_data)
 
@@ -1292,10 +1311,11 @@ class TorchTrainerBase:
         batch_size, batch_data = self.preprocess_val_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
 
+        device_type = self._get_batch_device_type(batch_data)
         with amp.autocast(
             enabled=self.use_amp,
             dtype=self.amp_dtype,
-            device_type="cuda",
+            device_type=device_type,
         ):
             loss, batch_output = self.compute_val_forward(batch_data)
 
@@ -1333,10 +1353,11 @@ class TorchTrainerBase:
         batch_size, batch_data = self.preprocess_train_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
 
+        device_type = self._get_batch_device_type(batch_data)
         with amp.autocast(
             enabled=self.use_amp,
             dtype=self.amp_dtype,
-            device_type="cuda",
+            device_type=device_type,
         ):
             loss, batch_output = self.compute_train_forward(batch_data)
 

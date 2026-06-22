@@ -449,7 +449,7 @@ class FreeVCTrainer(TorchTrainerBase):
         the generator using adversarial and auxiliary losses.
 
         Returns:
-            OrderedDict[str, float]: A dictionary of computed metrics.
+            Tuple[int, Dict[str, Any]]: Batch size and computed metrics.
         """
         batch_size, batch_data = self.preprocess_train_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
@@ -592,7 +592,7 @@ class FreeVCTrainer(TorchTrainerBase):
         Logs spectrograms and audio samples, and computes validation losses.
 
         Returns:
-            Tuple[int, Dict[str, float]]: Batch size and metrics.
+            Tuple[int, Dict[str, Any]]: Batch size and metrics.
         """
         batch_size, batch_data = self.preprocess_val_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
@@ -1108,7 +1108,8 @@ class FreeVCTrainer(TorchTrainerBase):
             skip = set()
 
         TorchTrainerBase.add_class_args(parser, skip=skip)
-        AudioFeatsMVN.add_class_args(parser, prefix="audio_feats")
+        if "audio_feats" not in skip:
+            AudioFeatsMVN.add_class_args(parser, prefix="audio_feats")
         FreeVCTrainer.add_optim_args(parser, skip=skip)
         FreeVCTrainer.add_io_keys_args(parser, skip=skip)
         FreeVCTrainer.add_train_modes_args(parser, skip=skip)
@@ -1118,7 +1119,7 @@ class FreeVCTrainer(TorchTrainerBase):
                 "--gen-segment-duration",
                 default=0.64,
                 type=float,
-                help="Duration (in seconds) of the audio segments used as input to the discrimator to be used during training and validation.",
+                help="Duration (in seconds) of the audio segments used as input to the discriminator during training and validation.",
             )
         if "num_val_log_samples" not in skip:
             parser.add_argument(

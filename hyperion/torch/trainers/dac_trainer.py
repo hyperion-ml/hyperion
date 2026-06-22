@@ -980,7 +980,9 @@ class DACTrainer(TorchTrainerBase):
 
     @staticmethod
     def add_optim_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
     ) -> None:
         """
         Adds command-line arguments for generator and discriminator optimizers and schedulers.
@@ -993,6 +995,9 @@ class DACTrainer(TorchTrainerBase):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+
+        if skip is None:
+            skip = set()
 
         if "dac_optim" not in skip:
             OF.add_class_args(parser, prefix="dac_optim")
@@ -1018,7 +1023,7 @@ class DACTrainer(TorchTrainerBase):
 
     @staticmethod
     def add_train_modes_args(
-        parser: ArgumentParser, skip: Set[str] = set()
+        parser: ArgumentParser, skip: Optional[Set[str]] = None
     ) -> None:
         """
         Adds command-line arguments for generator and discriminator train modes.
@@ -1027,6 +1032,9 @@ class DACTrainer(TorchTrainerBase):
             parser: Argument parser instance to which arguments are added.
             skip: Argument names to skip.
         """
+        if skip is None:
+            skip = set()
+
         if "dac_train_mode" not in skip:
             train_modes = DACTrainMode.choices()
             parser.add_argument(
@@ -1052,7 +1060,9 @@ class DACTrainer(TorchTrainerBase):
 
     @staticmethod
     def add_io_keys_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
     ) -> None:
         """
         Adds command-line arguments to specify batch dictionary keys for input and target audio.
@@ -1065,6 +1075,9 @@ class DACTrainer(TorchTrainerBase):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+
+        if skip is None:
+            skip = set()
 
         if "input_audio_key" not in skip:
             parser.add_argument(
@@ -1083,7 +1096,9 @@ class DACTrainer(TorchTrainerBase):
 
     @staticmethod
     def add_loss_weights_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
     ) -> None:
         """
         Adds command-line arguments to configure loss weights for the generator.
@@ -1096,6 +1111,9 @@ class DACTrainer(TorchTrainerBase):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+
+        if skip is None:
+            skip = set()
 
         if "loss_mrfb_log_mag_weight" not in skip:
             parser.add_argument(
@@ -1182,7 +1200,9 @@ class DACTrainer(TorchTrainerBase):
 
     @staticmethod
     def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Set[str] = set()
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
     ) -> None:
         """
         Adds all DACTrainer-related arguments to the parser, including trainer, optimizer, I/O, and loss configuration.
@@ -1196,8 +1216,12 @@ class DACTrainer(TorchTrainerBase):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
+        if skip is None:
+            skip = set()
+
         TorchTrainerBase.add_class_args(parser, skip=skip)
-        MultiResolutionFilterBankLoss.add_class_args(parser, prefix="mrfb_loss")
+        if "mrfb_loss" not in skip:
+            MultiResolutionFilterBankLoss.add_class_args(parser, prefix="mrfb_loss")
         DACTrainer.add_optim_args(parser, skip=skip)
         DACTrainer.add_io_keys_args(parser, skip=skip)
         DACTrainer.add_train_modes_args(parser, skip=skip)

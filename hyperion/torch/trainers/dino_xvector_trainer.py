@@ -6,6 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 import os
 from collections import OrderedDict as ODict
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.amp as amp
@@ -14,6 +15,8 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from ...utils.misc import filter_func_args
+from ..hyper_torch_model import HyperTorchModel
+from ..loggers import Logger, LoggerList
 from ..optim import ExpMovingAvg as EMA
 from ..utils import MetricAcc, tensors_subset
 from .legacy_torch_trainer import AMPDType, LegacyTorchTrainer
@@ -23,77 +26,117 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
     """Trainer to train x-vector style models.
 
     Attributes:
-      model: x-Vector model object.
-      optim: pytorch optimizer object or options dict
-      epochs: max. number of epochs
-      exp_path: experiment output path
-      cur_epoch: current epoch
-      grad_acc_steps: gradient accumulation steps to simulate larger batch size.
-      device: cpu/gpu device
-      metrics: extra metrics to compute besides cxe.
-      lrsched: learning rate scheduler object or options dict
-      teacher_optim: teacher EMA momentum
-      loggers: LoggerList object, loggers write training progress to std. output and file.
-               If None, it uses default loggers.
-      ddp: if True use distributed data parallel training
-      ddp_type: distributed data parallel backend (only standard PyTorch DDP)
-      loss: if None, it uses cross-entropy
-      train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
-      freeze_output_layer_steps: number of steps at the beginning of training where output layer is frozen.
-      freeze_teacher: the teacher is pre-trained and not updated.
-      use_amp: uses mixed precision training.
-      amp_dtype: float16 | bfloat16
-      log_interval: number of optim. steps between log outputs
-      use_tensorboard: use tensorboard logger
-      use_wandb: use wandb logger
-      wandb: wandb dictionary of options
-      grad_clip: norm to clip gradients, if 0 there is no clipping
-      grad_clip_norm: norm type to clip gradients
-      swa_start: epoch to start doing swa
-      swa_lr: SWA learning rate
-      swa_anneal_epochs: SWA learning rate anneal epochs
-      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
-      input_key: dict. key for nnet input.
-      target_key: dict. key for nnet targets.
+      model: Student model being trained.
+      teacher_model: Teacher model updated by EMA.
+      loss: DINO loss module.
+      cosine_loss: Optional auxiliary cosine loss module.
+      optim: Student optimizer configuration.
+      teacher_optim: Teacher EMA configuration.
+      epochs: Maximum number of epochs.
+      exp_path: Experiment output path.
+      cur_epoch: Current epoch.
+      grad_acc_steps: Gradient accumulation steps.
+      eff_batch_size: Desired effective batch size.
+      device: Training device.
+      metrics: Extra metrics to compute besides the loss.
+      lrsched: Learning-rate scheduler configuration.
+      wdsched: Weight-decay scheduler configuration.
+      loggers: None, a list of loggers, or a LoggerList instance.
+      ddp: Whether distributed training is enabled.
+      ddp_type: Distributed backend selector.
+      train_mode: Training mode.
+      freeze_output_layer_steps: Number of steps to keep the output layer frozen.
+      freeze_teacher: Whether the teacher is frozen.
+      use_amp: Whether mixed precision training is enabled.
+      amp_dtype: AMP dtype.
+      log_interval: Interval between log writes.
+      use_tensorboard: Whether TensorBoard logging is enabled.
+      use_wandb: Whether W&B logging is enabled.
+      wandb: W&B configuration.
+      grad_clip: Gradient clipping threshold.
+      grad_clip_norm: Gradient clipping norm type.
+      swa_start: Epoch at which SWA starts.
+      swa_lr: SWA learning rate.
+      swa_anneal_epochs: SWA annealing epochs.
+      save_interval_steps: Step interval for partial checkpoints.
+      input_key: Input key for dict batches.
     """
 
     def __init__(
         self,
-        student_model,
-        teacher_model,
-        loss,
-        optim,
-        teacher_optim,
-        cosine_loss=None,
-        epochs=100,
-        exp_path="./train",
-        cur_epoch=0,
-        grad_acc_steps=1,
-        eff_batch_size=None,
-        device=None,
-        metrics=None,
-        lrsched=None,
-        wdsched=None,
-        loggers=None,
-        ddp=False,
-        ddp_type="ddp",
-        train_mode="full",
-        freeze_output_layer_steps=3000,
-        freeze_teacher=False,
-        use_amp=False,
-        amp_dtype=AMPDType.FLOAT16,
-        log_interval=1000,
-        use_tensorboard=False,
-        use_wandb=False,
-        wandb={},
-        grad_clip=0,
-        grad_clip_norm=2,
-        swa_start=0,
-        swa_lr=1e-3,
-        swa_anneal_epochs=10,
-        save_interval_steps=None,
-        input_key="x",
-    ):
+        student_model: HyperTorchModel,
+        teacher_model: HyperTorchModel,
+        loss: nn.Module,
+        optim: Dict[str, Any],
+        teacher_optim: Dict[str, Any],
+        cosine_loss: Optional[nn.Module] = None,
+        epochs: int = 100,
+        exp_path: str = "./train",
+        cur_epoch: int = 0,
+        grad_acc_steps: int = 1,
+        eff_batch_size: Optional[int] = None,
+        device: Optional[torch.device] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        lrsched: Optional[Dict[str, Any]] = None,
+        wdsched: Optional[Dict[str, Any]] = None,
+        loggers: Optional[List[Logger] | LoggerList] = None,
+        ddp: bool = False,
+        ddp_type: str = "ddp",
+        train_mode: str = "full",
+        freeze_output_layer_steps: int = 3000,
+        freeze_teacher: bool = False,
+        use_amp: bool = False,
+        amp_dtype: AMPDType = AMPDType.FLOAT16,
+        log_interval: int = 1000,
+        use_tensorboard: bool = False,
+        use_wandb: bool = False,
+        wandb: Dict[str, Any] = {},
+        grad_clip: float = 0,
+        grad_clip_norm: float = 2,
+        swa_start: int = 0,
+        swa_lr: float = 1e-3,
+        swa_anneal_epochs: int = 10,
+        save_interval_steps: Optional[int] = None,
+        input_key: str = "x",
+    ) -> None:
+        """Initializes a DINO x-vector trainer.
+
+        Args:
+          student_model: Student model to train.
+          teacher_model: Teacher model updated by EMA.
+          loss: DINO loss module.
+          optim: Student optimizer configuration.
+          teacher_optim: Teacher EMA configuration.
+          cosine_loss: Optional auxiliary cosine loss module.
+          epochs: Number of training epochs.
+          exp_path: Output directory for checkpoints and logs.
+          cur_epoch: Starting epoch.
+          grad_acc_steps: Gradient accumulation factor.
+          eff_batch_size: Desired effective batch size.
+          device: Training device.
+          metrics: Additional metric callables.
+          lrsched: Learning-rate scheduler or configuration.
+          wdsched: Weight-decay scheduler or configuration.
+          loggers: None, a list of loggers, or a LoggerList instance.
+          ddp: Enables distributed training.
+          ddp_type: Distributed backend selector.
+          train_mode: Model train mode.
+          freeze_output_layer_steps: Steps to keep the output layer frozen.
+          freeze_teacher: Whether the teacher model is frozen.
+          use_amp: Enables automatic mixed precision.
+          amp_dtype: AMP dtype name.
+          log_interval: Batch interval between log writes.
+          use_tensorboard: Enables TensorBoard logging.
+          use_wandb: Enables W&B logging.
+          wandb: Weights & Biases options.
+          grad_clip: Gradient clip value.
+          grad_clip_norm: Gradient clip norm type.
+          swa_start: Epoch at which SWA starts.
+          swa_lr: SWA learning rate.
+          swa_anneal_epochs: SWA annealing epochs.
+          save_interval_steps: Partial checkpoint interval.
+          input_key: Input key for dict batches.
+        """
         super_args = filter_func_args(super().__init__, locals())
         self.teacher_model = teacher_model
         self.teacher_optim = teacher_optim
@@ -102,7 +145,8 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         self.cosine_loss = cosine_loss
         super().__init__(student_model, **super_args)
 
-    def prepare_models_for_training(self):
+    def prepare_models_for_training(self) -> None:
+        """Moves the student and teacher models to the training device."""
         super().prepare_models_for_training()
         self.teacher_model, self.teacher_optimizer = self._prepare_model_for_ema(
             self.teacher_model,
@@ -112,7 +156,26 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
             self.freeze_teacher,
         )
 
-    def _prepare_model_for_ema(self, model, optim, device, ddp, frozen):
+    def _prepare_model_for_ema(
+        self,
+        model: HyperTorchModel,
+        optim: Dict[str, Any],
+        device: Optional[torch.device],
+        ddp: bool,
+        frozen: bool,
+    ) -> Tuple[HyperTorchModel, Optional[EMA]]:
+        """Moves the teacher to device and builds its EMA updater.
+
+        Args:
+          model: Teacher model.
+          optim: EMA configuration dictionary.
+          device: Target torch device.
+          ddp: Whether DDP is enabled.
+          frozen: Whether the teacher should remain frozen.
+
+        Returns:
+          The moved teacher model and its EMA optimizer, if any.
+        """
         if device is not None:
             model.to(device)
 
@@ -125,17 +188,33 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
 
         return model, optimizer
 
-    def set_train_mode(self):
+    def set_train_mode(self) -> None:
+        """Sets train mode for the student and freezes the teacher."""
         super().set_train_mode()
         self.teacher_model.freeze()
 
     @torch.no_grad()
-    def update_teacher_model(self):
+    def update_teacher_model(self) -> None:
+        """Applies one EMA update to the teacher model."""
         if not self.freeze_teacher:
             self.teacher_optimizer.step(self.model.parameters())
 
     @staticmethod
-    def get_augs_keys(batch, base_key, subset, skip=set()):
+    def get_augs_keys(
+        batch: Dict[str, Any], base_key: str, subset: str, skip: Optional[set] = None
+    ) -> List[str]:
+        """Collects augmentation keys for a given subset.
+
+        Args:
+          batch: Batch dictionary.
+          base_key: Base input key.
+          subset: Subset suffix, for example ``teacher`` or ``student``.
+          skip: Optional set of keys to exclude.
+
+        Returns:
+          List of batch keys matching the requested augmentation family.
+        """
+        skip = skip or set()
         base_key = f"{base_key}_{subset}"
         keys = []
 
@@ -167,11 +246,14 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         return keys
 
     @record
-    def train_epoch(self, data_loader):
+    def train_epoch(self, data_loader: Any) -> Dict[str, Any]:
         """Training epoch loop
 
         Args:
-          data_loader: pytorch data loader returning features and class labels.
+          data_loader: PyTorch data loader returning augmented views.
+
+        Returns:
+          Dictionary with training metrics.
         """
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
@@ -302,22 +384,27 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         return logs
 
     @torch.no_grad()
-    def validation_epoch(self, data_loader, swa_update_bn=False):
+    def validation_epoch(
+        self, data_loader: Any, swa_update_bn: bool = False
+    ) -> Dict[str, Any]:
         """Validation epoch loop
 
         Args:
-          data_loader: PyTorch data loader return input/output pairs.
-          sw_update_bn: wheter or not, update batch-norm layers in SWA.
+          data_loader: PyTorch data loader returning augmented views.
+          swa_update_bn: Whether to update batch-norm layers for SWA.
+
+        Returns:
+          Dictionary with validation metrics.
         """
         metric_acc = MetricAcc(self.device)
         batch_metrics = ODict()
         self.teacher_model.eval()
         self.loss.eval()
 
+        log_tag = "train_" if swa_update_bn else "val_"
         if swa_update_bn:
             self.model.train()
         else:
-            log_tag = "val_"
             self.model.eval()
 
         for batch, data in enumerate(data_loader):
@@ -389,7 +476,17 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         logs = ODict((log_tag + k, v) for k, v in logs.items())
         return logs
 
-    def _old_load_checkpoint(self, checkpoint):
+    def _old_load_checkpoint(
+        self, checkpoint: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Loads an older checkpoint format.
+
+        Args:
+          checkpoint: Serialized checkpoint payload.
+
+        Returns:
+          Saved logs if present, otherwise ``None``.
+        """
         self.teacher_model.load_state_dict(checkpoint["teacher_model_state_dict"])
         # self.teacher_model.load_state_dict(checkpoint["teacher_state_dict"])
         self.teacher_optimizer.load_state_dict(
@@ -397,7 +494,22 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         )
         return super()._load_checkpoint(checkpoint)
 
-    def _load_checkpoint(self, checkpoint, teacher_checkpoint, loss_checkpoint=None):
+    def _load_checkpoint(
+        self,
+        checkpoint: Dict[str, Any],
+        teacher_checkpoint: Optional[Dict[str, Any]],
+        loss_checkpoint: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Loads student, teacher, and DINO loss checkpoints.
+
+        Args:
+          checkpoint: Student checkpoint payload.
+          teacher_checkpoint: Teacher checkpoint payload.
+          loss_checkpoint: DINO loss checkpoint payload.
+
+        Returns:
+          Saved logs if present, otherwise ``None``.
+        """
         if teacher_checkpoint is not None:
             self.teacher_model.load_state_dict(teacher_checkpoint["model_state_dict"])
             self.teacher_optimizer.load_state_dict(
@@ -407,7 +519,16 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
             self.loss.load_state_dict(loss_checkpoint["model_state_dict"])
         return super()._load_checkpoint(checkpoint)
 
-    def load_checkpoint(self, epoch, step):
+    def load_checkpoint(self, epoch: int, step: int) -> Optional[Dict[str, Any]]:
+        """Loads checkpoints for the student, teacher, and DINO loss.
+
+        Args:
+          epoch: Checkpoint epoch index.
+          step: Checkpoint step index.
+
+        Returns:
+          Saved logs if present, otherwise ``None``.
+        """
         checkpoint = self.load_model_checkpoint("model", epoch, step)
         if not self.freeze_teacher:
             teacher_checkpoint = self.load_model_checkpoint(
@@ -431,11 +552,16 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
     #     # checkpoint["teacher_optimizer_state_dict"] = self.teacher_optimizer.state_dict()
     #     return checkpoint
 
-    def teacher_checkpoint(self, logs=None):
+    def teacher_checkpoint(
+        self, logs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """Creates a checkpoint of the teacher model, to save and posterior recovery
 
         Args:
-          logs: logs containing the current value of the metrics.
+          logs: Logs containing the current value of the metrics.
+
+        Returns:
+          Serializable teacher checkpoint dictionary.
         """
         self.teacher_model.train()
         checkpoint = {
@@ -452,7 +578,17 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
 
         return checkpoint
 
-    def dino_loss_checkpoint(self, logs=None):
+    def dino_loss_checkpoint(
+        self, logs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Creates a checkpoint for the DINO loss state.
+
+        Args:
+          logs: Logs containing the current value of the metrics.
+
+        Returns:
+          Serializable DINO loss checkpoint dictionary.
+        """
         self.loss.train()
         checkpoint = {
             "epoch": self.cur_epoch,
@@ -462,12 +598,14 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         }
         return checkpoint
 
-    def save_checkpoint(self, logs=None, partial: bool = False):
+    def save_checkpoint(
+        self, logs: Optional[Dict[str, Any]] = None, partial: bool = False
+    ) -> None:
         """Saves a checkpoint of the training status
 
         Args:
-          logs: logs containing the current value of the metrics.
-          partial: if True, it is saving in the middle of the epoch
+          logs: Logs containing the current value of the metrics.
+          partial: If ``True``, saves in the middle of the epoch.
         """
         if partial and not self.save_partial_checkpoint():
             return
@@ -488,18 +626,37 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         self.save_model_checkpoint("dino_loss", loss_checkpoint, partial=partial)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters constructor arguments accepted by this trainer.
+
+        Returns:
+          Dictionary of filtered arguments.
+        """
         args = filter_func_args(DINOXVectorTrainer.__init__, kwargs)
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
+    def add_class_args(
+        parser: Any,
+        prefix: Optional[str] = None,
+        train_modes: Optional[List[str]] = None,
+        skip: Optional[set] = None,
+    ) -> None:
+        """Adds command-line arguments for the DINO trainer.
+
+        Args:
+          parser: Destination argument parser.
+          prefix: Optional namespace prefix.
+          train_modes: Allowed train-mode values.
+          skip: Optional set of argument groups to skip.
+        """
+        skip = skip or set()
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
         skip.add("teacher_key")
-        LegacyTorchTrainer.add_class_args(parser, train_modes=train_modes)
+        LegacyTorchTrainer.add_class_args(parser, train_modes=train_modes, skip=skip)
         EMA.add_class_args(parser, prefix="teacher_optim")
         parser.add_argument(
             "--freeze-output-layer-steps",
