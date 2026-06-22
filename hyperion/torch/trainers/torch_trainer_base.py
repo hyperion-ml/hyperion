@@ -64,6 +64,8 @@ from ..wd_schedulers import WDSchedulerFactory as WDSF
 
 
 class DDPType(str, Enum):
+    """Supported distributed training backends."""
+
     DDP = "ddp"
     FSDP = "fsdp"  # torch FSDP2 via fully_shard
 
@@ -82,6 +84,8 @@ class DDPType(str, Enum):
 
 
 class AMPDType(str, Enum):
+    """Supported AMP data types."""
+
     FLOAT16 = "float16"
     BFLOAT16 = "bfloat16"
 
@@ -99,7 +103,8 @@ class AMPDType(str, Enum):
         return [o.value for o in AMPDType]
 
     @staticmethod
-    def default():
+    def default() -> "AMPDType":
+        """Returns the default AMP data type."""
         return AMPDType.FLOAT16
 
     @staticmethod
@@ -122,6 +127,8 @@ class AMPDType(str, Enum):
 
 
 class FSDPMPDType(str, Enum):
+    """Supported FSDP mixed-precision data types."""
+
     FLOAT16 = "float16"
     BFLOAT16 = "bfloat16"
     FLOAT32 = "float32"
@@ -142,6 +149,7 @@ class FSDPMPDType(str, Enum):
 
     @staticmethod
     def default() -> None:
+        """Returns the sentinel value that disables FSDP mixed precision."""
         return None
 
     @staticmethod
@@ -535,6 +543,7 @@ class TorchTrainerBase:
 
     @staticmethod
     def _is_fsdp_module(module: nn.Module) -> bool:
+        """Returns whether ``module`` is an FSDP-wrapped module."""
         if FSDP is None:
             return False
         return isinstance(module, FSDP)

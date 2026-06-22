@@ -111,7 +111,7 @@ class SingleModelTrainer(TorchTrainerBase):
         swa_update_steps: int = 50000,
         swa_anneal_steps: int = 50000,
         bn_update_steps: int = 5000,
-        input_key="x",
+        input_key: str = "x",
         target_key: str = "class_id",
     ) -> None:
         """

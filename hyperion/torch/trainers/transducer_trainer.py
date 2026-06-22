@@ -6,6 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 import os
 from collections import OrderedDict as ODict
+from typing import Any, Dict, Optional
 
 import torch
 import torch.amp as amp
@@ -54,47 +55,86 @@ class TransducerTrainer(LegacyTorchTrainer):
 
     def __init__(
         self,
-        model,
-        optim={},
-        epochs=100,
-        exp_path="./train",
-        cur_epoch=0,
-        grad_acc_steps=1,
-        eff_batch_size=None,
-        device=None,
-        metrics=None,
-        lrsched=None,
-        wdsched=None,
-        loggers=None,
-        ddp=False,
-        ddp_type="ddp",
-        loss=None,
-        train_mode="full",
-        use_amp=False,
-        amp_dtype=AMPDType.FLOAT16,
-        log_interval=1000,
-        use_tensorboard=False,
-        use_wandb=False,
-        wandb={},
-        grad_clip=0,
-        grad_clip_norm=2,
-        swa_start=0,
-        swa_lr=1e-3,
-        swa_anneal_epochs=10,
-        save_interval_steps=None,
-        input_key="x",
-        target_key="text",
-    ):
-        loss = None
+        model: Any,
+        optim: Dict[str, Any] = {},
+        epochs: int = 100,
+        exp_path: str = "./train",
+        cur_epoch: int = 0,
+        grad_acc_steps: int = 1,
+        eff_batch_size: Optional[int] = None,
+        device: Optional[torch.device] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        lrsched: Optional[Dict[str, Any]] = None,
+        wdsched: Optional[Dict[str, Any]] = None,
+        loggers: Optional[Any] = None,
+        ddp: bool = False,
+        ddp_type: str = "ddp",
+        loss: Optional[nn.Module] = None,
+        train_mode: str = "full",
+        use_amp: bool = False,
+        amp_dtype: AMPDType = AMPDType.FLOAT16,
+        log_interval: int = 1000,
+        use_tensorboard: bool = False,
+        use_wandb: bool = False,
+        wandb: Dict[str, Any] = {},
+        grad_clip: float = 0,
+        grad_clip_norm: int = 2,
+        swa_start: int = 0,
+        swa_lr: float = 1e-3,
+        swa_anneal_epochs: int = 10,
+        save_interval_steps: Optional[int] = None,
+        input_key: str = "x",
+        target_key: str = "text",
+    ) -> None:
+        """Initializes the transducer trainer.
+
+        Args:
+          model: ASR model instance.
+          optim: Optimizer instance or configuration dictionary.
+          epochs: Number of epochs to train for.
+          exp_path: Directory used for logs and checkpoints.
+          cur_epoch: Epoch to resume from.
+          grad_acc_steps: Number of batches to accumulate before optimizer steps.
+          eff_batch_size: Optional effective batch size reference.
+          device: Target device for training.
+          metrics: Additional metric callables.
+          lrsched: Learning-rate scheduler or configuration.
+          wdsched: Weight-decay scheduler or configuration.
+          loggers: Logger collection.
+          ddp: Whether distributed training is enabled.
+          ddp_type: Distributed backend name.
+          loss: Loss module used to train the model.
+          train_mode: Model train mode.
+          use_amp: Whether automatic mixed precision is enabled.
+          amp_dtype: AMP precision to use when ``use_amp`` is true.
+          log_interval: Number of steps between logger updates.
+          use_tensorboard: Whether to enable TensorBoard logging.
+          use_wandb: Whether to enable Weights & Biases logging.
+          wandb: W&B configuration dictionary.
+          grad_clip: Gradient clipping threshold.
+          grad_clip_norm: Gradient norm type.
+          swa_start: Step at which SWA starts.
+          swa_lr: SWA learning rate.
+          swa_anneal_epochs: SWA learning-rate annealing epochs.
+          save_interval_steps: Number of steps between checkpoint saves.
+          input_key: Batch key for input features.
+          target_key: Batch key for supervision targets.
+
+        Returns:
+          None.
+        """
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
 
     @record
-    def train_epoch(self, data_loader):
-        """Training epoch loop
+    def train_epoch(self, data_loader: Any) -> Dict[str, Any]:
+        """Runs one training epoch.
 
         Args:
           data_loader: pytorch data loader returning features and class labels.
+
+        Returns:
+          Dictionary with training metrics.
         """
         batch_keys = [self.input_key, f"{self.input_key}_lengths", self.target_key]
         metric_acc = MetricAcc(device=self.device)
@@ -117,7 +157,9 @@ class TransducerTrainer(LegacyTorchTrainer):
             batch_size = input_data.shape[0]
 
             with amp.autocast(
-                enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+                enabled=self.use_amp,
+                dtype=self.amp_dtype,
+                device_type=input_data.device.type,
             ):
                 output = self.model(input_data, x_lengths=input_lengths, y=target)
                 loss = output.loss
@@ -152,12 +194,17 @@ class TransducerTrainer(LegacyTorchTrainer):
         logs.update(lrs)
         return logs
 
-    def validation_epoch(self, data_loader, swa_update_bn=False):
-        """Validation epoch loop
+    def validation_epoch(
+        self, data_loader: Any, swa_update_bn: bool = False
+    ) -> Dict[str, Any]:
+        """Runs one validation epoch.
 
         Args:
           data_loader: PyTorch data loader return input/output pairs.
-          sw_update_bn: wheter or not, update batch-norm layers in SWA.
+          swa_update_bn: Whether to update batch-norm layers in SWA mode.
+
+        Returns:
+          Dictionary with validation metrics.
         """
         batch_keys = [self.input_key, f"{self.input_key}_lengths", self.target_key]
         metric_acc = MetricAcc(self.device)
@@ -165,7 +212,7 @@ class TransducerTrainer(LegacyTorchTrainer):
         with torch.no_grad():
             if swa_update_bn:
                 log_tag = "train_"
-                self.train()
+                self.model.train()
             else:
                 log_tag = "val_"
                 self.model.eval()
@@ -184,7 +231,9 @@ class TransducerTrainer(LegacyTorchTrainer):
                 # batch_size = data.shape[0]
 
                 with amp.autocast(
-                    enabled=self.use_amp, dtype=self.amp_dtype, device="cuda"
+                    enabled=self.use_amp,
+                    dtype=self.amp_dtype,
+                    device_type=input_data.device.type,
                 ):
                     output = self.model(input_data, x_lengths=input_lengths, y=target)
 
@@ -202,14 +251,35 @@ class TransducerTrainer(LegacyTorchTrainer):
         return logs
 
     @staticmethod
-    def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        train_modes: Optional[list[str]] = None,
+        skip: Optional[set[str]] = None,
+    ) -> None:
+        """Registers the CLI arguments required to build this trainer.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional namespace prefix.
+          train_modes: Optional list of allowed train modes.
+          skip: Optional set of argument names to omit.
+
+        Returns:
+          None.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
+        if skip is None:
+            skip = set()
+
         super_skip = skip.copy()
         super_skip.add("target_key")
-        TorchTrainer.add_class_args(parser, train_modes=train_modes, skip=super_skip)
+        LegacyTorchTrainer.add_class_args(
+            parser, train_modes=train_modes, skip=super_skip
+        )
         if "target_key" not in skip:
             parser.add_argument(
                 "--target-key", default="text", help="dict. key for nnet targets"

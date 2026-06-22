@@ -151,18 +151,78 @@ class FreeVCTrainer(TorchTrainerBase):
         discrim_grad_clip: float = 0,
         grad_clip_norm: Union[str, int] = 2,
         swa_start: int = 0,
-        swa_lr: int = 1e-3,
+        swa_lr: float = 1e-3,
         swa_anneal_steps: int = 50000,
-        input_audio_key="audio",
-        target_audio_key="audio",
+        input_audio_key: str = "audio",
+        target_audio_key: str = "audio",
         loss_mel_weight: float = 20.0,
         loss_kl_weight: float = 1.0,
         loss_gen_adv_weight: float = 1.0,
         loss_fm_weight: float = 1.0,
         gen_segment_duration: float = 0.64,
         num_val_log_samples: int = 10,
-    ):
+    ) -> None:
+        """Initializes the FreeVC trainer.
 
+        Args:
+            vc_model (HyperTorchModel): Generator model to train.
+            discrim_model (HyperTorchModel): Discriminator model to train.
+            xvector_model (HyperTorchModel): Frozen speaker embedding model.
+            audio_feats (AudioFeatsMVN | Dict[str, Any]): Audio feature extractor or config.
+            mrfb_loss (MultiResolutionFilterBankLoss | Dict[str, Any]): Multi-resolution loss or config.
+            speaker_contrastive_loss (Dict[str, Any]): Contrastive-loss config.
+            vc_optim (torch.optim.Optimizer): Generator optimizer.
+            discrim_optim (torch.optim.Optimizer): Discriminator optimizer.
+            vc_lrsched (Optional[LRS]): Generator learning-rate scheduler.
+            discrim_lrsched (Optional[LRS]): Discriminator learning-rate scheduler.
+            vc_wdsched (Optional[WDS]): Generator weight-decay scheduler.
+            discrim_wdsched (Optional[WDS]): Discriminator weight-decay scheduler.
+            vc_train_mode (FreeVCTrainMode): Generator train mode.
+            discrim_train_mode (str): Discriminator train mode.
+            exp_path (PathLike): Experiment directory.
+            num_epochs (int): Number of epochs to train for.
+            cur_epoch (int): Epoch to resume from.
+            max_steps (Optional[int]): Optional global-step cap.
+            cur_step (int): Global step to resume from.
+            grad_acc_steps (int): Number of batches to accumulate gradients over.
+            eff_batch_size (Optional[int]): Optional effective batch size.
+            val_steps (Optional[int]): Validation interval in steps.
+            save_steps (Optional[int]): Checkpoint interval in steps.
+            device (Union[torch.device, int, None]): Training device.
+            loggers (Optional[LoggerList]): Logger collection.
+            ddp (bool): Whether distributed training is enabled.
+            ddp_type (DDPType): Distributed backend selector.
+            fsdp_reshard_after_forward (Optional[Union[bool, int]]): FSDP2 reshard policy.
+            fsdp_mp_param_dtype (Optional[FSDPMPDType]): FSDP2 parameter dtype.
+            fsdp_mp_reduce_dtype (Optional[FSDPMPDType]): FSDP2 reduce dtype.
+            fsdp_mp_output_dtype (Optional[FSDPMPDType]): FSDP2 output dtype.
+            fsdp_cpu_offload (bool): Whether to offload FSDP parameters to CPU.
+            use_amp (bool): Whether to enable AMP.
+            amp_dtype (AMPDType): AMP precision.
+            bf16_grad_scaler (bool): Whether to use grad scaling with bf16.
+            log_interval (int): Logging interval in steps.
+            log_gpu_usage (bool): Whether to log GPU usage.
+            use_tensorboard (bool): Whether to enable TensorBoard logging.
+            use_wandb (bool): Whether to enable W&B logging.
+            wandb (Dict[str, str]): W&B configuration dictionary.
+            grad_clip (float): Generator gradient clipping threshold.
+            discrim_grad_clip (float): Discriminator gradient clipping threshold.
+            grad_clip_norm (Union[str, int]): Gradient norm type.
+            swa_start (int): Step at which SWA starts.
+            swa_lr (float): SWA learning rate.
+            swa_anneal_steps (int): SWA annealing steps.
+            input_audio_key (str): Batch key for source audio.
+            target_audio_key (str): Batch key for target audio.
+            loss_mel_weight (float): Weight for mel reconstruction loss.
+            loss_kl_weight (float): Weight for KL loss.
+            loss_gen_adv_weight (float): Weight for generator adversarial loss.
+            loss_fm_weight (float): Weight for feature-matching loss.
+            gen_segment_duration (float): Segment duration used during training/validation.
+            num_val_log_samples (int): Maximum number of validation samples to log.
+
+        Returns:
+            None.
+        """
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
 
@@ -205,7 +265,7 @@ class FreeVCTrainer(TorchTrainerBase):
         self.feat_matching_loss = FeatureMatchingLoss()
         self.ckpt_search_name = "vc_model"
 
-    def prepare_models_for_training(self):
+    def prepare_models_for_training(self) -> None:
         """Initializes optimizers, schedulers, and SWA for both VC and discriminator models.
 
         Uses the `_prepare_model_for_training` helper for both models and sets up
@@ -249,11 +309,11 @@ class FreeVCTrainer(TorchTrainerBase):
             self.discrim_wdsched,
             device=self.device,
             ddp=self.ddp,
-            ddp_type=DDPType.DDP,
+            ddp_type=self.ddp_type,
         )
         self.grad_scaler = self.get_grad_scaler()
 
-    def set_train_mode(self):
+    def set_train_mode(self) -> None:
         """Applies the selected training modes to the generator and discriminator.
 
         Also logs parameter summaries and parameter lists if running on rank 0.
@@ -272,7 +332,7 @@ class FreeVCTrainer(TorchTrainerBase):
             logging.info(f"Discrim model parameter list:")
             self.discrim_model.print_parameter_list()
 
-    def on_epoch_begin(self):
+    def on_epoch_begin(self) -> None:
         """Called at the beginning of an epoch.
 
         Updates all schedulers for both generator and discriminator.
@@ -287,10 +347,14 @@ class FreeVCTrainer(TorchTrainerBase):
             if sch is not None:
                 sch.on_epoch_begin(self.cur_epoch)
 
-    def on_epoch_end(self, logs):
+    def on_epoch_end(self, logs: Dict[str, Any]) -> None:
         """Called at the end of an epoch.
 
-        Steps schedulers unless currently in the SWA phase.
+        Args:
+            logs (Dict[str, Any]): Epoch metrics to pass to schedulers.
+
+        Returns:
+            None.
         """
         super().on_epoch_end(logs)
         if self.do_swa and self.cur_step >= self.swa_start:
@@ -304,7 +368,7 @@ class FreeVCTrainer(TorchTrainerBase):
             if sch is not None:
                 sch.on_epoch_end()
 
-    def on_swa_epoch_begin(self):
+    def on_swa_epoch_begin(self) -> None:
         """Called at the beginning of an SWA epoch.
 
         Swaps the current VC model with the averaged SWA model.
@@ -312,17 +376,25 @@ class FreeVCTrainer(TorchTrainerBase):
         super().on_swa_epoch_begin()
         self.vc_model = self.swa_vc_model.module
 
-    def on_swa_epoch_end(self, logs):
+    def on_swa_epoch_end(self, logs: Dict[str, Any]) -> None:
+        """Called at the end of an SWA epoch.
+
+        Args:
+            logs (Dict[str, Any]): Metrics gathered during the SWA epoch.
+
+        Returns:
+            None.
+        """
         super().on_swa_epoch_end(logs)
 
-    def on_training_loop_begin(self):
+    def on_training_loop_begin(self) -> None:
         """Sets models to training mode before beginning the training loop."""
         self.vc_model.train()
         self.discrim_model.train()
         self.audio_feats.train()
         self.xvector_model.eval()
 
-    def on_val_loop_begin(self):
+    def on_val_loop_begin(self) -> None:
         """Sets models to evaluation mode before starting validation."""
         self.vc_model.eval()
         self.discrim_model.eval()
@@ -330,11 +402,16 @@ class FreeVCTrainer(TorchTrainerBase):
         self.xvector_model.eval()
         self.cur_val_log_samples = 0
 
-    def preprocess_train_data(self, batch_data):
+    def preprocess_train_data(
+        self, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
         """Prepares and renames training batch data into a standardized format.
 
+        Args:
+            batch_data (Dict[str, Any]): Raw batch from the data loader.
+
         Returns:
-            Tuple[int, Dict[str, Tensor]]: Batch size and processed batch.
+            Tuple[int, Dict[str, Any]]: Batch size and processed batch.
         """
         output_batch_data = {
             "id": batch_data["id"],
@@ -346,13 +423,27 @@ class FreeVCTrainer(TorchTrainerBase):
         batch_size = output_batch_data["source_audios"].size(0)
         return batch_size, output_batch_data
 
-    def preprocess_val_data(self, batch_data):
+    def preprocess_val_data(
+        self, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
+        """Prepares validation batch data.
+
+        Args:
+            batch_data (Dict[str, Any]): Raw batch from the data loader.
+
+        Returns:
+            Tuple[int, Dict[str, Any]]: Batch size and processed batch.
+        """
         return self.preprocess_train_data(batch_data)
 
     def training_step(
         self, batch_idx: int, batch_data: Dict[str, Any]
     ) -> Tuple[int, Dict[str, Any]]:
         """Performs the forward and backward passes for both discriminator and generator.
+
+        Args:
+            batch_idx (int): Index of the current batch.
+            batch_data (Dict[str, Any]): Raw batch from the data loader.
 
         Handles discriminator training first with real/fake inputs, then updates
         the generator using adversarial and auxiliary losses.
@@ -398,7 +489,9 @@ class FreeVCTrainer(TorchTrainerBase):
         with (
             torch.no_grad(),
             amp.autocast(
-                enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+                enabled=self.use_amp,
+                dtype=self.amp_dtype,
+                device_type=input_audios.device.type,
             ),
         ):
             xvector_output = self.xvector_model(
@@ -410,7 +503,9 @@ class FreeVCTrainer(TorchTrainerBase):
             speaker_feats = xvector_output.xvector
 
         with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            enabled=self.use_amp,
+            dtype=self.amp_dtype,
+            device_type=target_audios.device.type,
         ):
             vc_output = self.vc_model(
                 source_audios=input_audios,
@@ -439,7 +534,9 @@ class FreeVCTrainer(TorchTrainerBase):
         ########################
         self.discrim_model.set_train_mode(AudioDiscriminatorTrainMode.FROZEN)
         with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            enabled=self.use_amp,
+            dtype=self.amp_dtype,
+            device_type=target_audios.device.type,
         ):
             y_real, fmaps_real = self.discrim_model(target_audios)
             y_gen, fmaps_gen = self.discrim_model(vc_output.gen_audio)
@@ -483,8 +580,14 @@ class FreeVCTrainer(TorchTrainerBase):
 
         return batch_size, batch_metrics
 
-    def validation_step(self, batch_idx: int, batch_data: Dict[str, Any]):
+    def validation_step(
+        self, batch_idx: int, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
         """Runs a forward pass through the generator and discriminator during validation.
+
+        Args:
+            batch_idx (int): Index of the current validation batch.
+            batch_data (Dict[str, Any]): Raw batch from the data loader.
 
         Logs spectrograms and audio samples, and computes validation losses.
 
@@ -515,7 +618,9 @@ class FreeVCTrainer(TorchTrainerBase):
             )
 
         with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            enabled=self.use_amp,
+            dtype=self.amp_dtype,
+            device_type=input_audios.device.type,
         ):
             xvector_output = self.xvector_model(
                 input_audios,
@@ -620,7 +725,7 @@ class FreeVCTrainer(TorchTrainerBase):
 
         return batch_size, batch_metrics
 
-    def update_swa_model(self):
+    def update_swa_model(self) -> None:
         """Updates the SWA model parameters and learning rate scheduler if applicable."""
         if (
             self.do_swa
@@ -631,12 +736,12 @@ class FreeVCTrainer(TorchTrainerBase):
             self.swa_vc_model.update_parameters(self.vc_model)
             self.swa_vc_scheduler.step()
 
-    def zero_grad_optimizers(self):
+    def zero_grad_optimizers(self) -> None:
         """Zeros the gradients for both generator and discriminator optimizers."""
         self.vc_optimizer.zero_grad()
         self.discrim_optimizer.zero_grad()
 
-    def get_lrs(self):
+    def get_lrs(self) -> Dict[str, float]:
         """Returns a dictionary of learning rates for all optimizers."""
         vc_lrs = self._get_lrs(self.vc_optimizer)
         discrim_lrs = self._get_lrs(self.discrim_optimizer)
@@ -645,7 +750,7 @@ class FreeVCTrainer(TorchTrainerBase):
         lrs.update(discrim_lrs)
         return lrs
 
-    def get_wds(self):
+    def get_wds(self) -> Dict[str, float]:
         """Returns a dictionary of weight decay values for all optimizers."""
         vc_wds = self._get_wds(self.vc_optimizer, self.vc_wd_scheduler)
         discrim_wds = self._get_wds(self.discrim_optimizer, self.discrim_wd_scheduler)
@@ -653,11 +758,11 @@ class FreeVCTrainer(TorchTrainerBase):
         wds.update({f"discrim_{k}": v for k, v in discrim_wds.items()})
         return wds
 
-    def models_have_bn(self):
+    def models_have_bn(self) -> bool:
         """Checks if the generator model has any batch normalization layers."""
         return self.vc_model.has_batchnorms()
 
-    def update_models(self):
+    def update_models(self) -> Dict[str, float]:
         """Steps optimizers and schedulers for both generator and discriminator.
 
         Also clips gradients and returns logs for gradient norms.
@@ -695,7 +800,7 @@ class FreeVCTrainer(TorchTrainerBase):
         logs = {"grad_norm/vc": vc_grad_norm, "grad_norm/discrim": discrim_grad_norm}
         return logs
 
-    def save_checkpoint(self, logs=None):
+    def save_checkpoint(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """Saves current training state to disk, including both models and optionally SWA.
 
         Args:
@@ -726,7 +831,7 @@ class FreeVCTrainer(TorchTrainerBase):
 
         self.save_model_checkpoint_to_file("discrim_model", checkpoint)
 
-    def save_swa_model(self, logs=None):
+    def save_swa_model(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """Saves the final SWA-averaged generator model to disk.
 
         Args:
@@ -753,7 +858,9 @@ class FreeVCTrainer(TorchTrainerBase):
         )
         torch.save(checkpoint, file_path)
 
-    def load_checkpoint(self, epoch, step):
+    def load_checkpoint(
+        self, epoch: int, step: int
+    ) -> Optional[Dict[str, Any]]:
         """Loads training state from checkpoint files for both generator and discriminator.
 
         Args:
@@ -785,9 +892,12 @@ class FreeVCTrainer(TorchTrainerBase):
         return logs
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """
         Filters the provided keyword arguments to retain only those valid for the FreeVCTrainer constructor.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments.
 
         Returns:
             dict: A dictionary of filtered arguments applicable to FreeVCTrainer.
@@ -796,93 +906,153 @@ class FreeVCTrainer(TorchTrainerBase):
         return args
 
     @staticmethod
-    def add_optim_args(parser, prefix=None):
+    def add_optim_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
         """
         Adds command-line arguments for generator and discriminator optimizers and schedulers.
 
         Args:
             parser (ArgumentParser): Argument parser instance to which arguments are added.
             prefix (str, optional): Optional namespace prefix to encapsulate arguments.
+            skip (Optional[Set[str]]): Argument names to omit.
+
+        Returns:
+            None.
         """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        OF.add_class_args(parser, prefix="vc_optim")
-        LRSF.add_class_args(parser, prefix="vc_lrsched")
-        WDSF.add_class_args(parser, prefix="vc_wdsched")
-        OF.add_class_args(parser, prefix="discrim_optim")
-        LRSF.add_class_args(parser, prefix="discrim_lrsched")
-        WDSF.add_class_args(parser, prefix="discrim_wdsched")
-        parser.add_argument(
-            "--discrim-grad-clip",
-            default=0.0,
-            type=float,
-            help="Gradient clipping value for the discriminator.",
-        )
+        if skip is None:
+            skip = set()
+
+        if "vc_optim" not in skip:
+            OF.add_class_args(parser, prefix="vc_optim")
+        if "vc_lrsched" not in skip:
+            LRSF.add_class_args(parser, prefix="vc_lrsched")
+        if "vc_wdsched" not in skip:
+            WDSF.add_class_args(parser, prefix="vc_wdsched")
+        if "discrim_optim" not in skip:
+            OF.add_class_args(parser, prefix="discrim_optim")
+        if "discrim_lrsched" not in skip:
+            LRSF.add_class_args(parser, prefix="discrim_lrsched")
+        if "discrim_wdsched" not in skip:
+            WDSF.add_class_args(parser, prefix="discrim_wdsched")
+        if "discrim_grad_clip" not in skip:
+            parser.add_argument(
+                "--discrim-grad-clip",
+                default=0.0,
+                type=float,
+                help="Gradient clipping value for the discriminator.",
+            )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def add_train_modes_args(parser):
+    def add_train_modes_args(
+        parser: ArgumentParser, skip: Optional[Set[str]] = None
+    ) -> None:
         """
         Adds command-line arguments for generator and discriminator optimizers and schedulers.
 
         Args:
             parser (ArgumentParser): Argument parser instance to which arguments are added.
-            prefix (str, optional): Optional namespace prefix to encapsulate arguments.
+            skip (Optional[Set[str]]): Argument names to omit.
+
+        Returns:
+            None.
         """
+        if skip is None:
+            skip = set()
+
         train_modes = FreeVCTrainMode.choices()
-        parser.add_argument(
-            "--vc-train-mode",
-            default=FreeVCTrainMode.HF_FEATS_FROZEN_NOGRAD.value,
-            choices=train_modes,
-            help=(
-                f"Training mode for the generator. "
-                f"Available options: {train_modes}."
-            ),
-        )
+        if "vc_train_mode" not in skip:
+            parser.add_argument(
+                "--vc-train-mode",
+                default=FreeVCTrainMode.HF_FEATS_FROZEN_NOGRAD.value,
+                choices=train_modes,
+                help=(
+                    f"Training mode for the generator. "
+                    f"Available options: {train_modes}."
+                ),
+            )
+        if "discrim_train_mode" not in skip:
+            parser.add_argument(
+                "--discrim-train-mode",
+                default=AudioDiscriminatorTrainMode.FULL,
+                choices=AudioDiscriminatorTrainMode.choices(),
+                help=(
+                    "Training mode for the discriminator. "
+                    f"Available options: {AudioDiscriminatorTrainMode.choices()}."
+                ),
+            )
 
     @staticmethod
-    def add_io_keys_args(parser, prefix=None):
+    def add_io_keys_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
         """
         Adds command-line arguments to specify batch dictionary keys for input and target audio.
 
         Args:
             parser (ArgumentParser): Argument parser to which arguments are added.
             prefix (str, optional): Optional namespace prefix.
+            skip (Optional[Set[str]]): Argument names to omit.
+
+        Returns:
+            None.
         """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument(
-            "--input-audio-key",
-            default="audio",
-            help="Key used to access source audio in the batch dictionary.",
-        )
-        parser.add_argument(
-            "--target-audio-key",
-            default="audio",
-            help="Key used to access target audio in the batch dictionary.",
-        )
+        if skip is None:
+            skip = set()
+
+        if "input_audio_key" not in skip:
+            parser.add_argument(
+                "--input-audio-key",
+                default="audio",
+                help="Key used to access source audio in the batch dictionary.",
+            )
+        if "target_audio_key" not in skip:
+            parser.add_argument(
+                "--target-audio-key",
+                default="audio",
+                help="Key used to access target audio in the batch dictionary.",
+            )
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def add_loss_weights_args(parser, prefix=None, skip=set()):
+    def add_loss_weights_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
         """
         Adds command-line arguments to configure loss weights for the generator.
 
         Args:
             parser (ArgumentParser): Argument parser to which arguments are added.
             prefix (str, optional): Optional namespace prefix.
-            skip (set): Set of argument names to skip.
+            skip (Optional[Set[str]]): Argument names to omit.
+
+        Returns:
+            None.
         """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+
+        if skip is None:
+            skip = set()
 
         if "loss_mel_weight" not in skip:
             parser.add_argument(
@@ -891,30 +1061,37 @@ class FreeVCTrainer(TorchTrainerBase):
                 type=float,
                 help="Weight for the mel-spectrogram reconstruction loss.",
             )
-        parser.add_argument(
-            "--loss-kl-weight",
-            default=1.0,
-            type=float,
-            help="Weight for the KL divergence loss (used in VAE components).",
-        )
-        parser.add_argument(
-            "--loss-fm-weight",
-            default=2.0,
-            type=float,
-            help="Weight for the discriminator feature-matching loss.",
-        )
-        parser.add_argument(
-            "--loss-gen-adv-weight",
-            default=1.0,
-            type=float,
-            help="Weight for the adversarial generator loss.",
-        )
+        if "loss_kl_weight" not in skip:
+            parser.add_argument(
+                "--loss-kl-weight",
+                default=1.0,
+                type=float,
+                help="Weight for the KL divergence loss (used in VAE components).",
+            )
+        if "loss_fm_weight" not in skip:
+            parser.add_argument(
+                "--loss-fm-weight",
+                default=2.0,
+                type=float,
+                help="Weight for the discriminator feature-matching loss.",
+            )
+        if "loss_gen_adv_weight" not in skip:
+            parser.add_argument(
+                "--loss-gen-adv-weight",
+                default=1.0,
+                type=float,
+                help="Weight for the adversarial generator loss.",
+            )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
         """
         Adds all FreeVCTrainer-related arguments to the parser, including trainer, optimizer, I/O, and loss configuration.
 
@@ -927,24 +1104,29 @@ class FreeVCTrainer(TorchTrainerBase):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        TorchTrainerBase.add_class_args(parser)
+        if skip is None:
+            skip = set()
+
+        TorchTrainerBase.add_class_args(parser, skip=skip)
         AudioFeatsMVN.add_class_args(parser, prefix="audio_feats")
-        FreeVCTrainer.add_optim_args(parser)
-        FreeVCTrainer.add_io_keys_args(parser)
-        FreeVCTrainer.add_train_modes_args(parser)
-        FreeVCTrainer.add_loss_weights_args(parser)
-        parser.add_argument(
-            "--gen-segment-duration",
-            default=0.64,
-            type=float,
-            help="Duration (in seconds) of the audio segments used as input to the discrimator to be used during training and validation.",
-        )
-        parser.add_argument(
-            "--num-val-log-samples",
-            default=10,
-            type=int,
-            help="Number of samples to log during validation (audio + spectrogram).",
-        )
+        FreeVCTrainer.add_optim_args(parser, skip=skip)
+        FreeVCTrainer.add_io_keys_args(parser, skip=skip)
+        FreeVCTrainer.add_train_modes_args(parser, skip=skip)
+        FreeVCTrainer.add_loss_weights_args(parser, skip=skip)
+        if "gen_segment_duration" not in skip:
+            parser.add_argument(
+                "--gen-segment-duration",
+                default=0.64,
+                type=float,
+                help="Duration (in seconds) of the audio segments used as input to the discrimator to be used during training and validation.",
+            )
+        if "num_val_log_samples" not in skip:
+            parser.add_argument(
+                "--num-val-log-samples",
+                default=10,
+                type=int,
+                help="Number of samples to log during validation (audio + spectrogram).",
+            )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
