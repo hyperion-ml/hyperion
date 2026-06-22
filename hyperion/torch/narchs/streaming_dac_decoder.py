@@ -217,14 +217,14 @@ class StreamingDACDecoder(NetArch):
             in_lengths (torch.Tensor): Input lengths in samples.
 
         Returns:
-            torch.Tensor: Output lengths in frames.
+            torch.Tensor: Output lengths in samples.
         """
         out_lengths = in_lengths - (self.kernel_size - 1)
         for block in self.blocks:
             out_lengths = block.out_lengths(out_lengths)
 
         out_lengths = out_lengths - (self.kernel_size - 1)
-        return out_lengths
+        return out_lengths.clamp(min=0)
 
     def out_shape(self, in_shape: Tuple[int, ...]) -> Tuple[int, ...]:
         """
@@ -275,7 +275,7 @@ class StreamingDACDecoder(NetArch):
         self,
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Decode a time-channel sequence.
 
@@ -284,7 +284,7 @@ class StreamingDACDecoder(NetArch):
             x_lengths: Optional valid lengths per batch element (B,).
 
         Returns:
-            Tensor of shape (B, out_feats, T'), where T' depends on strides/padding.
+            Tensor of shape (B, out_feats, T') and valid output lengths.
         """
         x = x.transpose(1, 2).contiguous()  # (B, T, in_feats) -> (B, in_feats, T)
 
@@ -300,7 +300,8 @@ class StreamingDACDecoder(NetArch):
         x = self.out_act(x)
         x = self.out_conv(x)
         x = torch.tanh(x)
-        return x
+        x_lengths = self.out_lengths(x_lengths) if x_lengths is not None else None
+        return x, x_lengths
 
     @torch.no_grad()
     def init_state(
@@ -506,7 +507,7 @@ def stream_dac_decoder_demo(
     ).to(device=device, dtype=dtype)
 
     x_full = torch.randn(B, T, Cin, device=device, dtype=dtype)
-    y_ref = dec(x_full)
+    y_ref, _ = dec(x_full)
 
     state = dec.init_state(B, device=device, dtype=dtype)
     outs = []
@@ -515,7 +516,6 @@ def stream_dac_decoder_demo(
         x_chunk = x_full[:, t : t + chunk, :]
         flush = (t + x_chunk.size(1)) >= T
         y_emit, state = dec.stream(x_chunk, state, flush=flush)
-        print(y_emit.shape)
         outs.append(y_emit)
         t += x_chunk.size(1)
 

@@ -259,7 +259,7 @@ class DACDecoder(NetArch):
         self,
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Decode a time-channel sequence.
 
@@ -268,8 +268,8 @@ class DACDecoder(NetArch):
             x_lengths: Optional valid lengths per batch element (B,).
 
         Returns:
-            Tensor of shape (B, out_feats, T_out), where `T_out` matches
-            :meth:`max_out_length` for the provided latent length.
+            Decoded tensor of shape (B, out_feats, T_out) and valid output lengths
+            in samples.
         """
         x = x.transpose(1, 2).contiguous()  # (B, T, in_feats) -> (B, in_feats, T)
 
@@ -285,7 +285,8 @@ class DACDecoder(NetArch):
         x = self.out_act(x)
         x = self.out_conv(x)
         x = torch.tanh(x)
-        return x
+        x_lengths = self.out_lengths(x_lengths) if x_lengths is not None else None
+        return x, x_lengths
 
     def remove_weight_norm(self) -> None:
         """

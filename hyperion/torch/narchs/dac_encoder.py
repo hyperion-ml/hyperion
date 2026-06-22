@@ -28,7 +28,7 @@ class DACEncoder(NetArch):
 
     Architecture
     ------------
-    - Stem `Conv1d` (channels-last input is converted to channels-first internally)
+    - Stem `Conv1d` over channels-first audio.
     - A stack of `DACEncoderBlock`s; each stage downsamples by its `stride`
       and doubles the channel count.
     - Final projection `Conv1d`.
@@ -36,7 +36,7 @@ class DACEncoder(NetArch):
     Shapes
     ------
     Input:
-        x: (B, T, in_feats)  or (B, T) when in_feats == 1
+        x: (B, in_feats, T) or (B, T) when in_feats == 1
 
     Output:
         y: (B, T_out, out_feats),
@@ -203,16 +203,13 @@ class DACEncoder(NetArch):
           can produce a tensor with predictable shape.
 
         Args:
-            x: Input tensor of shape (B, T, in_feats) or (B, T).
+            x: Input tensor of shape (B, in_feats, T) or (B, T).
 
         Returns:
             Padded tensor of shape (B, in_feats, T_pad).
         """
         if x.dim() == 2:
             x = x.unsqueeze(1)
-        else:
-            x = x.transpose(1, 2).contiguous()  # (B, T, in_feats) -> (B, in_feats, T)
-
         hop_length = self.stride
         length = x.shape[-1]
         right_pad = math.ceil(length / hop_length) * hop_length - length
@@ -259,21 +256,19 @@ class DACEncoder(NetArch):
             out_lengths = block.out_lengths(out_lengths)
         return out_lengths
 
-    def out_shape(
-        self, in_shape: Tuple[int, Optional[int], int]
-    ) -> Tuple[int, Optional[int], int]:
+    def out_shape(self, in_shape: Tuple[int, ...]) -> Tuple[int, Optional[int], int]:
         """
         Compute the output tensor shape given an input shape.
 
         Args:
-            in_shape: Tuple (B, T_in, in_feats), where T_in may be `None`.
+            in_shape: Tuple (B, in_feats, T_in) or (B, T_in), where T_in may be `None`.
 
         Returns:
             Tuple (B, T_out, out_feats), where T_out may be `None`.
         """
 
         B = in_shape[0]
-        T = in_shape[1]
+        T = in_shape[-1]
         if T is None:
             return (B, None, self.out_feats)
         else:
@@ -284,17 +279,17 @@ class DACEncoder(NetArch):
         self,
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Forward pass of the encoder.
 
         Args:
-            x: Input tensor of shape (B, T, in_feats).
+            x: Input tensor of shape (B, in_feats, T) or (B, T).
             x_lengths: Optional tensor of shape (B,) with valid lengths.
 
         Returns:
-            Tensor of shape (B, T_out, out_feats), where `T_out` matches
-            :meth:`max_out_length` after encoder preprocessing/padding.
+            Encoded tensor of shape (B, T_out, out_feats) and valid output lengths
+            in frames.
         """
 
         x = self.preprocess(x)
@@ -309,8 +304,9 @@ class DACEncoder(NetArch):
             x = block(x)
 
         x = self.out_act(x)
-        x = self.out_conv(x)
-        return x.transpose(1, 2).contiguous()
+        z = self.out_conv(x)
+        z_lengths = self.out_lengths(x_lengths) if x_lengths is not None else None
+        return z.transpose(1, 2).contiguous(), z_lengths
 
     def remove_weight_norm(self) -> None:
         """

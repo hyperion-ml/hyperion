@@ -57,7 +57,7 @@ class StreamingDACEncoder(NetArch):
     Shapes
     ------
     Input:
-        x: (B, T, in_feats)  or (B, T) when in_feats == 1
+        x: (B, in_feats, T) or (B, T) when in_feats == 1
 
     Output:
         y: (B, T_out, out_feats),
@@ -232,19 +232,17 @@ class StreamingDACEncoder(NetArch):
         """
         Prepare input for the encoder.
 
-        - Accepts channel-last input and converts it to channels-first layout.
+        - Ensures channels-first layout (B, in_feats, T).
         - Pads sequence length to a multiple of total stride.
 
         Args:
-            x: Input tensor of shape (B, T, in_feats) or (B, T).
+            x: Input tensor of shape (B, in_feats, T) or (B, T).
 
         Returns:
             Padded tensor of shape (B, in_feats, T_pad).
         """
         if x.dim() == 2:
             x = x.unsqueeze(1)
-        else:
-            x = x.transpose(1, 2).contiguous()
 
         hop_size = self.stride
         length = x.shape[-1]
@@ -287,21 +285,21 @@ class StreamingDACEncoder(NetArch):
             out_lengths = block.out_lengths(out_lengths)
 
         out_lengths = out_lengths - 2  # last conv reduces 2 samples
-        return out_lengths
+        return out_lengths.clamp(min=0)
 
     def out_shape(self, in_shape: Tuple[int, ...]) -> Tuple[int, ...]:
         """
         Compute the output tensor shape given an input shape.
 
         Args:
-            in_shape: Tuple (B, T_in, in_feats).
+            in_shape: Tuple (B, in_feats, T_in).
 
         Returns:
             Tuple (B, T_out, out_feats).
         """
 
         B = in_shape[0]
-        T = in_shape[1]
+        T = in_shape[-1]
         if T is None:
             return (B, None, self.out_feats)
         else:
@@ -312,16 +310,16 @@ class StreamingDACEncoder(NetArch):
         self,
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Forward pass of the encoder.
 
         Args:
-            x: Input tensor of shape (B, T, in_feats).
+            x: Input tensor of shape (B, in_feats, T) or (B, T).
             x_lengths: Optional tensor of shape (B,) with valid lengths.
 
         Returns:
-            Tensor of shape (B, T_out, out_feats).
+            Tensor of shape (B, T_out, out_feats) and valid output lengths.
         """
 
         x = self.preprocess(x)
@@ -334,8 +332,9 @@ class StreamingDACEncoder(NetArch):
             x = block(x)
 
         x = self.out_act(x)
-        x = self.out_conv(x)
-        return x.transpose(1, 2).contiguous()
+        z = self.out_conv(x)
+        z_lengths = self.out_lengths(x_lengths) if x_lengths is not None else None
+        return z.transpose(1, 2).contiguous(), z_lengths
 
     @torch.no_grad()
     def init_state(
@@ -375,18 +374,16 @@ class StreamingDACEncoder(NetArch):
         """
         Prepare input for the encoder.
 
-        - Accepts channel-last input and converts it to channels-first layout.
+        - Ensures channels-first layout (B, in_feats, T).
 
         Args:
-            x: Input tensor of shape (B, T, in_feats) or (B, T).
+            x: Input tensor of shape (B, in_feats, T) or (B, T).
 
         Returns:
             Tensor of shape (B, in_feats, T).
         """
         if x.dim() == 2:
             x = x.unsqueeze(1)
-        else:
-            x = x.transpose(1, 2).contiguous()
 
         return x
 
@@ -401,7 +398,7 @@ class StreamingDACEncoder(NetArch):
         Streaming forward pass of the encoder.
 
         Args:
-            x: Input tensor of shape (B, T, in_feats).
+            x: Input tensor of shape (B, in_feats, T) or (B, T).
             state: Aggregated encoder state.
             flush: If True, flush buffered look-ahead in the final chunk.
 
@@ -556,7 +553,7 @@ def stream_dac_encoder_demo(
     ).to(device=device, dtype=dtype)
 
     x_full = torch.randn(B, T, device=device, dtype=dtype)
-    y_ref = enc(x_full)
+    y_ref, _ = enc(x_full)
 
     state = enc.init_state(B, device=device, dtype=dtype)
     outs = []

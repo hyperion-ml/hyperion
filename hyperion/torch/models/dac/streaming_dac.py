@@ -17,6 +17,7 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
+from ...hyper_torch_model import HyperTorchModel
 from ...layers import LoudnessNorm, ResidualVectorQuantizer, VectorQuantizerOutput
 from ...narchs import (
     StreamingDACDecoder,
@@ -24,8 +25,6 @@ from ...narchs import (
     StreamingDACEncoder,
     StreamingDACEncoderState,
 )
-from ...hyper_torch_model import HyperTorchModel
-from ...utils.masking import scale_seq_lengths, seq_lengths_to_mask
 from .dac import DACOutput, DACTrainMode
 
 
@@ -46,9 +45,9 @@ class StreamingDAC(HyperTorchModel):
     """Streaming version of Descript Audio Codec (DAC) top-level model.
 
     This composes:
-      1) an encoder (channels-last I/O: (B, T, C)) -> latents (B, T', D),
+      1) an encoder (audio input (B, T) or (B, C, T)) -> latents (B, T', D),
       2) a residual vector quantizer (RVQ) over latents,
-      3) a decoder mapping quantized latents back to waveform (B, T_out, 1).
+      3) a decoder mapping quantized latents back to waveform (B, 1, T_out).
 
     Optionally, an input **loudness normalization** (LUFS) is applied before encoding.
 
@@ -75,6 +74,18 @@ class StreamingDAC(HyperTorchModel):
         target_input_lufs: float = -16.0,
         alignment_look_ahead: int = 0,
     ):
+        """Construct a streaming DAC model.
+
+        Args:
+            encoder: Encoder instance or configuration dictionary.
+            quantizer: Residual vector quantizer instance or configuration dictionary.
+            decoder: Decoder instance or configuration dictionary.
+            latent_feats: Latent feature dimension. If ``None``, infer it from the encoder.
+            input_sample_freq: Input sampling frequency in Hz.
+            norm_input_loudness: If ``True``, normalize inputs to ``target_input_lufs``.
+            target_input_lufs: Target loudness in LUFS for input normalization.
+            alignment_look_ahead: Number of samples of look-ahead used for alignment.
+        """
         super().__init__()
         if isinstance(encoder, dict):
             init_inner_channels = encoder.get("init_inner_channels") or 64
@@ -148,7 +159,11 @@ class StreamingDAC(HyperTorchModel):
 
     @property
     def input_sample_frequency(self) -> int:
-        """Input sample frequency in Hz."""
+        """Input sample frequency in Hz.
+
+        Returns:
+            Input sampling frequency in Hz.
+        """
         return self.input_sample_freq
 
     @property
@@ -156,31 +171,54 @@ class StreamingDAC(HyperTorchModel):
         """Output sample frequency in Hz.
 
         This accounts for total up/downsampling across encoder/decoder.
+
+        Returns:
+            Output sampling frequency in Hz.
         """
         return self.input_sample_freq * self.decoder.stride // self.encoder.stride
 
     @property
-    def frame_shift(self):
-        """Frame shift (hop length) at the **input** in samples."""
+    def frame_shift(self) -> int:
+        """Frame shift at the input in samples.
+
+        Returns:
+            Input hop length in samples.
+        """
         return self.hop_length
 
     @property
-    def frame_length(self):
-        """Total input context length in samples (left + right + center sample)."""
+    def frame_length(self) -> int:
+        """Total input context length in samples.
+
+        Returns:
+            Total context length in samples, including left and right context and the center sample.
+        """
         left_context, right_context = self.in_context()
         return int(left_context + right_context + 1)
 
     @property
-    def encoder_frame_length(self):
-        """Encoder-only frame length in samples."""
+    def encoder_frame_length(self) -> int:
+        """Encoder-only frame length in samples.
+
+        Returns:
+            Encoder frame length in samples.
+        """
         return self.encoder.frame_length
 
     def encoder_in_context(self) -> Tuple[int, int]:
-        """(left, right) input context consumed by the encoder, in samples."""
+        """Return the encoder input context.
+
+        Returns:
+            A ``(left_context, right_context)`` tuple in samples.
+        """
         return self.encoder.in_context()
 
     def in_context(self) -> Tuple[int, int]:
-        """Total (left, right) input context consumed by encoder+decoder, in samples."""
+        """Return the total input context consumed by encoder and decoder.
+
+        Returns:
+            A ``(left_context, right_context)`` tuple in samples.
+        """
         left_context, right_context = self.encoder.in_context()
         stride = self.encoder.stride
         left_context_dec, right_context_dec = self.decoder.in_context()
@@ -208,7 +246,7 @@ class StreamingDAC(HyperTorchModel):
             in_lengths (torch.Tensor): Input lengths in samples.
 
         Returns:
-            torch.Tensor: Output lengths in frames.
+            torch.Tensor: Output lengths in samples.
         """
         z_lengths = self.encoder.out_lengths(in_lengths)
         return self.decoder.out_lengths(z_lengths)
@@ -217,50 +255,122 @@ class StreamingDAC(HyperTorchModel):
         """Predict output tensor shape given an input shape.
 
         Args:
-            in_shape: (B, T_in) or (B, T_in, 1) — only T_in is used here.
+            in_shape: (B, T_in) or (B, C, T_in). The last dimension is time.
 
         Returns:
-            (B, 1, T_out) where T_out is derived from strides/padding.
+            (B, C_out, T_out) where T_out is derived from strides/padding.
         """
         B = in_shape[0]
-        T = in_shape[1]
+        T = in_shape[-1]
         if T is None:
-            return (B, 1, None)
+            return (B, self.decoder.out_feats, None)
         else:
             out_length = self.max_out_length(T)
-            return (B, 1, out_length)
+            return (B, self.decoder.out_feats, out_length)
 
-    def get_delay(self):
-        """Effective algorithmic delay (samples) introduced by encoder+decoder."""
+    def get_delay(self) -> int:
+        """Return the effective algorithmic delay in samples.
+
+        Returns:
+            Algorithmic delay in samples.
+        """
         return self.alignment_look_ahead
 
     @torch.no_grad()
-    def update_quantizer_hyperparams(self, global_step: int):
-        """Update any internal quantizer parameters, e.g., for annealing."""
+    def update_quantizer_hyperparams(self, global_step: int) -> None:
+        """Update internal quantizer hyperparameters.
+
+        Args:
+            global_step: Current global training step.
+        """
         if self.vq_is_valid.item():
             self.quantizer.update_hyperparams(global_step)
+
+    # @torch.no_grad()
+    # def get_target_matching_output(
+    #     self,
+    #     audios: torch.Tensor,
+    #     audio_lengths: torch.Tensor,
+    #     alignment: str = "start",
+    # ) -> Tuple[torch.Tensor, torch.Tensor]:
+    #     """Prepare **target** audio to match the discriminator/generator path.
+
+    #     Steps:
+    #       1) (Optional) loudness-normalize inputs (LUFS).
+    #       2) Apply encoder's `preprocess` (e.g., right padding to stride).
+    #       3) Crop or pad to match the generator's effective output length.
+
+    #     Args:
+    #         audios: Input audio, shape (B, T_in) or (B, C, T_in), float in [-1, 1].
+    #         audio_lengths: Valid lengths per example (B,) in samples.
+    #         alignment: Anchor used when crop/pad is needed. Use "start" to keep
+    #             sample 0 aligned, or "center" to align waveform centers.
+
+    #     Returns:
+    #         (audios_matched, audio_lengths) with audio shape (B, C, T_match).
+    #     """
+    #     if alignment not in {"start", "center"}:
+    #         raise ValueError(f"invalid alignment={alignment}")
+
+    #     input_lengths = audio_lengths
+    #     if self.norm_input_loudness:
+    #         audios = self.loudness_norm(audios)
+
+    #     if self.alignment_look_ahead > 0:
+    #         audios = torch.nn.functional.pad(
+    #             audios, (self.alignment_look_ahead, 0), mode="constant", value=0.0
+    #         )
+    #         audio_lengths = audio_lengths + self.alignment_look_ahead
+
+    #     audios = self.encoder.preprocess(audios)
+    #     if self.alignment_look_ahead > 0:
+    #         audios = audios[..., : -self.alignment_look_ahead]
+    #         audio_lengths = audio_lengths - self.alignment_look_ahead
+
+    #     l_in = audios.size(-1)
+    #     l_out = self.max_out_length(l_in)
+    #     delta = l_in - l_out
+    #     if delta > 0:
+    #         if alignment == "start":
+    #             audios = audios[..., :l_out]
+    #         else:
+    #             start = delta // 2
+    #             stop = delta - start
+    #             audios = audios[..., start : l_in - stop]
+    #     elif delta < 0:
+    #         pad = -delta
+    #         if alignment == "start":
+    #             left_pad = 0
+    #             right_pad = pad
+    #         else:
+    #             left_pad = pad // 2
+    #             right_pad = pad - left_pad
+    #         audios = torch.nn.functional.pad(audios, (left_pad, right_pad))
+
+    #     output_lengths = self.out_lengths(audio_lengths)
+    #     audio_lengths = torch.minimum(output_lengths, audio_lengths)
+    #     audio_lengths = audio_lengths.clamp(min=0, max=audios.size(-1))
+    #     return audios, audio_lengths
 
     @torch.no_grad()
     def get_target_matching_output(
         self,
         audios: torch.Tensor,
         audio_lengths: torch.Tensor,
-        pad_left: bool = True,
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Prepare **target** audio to match the discriminator/generator path.
 
         Steps:
           1) (Optional) loudness-normalize inputs (LUFS).
-          2) Apply encoder's `preprocess` (e.g., right padding to stride).
-          3) Center-crop to match the generator's effective output length.
+          2) Pad the beginning of the audio with `alignment_look_ahead` samples, if needed.
+          3) Apply encoder's `preprocess` (e.g., right padding to stride).
 
         Args:
-            audios: Input audio, shape (B, 1, T_in), float in [-1, 1].
+            audios: Input audio, shape (B, T_in) or (B, C, T_in), float in [-1, 1].
             audio_lengths: Valid lengths per example (B,) in samples.
-            pad_left: if True, in the forward function, we will pad to the left to not miss the beginning of the signal.
 
         Returns:
-            (audios_matched, audio_lengths) with shape (B, 1, T_match).
+            (audios_matched, audio_lengths) with audio shape (B, C, T_match).
         """
         if self.norm_input_loudness:
             audios = self.loudness_norm(audios)
@@ -272,23 +382,7 @@ class StreamingDAC(HyperTorchModel):
             audio_lengths = audio_lengths + self.alignment_look_ahead
 
         audios = self.encoder.preprocess(audios)
-        return audios, audio_lengths
-
-        if self.alignment_look_ahead > 0:
-            audios = audios[..., : -self.alignment_look_ahead]
-            audio_lengths = audio_lengths - self.alignment_look_ahead
-
-        if pad_left:
-            # we recover the same length at the output as in the input
-            return audios, audio_lengths
-
-        l_in = audios.size(-1)
-        l_out = self.max_out_length(l_in)
-        delta = l_in - l_out
-        if delta > 0:
-            audios = audios[..., delta:]
-            audio_lengths = audio_lengths - delta
-
+        audio_lengths = audio_lengths.clamp(min=0, max=audios.size(-1))
         return audios, audio_lengths
 
     def encode(
@@ -296,13 +390,15 @@ class StreamingDAC(HyperTorchModel):
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor] = None,
         num_quantizers: Optional[int] = None,
+        return_codes: bool = False,
     ) -> VectorQuantizerOutput:
         """Encode waveform and quantize latents.
 
         Args:
-            x: Waveform, shape (B, 1, T_in), float in [-1, 1].
+            x: Waveform, shape (B, T_in) or (B, C, T_in), float in [-1, 1].
             x_lengths: Valid input lengths (B,) in samples.
             num_quantizers: If set, use only the first N residual VQ stages.
+            return_codes: If True, include quantizer code indices in the output.
 
         Returns:
             VectorQuantizerOutput: quantized latents, losses, codes, etc.
@@ -320,8 +416,7 @@ class StreamingDAC(HyperTorchModel):
             if x_lengths is not None:
                 x_lengths = x_lengths + self.delay
 
-        z = self.encoder(x, x_lengths)
-        z_lengths = scale_seq_lengths(x_lengths, z.shape[1], x.shape[1])
+        z, z_lengths = self.encoder(x, x_lengths)
 
         if (
             self.training
@@ -331,7 +426,12 @@ class StreamingDAC(HyperTorchModel):
             self.vq_is_valid.fill_(True)
 
         if self.vq_is_valid.item():
-            vq_output = self.quantizer(z, z_lengths, num_quantizers=num_quantizers)
+            vq_output = self.quantizer(
+                z,
+                z_lengths,
+                num_quantizers=num_quantizers,
+                return_codes=return_codes,
+            )
         else:
             vq_output = VectorQuantizerOutput(
                 z_q=z,
@@ -350,7 +450,9 @@ class StreamingDAC(HyperTorchModel):
 
         return vq_output
 
-    def decode(self, z: torch.Tensor, z_lengths: Optional[torch.Tensor] = None):
+    def decode(
+        self, z: torch.Tensor, z_lengths: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Decode quantized latents to waveform.
 
         Args:
@@ -358,24 +460,25 @@ class StreamingDAC(HyperTorchModel):
             z_lengths: Valid latent lengths (B,) in frames.
 
         Returns:
-            Waveform (B, 1, T_out).
+            Waveform (B, 1, T_out) and valid output lengths in samples.
         """
-        x = self.decoder(z, z_lengths)
-        return x
+        x, x_lengths = self.decoder(z, z_lengths)
+        return x, x_lengths
 
     def forward(
         self,
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor] = None,
         num_quantizers: Optional[int] = None,
-        pad_left: bool = True,
-    ):
+        return_codes: bool = False,
+    ) -> DACOutput:
         """End-to-end forward: encode → RVQ → decode.
 
         Args:
-            x: Waveform, shape (B, 1, T_in), float in [-1, 1].
+            x: Waveform, shape (B, T_in) or (B, C, T_in), float in [-1, 1].
             x_lengths: Valid input lengths (B,) in samples.
             num_quantizers: If set, use only the first N residual VQ stages.
+            return_codes: If True, include quantizer code indices in `DACOutput.vq`.
 
         Returns:
             DACOutput with reconstructed waveform and VQ info.
@@ -384,9 +487,9 @@ class StreamingDAC(HyperTorchModel):
             x,
             x_lengths,
             num_quantizers=num_quantizers,
+            return_codes=return_codes,
         )
-        x_recons = self.decode(vq_output.z_q, vq_output.z_lengths)
-        x_recons_lengths = scale_seq_lengths(x_lengths, x_recons.shape[1], x.shape[1])
+        x_recons, x_recons_lengths = self.decode(vq_output.z_q, vq_output.z_lengths)
         output = DACOutput(
             x_recons=x_recons, x_recons_lengths=x_recons_lengths, vq=vq_output
         )
@@ -421,17 +524,16 @@ class StreamingDAC(HyperTorchModel):
         x: torch.Tensor,
         state: StreamingDACState,
         flush: bool = False,
-    ) -> Tuple[torch.Tensor, StreamingDACState]:
+    ) -> Tuple[DACOutput, StreamingDACState]:
         """Streaming inference step.
 
         Args:
-            x: Input waveform chunk, shape (B, 1, T_in), float in [-1, 1].
+            x: Input waveform chunk, shape (B, T_in) or (B, C, T_in), float in [-1, 1].
             state: Current cache state.
             flush: If True, flush encoder/decoder buffered context (final chunk).
 
         Returns:
-            x_out: Output waveform chunk, shape (B, 1, T_out).
-            new_state: Updated cache state.
+            A `DACOutput` with the reconstructed chunk and VQ info, plus the updated cache state.
         """
         if self.norm_input_loudness:
             x, _ = self.loudness_norm(x, return_input_lufs=True)
@@ -466,7 +568,12 @@ class StreamingDAC(HyperTorchModel):
         output = DACOutput(x_recons=x_out, vq=vq_output)
         return output, new_state
 
-    def set_train_mode(self, mode: str):
+    def set_train_mode(self, mode: str) -> None:
+        """Set the training mode and freeze/unfreeze submodules.
+
+        Args:
+            mode: Training mode string or `DACTrainMode` value.
+        """
         if mode == self._train_mode:
             return
         logging.info("setting DAC train mode to %s", mode)
@@ -493,7 +600,12 @@ class StreamingDAC(HyperTorchModel):
 
         self._train_mode = mode
 
-    def _train(self, train_mode: str):
+    def _train(self, train_mode: str) -> None:
+        """Switch the model into a supported training regime.
+
+        Args:
+            train_mode: Requested training mode.
+        """
         if train_mode in [DACTrainMode.FULL, DACTrainMode.FROZEN]:
             super()._train(train_mode)
         elif train_mode in [
@@ -506,7 +618,11 @@ class StreamingDAC(HyperTorchModel):
             raise ValueError(f"invalid train_mode={train_mode}")
 
     def get_config(self) -> Dict[str, Any]:
-        """Return a JSON-serializable config describing the model."""
+        """Return a JSON-serializable config describing the model.
+
+        Returns:
+            JSON-serializable configuration dictionary.
+        """
         config = super().get_config()
         config.update(
             {
@@ -523,26 +639,34 @@ class StreamingDAC(HyperTorchModel):
         return config
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """
-        Filter keyword arguments relevant to `StreamingDACDecoder.__init__`.
+        Filter keyword arguments relevant to `StreamingDAC.__init__`.
+
+        Args:
+            kwargs: Keyword arguments to filter.
 
         Returns:
-            dict: Filtered kwargs usable to instantiate `StreamingDACDecoder`.
+            dict: Filtered kwargs usable to instantiate `StreamingDAC`.
         """
-        return filter_func_args(StreamingDACDecoder.__init__, kwargs)
+        return filter_func_args(StreamingDAC.__init__, kwargs)
 
-    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None):
-        """Register DAC model arguments on an `ArgumentParser`.
+    @staticmethod
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register `StreamingDAC` model arguments on an `ArgumentParser`.
 
         If `prefix` is provided, a nested sub-parser is created and attached under
         `--{prefix}` via `ActionParser`.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional nested parser prefix.
         """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        StreamingDACDecoder.add_class_args(parser, prefix="encoder", skip={"out_feats"})
+        StreamingDACEncoder.add_class_args(parser, prefix="encoder", skip={"out_feats"})
         ResidualVectorQuantizer.add_class_args(
             parser, prefix="quantizer", skip={"in_feats"}
         )
@@ -582,21 +706,28 @@ class StreamingDAC(HyperTorchModel):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
-    def filter_finetune_args(**kwargs):
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         """
-        Filter keyword arguments relevant to `DAC` finetuning.
+        Filter keyword arguments relevant to `StreamingDAC` finetuning.
+
+        Args:
+            kwargs: Keyword arguments to filter.
 
         Returns:
-            dict: Filtered kwargs usable to finetune `DAC`.
+            dict: Filtered kwargs usable to finetune `StreamingDAC`.
         """
         return filter_func_args(StreamingDAC.change_config, kwargs)
 
     @staticmethod
-    def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None):
-        """Register DAC finetune arguments on an `ArgumentParser`.
+    def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register `StreamingDAC` finetune arguments on an `ArgumentParser`.
 
         If `prefix` is provided, a nested sub-parser is created and attached under
         `--{prefix}` via `ActionParser`.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional nested parser prefix.
         """
         if prefix is not None:
             outer_parser = parser
@@ -637,9 +768,23 @@ def stream_dac_demo(
     decoder_dilations: Optional[List[int]] = None,
     device: str = "cpu",
     dtype: torch.dtype = torch.float32,
-):
-    """
-    Compare full forward vs streaming for the top-level StreamingDAC.
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Compare full forward vs streaming for the top-level StreamingDAC.
+
+    Args:
+        B: Batch size.
+        T: Total input length in samples.
+        chunk: Streaming chunk size.
+        in_feats: Number of input channels.
+        init_inner_channels: Initial internal channel count.
+        encoder_kernel: Encoder kernel size.
+        encoder_strides: Encoder stride configuration.
+        encoder_dilations: Encoder dilation configuration.
+        decoder_kernel: Decoder kernel size.
+        decoder_strides: Decoder stride configuration.
+        decoder_dilations: Decoder dilation configuration.
+        device: Torch device string.
+        dtype: Torch dtype for tensors.
 
     Returns:
         (y_stream, y_ref)
@@ -679,7 +824,6 @@ def stream_dac_demo(
 
     from .dac import DAC
 
-    print("hola")
     model_dac = DAC(
         encoder=enc_cfg,
         quantizer={
@@ -695,7 +839,7 @@ def stream_dac_demo(
     model_dac.set_train_mode(DACTrainMode.NO_VQ)
 
     x_full = torch.randn(B, T, device=device, dtype=dtype)
-    out_ref = model(x_full, pad_left=False)
+    out_ref = model(x_full)
     y_ref = out_ref.x_recons
     zq_ref = out_ref.vq.z_q
 
