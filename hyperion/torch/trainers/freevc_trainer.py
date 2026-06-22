@@ -12,7 +12,7 @@ import re
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.amp as amp
@@ -858,9 +858,7 @@ class FreeVCTrainer(TorchTrainerBase):
         )
         torch.save(checkpoint, file_path)
 
-    def load_checkpoint(
-        self, epoch: int, step: int
-    ) -> Optional[Dict[str, Any]]:
+    def load_checkpoint(self, epoch: int, step: int) -> Optional[Dict[str, Any]]:
         """Loads training state from checkpoint files for both generator and discriminator.
 
         Args:

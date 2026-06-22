@@ -67,6 +67,8 @@ class SingleModelTrainer(TorchTrainerBase):
         swa_anneal_steps (int): Steps used to anneal the SWA learning rate.
         swa_update_steps (int): Steps between SWA parameter averaging operations.
         bn_update_steps (int): Max steps for the BN statistics refresh after SWA.
+        compile_model (bool): Enables ``torch.compile`` for the model forward.
+        compile_dynamic (bool): Enables dynamic-shape compilation when compiling.
     """
 
     def __init__(
@@ -111,6 +113,8 @@ class SingleModelTrainer(TorchTrainerBase):
         swa_update_steps: int = 50000,
         swa_anneal_steps: int = 50000,
         bn_update_steps: int = 5000,
+        compile_model: bool = False,
+        compile_dynamic: bool = False,
         input_key: str = "x",
         target_key: str = "class_id",
     ) -> None:
@@ -157,6 +161,8 @@ class SingleModelTrainer(TorchTrainerBase):
             swa_anneal_steps (int): Steps for annealing SWA learning rate.
             swa_update_steps (int): Steps between SWA weight updates.
             bn_update_steps (int): Steps used to refresh BatchNorm statistics after SWA.
+            compile_model (bool): Enables ``torch.compile`` for the model forward.
+            compile_dynamic (bool): Enables dynamic-shape compilation when compiling.
             input_key (str): Key used to extract model inputs from the dataloader.
             target_key (str): Key used to extract supervision targets.
 
@@ -175,6 +181,8 @@ class SingleModelTrainer(TorchTrainerBase):
 
         self.input_key = input_key
         self.target_key = target_key
+        self.compile_model = compile_model
+        self.compile_dynamic = compile_dynamic
 
         self.loss = loss
         if self.loss is not None:
@@ -219,6 +227,18 @@ class SingleModelTrainer(TorchTrainerBase):
             swa_lr=self.swa_lr,
             swa_anneal_steps=self.swa_anneal_steps,
         )
+        if self.compile_model:
+            if not hasattr(torch, "compile"):
+                raise RuntimeError("compile_model=True requires torch.compile support.")
+            if self.rank == 0:
+                logging.info(
+                    "compiling model forward with torch.compile(dynamic=%s)",
+                    self.compile_dynamic,
+                )
+            self.model.forward = torch.compile(
+                self.model.forward,
+                dynamic=self.compile_dynamic,
+            )
         self.grad_scaler = self.get_grad_scaler(self.use_amp, self.ddp, self.ddp_type)
 
     def set_train_mode(self) -> None:
@@ -677,6 +697,48 @@ class SingleModelTrainer(TorchTrainerBase):
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
+    def add_compile_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """
+        Adds CLI options for enabling ``torch.compile`` on the model forward.
+
+        Args:
+            parser (ArgumentParser): Parser receiving the arguments.
+            prefix (Optional[str]): Optional namespace prefix.
+            skip (Optional[Set[str]]): Argument names to skip.
+
+        Returns:
+            None
+        """
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        if skip is None:
+            skip = set()
+
+        if "compile_model" not in skip:
+            parser.add_argument(
+                "--compile-model",
+                action=ActionYesNo,
+                default=False,
+                help="Enable torch.compile for the model forward.",
+            )
+        if "compile_dynamic" not in skip:
+            parser.add_argument(
+                "--compile-dynamic",
+                action=ActionYesNo,
+                default=False,
+                help="Enable dynamic-shape support when compiling the model forward.",
+            )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
     def add_class_args(
         parser: ArgumentParser,
         prefix: Optional[str] = None,
@@ -701,12 +763,16 @@ class SingleModelTrainer(TorchTrainerBase):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
+        if skip is None:
+            skip = set()
+
         TorchTrainerBase.add_class_args(parser, skip=skip)
         SingleModelTrainer.add_optim_args(parser, skip=skip)
         SingleModelTrainer.add_io_keys_args(parser, skip=skip)
         SingleModelTrainer.add_train_modes_args(
             parser, train_modes=train_modes, skip=skip
         )
+        SingleModelTrainer.add_compile_args(parser, skip=skip)
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

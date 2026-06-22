@@ -3,270 +3,238 @@ Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
-import os
 from collections import OrderedDict as ODict
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import torch
-import torch.amp as amp
 import torch.nn as nn
-import torchaudio
 from jsonargparse import ActionParser, ArgumentParser
-from torch.distributed.elastic.multiprocessing.errors import record
 
-from ...utils.misc import filter_func_args
-from ..utils import MetricAcc, tensors_subset
-from .legacy_torch_trainer import AMPDType, LegacyTorchTrainer
+from ...utils.misc import PathLike, filter_func_args
+from ..hyper_torch_model import HyperTorchModel
+from ..loggers import LoggerList
+from ..lr_schedulers import LRScheduler as LRS
+from ..wd_schedulers import WDScheduler as WDS
+from .single_model_trainer import SingleModelTrainer
+from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType
 
 
-class TransducerTrainer(LegacyTorchTrainer):
-    """Trainer to train ASR style models.
+class TransducerTrainer(SingleModelTrainer):
+    """Trainer for ASR transducer-style single-model training.
 
     Attributes:
-      model: ASR model object.
-      optim: pytorch optimizer object or options dict
-      epochs: max. number of epochs
-      exp_path: experiment output path
-      cur_epoch: current epoch
-      grad_acc_steps: gradient accumulation steps to simulate larger batch size.
-      device: cpu/gpu device
-      metrics: extra metrics to compute besides cxe.
-      lrsched: learning rate scheduler object or options dict
-      loggers: LoggerList object, loggers write training progress to std. output and file.
-               If None, it uses default loggers.
-      ddp: if True use distributed data parallel training
-      ddp_type: distributed data parallel backend (only standard PyTorch DDP)
-      loss: if None, it uses cross-entropy
-      train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
-      use_amp: uses mixed precision training.
-      amp_dtype: "float16" | "bfloat16"
-      log_interval: number of optim. steps between log outputs
-      use_tensorboard: use tensorboard logger
-      use_wandb: use wandb logger
-      wandb: wandb dictionary of options
-      grad_clip: norm to clip gradients, if 0 there is no clipping
-      grad_clip_norm: norm type to clip gradients
-      swa_start: epoch to start doing swa
-      swa_lr: SWA learning rate
-      swa_anneal_epochs: SWA learning rate anneal epochs
-      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
+        model (HyperTorchModel): Transducer model instance to optimize.
+        optim (torch.optim.Optimizer | Dict[str, Any]): Optimizer or config dict.
+        lrsched (Optional[LRS]): Learning-rate scheduler object or config dict.
+        wdsched (Optional[WDS]): Weight-decay scheduler object or config dict.
+        train_mode (str): Named train-mode activated inside the model.
+        loss (Optional[nn.Module]): Optional external loss, retained for config parity.
+        metrics (Dict[str, Any]): Extra metric callables applied to model output.
+        input_key (str): Batch key containing acoustic features.
+        target_key (str): Batch key containing text/token supervision.
+        compile_model (bool): Enables ``torch.compile`` for the model forward.
+        compile_dynamic (bool): Enables dynamic-shape compilation when compiling.
     """
 
     def __init__(
         self,
-        model: Any,
-        optim: Dict[str, Any] = {},
-        epochs: int = 100,
-        exp_path: str = "./train",
+        model: HyperTorchModel,
+        optim: Union[torch.optim.Optimizer, Dict[str, Any]],
+        lrsched: Optional[Union[LRS, Dict[str, Any]]] = None,
+        wdsched: Optional[Union[WDS, Dict[str, Any]]] = None,
+        train_mode: str = "full",
+        loss: Optional[nn.Module] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        exp_path: PathLike = "./train",
+        num_epochs: int = 100,
         cur_epoch: int = 0,
+        max_steps: Optional[int] = None,
+        cur_step: int = 0,
         grad_acc_steps: int = 1,
         eff_batch_size: Optional[int] = None,
-        device: Optional[torch.device] = None,
-        metrics: Optional[Dict[str, Any]] = None,
-        lrsched: Optional[Dict[str, Any]] = None,
-        wdsched: Optional[Dict[str, Any]] = None,
-        loggers: Optional[Any] = None,
+        val_steps: Optional[int] = None,
+        val_hours: Optional[float] = None,
+        save_steps: Optional[int] = None,
+        save_hours: Optional[float] = None,
+        device: Union[torch.device, int, None] = None,
+        loggers: Optional[LoggerList] = None,
         ddp: bool = False,
-        ddp_type: str = "ddp",
-        loss: Optional[nn.Module] = None,
-        train_mode: str = "full",
+        ddp_type: DDPType = DDPType.DDP,
+        fsdp_reshard_after_forward: Optional[Union[bool, int]] = None,
+        fsdp_mp_param_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_reduce_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_output_dtype: Optional[FSDPMPDType] = None,
+        fsdp_cpu_offload: bool = False,
         use_amp: bool = False,
         amp_dtype: AMPDType = AMPDType.FLOAT16,
+        bf16_grad_scaler: bool = False,
         log_interval: int = 1000,
         use_tensorboard: bool = False,
         use_wandb: bool = False,
-        wandb: Dict[str, Any] = {},
+        wandb: Optional[Dict[str, str]] = None,
         grad_clip: float = 0,
-        grad_clip_norm: int = 2,
+        grad_clip_norm: Union[str, int] = 2,
         swa_start: int = 0,
         swa_lr: float = 1e-3,
-        swa_anneal_epochs: int = 10,
-        save_interval_steps: Optional[int] = None,
+        swa_update_steps: int = 50000,
+        swa_anneal_steps: int = 50000,
+        bn_update_steps: int = 5000,
+        compile_model: bool = False,
+        compile_dynamic: bool = False,
         input_key: str = "x",
         target_key: str = "text",
     ) -> None:
         """Initializes the transducer trainer.
 
         Args:
-          model: ASR model instance.
-          optim: Optimizer instance or configuration dictionary.
-          epochs: Number of epochs to train for.
-          exp_path: Directory used for logs and checkpoints.
-          cur_epoch: Epoch to resume from.
-          grad_acc_steps: Number of batches to accumulate before optimizer steps.
-          eff_batch_size: Optional effective batch size reference.
-          device: Target device for training.
-          metrics: Additional metric callables.
-          lrsched: Learning-rate scheduler or configuration.
-          wdsched: Weight-decay scheduler or configuration.
-          loggers: Logger collection.
-          ddp: Whether distributed training is enabled.
-          ddp_type: Distributed backend name.
-          loss: Loss module used to train the model.
-          train_mode: Model train mode.
-          use_amp: Whether automatic mixed precision is enabled.
-          amp_dtype: AMP precision to use when ``use_amp`` is true.
-          log_interval: Number of steps between logger updates.
-          use_tensorboard: Whether to enable TensorBoard logging.
-          use_wandb: Whether to enable Weights & Biases logging.
-          wandb: W&B configuration dictionary.
-          grad_clip: Gradient clipping threshold.
-          grad_clip_norm: Gradient norm type.
-          swa_start: Step at which SWA starts.
-          swa_lr: SWA learning rate.
-          swa_anneal_epochs: SWA learning-rate annealing epochs.
-          save_interval_steps: Number of steps between checkpoint saves.
-          input_key: Batch key for input features.
-          target_key: Batch key for supervision targets.
+            model: Transducer model instance.
+            optim: Optimizer instance or optimizer configuration dictionary.
+            lrsched: Learning-rate scheduler instance or configuration dictionary.
+            wdsched: Weight-decay scheduler instance or configuration dictionary.
+            train_mode: Named train-mode to activate inside the model.
+            loss: Optional external loss module retained for compatibility.
+            metrics: Extra metric callables applied to model output and targets.
+            exp_path: Directory used to save checkpoints and logs.
+            num_epochs: Maximum number of epochs to run.
+            cur_epoch: Epoch index to resume from.
+            max_steps: Optional cap on total optimizer steps.
+            cur_step: Global optimizer step to resume from.
+            grad_acc_steps: Gradient accumulation steps per optimizer update.
+            eff_batch_size: Reference effective batch size.
+            val_steps: Number of optimizer steps between validations.
+            val_hours: Max wall-clock hours between validations.
+            save_steps: Number of optimizer steps between checkpoint saves.
+            save_hours: Max wall-clock hours between checkpoint saves.
+            device: Device on which to run the model.
+            loggers: Logger collection receiving progress events.
+            ddp: Whether distributed training is enabled.
+            ddp_type: Distributed backend type.
+            fsdp_reshard_after_forward: FSDP2 reshard policy after forward.
+            fsdp_mp_param_dtype: FSDP2 mixed-precision parameter dtype.
+            fsdp_mp_reduce_dtype: FSDP2 mixed-precision reduction dtype.
+            fsdp_mp_output_dtype: FSDP2 mixed-precision output dtype.
+            fsdp_cpu_offload: Enables CPU offload for FSDP2.
+            use_amp: Enables automatic mixed precision.
+            amp_dtype: AMP precision used when ``use_amp`` is true.
+            bf16_grad_scaler: Enables gradient scaling for bfloat16 AMP.
+            log_interval: Optimizer steps between progress logs.
+            use_tensorboard: Enables TensorBoard logging.
+            use_wandb: Enables Weights & Biases logging.
+            wandb: Additional W&B configuration.
+            grad_clip: Gradient clipping threshold; non-positive disables clipping.
+            grad_clip_norm: Norm type used for gradient clipping.
+            swa_start: Step at which SWA averaging starts; 0 disables SWA.
+            swa_lr: Learning rate used during SWA.
+            swa_update_steps: Steps between SWA parameter averaging operations.
+            swa_anneal_steps: Steps used to anneal the SWA learning rate.
+            bn_update_steps: Max steps for SWA BatchNorm-statistics refresh.
+            compile_model: Enables ``torch.compile`` for the model forward.
+            compile_dynamic: Enables dynamic-shape compilation when compiling.
+            input_key: Batch key containing acoustic features.
+            target_key: Batch key containing text/token supervision.
 
         Returns:
-          None.
+            None.
         """
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
+        self.metrics = {} if metrics is None else metrics
 
-    @record
-    def train_epoch(self, data_loader: Any) -> Dict[str, Any]:
-        """Runs one training epoch.
+    def preprocess_data(self, batch_data: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
+        """Extracts transducer inputs, input lengths, and targets from a batch.
 
         Args:
-          data_loader: pytorch data loader returning features and class labels.
+            batch_data: Batch emitted by the dataloader.
 
         Returns:
-          Dictionary with training metrics.
+            Tuple[int, Dict[str, Any]]: Batch size and processed batch dictionary.
         """
-        batch_keys = [self.input_key, f"{self.input_key}_lengths", self.target_key]
-        metric_acc = MetricAcc(device=self.device)
-        batch_metrics = ODict()
-        self.model.train()
+        input_lengths_key = f"{self.input_key}_lengths"
+        output_batch_data = {
+            "audio": batch_data[self.input_key],
+            "audio_lengths": batch_data[input_lengths_key],
+            "target": batch_data[self.target_key],
+        }
+        batch_size = output_batch_data["audio"].size(0)
+        return batch_size, output_batch_data
 
-        for batch, data in enumerate(data_loader):
-            self.loggers.on_batch_begin(batch)
+    def compute_forward(
+        self, batch_data: Dict[str, torch.Tensor]
+    ) -> Tuple[torch.Tensor, Any]:
+        """Runs the transducer forward pass and returns the model loss.
 
-            if batch % self.grad_acc_steps == 0:
-                self.optimizer.zero_grad()
+        Args:
+            batch_data: Preprocessed batch with ``audio``, ``audio_lengths``, and
+                ``target`` tensors.
 
-            # # TODO: Check and Modify data, target
-            # data, audio_length, target = data.to(self.device), audio_length.to(
-            #     self.device), target.to(self.device)
-            # print(data.keys(), batch_keys, flush=True)
-            input_data, input_lengths, target = tensors_subset(
-                data, batch_keys, self.device
-            )
-            batch_size = input_data.shape[0]
+        Returns:
+            Tuple[torch.Tensor, Any]: Scalar model loss and raw model output.
+        """
+        target = batch_data["target"]
+        if hasattr(target, "to"):
+            target = target.to(batch_data["audio"].device)
+            batch_data["target"] = target
 
-            with amp.autocast(
-                enabled=self.use_amp,
-                dtype=self.amp_dtype,
-                device_type=input_data.device.type,
-            ):
-                output = self.model(input_data, x_lengths=input_lengths, y=target)
-                loss = output.loss
-                loss = loss.mean() / self.grad_acc_steps
+        output = self.model(
+            batch_data["audio"],
+            x_lengths=batch_data["audio_lengths"],
+            y=target,
+        )
+        loss = output.loss.mean()
+        return loss, output
 
-            if self.use_amp:
-                self.grad_scaler.scale(loss).backward()
-            else:
-                loss.backward()
-
-            if (batch + 1) % self.grad_acc_steps == 0:
-                self.cur_batch = batch + 1
-                self.update_model()
-                self.save_checkpoint(partial=True)
-
-            for k, v in output.items():
-                if "loss" in k and v is not None:
-                    batch_metrics[k] = output[k].item()
-
-            for k, metric in self.metrics.items():
-                batch_metrics[k] = metric(output, target)
-
-            metric_acc.update(batch_metrics, batch_size)
-            logs = metric_acc.metrics
-            lrs = self._get_lrs()
-            logs.update(lrs)
-            self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
-
-        logs = metric_acc.metrics
-        logs = ODict(("train_" + k, v) for k, v in logs.items())
-        lrs = self._get_lrs()
-        logs.update(lrs)
-        return logs
-
-    def validation_epoch(
-        self, data_loader: Any, swa_update_bn: bool = False
+    def compute_metrics(
+        self, batch_output: Any, batch_data: Dict[str, torch.Tensor]
     ) -> Dict[str, Any]:
-        """Runs one validation epoch.
+        """Computes loss-valued output metrics and optional external metrics.
 
         Args:
-          data_loader: PyTorch data loader return input/output pairs.
-          swa_update_bn: Whether to update batch-norm layers in SWA mode.
+            batch_output: Model output object containing loss fields.
+            batch_data: Preprocessed batch with ``target`` tensor.
 
         Returns:
-          Dictionary with validation metrics.
+            Dict[str, Any]: Metrics to aggregate for the current batch.
         """
-        batch_keys = [self.input_key, f"{self.input_key}_lengths", self.target_key]
-        metric_acc = MetricAcc(self.device)
         batch_metrics = ODict()
-        with torch.no_grad():
-            if swa_update_bn:
-                log_tag = "train_"
-                self.model.train()
-            else:
-                log_tag = "val_"
-                self.model.eval()
+        for key, value in batch_output.items():
+            if "loss" in key and value is not None:
+                batch_metrics[key] = value.mean().item()
 
-            for batch, data in enumerate(data_loader):
-                input_data, input_lengths, target = tensors_subset(
-                    data, batch_keys, self.device
-                )
-                batch_size = input_data.shape[0]
+        target = batch_data["target"]
+        for key, metric in self.metrics.items():
+            batch_metrics[key] = metric(batch_output, target)
 
-                # data, audio_length, target = data.to(
-                #     self.device), audio_length.to(self.device), target.to(
-                #         self.device)
-                # batch_size = data.shape[0]
-                # data, target = data.to(self.device), target.to(self.device)
-                # batch_size = data.shape[0]
+        return batch_metrics
 
-                with amp.autocast(
-                    enabled=self.use_amp,
-                    dtype=self.amp_dtype,
-                    device_type=input_data.device.type,
-                ):
-                    output = self.model(input_data, x_lengths=input_lengths, y=target)
+    @staticmethod
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters keyword arguments down to those accepted by ``__init__``.
 
-                for k, v in output.items():
-                    if "loss" in k and v is not None:
-                        batch_metrics[k] = output[k].item()
+        Args:
+            **kwargs: Arbitrary keyword arguments.
 
-                for k, metric in self.metrics.items():
-                    batch_metrics[k] = metric(output, target)
-
-                metric_acc.update(batch_metrics, batch_size)
-
-        logs = metric_acc.metrics
-        logs = ODict((log_tag + k, v) for k, v in logs.items())
-        return logs
+        Returns:
+            Dict[str, Any]: Subset compatible with ``TransducerTrainer.__init__``.
+        """
+        return filter_func_args(TransducerTrainer.__init__, kwargs)
 
     @staticmethod
     def add_class_args(
         parser: ArgumentParser,
         prefix: Optional[str] = None,
-        train_modes: Optional[list[str]] = None,
-        skip: Optional[set[str]] = None,
+        train_modes: Optional[List[str]] = None,
+        skip: Optional[Set[str]] = None,
     ) -> None:
-        """Registers the CLI arguments required to build this trainer.
+        """Registers transducer trainer CLI arguments.
 
         Args:
-          parser: Argument parser to extend.
-          prefix: Optional namespace prefix.
-          train_modes: Optional list of allowed train modes.
-          skip: Optional set of argument names to omit.
+            parser: Parser receiving the trainer arguments.
+            prefix: Optional namespace prefix for grouped trainer arguments.
+            train_modes: Optional list of allowed train modes.
+            skip: Optional set of argument names to omit.
 
         Returns:
-          None.
+            None.
         """
         if prefix is not None:
             outer_parser = parser
@@ -276,13 +244,22 @@ class TransducerTrainer(LegacyTorchTrainer):
             skip = set()
 
         super_skip = skip.copy()
-        super_skip.add("target_key")
-        LegacyTorchTrainer.add_class_args(
+        super_skip.update({"input_key", "target_key"})
+        SingleModelTrainer.add_class_args(
             parser, train_modes=train_modes, skip=super_skip
         )
+
+        if "input_key" not in skip:
+            parser.add_argument(
+                "--input-key",
+                default="x",
+                help="Batch dictionary key that contains acoustic features.",
+            )
         if "target_key" not in skip:
             parser.add_argument(
-                "--target-key", default="text", help="dict. key for nnet targets"
+                "--target-key",
+                default="text",
+                help="Batch dictionary key that contains text/token targets.",
             )
 
         if prefix is not None:

@@ -67,6 +67,8 @@ class QVectorTrainer(SingleModelTrainer):
         swa_anneal_steps (int): Steps used for SWA LR annealing.
         swa_update_steps (int): Interval between SWA weight updates.
         bn_update_steps (int): Max steps for BN statistics refresh after SWA.
+        compile_model (bool): Enables ``torch.compile`` for the model forward.
+        compile_dynamic (bool): Enables dynamic-shape compilation when compiling.
         input_key (str): Key for the audio tensor in dataloader batches.
         target_key (str): Key for supervision labels in the batch.
         qmatrix_code_rate_weight (float): Weight applied to the q-matrix code-rate
@@ -118,6 +120,8 @@ class QVectorTrainer(SingleModelTrainer):
         swa_update_steps: int = 50000,
         swa_anneal_steps: int = 50000,
         bn_update_steps: int = 5000,
+        compile_model: bool = False,
+        compile_dynamic: bool = False,
         input_key: str = "audio",
         target_key: str = "speaker",
         qmatrix_code_rate_weight: float = 0.0,
@@ -168,6 +172,8 @@ class QVectorTrainer(SingleModelTrainer):
             swa_update_steps (int): Steps between SWA weight updates.
             swa_anneal_steps (int): Steps to anneal the SWA LR.
             bn_update_steps (int): Steps used to refresh BatchNorm statistics after SWA.
+            compile_model (bool): Enables ``torch.compile`` for the model forward.
+            compile_dynamic (bool): Enables dynamic-shape compilation when compiling.
             input_key (str): Batch key used for the audio tensor.
             target_key (str): Batch key used for label tensors.
             qmatrix_code_rate_weight (float): Weight applied to the q-matrix
