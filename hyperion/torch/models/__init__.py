@@ -10,7 +10,7 @@ from .audio_discriminator import (
     AudioMultiDiscriminatorOutput,
     AudioPeriodDiscriminator,
     AudioScaleDiscriminator,
-    AudioSpectralDiscriminator,
+    AudioSpectrogramDiscriminator,
 )
 from .dac import DAC, DACOutput, DACTrainMode, StreamingDAC, StreamingDACState
 from .freevc import HFWavLMFreeVC

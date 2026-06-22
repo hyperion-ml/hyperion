@@ -7,6 +7,7 @@ import logging
 import os
 import time
 from collections import OrderedDict as ODict
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.amp as amp
@@ -14,6 +15,8 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
+from ..hyper_torch_model import HyperTorchModel
+from ..loggers import Logger, LoggerList
 from ..utils import MetricAcc, tensors_subset
 from .legacy_torch_trainer import AMPDType
 from .xvector_trainer import XVectorTrainer
@@ -34,15 +37,13 @@ class XVectorAdvTrainer(XVectorTrainer):
       p_val_attack: attack probability in validation
       device: cpu/gpu device
       metrics: extra metrics to compute besides cxe.
-      lr_scheduler: learning rate scheduler object
+      lrsched: learning rate scheduler object or options dict
+      wdsched: weight decay scheduler object or options dict
       loggers: LoggerList object, loggers write training progress to std. output and file.
-               If None, it uses default loggers.
-      data_parallel: if True use nn.DataParallel
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
       amp_dtype: "float16" | "bfloat16"
-      log_interval: number of optim. steps between log outputs
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -58,40 +59,77 @@ class XVectorAdvTrainer(XVectorTrainer):
 
     def __init__(
         self,
-        model,
-        attack,
-        optim={},
-        epochs=100,
-        exp_path="./train",
-        cur_epoch=0,
-        grad_acc_steps=1,
-        eff_batch_size=None,
-        p_attack=0.8,
-        p_val_attack=0,
-        device=None,
-        metrics=None,
-        lrsched=None,
-        wdsched=None,
-        loggers=None,
-        ddp=False,
-        ddp_type="ddp",
-        loss=None,
-        train_mode="full",
-        use_amp=False,
-        amp_dtype=AMPDType.FLOAT16,
-        log_interval=1000,
-        use_tensorboard=False,
-        use_wandb=False,
-        wandb={},
-        grad_clip=0,
-        grad_clip_norm=2,
-        swa_start=0,
-        swa_lr=1e-3,
-        swa_anneal_epochs=10,
-        save_interval_steps=None,
-        input_key="x",
-        target_key="class_id",
-    ):
+        model: HyperTorchModel,
+        attack: Any,
+        optim: Dict[str, Any] = {},
+        epochs: int = 100,
+        exp_path: str = "./train",
+        cur_epoch: int = 0,
+        grad_acc_steps: int = 1,
+        eff_batch_size: Optional[int] = None,
+        p_attack: float = 0.8,
+        p_val_attack: float = 0,
+        device: Optional[torch.device] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        lrsched: Optional[Dict[str, Any]] = None,
+        wdsched: Optional[Dict[str, Any]] = None,
+        loggers: Optional[Union[List[Logger], LoggerList]] = None,
+        ddp: bool = False,
+        ddp_type: str = "ddp",
+        loss: Optional[nn.Module] = None,
+        train_mode: str = "full",
+        use_amp: bool = False,
+        amp_dtype: AMPDType = AMPDType.FLOAT16,
+        log_interval: int = 1000,
+        use_tensorboard: bool = False,
+        use_wandb: bool = False,
+        wandb: Dict[str, Any] = {},
+        grad_clip: float = 0,
+        grad_clip_norm: float = 2,
+        swa_start: int = 0,
+        swa_lr: float = 1e-3,
+        swa_anneal_epochs: int = 10,
+        save_interval_steps: Optional[int] = None,
+        input_key: str = "x",
+        target_key: str = "class_id",
+    ) -> None:
+        """Initializes the adversarial x-vector trainer.
+
+        Args:
+          model: Model to train.
+          attack: Adversarial attack generator.
+          optim: Optimizer instance or configuration dictionary.
+          epochs: Number of epochs.
+          exp_path: Output directory.
+          cur_epoch: Starting epoch.
+          grad_acc_steps: Gradient accumulation factor.
+          eff_batch_size: Desired effective batch size.
+          p_attack: Probability of generating adversarial examples.
+          p_val_attack: Validation-time adversarial probability.
+          device: Training device.
+          metrics: Additional metric callables.
+          lrsched: Learning-rate scheduler or configuration.
+          wdsched: Weight-decay scheduler or configuration.
+          loggers: None, a list of loggers, or a LoggerList instance.
+          ddp: Enables distributed training.
+          ddp_type: Distributed backend selector.
+          loss: Loss module, defaults to cross-entropy.
+          train_mode: Model train mode.
+          use_amp: Enables automatic mixed precision.
+          amp_dtype: AMP dtype name.
+          log_interval: Batch interval between log writes.
+          use_tensorboard: Enables TensorBoard logging.
+          use_wandb: Enables Weights & Biases logging.
+          wandb: Weights & Biases options.
+          grad_clip: Gradient clip value.
+          grad_clip_norm: Gradient clip norm type.
+          swa_start: Epoch at which SWA starts.
+          swa_lr: SWA learning rate.
+          swa_anneal_epochs: SWA annealing epochs.
+          save_interval_steps: Partial checkpoint interval.
+          input_key: Input key for dict batches.
+          target_key: Target key for dict batches.
+        """
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
         self.attack = attack
@@ -110,7 +148,15 @@ class XVectorAdvTrainer(XVectorTrainer):
                 % (p_attack, 1.0 / self.grad_acc_steps)
             )
 
-    def train_epoch(self, data_loader):
+    def train_epoch(self, data_loader: Any) -> Dict[str, Any]:
+        """Runs one adversarial training epoch.
+
+        Args:
+          data_loader: Training data loader.
+
+        Returns:
+          Dictionary with training metrics.
+        """
         batch_keys = [self.input_key, self.target_key]
         self.model.update_loss_margin(self.cur_epoch)
 
@@ -129,7 +175,7 @@ class XVectorAdvTrainer(XVectorTrainer):
                     logging.info("generating adv attack for batch=%d", batch)
                     self.model.eval()
                     data_adv = self.attack.generate(input_data, target)
-                    max_delta = torch.max(torch.abs(data_adv - data)).item()
+                    max_delta = torch.max(torch.abs(data_adv - input_data)).item()
                     logging.info("adv attack max perturbation=%f", max_delta)
                     input_data = data_adv
                     self.model.train()
@@ -168,7 +214,18 @@ class XVectorAdvTrainer(XVectorTrainer):
         logs.update(lrs)
         return logs
 
-    def validation_epoch(self, data_loader, swa_update_bn=False):
+    def validation_epoch(
+        self, data_loader: Any, swa_update_bn: bool = False
+    ) -> Dict[str, Any]:
+        """Runs one validation epoch with optional adversarial examples.
+
+        Args:
+          data_loader: Validation data loader.
+          swa_update_bn: Whether to update batch-norm layers for SWA.
+
+        Returns:
+          Dictionary with validation metrics.
+        """
         batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
@@ -195,7 +252,7 @@ class XVectorAdvTrainer(XVectorTrainer):
                 with amp.autocast(
                     enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
                 ):
-                    output = self.model(data, **self.amp_args)
+                    output = self.model(input_data)
                     loss = self.loss(output.logits, target)
 
             batch_metrics["loss"] = loss.item()
@@ -209,7 +266,12 @@ class XVectorAdvTrainer(XVectorTrainer):
         return logs
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters keyword arguments for :class:`XVectorAdvTrainer`.
+
+        Returns:
+          Keyword arguments accepted by the trainer constructor.
+        """
         args = XVectorTrainer.filter_args(**kwargs)
         valid_args = ("p_attack", "p_val_attack")
         args_1 = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
@@ -217,7 +279,16 @@ class XVectorAdvTrainer(XVectorTrainer):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: Any, prefix: Optional[str] = None, skip: set = set()
+    ) -> None:
+        """Registers adversarial x-vector trainer arguments on a parser.
+
+        Args:
+          parser: Parser instance to extend.
+          prefix: Optional nested prefix.
+          skip: Argument names to skip.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

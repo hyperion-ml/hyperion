@@ -6,6 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 import os
 from collections import OrderedDict as ODict
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.amp as amp
@@ -13,6 +14,8 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
+from ..hyper_torch_model import HyperTorchModel
+from ..loggers import Logger, LoggerList
 from ..utils import MetricAcc, tensors_subset
 from .legacy_torch_trainer import AMPDType, LegacyTorchTrainer
 
@@ -52,36 +55,69 @@ class VAETrainer(LegacyTorchTrainer):
 
     def __init__(
         self,
-        model,
-        optim={},
-        epochs=100,
-        exp_path="./train",
-        cur_epoch=0,
-        grad_acc_steps=1,
-        eff_batch_size=None,
-        device=None,
-        metrics=None,
-        lrsched=None,
-        wdsched=None,
-        loggers=None,
-        ddp=False,
-        ddp_type="ddp",
-        train_mode="full",
-        use_amp=False,
-        amp_dtype=AMPDType.FLOAT16,
-        log_interval=1000,
-        use_tensorboard=False,
-        use_wandb=False,
-        wandb={},
-        grad_clip=0,
-        grad_clip_norm=2,
-        swa_start=0,
-        swa_lr=1e-3,
-        swa_anneal_epochs=10,
-        save_interval_steps=None,
-        input_key="x",
-        target_key="x",
-    ):
+        model: HyperTorchModel,
+        optim: Dict[str, Any] = {},
+        epochs: int = 100,
+        exp_path: str = "./train",
+        cur_epoch: int = 0,
+        grad_acc_steps: int = 1,
+        eff_batch_size: Optional[int] = None,
+        device: Optional[torch.device] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        lrsched: Optional[Dict[str, Any]] = None,
+        wdsched: Optional[Dict[str, Any]] = None,
+        loggers: Optional[Union[List[Logger], LoggerList]] = None,
+        ddp: bool = False,
+        ddp_type: str = "ddp",
+        train_mode: str = "full",
+        use_amp: bool = False,
+        amp_dtype: AMPDType = AMPDType.FLOAT16,
+        log_interval: int = 1000,
+        use_tensorboard: bool = False,
+        use_wandb: bool = False,
+        wandb: Dict[str, Any] = {},
+        grad_clip: float = 0,
+        grad_clip_norm: float = 2,
+        swa_start: int = 0,
+        swa_lr: float = 1e-3,
+        swa_anneal_epochs: int = 10,
+        save_interval_steps: Optional[int] = None,
+        input_key: str = "x",
+        target_key: str = "x",
+    ) -> None:
+        """Initializes a variational auto-encoder trainer.
+
+        Args:
+          model: Model to train.
+          optim: Optimizer instance or configuration dictionary.
+          epochs: Number of epochs.
+          exp_path: Output directory.
+          cur_epoch: Starting epoch.
+          grad_acc_steps: Gradient accumulation factor.
+          eff_batch_size: Desired effective batch size.
+          device: Training device.
+          metrics: Additional metric callables.
+          lrsched: Learning-rate scheduler or configuration.
+          wdsched: Weight-decay scheduler or configuration.
+          loggers: None, a list of loggers, or a LoggerList instance.
+          ddp: Enables distributed training.
+          ddp_type: Distributed backend selector.
+          train_mode: Model train mode.
+          use_amp: Enables automatic mixed precision.
+          amp_dtype: AMP dtype name.
+          log_interval: Batch interval between log writes.
+          use_tensorboard: Enables TensorBoard logging.
+          use_wandb: Enables Weights & Biases logging.
+          wandb: Weights & Biases options.
+          grad_clip: Gradient clip value.
+          grad_clip_norm: Gradient clip norm type.
+          swa_start: Epoch at which SWA starts.
+          swa_lr: SWA learning rate.
+          swa_anneal_epochs: SWA annealing epochs.
+          save_interval_steps: Partial checkpoint interval.
+          input_key: Input key for dict batches.
+          target_key: Target key for dict batches.
+        """
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
 
@@ -113,11 +149,14 @@ class VAETrainer(LegacyTorchTrainer):
         #     swa_anneal_epochs=swa_anneal_epochs,
         # )
 
-    def train_epoch(self, data_loader):
+    def train_epoch(self, data_loader: Any) -> Dict[str, Any]:
         """Training epoch loop
 
         Args:
           data_loader: pytorch data loader returning noisy and clean features
+
+        Returns:
+          Dictionary with training metrics.
         """
 
         batch_keys = [self.input_key, self.target_key]
@@ -169,11 +208,16 @@ class VAETrainer(LegacyTorchTrainer):
         logs.update(lrs)
         return logs
 
-    def validation_epoch(self, data_loader, swa_update_bn=False):
+    def validation_epoch(
+        self, data_loader: Any, swa_update_bn: bool = False
+    ) -> Dict[str, Any]:
         """Validation epoch loop
 
         Args:
           data_loader: PyTorch data loader return input/output pairs
+
+        Returns:
+          Dictionary with validation metrics.
         """
 
         batch_keys = [self.input_key, self.target_key]
@@ -209,13 +253,26 @@ class VAETrainer(LegacyTorchTrainer):
         return logs
 
     @staticmethod
-    def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
+    def add_class_args(
+        parser: Any,
+        prefix: Optional[str] = None,
+        train_modes: Optional[list] = None,
+        skip: set = set(),
+    ) -> None:
+        """Registers VAE trainer arguments on a parser.
+
+        Args:
+          parser: Parser instance to extend.
+          prefix: Optional nested prefix.
+          train_modes: Allowed train-mode values.
+          skip: Argument names to skip.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
         LegacyTorchTrainer.add_class_args(
-            parser, train_modes, skip=skip.union({"target_key"})
+            parser, train_modes=train_modes, skip=skip.union({"target_key"})
         )
         if "target_key" not in skip:
             parser.add_argument(

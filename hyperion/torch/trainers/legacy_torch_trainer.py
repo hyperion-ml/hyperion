@@ -12,7 +12,7 @@ import re
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.amp as amp
@@ -22,7 +22,15 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.optim.swa_utils import SWALR, AveragedModel
 
 from ...utils.misc import filter_func_args
-from ..loggers import CSVLogger, LoggerList, ProgLogger, TensorBoardLogger, WAndBLogger
+from ..hyper_torch_model import HyperTorchModel
+from ..loggers import (
+    CSVLogger,
+    Logger,
+    LoggerList,
+    ProgLogger,
+    TensorBoardLogger,
+    WAndBLogger,
+)
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..optim import OptimizerFactory as OF
@@ -32,23 +40,45 @@ from ..wd_schedulers import WDSchedulerFactory as WDSF
 
 
 class DDPType(str, Enum):
+    """Supported distributed-data-parallel backends."""
+
     DDP = "ddp"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Returns the supported distributed training choices.
+
+        Returns:
+          List of valid DDP type strings.
+        """
         return [o.value for o in DDPType]
 
 
 class AMPDType(str, Enum):
+    """Supported automatic mixed precision data types."""
+
     FLOAT16 = "float16"
     BFLOAT16 = "bfloat16"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Returns the supported automatic mixed precision dtypes.
+
+        Returns:
+          List of valid AMP dtype strings.
+        """
         return [o.value for o in AMPDType]
 
     @staticmethod
-    def to_dtype(dtype):
+    def to_dtype(dtype: str) -> torch.dtype:
+        """Converts the string AMP type to a torch dtype.
+
+        Args:
+          dtype: AMP dtype name.
+
+        Returns:
+          The matching torch dtype.
+        """
         return torch.float16 if dtype == AMPDType.FLOAT16 else torch.bfloat16
 
 
@@ -91,37 +121,71 @@ class LegacyTorchTrainer:
 
     def __init__(
         self,
-        model,
-        loss,
-        optim={},
-        epochs=100,
-        exp_path="./train",
-        cur_epoch=0,
-        grad_acc_steps=1,
-        eff_batch_size=None,
-        device=None,
-        metrics=None,
-        lrsched=None,
-        wdsched=None,
-        loggers=None,
-        ddp=False,
+        model: HyperTorchModel,
+        loss: Optional[nn.Module] = None,
+        optim: Dict[str, Any] = {},
+        epochs: int = 100,
+        exp_path: str = "./train",
+        cur_epoch: int = 0,
+        grad_acc_steps: int = 1,
+        eff_batch_size: Optional[int] = None,
+        device: Optional[torch.device] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        lrsched: Optional[Dict[str, Any]] = None,
+        wdsched: Optional[Dict[str, Any]] = None,
+        loggers: Optional[Union[List[Logger], LoggerList]] = None,
+        ddp: bool = False,
         ddp_type: DDPType = DDPType.DDP,
-        train_mode="full",
-        use_amp=False,
-        amp_dtype=AMPDType.FLOAT16,
-        log_interval=1000,
-        use_tensorboard=False,
-        use_wandb=False,
-        wandb={},
-        grad_clip=0,
-        grad_clip_norm=2,
-        swa_start=0,
-        swa_lr=1e-3,
-        swa_anneal_epochs=10,
-        save_interval_steps=None,
-        input_key="x",
-        target_key="class_id",
-    ):
+        train_mode: str = "full",
+        use_amp: bool = False,
+        amp_dtype: AMPDType = AMPDType.FLOAT16,
+        log_interval: int = 1000,
+        use_tensorboard: bool = False,
+        use_wandb: bool = False,
+        wandb: Dict[str, Any] = {},
+        grad_clip: float = 0,
+        grad_clip_norm: float = 2,
+        swa_start: int = 0,
+        swa_lr: float = 1e-3,
+        swa_anneal_epochs: int = 10,
+        save_interval_steps: Optional[int] = None,
+        input_key: str = "x",
+        target_key: str = "class_id",
+    ) -> None:
+        """Initializes the base trainer.
+
+        Args:
+          model: Model to train.
+          loss: Loss module used by the trainer.
+          optim: Optimizer instance or optimizer configuration dictionary.
+          epochs: Number of training epochs.
+          exp_path: Output directory for checkpoints and logs.
+          cur_epoch: Starting epoch.
+          grad_acc_steps: Gradient accumulation factor.
+          eff_batch_size: Desired effective batch size.
+          device: Target torch device.
+          metrics: Additional metric callables.
+          lrsched: Learning-rate scheduler or scheduler config.
+          wdsched: Weight-decay scheduler or scheduler config.
+          loggers: None, a list of loggers, or a LoggerList instance.
+          ddp: Enables distributed training.
+          ddp_type: Distributed backend selector.
+          train_mode: Model-specific train mode.
+          use_amp: Enables automatic mixed precision.
+          amp_dtype: AMP dtype name.
+          log_interval: Batch interval between log writes.
+          use_tensorboard: Enables TensorBoard logging.
+          use_wandb: Enables Weights & Biases logging.
+          wandb: Weights & Biases options.
+          grad_clip: Gradient norm clip value.
+          grad_clip_norm: Gradient norm type.
+          swa_start: Epoch at which SWA starts.
+          swa_lr: SWA learning rate.
+          swa_anneal_epochs: SWA annealing epochs.
+          save_interval_steps: Partial checkpoint interval.
+          input_key: Input key for dict batches.
+          target_key: Target key for dict batches.
+        """
         self.model = model
         self.loss = loss
         self.epochs = epochs
@@ -143,7 +207,7 @@ class LegacyTorchTrainer:
         else:
             self.loggers = loggers
 
-        self.metrics = metrics
+        self.metrics = {} if metrics is None else metrics
         self.device = device
         self.train_mode = train_mode
         self.use_amp = use_amp
@@ -172,7 +236,8 @@ class LegacyTorchTrainer:
         self.set_train_mode()
         self.prepare_models_for_training()
 
-    def prepare_models_for_training(self):
+    def prepare_models_for_training(self) -> None:
+        """Moves model and loss to the training device and builds schedulers."""
         self.loss = self._prepare_loss_for_training(self.loss, self.device)
         (
             self.model,
@@ -195,7 +260,18 @@ class LegacyTorchTrainer:
             self.swa_anneal_epochs,
         )
 
-    def _prepare_loss_for_training(self, loss, device):
+    def _prepare_loss_for_training(
+        self, loss: Any, device: Optional[torch.device]
+    ) -> Any:
+        """Moves the loss module to the target device.
+
+        Args:
+          loss: Loss module or ``None``.
+          device: Target device.
+
+        Returns:
+          The prepared loss module.
+        """
         if loss is not None:
             loss.to(device)
 
@@ -203,17 +279,35 @@ class LegacyTorchTrainer:
 
     def _prepare_model_for_training(
         self,
-        model,
-        optim,
-        lrsched,
-        wdsched,
-        device,
-        use_amp,
-        ddp,
-        do_swa,
-        swa_lr,
-        swa_anneal_epochs,
-    ):
+        model: Any,
+        optim: Any,
+        lrsched: Any,
+        wdsched: Any,
+        device: Optional[torch.device],
+        use_amp: bool,
+        ddp: bool,
+        do_swa: bool,
+        swa_lr: float,
+        swa_anneal_epochs: int,
+    ) -> Tuple[Any, Any, Any, Any, Any, Any, Any]:
+        """Prepares the trainable objects used by the trainer.
+
+        Args:
+          model: Model to prepare.
+          optim: Optimizer instance or configuration.
+          lrsched: Learning-rate scheduler or configuration.
+          wdsched: Weight-decay scheduler or configuration.
+          device: Training device.
+          use_amp: Enables AMP grad scaler construction.
+          ddp: Enables distributed wrapping.
+          do_swa: Enables SWA helpers.
+          swa_lr: SWA learning rate.
+          swa_anneal_epochs: SWA annealing epochs.
+
+        Returns:
+          Prepared model, optimizer, LR scheduler, WD scheduler, grad scaler,
+          SWA model, and SWA scheduler.
+        """
         if device is not None:
             model.to(device)
 
@@ -267,7 +361,13 @@ class LegacyTorchTrainer:
             swa_scheduler,
         )
 
-    def set_epoch(self, data_loader, cur_batch: int = 0):
+    def set_epoch(self, data_loader: Any, cur_batch: int = 0) -> None:
+        """Propagates the current epoch to dataset and batch sampler.
+
+        Args:
+          data_loader: Data loader whose dataset and sampler are updated.
+          cur_batch: Current batch index within the epoch.
+        """
         try:
             data_loader.dataset.set_epoch(self.cur_epoch)
         except AttributeError:
@@ -278,12 +378,15 @@ class LegacyTorchTrainer:
         except AttributeError:
             logging.warning("sampler doesn't have set_epoch member function")
 
-    def fit(self, train_data, val_data=None):
+    def fit(self, train_data: Any, val_data: Any = None) -> None:
         """Training function, it performs the training and validation epochs
 
         Args:
           train_data: PyTorch data loader for the training loop
           val_data: PyTorch data loader for the validation loop
+
+        Returns:
+          None.
         """
         self.exp_path.mkdir(parents=True, exist_ok=True)
         self._compute_grad_acc_steps(train_data)
@@ -316,7 +419,7 @@ class LegacyTorchTrainer:
 
             self.cur_epoch += 1
 
-            self.loggers.on_epoch_end(logs)
+            self.loggers.on_epoch_end(logs, step=self.global_step)
             if self.do_swa and self.cur_epoch >= self.swa_start:
                 self.in_swa = True
                 self.swa_model.update_parameters(self.model)
@@ -340,23 +443,27 @@ class LegacyTorchTrainer:
                 logs.update(val_logs)
 
             self.cur_epoch += 1
-            self.loggers.on_epoch_end(logs)
+            self.loggers.on_epoch_end(logs, step=self.global_step)
             self.save_swa_model(logs)
             final_logs = logs
 
         self.loggers.on_train_end(logs=final_logs)
 
-    def set_train_mode(self):
+    def set_train_mode(self) -> None:
+        """Applies the configured train mode and prints a parameter summary."""
         self.model.set_train_mode(self.train_mode)
         if self.rank == 0:
             self.model.parameter_summary(verbose=True)
             self.model.print_parameter_list()
 
-    def train_epoch(self, data_loader):
+    def train_epoch(self, data_loader: Any) -> Dict[str, Any]:
         """Training epoch loop
 
         Args:
           data_loader: PyTorch data loader return input/output pairs
+
+        Returns:
+          Dictionary with training metrics.
         """
         batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
@@ -402,12 +509,17 @@ class LegacyTorchTrainer:
         logs.update(self._get_wds())
         return logs
 
-    def validation_epoch(self, data_loader, swa_update_bn=False):
+    def validation_epoch(
+        self, data_loader: Any, swa_update_bn: bool = False
+    ) -> Dict[str, Any]:
         """Validation epoch loop
 
         Args:
           data_loader: PyTorch data loader return input/output pairs.
-          sw_update_bn: wheter or not, update batch-norm layers in SWA.
+          swa_update_bn: Whether to update batch-norm layers for SWA.
+
+        Returns:
+          Dictionary with validation metrics.
         """
         batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(self.device)
@@ -437,12 +549,20 @@ class LegacyTorchTrainer:
         logs = ODict((log_tag + k, v) for k, v in logs.items())
         return logs
 
-    def bn_update_epoch(self, data_loader):
+    def bn_update_epoch(self, data_loader: Any) -> Dict[str, Any]:
+        """Runs a validation-style epoch to refresh batch-norm statistics.
+
+        Args:
+          data_loader: Training data loader used to update BN statistics.
+
+        Returns:
+          Dictionary with BN update metrics.
+        """
         logs = self.validation_epoch(data_loader, swa_update_bn=True)
         logs.update(self._get_lrs())
         return logs
 
-    def _check_for_grad_nans(self, model, optim):
+    def _check_for_grad_nans(self, model: Any, optim: Any) -> bool:
         """Checks for NaN in gradients when using fp16
 
         Args:
@@ -464,7 +584,17 @@ class LegacyTorchTrainer:
 
         return True
 
-    def _clip_grad_norm(self, model, optim, grad_clip, grad_clip_norm):
+    def _clip_grad_norm(
+        self, model: Any, optim: Any, grad_clip: float, grad_clip_norm: float
+    ) -> None:
+        """Clips gradients for the model parameters.
+
+        Args:
+          model: Model whose gradients are clipped.
+          optim: Optimizer associated with the model.
+          grad_clip: Gradient norm threshold.
+          grad_clip_norm: Norm type used for clipping.
+        """
         if self.ddp:
             nn.utils.clip_grad_norm_(
                 model.parameters(), grad_clip, norm_type=grad_clip_norm
@@ -477,9 +607,24 @@ class LegacyTorchTrainer:
         )
 
     def _update_model_by_optim(
-        self, model, optimizer, grad_clip, grad_clip_norm, use_amp, grad_scaler
-    ):
-        """Updates the model and does gradding clipping."""
+        self,
+        model: Any,
+        optimizer: Any,
+        grad_clip: float,
+        grad_clip_norm: float,
+        use_amp: bool,
+        grad_scaler: Any,
+    ) -> None:
+        """Updates parameters through the optimizer and optionally clips gradients.
+
+        Args:
+          model: Model being updated.
+          optimizer: Optimizer used for the update.
+          grad_clip: Gradient norm threshold.
+          grad_clip_norm: Norm type used for clipping.
+          use_amp: Enables AMP-specific stepping.
+          grad_scaler: AMP grad scaler or ``None``.
+        """
         if use_amp:
             # is_ok = self._check_for_grad_nans(model, optimizer)
             # if not is_ok:
@@ -496,8 +641,8 @@ class LegacyTorchTrainer:
 
             optimizer.step()
 
-    def update_model(self):
-        """Updates the model and does gradding clipping."""
+    def update_model(self) -> None:
+        """Updates the model and steps the LR scheduler when appropriate."""
         if self.lr_scheduler is not None and not self.in_swa:
             self.lr_scheduler.on_opt_step()
 
@@ -511,8 +656,16 @@ class LegacyTorchTrainer:
         )
         self.global_step += 1
 
-    def _make_optimizer(self, optim, model):
-        """Makes an optimizer object."""
+    def _make_optimizer(self, optim: Any, model: Any) -> Any:
+        """Builds or returns the optimizer.
+
+        Args:
+          optim: Optimizer instance or configuration dictionary.
+          model: Model providing trainable parameter groups.
+
+        Returns:
+          The optimizer to use for training.
+        """
         if isinstance(optim, torch.optim.Optimizer):
             return optim
 
@@ -526,8 +679,16 @@ class LegacyTorchTrainer:
         optimizer = OF.create(model.trainable_param_groups(), **opt_args)
         return optimizer
 
-    def _make_lr_sched(self, lr_sched, optim):
-        """Makes a Learning Rate scheduler object."""
+    def _make_lr_sched(self, lr_sched: Any, optim: Any) -> Any:
+        """Builds or returns the learning-rate scheduler.
+
+        Args:
+          lr_sched: Scheduler instance, configuration dictionary, or ``None``.
+          optim: Optimizer used by the scheduler.
+
+        Returns:
+          The scheduler or ``None``.
+        """
         if lr_sched is None or isinstance(lr_sched, LRS):
             return lr_sched
 
@@ -538,8 +699,16 @@ class LegacyTorchTrainer:
         lr_sched = LRSF.create(optim, **args)
         return lr_sched
 
-    def _make_wd_sched(self, wd_sched, optim):
-        """Makes a Learning Rate scheduler object."""
+    def _make_wd_sched(self, wd_sched: Any, optim: Any) -> Any:
+        """Builds or returns the weight-decay scheduler.
+
+        Args:
+          wd_sched: Scheduler instance, configuration dictionary, or ``None``.
+          optim: Optimizer used by the scheduler.
+
+        Returns:
+          The scheduler or ``None``.
+        """
         if wd_sched is None or isinstance(wd_sched, WDS):
             return wd_sched
 
@@ -550,8 +719,24 @@ class LegacyTorchTrainer:
         wd_sched = WDSF.create(optim, **args)
         return wd_sched
 
-    def _default_loggers(self, log_interval, use_tensorboard, use_wandb, wandb):
-        """Creates the default data loaders"""
+    def _default_loggers(
+        self,
+        log_interval: int,
+        use_tensorboard: bool,
+        use_wandb: bool,
+        wandb: Dict[str, Any],
+    ) -> LoggerList:
+        """Builds the default logger stack.
+
+        Args:
+          log_interval: Batch interval between log writes.
+          use_tensorboard: Enables TensorBoard logging.
+          use_wandb: Enables Weights & Biases logging.
+          wandb: Weights & Biases options.
+
+        Returns:
+          Logger list used by the trainer.
+        """
         prog_log = ProgLogger(interval=log_interval)
         csv_log = CSVLogger(self.exp_path / "train.log", append=True)
         loggers = [prog_log, csv_log]
@@ -567,13 +752,21 @@ class LegacyTorchTrainer:
             )
         return LoggerList(loggers)
 
-    def _get_lr(self):
-        """Returns the current learning rate to show in the loggers"""
+    def _get_lr(self) -> float:
+        """Returns the maximum current learning rate across parameter groups.
+
+        Returns:
+          Maximum learning rate value.
+        """
         lrs = [param_group["lr"] for param_group in self.optimizer.param_groups]
         return max(lrs)
 
-    def _get_lrs(self):
-        """Returns the current learning rates of all param groups to show in the loggers"""
+    def _get_lrs(self) -> Dict[str, float]:
+        """Returns the current learning rates for all parameter groups.
+
+        Returns:
+          Mapping from log key to learning rate value.
+        """
         lrs = {
             f"lr_{i}": param_group["lr"]
             for i, param_group in enumerate(self.optimizer.param_groups)
@@ -583,15 +776,27 @@ class LegacyTorchTrainer:
 
         return lrs
 
-    def _get_wd(self):
-        """Returns the current learning rate to show in the loggers"""
+    def _get_wd(self) -> float:
+        """Returns the maximum current weight decay across parameter groups.
+
+        Returns:
+          Maximum weight decay value.
+        """
         wds = [
             param_group["weight_decay"] for param_group in self.optimizer.param_groups
         ]
         return max(wds)
 
-    def _get_wds(self, if_scheduler=True):
-        """Returns the current learning rates of all param groups to show in the loggers"""
+    def _get_wds(self, if_scheduler: bool = True) -> Dict[str, float]:
+        """Returns the current weight decay for all parameter groups.
+
+        Args:
+          if_scheduler: If ``True``, returns an empty mapping when no WD scheduler
+            is configured.
+
+        Returns:
+          Mapping from log key to weight decay value.
+        """
         if if_scheduler and self.wd_scheduler is None:
             return {}
 
@@ -604,7 +809,12 @@ class LegacyTorchTrainer:
 
         return wds
 
-    def _compute_grad_acc_steps(self, data_loader):
+    def _compute_grad_acc_steps(self, data_loader: Any) -> None:
+        """Derives gradient accumulation steps from the effective batch size.
+
+        Args:
+          data_loader: Training data loader used to estimate batch size.
+        """
         if self.eff_batch_size is None:
             return
 
@@ -638,11 +848,14 @@ class LegacyTorchTrainer:
             self.grad_acc_steps,
         )
 
-    def checkpoint(self, logs=None):
+    def checkpoint(self, logs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Creates a checkpoint of the training, to save and posterior recovery
 
         Args:
           logs: logs containing the current value of the metrics.
+
+        Returns:
+          Serializable checkpoint dictionary.
         """
         self.model.train()
         checkpoint = {
@@ -672,13 +885,20 @@ class LegacyTorchTrainer:
 
         return checkpoint
 
-    def save_partial_checkpoint(self):
+    def save_partial_checkpoint(self) -> bool:
+        """Returns whether a partial checkpoint should be written.
+
+        Returns:
+          ``True`` when a partial checkpoint should be saved.
+        """
         return (
             self.save_interval_steps is not None
             and self.global_step % self.save_interval_steps == 0
         )
 
-    def save_checkpoint(self, logs=None, partial: bool = False):
+    def save_checkpoint(
+        self, logs: Optional[Dict[str, Any]] = None, partial: bool = False
+    ) -> None:
         """Saves a checkpoint of the training status
 
         Args:
@@ -696,7 +916,14 @@ class LegacyTorchTrainer:
 
     def save_model_checkpoint(
         self, model_name: str, checkpoint: Dict[str, Any], partial: bool = False
-    ):
+    ) -> None:
+        """Writes a checkpoint dictionary to disk.
+
+        Args:
+          model_name: Base name for the checkpoint file.
+          checkpoint: Serialized checkpoint payload.
+          partial: If ``True``, writes a step-specific checkpoint.
+        """
         if partial:
             file_path = "%s/%s_ep%04d_step%010d.pth" % (
                 self.exp_path,
@@ -710,7 +937,9 @@ class LegacyTorchTrainer:
         logging.info("saving %s to %s", model_name, file_path)
         torch.save(checkpoint, file_path)
 
-    def old_save_checkpoint(self, logs=None, partial: bool = False):
+    def old_save_checkpoint(
+        self, logs: Optional[Dict[str, Any]] = None, partial: bool = False
+    ) -> None:
         """Saves a checkpoint of the training status
 
         Args:
@@ -738,7 +967,7 @@ class LegacyTorchTrainer:
 
         torch.save(checkpoint, file_path)
 
-    def save_swa_model(self, logs=None):
+    def save_swa_model(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """Saves a checkpoint of the training status
 
         Args:
@@ -754,7 +983,15 @@ class LegacyTorchTrainer:
 
         torch.save(checkpoint, file_path)
 
-    def _load_checkpoint(self, checkpoint):
+    def _load_checkpoint(self, checkpoint: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Restores trainer state from a checkpoint dictionary.
+
+        Args:
+          checkpoint: Serialized checkpoint payload.
+
+        Returns:
+          Saved logs if present, otherwise ``None``.
+        """
         rng_state = checkpoint["rng_state"]
         torch.set_rng_state(rng_state)
         if self.rank > 0:
@@ -815,8 +1052,15 @@ class LegacyTorchTrainer:
 
         return logs
 
-    def find_last_checkpoint(self, model_name="model"):
-        """finds the last checkpoint epoch and step in the experiment dir"""
+    def find_last_checkpoint(self, model_name: str = "model") -> Tuple[int, int]:
+        """Finds the last checkpoint epoch and step in the experiment dir.
+
+        Args:
+          model_name: Base checkpoint name.
+
+        Returns:
+          A pair ``(epoch, step)`` for the most recent checkpoint.
+        """
         last_epoch = 0
         last_step = 0
         file_pattern = "%s/%s_ep[0-9]*.pth" % (self.exp_path, model_name)
@@ -835,19 +1079,35 @@ class LegacyTorchTrainer:
 
         return last_epoch, last_step
 
-    def load_last_checkpoint(self):
-        """Loads the last training checkpoint in the experiment dir."""
+    def load_last_checkpoint(self) -> Optional[Dict[str, Any]]:
+        """Loads the last training checkpoint in the experiment dir.
+
+        Returns:
+          Saved logs if a checkpoint is found, otherwise ``None``.
+        """
         last_epoch, last_step = self.find_last_checkpoint()
         if last_epoch > 0 or last_step > 0:
             return self.load_checkpoint(last_epoch, last_step)
 
         return None
 
-    def load_model_checkpoint(self, model_name="model", epoch=0, step=0):
+    def load_model_checkpoint(
+        self, model_name: str = "model", epoch: int = 0, step: int = 0
+    ) -> Dict[str, Any]:
+        """Loads a checkpoint file without restoring trainer state.
+
+        Args:
+          model_name: Base checkpoint name.
+          epoch: Epoch number.
+          step: Step number for partial checkpoints.
+
+        Returns:
+          The checkpoint dictionary loaded from disk.
+        """
         if step == 0:
             file_path = "%s/%s_ep%04d.pth" % (self.exp_path, model_name, epoch)
         else:
-            file_path = "%s/%s_ep%04d_steps%10d.pth" % (
+            file_path = "%s/%s_ep%04d_step%010d.pth" % (
                 self.exp_path,
                 model_name,
                 epoch,
@@ -856,36 +1116,64 @@ class LegacyTorchTrainer:
         logging.info("loading %s from %s", model_name, file_path)
         return torch.load(file_path, map_location=torch.device("cpu"))
 
-    def load_checkpoint(self, epoch, step):
+    def load_checkpoint(self, epoch: int, step: int) -> Optional[Dict[str, Any]]:
+        """Loads a checkpoint file and restores the trainer state.
+
+        Args:
+          epoch: Epoch number.
+          step: Step number for partial checkpoints.
+
+        Returns:
+          Saved logs if present, otherwise ``None``.
+        """
         checkpoint = self.load_model_checkpoint("model", epoch, step)
         return self._load_checkpoint(checkpoint)
 
-    def old_load_checkpoint(self, file_path):
+    def old_load_checkpoint(self, file_path: str) -> Optional[Dict[str, Any]]:
         """Loads a training checkpoint from file.
 
         Args:
            file_path: checkpoint file path
+
+        Returns:
+          Saved logs if present, otherwise ``None``.
         """
         checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
         return self._load_checkpoint(checkpoint)
 
-    def old_load_last_checkpoint(self):
-        """Loads the last training checkpoint in the experiment dir."""
+    def old_load_last_checkpoint(self) -> Optional[Dict[str, Any]]:
+        """Loads the last legacy-format checkpoint in the experiment dir.
+
+        Returns:
+          Saved logs if a checkpoint is found, otherwise ``None``.
+        """
         for epoch in range(self.epochs, 0, -1):
             file_path = Path("%s/model_ep%04d.pth" % (self.exp_path, epoch))
             if file_path.is_file():
-                steps_pattern = "%s/model_ep%04d_steps*.pth" % (self.exp_path, epoch)
+                steps_pattern = "%s/model_ep%04d_step*.pth" % (self.exp_path, epoch)
                 steps_file_paths = sorted(glob.glob(steps_pattern))
                 if len(steps_file_paths) > 0:
                     file_path = steps_file_paths[-1]
 
-                return self.load_checkpoint(file_path)
+                return self.old_load_checkpoint(str(file_path))
 
         return None
 
     @staticmethod
-    def get_augs_keys(batch, base_key, skip=set()):
-        keys = []
+    def get_augs_keys(
+        batch: Dict[str, Any], base_key: str, skip: set = set()
+    ) -> List[str]:
+        """Collects augmentation keys present in a batch.
+
+        Args:
+          batch: Batch dictionary.
+          base_key: Base key to inspect.
+          skip: Keys to omit from the returned list.
+
+        Returns:
+          Ordered list of matching keys.
+        """
+        keys: List[str] = []
         if base_key in batch and base_key not in skip:
             keys.append(base_key)
 
@@ -909,12 +1197,27 @@ class LegacyTorchTrainer:
         return keys
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters keyword arguments for :class:`LegacyTorchTrainer`.
+
+        Returns:
+          Keyword arguments accepted by the trainer constructor.
+        """
         args = filter_func_args(LegacyTorchTrainer.__init__, kwargs)
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
+    def add_class_args(
+        parser: Any, prefix: Optional[str] = None, train_modes: Optional[List[str]] = None, skip: set = set()
+    ) -> None:
+        """Registers trainer arguments on an ``ArgumentParser``.
+
+        Args:
+          parser: Parser instance to extend.
+          prefix: Optional nested prefix.
+          train_modes: Allowed train-mode values.
+          skip: Argument names to skip.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

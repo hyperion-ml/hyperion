@@ -38,8 +38,35 @@ class CSVLogger(Logger):
         self.append = append
         self.csv_writer: Optional[csv.DictWriter] = None
         self.csv_file: Optional[TextIO] = None
-        self.append_header = True
         self.log_keys: Optional[List[str]] = None
+        self.fieldnames: Optional[List[str]] = None
+
+    @staticmethod
+    def _has_step_columns(fieldnames: Optional[List[str]]) -> bool:
+        """Checks whether a CSV header already includes batch/step columns."""
+        return fieldnames is not None and "batch" in fieldnames and "global_step" in fieldnames
+
+    def _rewrite_legacy_file(self, fieldnames: List[str]) -> None:
+        """Rewrites an existing legacy CSV file with the modern schema."""
+        if not self.file_path.exists():
+            return
+
+        with self.file_path.open("r", newline="") as f:
+            reader = csv.DictReader(f, delimiter=self.sep)
+            rows = list(reader)
+
+        modern_fieldnames = ["epoch", "batch", "global_step"] + [
+            k for k in fieldnames if k not in {"epoch", "batch", "global_step"}
+        ]
+        with self.file_path.open("w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=modern_fieldnames, delimiter=self.sep)
+            writer.writeheader()
+            for row in rows:
+                row = dict(row)
+                row.setdefault("batch", "NA")
+                row.setdefault("global_step", "NA")
+                writer.writerow(row)
+            f.flush()
 
     def on_train_begin(
         self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
@@ -59,13 +86,16 @@ class CSVLogger(Logger):
 
         if self.append:
             if self.file_path.exists():
-                with self.file_path.open("r") as f:
-                    self.append_header = len(f.readline()) == 0
-
-        if self.append_header:
-            self.csv_file = self.file_path.open("w")
+                with self.file_path.open("r", newline="") as f:
+                    reader = csv.reader(f, delimiter=self.sep)
+                    existing_fieldnames = next(reader, None)
+                if existing_fieldnames is not None and not self._has_step_columns(
+                    existing_fieldnames
+                ):
+                    self._rewrite_legacy_file(existing_fieldnames)
+            self.csv_file = self.file_path.open("a", newline="")
         else:
-            self.csv_file = self.file_path.open("a")
+            self.csv_file = self.file_path.open("w", newline="")
 
     def on_epoch_end(
         self, logs: Optional[Dict[str, Any]] = None, **kwargs: Any
@@ -89,28 +119,15 @@ class CSVLogger(Logger):
             class MyDialect(csv.excel):
                 delimiter = self.sep
 
-            if self.cur_step == 0:
-                # legacy support for old versions
-                fieldnames = ["epoch"] + self.log_keys
-            else:
-                fieldnames = ["epoch", "batch", "global_step"] + self.log_keys
+            fieldnames = ["epoch", "batch", "global_step"] + self.log_keys
             self.csv_writer = csv.DictWriter(
                 self.csv_file, fieldnames=fieldnames, dialect=MyDialect
             )
-            if self.append_header:
-                self.csv_writer.writeheader()
+            self.csv_writer.writeheader()
 
-        if self.cur_step == 0:
-            # legacy support for old versions
-            row = ODict([("epoch", self.cur_epoch + 1)])
-        else:
-            row = ODict(
-                [
-                    ("epoch", self.cur_epoch + 1),
-                    ("batch", self.cur_batch),
-                    ("global_step", self.cur_step),
-                ]
-            )
+        batch = kwargs.get("batch", self.cur_batch)
+        step = kwargs.get("step", kwargs.get("global_step", self.cur_step))
+        row = ODict([("epoch", self.cur_epoch + 1), ("batch", batch), ("global_step", step)])
         row.update((k, logs[k] if k in logs else "NA") for k in self.log_keys)
         self.csv_writer.writerow(row)
         self.csv_file.flush()

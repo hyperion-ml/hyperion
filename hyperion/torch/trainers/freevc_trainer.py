@@ -30,7 +30,7 @@ from ..losses import (
 )
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
-from ..models.audio_discrimitator.audio_multi_discriminator import (
+from ..models.audio_discriminator.audio_multi_discriminator import (
     AudioDiscriminatorTrainMode,
 )
 from ..models.freevc.freevc import FreeVCFwdMode, FreeVCTrainMode

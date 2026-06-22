@@ -21,6 +21,7 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import PathLike, filter_func_args
+from ..hyper_torch_model import HyperTorchModel
 from ..loggers import LoggerList
 from ..losses import (
     AudioDiscriminatorAdvLoss,
@@ -31,13 +32,12 @@ from ..losses import (
 )
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
-from ..models.audio_discrimitator.audio_multi_discriminator import (
+from ..models.audio_discriminator.audio_multi_discriminator import (
     AudioDiscriminatorTrainMode,
 )
 from ..models.freevc.freevc import FreeVCFwdMode, FreeVCTrainMode
 from ..narchs.audio_feats_mvn import AudioFeatsMVN
 from ..optim import OptimizerFactory as OF
-from ..hyper_torch_model import HyperTorchModel
 from ..utils.misc import rand_slice_audio_segments, slice_segments
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
