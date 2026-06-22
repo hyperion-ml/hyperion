@@ -1035,18 +1035,19 @@ class TorchTrainerBase:
         Returns:
             Dict[str, Any]: Same dictionary, but all tensor values moved to the target device.
         """
-        for k, v in batch_data.items():
-            if isinstance(v, torch.Tensor):
-                assert v.is_pinned()
+        if self.device is None:
+            return batch_data
 
-        return {
-            k: (
-                v.to(self.device, non_blocking=True)
-                if isinstance(v, torch.Tensor) and v.device != self.device
-                else v
-            )
-            for k, v in batch_data.items()
-        }
+        device = torch.device(self.device)
+        output_batch_data = {}
+        for k, v in batch_data.items():
+            if isinstance(v, torch.Tensor) and v.device != device:
+                non_blocking = v.is_pinned() and device.type == "cuda"
+                output_batch_data[k] = v.to(device, non_blocking=non_blocking)
+            else:
+                output_batch_data[k] = v
+
+        return output_batch_data
 
     def _get_batch_device_type(self, batch_data: Dict[str, Any]) -> str:
         """Returns the device type used by tensors in a batch.
