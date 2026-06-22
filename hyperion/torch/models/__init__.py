@@ -4,7 +4,15 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 """
 
-from .dac import DAC
+from .audio_discriminator import (
+    AudioDiscriminatorTrainMode,
+    AudioMultiDiscriminator,
+    AudioMultiDiscriminatorOutput,
+    AudioPeriodDiscriminator,
+    AudioScaleDiscriminator,
+    AudioSpectralDiscriminator,
+)
+from .dac import DAC, DACOutput, DACTrainMode, StreamingDAC, StreamingDACState
 from .freevc import HFWavLMFreeVC
 from .qvectors import HFWav2Vec2QVector, QVectorOutput, QVectorTrainMode, ResNetQVector
 from .transducer import RNNRNNTransducer, RNNTransducer
