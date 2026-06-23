@@ -40,6 +40,7 @@ class CSVLogger(Logger):
         self.csv_file: Optional[TextIO] = None
         self.log_keys: Optional[List[str]] = None
         self.fieldnames: Optional[List[str]] = None
+        self._header_written = False
 
     @staticmethod
     def _has_step_columns(fieldnames: Optional[List[str]]) -> bool:
@@ -93,8 +94,10 @@ class CSVLogger(Logger):
                     existing_fieldnames
                 ):
                     self._rewrite_legacy_file(existing_fieldnames)
+            self._header_written = self.file_path.exists() and self.file_path.stat().st_size > 0
             self.csv_file = self.file_path.open("a", newline="")
         else:
+            self._header_written = False
             self.csv_file = self.file_path.open("w", newline="")
 
     def on_epoch_end(
@@ -120,14 +123,19 @@ class CSVLogger(Logger):
                 delimiter = self.sep
 
             fieldnames = ["epoch", "batch", "global_step"] + self.log_keys
+            self.fieldnames = fieldnames
             self.csv_writer = csv.DictWriter(
                 self.csv_file, fieldnames=fieldnames, dialect=MyDialect
             )
-            self.csv_writer.writeheader()
+            if not self._header_written:
+                self.csv_writer.writeheader()
+                self._header_written = True
 
         batch = kwargs.get("batch", self.cur_batch)
         step = kwargs.get("step", kwargs.get("global_step", self.cur_step))
-        row = ODict([("epoch", self.cur_epoch + 1), ("batch", batch), ("global_step", step)])
+        row = ODict(
+            [("epoch", self.cur_epoch + 1), ("batch", batch), ("global_step", step)]
+        )
         row.update((k, logs[k] if k in logs else "NA") for k in self.log_keys)
         self.csv_writer.writerow(row)
         self.csv_file.flush()
@@ -156,3 +164,4 @@ class CSVLogger(Logger):
             self.csv_file.close()
         self.csv_file = None
         self.csv_writer = None
+        self._header_written = False
