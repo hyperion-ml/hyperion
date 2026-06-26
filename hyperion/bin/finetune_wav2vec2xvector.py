@@ -28,8 +28,12 @@ from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import (
     HFHubert2ResNet1dXVector,
+    HFWav2Vec2Bert2ConformerV1XVector,
+    HFWav2Vec2Bert2ResNet1dXVector,
     HFWav2Vec2ResNet1dXVector,
     HFWavLM2ResNet1dXVector,
+    HFWhisper2ConformerV1XVector,
+    HFWhisper2ResNet1dXVector,
 )
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
@@ -39,6 +43,10 @@ model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,
     "hf_hubert2resnet1d": HFHubert2ResNet1dXVector,
     "hf_wavlm2resnet1d": HFWavLM2ResNet1dXVector,
+    "hf_whisper2resnet1d": HFWhisper2ResNet1dXVector,
+    "hf_wav2vec2bert2resnet1d": HFWav2Vec2Bert2ResNet1dXVector,
+    "hf_whisper2conformer": HFWhisper2ConformerV1XVector,
+    "hf_wav2vec2bert2conformer": HFWav2Vec2Bert2ConformerV1XVector,
 }
 
 
