@@ -12,10 +12,10 @@ import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
-from .hyp_sampler import HypSampler
+from .hyper_sampler import HyperSampler
 
 
-class EmbedSampler(HypSampler):
+class EmbedSampler(HyperSampler):
     def __init__(
         self,
         embed_set,

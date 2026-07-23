@@ -15,10 +15,10 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils import ClassInfo
 from ...utils.misc import filter_func_args
-from .hyp_sampler import HypSampler
+from .hyper_sampler import HyperSampler
 
 
-class ClassWeightedEmbedSampler(HypSampler):
+class ClassWeightedEmbedSampler(HyperSampler):
     def __init__(
         self,
         embed_set,

@@ -7,7 +7,7 @@ import logging
 import math
 import time
 from collections import OrderedDict
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -37,37 +37,52 @@ from ..utils import collate_seqs_1d, collate_seqs_nd, list_of_dicts_to_list
 
 
 class AudioDataset(Dataset):
-    """AudioDataset class
+    """Dataset that reads audio and supervision attributes from a HyperDataset.
 
     Args:
-      recordings_file: recordings manifest file (kaldi .scp or pandas .csv)
-      segments_file: segments manifest file (kaldi .scp or pandas .csv)
-      class_names: list with the names of the types of classes in the datasets, e.g., speaker, language
-      class_files: list of class info files
-      tokenizer_mappings: list mapping the segment_set fields to the tokenizer name
-            that should be used with them, e.g., text->text-1,
-            this argument has to be sync with tokenizer_files.
-      tokenizer_files: list of tokenizer cofinguration files
-            this argument has to be sync with tokenizer_mappings.
-      aug_cfgs: list of augmentation configuration files
-      num_augs: number of augmentations per segment and augmentation type
-      num_aug_mix: "number of AugMix augmentations per segment
-      aug_mix_alpha: AugMix Diritchlet distribution parameter
-      return_segment_info: list of columns of the segment file which should be returned as supervisions
-      return_orig: when using augmentation, whether or not to return also the original audio
-      target_sample_freq: target sampling frequencey, if not None all audios are converted to this sample freq
-      wav_scale: make waves to be in [-wav_scale, wav_scale]
-      is_val: is validation dataset.
-      enable_tel_codecs_if: condition to enable telephone codec augmentation,
-            for example use only if the segment is not conv. tel. speech: source_type != 'cts'
-      enable_media_codecs_if: condition to enable media codec augmentation,
-            for example use only if the segment is audio from video: source_type == 'afv'
-      enable_transcodecs_if: condition to enable transcodec augmentation,
-            for example use transcodec only if the segment is spoof: spoof_det == 'spoof'
-      seed: random seed",
-      time_durs_file: (deprecated) segment to duration in secs file, if durations are not in segments_file
-      text_file: (deprecated) text file with words labels for each utterances.
-      bpe_model: (deprecated) bpe model for the text label.
+      dataset_path: HyperDataset file or directory.
+      class_names: Class attribute names to return as integer class indexes.
+      tokenizer_mappings: Mappings from input segment attributes and tokenizer
+            aliases to output attributes, formatted as input->tokenizer->output.
+      tokenizer_files: Tokenizer aliases and configuration files, formatted as
+            alias:path.
+      extra_attrs: Extra segment attributes to return without conversion.
+      aug_cfgs: Augmentation configuration files.
+      num_augs: Number of augmentations per segment and augmentation type.
+      num_aug_mix: Number of AugMix augmentations per segment.
+      aug_mix_alpha: AugMix Dirichlet and beta distribution parameter.
+      target_sample_freq: Target sample frequency. If not None, audio is
+            resampled to this frequency.
+      wav_scale: Multiplicative factor for waveform samples.
+      is_val: Whether this is a validation dataset.
+      enable_tel_codecs_if: SegmentSet expression controlling telephone codec
+            augmentation.
+      enable_media_codecs_if: SegmentSet expression controlling media codec
+            augmentation.
+      enable_transcodec_if: SegmentSet expression controlling transcodec
+            augmentation.
+      seed: Random seed.
+      bpe_model: Deprecated SentencePiece model for text labels.
+
+    Attributes:
+      dataset: Loaded HyperDataset instance.
+      r: Random access audio reader.
+      rank: Distributed process rank.
+      world_size: Distributed world size.
+      epoch: Current sampler epoch.
+      is_val: Whether this is a validation dataset.
+      class_names: Class attributes returned by the dataset.
+      extra_attrs: Additional raw segment attributes returned by the dataset.
+      tokenizers: Mapping from tokenizer aliases to tokenizer instances.
+      output_attrs_to_input: Mapping from output attributes to input segment
+            attributes.
+      output_attrs_to_tokenizers: Mapping from output attributes to tokenizer
+            aliases.
+      augmenters: Audio augmenters applied in __getitem__.
+      reverb_context: Maximum left context required by the augmenters.
+      target_sample_freq: Optional target sample frequency.
+      resampler: Optional target-frequency resampler.
+      rng: NumPy random generator used for AugMix.
     """
 
     def __init__(
@@ -80,7 +95,7 @@ class AudioDataset(Dataset):
         aug_cfgs: Optional[List[str]] = None,
         num_augs: int = 1,
         num_aug_mix: int = 0,
-        aug_mix_alpha: float = 0,
+        aug_mix_alpha: float = 0.5,
         target_sample_freq: Optional[float] = None,
         wav_scale: float = 1.0,
         is_val: bool = False,
@@ -89,7 +104,32 @@ class AudioDataset(Dataset):
         enable_transcodec_if: Optional[str] = None,
         seed: int = 112358,
         bpe_model: Optional[str] = None,
-    ):
+    ) -> None:
+        """Initializes an AudioDataset.
+
+        Args:
+          dataset_path: HyperDataset file or directory.
+          class_names: Class attribute names to return as integer class indexes.
+          tokenizer_mappings: Mappings formatted as input->tokenizer->output.
+          tokenizer_files: Tokenizer aliases and configuration files formatted
+            as alias:path.
+          extra_attrs: Extra segment attributes to return without conversion.
+          aug_cfgs: Augmentation configuration files.
+          num_augs: Number of augmentations per segment and augmentation type.
+          num_aug_mix: Number of AugMix augmentations per segment.
+          aug_mix_alpha: AugMix Dirichlet and beta distribution parameter.
+          target_sample_freq: Optional target sample frequency.
+          wav_scale: Multiplicative factor for waveform samples.
+          is_val: Whether this is a validation dataset.
+          enable_tel_codecs_if: SegmentSet expression controlling telephone
+            codec augmentation.
+          enable_media_codecs_if: SegmentSet expression controlling media codec
+            augmentation.
+          enable_transcodec_if: SegmentSet expression controlling transcodec
+            augmentation.
+          seed: Random seed.
+          bpe_model: Deprecated SentencePiece model for text labels.
+        """
         super().__init__()
         try:
             rank = dist.get_rank()
@@ -117,7 +157,7 @@ class AudioDataset(Dataset):
 
         self.is_val = is_val
         self.class_names = class_names if class_names is not None else []
-        self.exta_attrs = extra_attrs if extra_attrs is not None else []
+        self.extra_attrs = extra_attrs if extra_attrs is not None else []
 
         # logging.info("loading class-info files")
         # self._load_class_infos(class_names, class_files, is_val)
@@ -157,7 +197,12 @@ class AudioDataset(Dataset):
         if enable_transcodec_if:
             segments.eval(f"enable_transcodec = {enable_transcodec_if}", inplace=True)
 
-    def _load_bpe_model(self, bpe_model):
+    def _load_bpe_model(self, bpe_model: str) -> None:
+        """Loads a deprecated SentencePiece BPE model.
+
+        Args:
+          bpe_model: Path to the SentencePiece model.
+        """
         if self.rank == 0:
             logging.info("loading bpe file %s", bpe_model)
         self.sp = spm.SentencePieceProcessor()
@@ -193,7 +238,18 @@ class AudioDataset(Dataset):
     #                         "%s class: %s not present in dataset", name, c_id
     #                     )
 
-    def _load_tokenizers(self, tokenizer_files, tokenizer_mappings):
+    def _load_tokenizers(
+        self,
+        tokenizer_mappings: Optional[List[str]],
+        tokenizer_files: Optional[List[str]],
+    ) -> None:
+        """Loads tokenizers and segment-to-output attribute mappings.
+
+        Args:
+          tokenizer_mappings: Mappings formatted as input->tokenizer->output.
+          tokenizer_files: Tokenizer aliases and configuration files formatted
+            as alias:path.
+        """
         self.tokenizers = OrderedDict()
         self.output_attrs_to_input = OrderedDict()
         self.output_attrs_to_tokenizers = OrderedDict()
@@ -202,6 +258,7 @@ class AudioDataset(Dataset):
             assert tokenizer_files is None
             return
 
+        assert tokenizer_files is not None
         logging.info("loading tokenizers")
 
         for tokenizer_file in tokenizer_files:
@@ -214,12 +271,24 @@ class AudioDataset(Dataset):
             tokenizer = HypTokenizer.auto_load(tokenizer_file)
             self.tokenizers[tokenizer_name] = tokenizer
 
+        segments = self.dataset.segments()
         for map in tokenizer_mappings:
             in_attr_name, tokenizer_name, out_attr_name = map.split("->", maxsplit=2)
+            assert (
+                in_attr_name in segments
+            ), f"field {in_attr_name} not present in the segment set"
+            assert (
+                tokenizer_name in self.tokenizers
+            ), f"tokenizer {tokenizer_name} not present in tokenizer_files"
             self.output_attrs_to_input[out_attr_name] = in_attr_name
             self.output_attrs_to_tokenizers[out_attr_name] = tokenizer_name
 
-    def _create_augmenters(self, aug_cfgs):
+    def _create_augmenters(self, aug_cfgs: Optional[List[str]]) -> None:
+        """Creates the speech augmentation pipeline.
+
+        Args:
+          aug_cfgs: Augmentation configuration files.
+        """
         self.augmenters = []
         self.reverb_context = 0
         if aug_cfgs is None:
@@ -233,10 +302,16 @@ class AudioDataset(Dataset):
             self.augmenters.append(augmenter)
             self.reverb_context = max(augmenter.max_reverb_context, self.reverb_context)
 
-    def set_epoch(self, epoch):
+    def set_epoch(self, epoch: int) -> None:
+        """Sets the current epoch.
+
+        Args:
+          epoch: Epoch number.
+        """
         self.epoch = epoch
 
-    def _maybe_reseed_worker(self):
+    def _maybe_reseed_worker(self) -> None:
+        """Reseeds random generators once inside each DataLoader worker."""
         if self._worker_reseeded:
             return
 
@@ -255,51 +330,111 @@ class AudioDataset(Dataset):
         self._worker_reseeded = True
 
     @property
-    def segments(self):
-        """Returns the segments dataframe."""
+    def segments(self) -> SegmentSet:
+        """Returns the segments of the dataset.
+
+        Returns:
+          Segment metadata table.
+        """
         return self.dataset.segments()
 
     @property
-    def wav_scale(self):
+    def wav_scale(self) -> float:
+        """Returns the waveform scale.
+
+        Returns:
+          Waveform multiplicative scale.
+        """
         return self.r.wav_scale
 
     @property
-    def num_seqs(self):
+    def num_seqs(self) -> int:
+        """Returns the number of sequences.
+
+        Returns:
+          Number of sequences in the dataset.
+        """
         return len(self.dataset)
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Returns the number of sequences.
+
+        Returns:
+          Number of sequences in the dataset.
+        """
         return self.num_seqs
 
     @property
-    def seq_lengths(self):
+    def seq_lengths(self) -> pd.Series:
+        """Returns sequence durations.
+
+        Returns:
+          Series containing segment durations in seconds.
+        """
         return self.dataset.segments()["duration"]
 
     @property
-    def total_length(self):
+    def total_length(self) -> float:
+        """Returns the total duration.
+
+        Returns:
+          Sum of all sequence durations.
+        """
         return np.sum(self.seq_lengths)
 
     @property
-    def min_seq_length(self):
+    def min_seq_length(self) -> float:
+        """Returns the shortest duration.
+
+        Returns:
+          Minimum sequence duration.
+        """
         return np.min(self.seq_lengths)
 
     @property
-    def max_seq_length(self):
+    def max_seq_length(self) -> float:
+        """Returns the longest duration.
+
+        Returns:
+          Maximum sequence duration.
+        """
         return np.max(self.seq_lengths)
 
     @property
-    def num_classes(self):
+    def num_classes(self) -> Dict[str, int]:
+        """Returns the number of classes for each requested class attribute.
+
+        Returns:
+          Dictionary keyed by class attribute name.
+        """
         return {k: self.dataset.classes_value(k).num_classes for k in self.class_names}
 
     @property
-    def class_info(self):
+    def class_info(self) -> Dict[str, ClassInfo]:
+        """Returns class metadata tables.
+
+        Returns:
+          Dictionary keyed by class attribute name.
+        """
         return {k: self.dataset.classes_value(k) for k in self.class_names}
 
-    def _parse_segment_item(self, segment):
+    def _parse_segment_item(
+        self, segment: Union[str, Tuple[str, float, float], List[Any]]
+    ) -> Tuple[str, float, float]:
+        """Parses a dataset index or chunk tuple.
+
+        Args:
+          segment: Segment id, or tuple/list with segment id, start, and
+            duration.
+
+        Returns:
+          Segment id, start time, and duration.
+        """
         if isinstance(segment, (tuple, list)):
             seg_id, start, duration = segment
             assert duration <= self.dataset.segments().loc[seg_id].duration, (
                 f"{seg_id} with start={start} duration "
-                f"({self.seg_set.loc[seg_id].duration}) < "
+                f"({self.dataset.segments().loc[seg_id].duration}) < "
                 f"chunk duration ({duration})"
             )
         else:
@@ -307,7 +442,19 @@ class AudioDataset(Dataset):
 
         return seg_id, start, duration
 
-    def _read_audio(self, seg_id, start, duration):
+    def _read_audio(
+        self, seg_id: str, start: float, duration: float
+    ) -> Tuple[np.ndarray, int]:
+        """Reads one audio segment.
+
+        Args:
+          seg_id: Segment id.
+          start: Start time in seconds.
+          duration: Duration in seconds. Zero means read the full segment.
+
+        Returns:
+          Waveform samples and sample frequency.
+        """
         # how much extra audio we need to load to
         # calculate the reverb of the first part of the audio
         reverb_context = min(self.reverb_context, start)
@@ -326,34 +473,51 @@ class AudioDataset(Dataset):
             logging.warning("maximum/minimum values: %.3f/%.3f", x.max(), x.min())
         return x, fs[0]
 
-    def _get_enable_codecs(self, seg_id):
+    def _get_enable_codecs(self, seg_id: str) -> Dict[str, bool]:
+        """Gets augmentation codec switches for a segment.
+
+        Args:
+          seg_id: Segment id.
+
+        Returns:
+          Dictionary of codec enable flags.
+        """
+        segments = self.dataset.segments()
         enable_codecs = {
             "enable_tel_codecs": True,
             "enable_media_codecs": True,
             "enable_transcodec": True,
         }
         if self.enable_tel_codecs_if is not None:
-            enable_codecs["enable_tel_codecs"] = self.seg_set.loc[
-                seg_id, "enable_tel_codecs"
-            ]
+            enable_codecs["enable_tel_codecs"] = segments.loc[seg_id, "enable_tel_codecs"]
 
         if self.enable_media_codecs_if is not None:
-            enable_codecs["enable_media_codecs"] = self.seg_set.loc[
+            enable_codecs["enable_media_codecs"] = segments.loc[
                 seg_id, "enable_media_codecs"
             ]
 
         if self.enable_transcodec_if is not None:
-            enable_codecs["enable_transcodec"] = self.seg_set.loc[
-                seg_id, "enable_transcodec"
-            ]
+            enable_codecs["enable_transcodec"] = segments.loc[seg_id, "enable_transcodec"]
 
         return enable_codecs
 
-    def _apply_aug_mix(self, x, x_augs, aug_idx):
+    def _apply_aug_mix(
+        self, x: np.ndarray, x_augs: Dict[str, np.ndarray], aug_idx: int
+    ) -> Dict[str, np.ndarray]:
+        """Applies AugMix to a set of augmented waveforms.
+
+        Args:
+          x: Original waveform.
+          x_augs: Augmented waveforms to mix.
+          aug_idx: Augmenter index used in output keys.
+
+        Returns:
+          Dictionary with AugMix waveform outputs.
+        """
         x_aug_mix = {}
         alpha_d = (self.aug_mix_alpha,) * len(x_augs)
         w = self.rng.dirichlet(alpha_d, self.num_aug_mix)
-        m = self.rng.beta(alpha_d, self.num_aug_mix)
+        m = self.rng.beta(self.aug_mix_alpha, self.aug_mix_alpha, self.num_aug_mix)
         for i in range(self.num_aug_mix):
             x_mix = np.zeros_like(x)
             for j, (_, x_aug_j) in enumerate(x_augs.items()):
@@ -364,8 +528,19 @@ class AudioDataset(Dataset):
         return x_aug_mix
 
     def _apply_augs(
-        self, x: np.array, duration: int, fs: int, enable_codecs: Dict[str, bool]
-    ):
+        self, x: np.ndarray, duration: float, fs: int, enable_codecs: Dict[str, bool]
+    ) -> Dict[str, np.ndarray]:
+        """Applies configured augmentations to a waveform.
+
+        Args:
+          x: Input waveform.
+          duration: Requested segment duration in seconds.
+          fs: Sample frequency.
+          enable_codecs: Codec augmentation switches.
+
+        Returns:
+          Dictionary of augmented waveform outputs.
+        """
         if not self.augmenters:
             return {}
 
@@ -400,7 +575,15 @@ class AudioDataset(Dataset):
 
         return x_augs
 
-    def _get_segment_attrs(self, seg_id):
+    def _get_segment_attrs(self, seg_id: str) -> Dict[str, Any]:
+        """Gets supervision and extra attributes for a segment.
+
+        Args:
+          seg_id: Segment id.
+
+        Returns:
+          Dictionary of segment attributes.
+        """
         seg_attrs = {}
 
         # tokenizer_name = ""
@@ -425,18 +608,38 @@ class AudioDataset(Dataset):
                 class_id, "class_idx"
             ]
 
-        for attr_name in self.exta_attrs:
+        for attr_name in self.extra_attrs:
             seg_attrs[attr_name] = self.dataset.segments().loc[seg_id, attr_name]
 
         return seg_attrs
 
-    def _resample(self, x, fs):
+    def _resample(self, x: np.ndarray, fs: int) -> Tuple[np.ndarray, int]:
+        """Resamples a waveform when a target sample frequency is configured.
+
+        Args:
+          x: Input waveform.
+          fs: Input sample frequency.
+
+        Returns:
+          Waveform and sample frequency after optional resampling.
+        """
         if self.target_sample_freq is None:
             return x, fs
 
         return self.resampler(x, fs)
 
-    def __getitem__(self, segment):
+    def __getitem__(
+        self, segment: Union[str, Tuple[str, float, float], List[Any]]
+    ) -> Dict[str, Any]:
+        """Reads one dataset item.
+
+        Args:
+          segment: Segment id, or tuple/list with segment id, start, and
+            duration.
+
+        Returns:
+          Dictionary containing audio, metadata, and optional augmentations.
+        """
         self._maybe_reseed_worker()
         seg_id, start, duration = self._parse_segment_item(segment)
         audio, fs = self._read_audio(seg_id, start, duration)
@@ -453,7 +656,15 @@ class AudioDataset(Dataset):
         return batch_data
 
     @staticmethod
-    def collate(batch):
+    def collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Collates a list of dataset items into a mini-batch.
+
+        Args:
+          batch: Dataset items returned by __getitem__.
+
+        Returns:
+          Collated mini-batch.
+        """
 
         # sort batch by the length of audios
         audio_lengths = []
@@ -531,17 +742,39 @@ class AudioDataset(Dataset):
 
         return output_batch
 
-    def get_collator(self):
+    def get_collator(self) -> Callable[[List[Dict[str, Any]]], Dict[str, Any]]:
+        """Returns the dataset collator.
+
+        Returns:
+          Callable that collates dataset items into a mini-batch.
+        """
         # return lambda batch: AudioDataset.collate(batch)
         return AudioDataset.collate
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters keyword arguments accepted by the constructor.
+
+        Args:
+          **kwargs: Candidate keyword arguments.
+
+        Returns:
+          Constructor keyword arguments.
+        """
         args = filter_func_args(AudioDataset.__init__, kwargs)
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: set = set()
+    ) -> None:
+        """Adds dataset constructor arguments to an argument parser.
+
+        Args:
+          parser: Argument parser.
+          prefix: Optional nested parser prefix.
+          skip: Argument names to skip.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -558,16 +791,24 @@ class AudioDataset(Dataset):
             default=None,
             nargs="+",
             help=(
-                "list with the names of the types of classes that the dataset has to return, e.g., speaker, language"
+                "list with the names of the types of classes that the dataset "
+                "has to return, e.g., speaker, language"
             ),
+        )
+
+        parser.add_argument(
+            "--extra-attrs",
+            default=None,
+            nargs="+",
+            help="extra segment attributes to return without conversion",
         )
 
         parser.add_argument(
             "--tokenizer-mappings",
             default=None,
             nargs="+",
-            help="""list mapping the segment_set fields to the tokenizer name 
-            that should be used with them, e.g., text->text-1,
+            help="""list mapping segment_set fields and tokenizer names to
+            output names, e.g., text->text-1->text_ids,
             this argument has to be sync with tokenizer_files.
             """,
         )
@@ -576,7 +817,8 @@ class AudioDataset(Dataset):
             "--tokenizer-files",
             default=None,
             nargs="+",
-            help="""list of tokenizer cofinguration files
+            help="""list of tokenizer names and configuration files, e.g.,
+            text-1:/path/to/tokenizer.yml,
             this argument has to be sync with tokenizer_mappings.
             """,
         )
@@ -619,7 +861,8 @@ class AudioDataset(Dataset):
             default=None,
             type=int,
             help=(
-                "target sampling frequencey, if not None all audios are converted to this sample freq"
+                "target sampling frequencey, if not None all audios are "
+                "converted to this sample freq"
             ),
         )
         parser.add_argument(

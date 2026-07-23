@@ -4,7 +4,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from typing import Optional, Union
+from typing import Any, Dict, Optional, Type, Union
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
@@ -13,21 +13,29 @@ from .bucketing_seg_sampler import BucketingSegSampler
 from .class_weighted_seg_chunk_sampler import ClassWeightedRandomSegChunkSampler
 from .feat_seq_dataset import FeatSeqDataset
 from .legacy_audio_dataset import LegacyAudioDataset
+from .random_seg_chunk_sampler import RandomSegChunkSampler
 from .seg_chunk_sampler import SegChunkSampler
 from .seg_sampler import LengthSamplingMethod, SegSampler
+from .hyper_sampler import HyperSampler
 
-sampler_dict = {
+sampler_dict: Dict[str, Type[HyperSampler]] = {
     "class_weighted_random_seg_chunk_sampler": ClassWeightedRandomSegChunkSampler,
+    "random_seg_chunk_sampler": RandomSegChunkSampler,
     "seg_sampler": SegSampler,
     "seg_chunk_sampler": SegChunkSampler,
     "bucketing_seg_sampler": BucketingSegSampler,
 }
 
 
-class SegSamplerFactory(object):
-    """Factory class to create different types of samplers for
-    sequencial data like audio or acoustic features.
+class SegSamplerFactory:
+    """Create samplers for sequential data such as audio or acoustic features.
+
+    Attributes:
+        sampler_types (Dict[str, Type[HyperSampler]]): Mapping from sampler type
+            names to their implementation classes.
     """
+
+    sampler_types: Dict[str, Type[HyperSampler]] = sampler_dict
 
     @staticmethod
     def create(
@@ -35,13 +43,26 @@ class SegSamplerFactory(object):
         sampler_type: str = "class_weighted_random_seg_chunk_sampler",
         base_sampler_type: str = "seg_sampler",
         subbase_sampler_type: str = "seg_sampler",
-        **kwargs,
-    ):
-        """Functions that creates a sequence sampler based on a dataset, sampler_type and sampler arguments.
+        **kwargs: Any,
+    ) -> HyperSampler:
+        """Create a sequence sampler from dataset metadata and configuration.
 
         Args:
-          dataset: sequence dataset object containing the data info of class AudioDataset or FeatSeqDataset.
-          sampler_type: string indicating the sampler type.
+            dataset: Dataset that provides ``segments`` and, for class-weighted
+                sampling, ``class_info``.
+            sampler_type: Registered top-level sampler type.
+            base_sampler_type: Registered base sampler for chunking or bucketing
+                samplers.
+            subbase_sampler_type: Registered base sampler used inside a bucketing
+                base sampler.
+            **kwargs: Sampler configuration arguments.
+
+        Returns:
+            Configured sampler instance.
+
+        Raises:
+            ValueError: If a sampler type is unknown or invalid for nesting, or a
+                requested class information table is unavailable.
         """
         if "batch_size" in kwargs:
             if kwargs["batch_size"] is not None:
@@ -49,38 +70,59 @@ class SegSamplerFactory(object):
             else:
                 del kwargs["batch_size"]
 
-        sampler_class = sampler_dict[sampler_type]
+        if sampler_type not in SegSamplerFactory.sampler_types:
+            raise ValueError(f"Unknown sampler_type={sampler_type}.")
+        sampler_class = SegSamplerFactory.sampler_types[sampler_type]
         sampler_kwargs = sampler_class.filter_args(**kwargs)
 
-        if base_sampler_type not in sampler_dict:
-            raise ValueError(f"Unknown base_sampler_type={base_sampler_type}")
-
-        if subbase_sampler_type not in sampler_dict:
-            raise ValueError(f"Unknown subbase_sampler_type={subbase_sampler_type}")
-
-        if sampler_type in ["bucketing_seg_sampler", "seg_chunk_sampler"]:
-            base_sampler_class = sampler_dict[base_sampler_type]
+        uses_base_sampler = sampler_type in (
+            "bucketing_seg_sampler",
+            "seg_chunk_sampler",
+        )
+        valid_base_sampler_types = ("seg_sampler", "bucketing_seg_sampler")
+        if uses_base_sampler:
+            if base_sampler_type not in valid_base_sampler_types:
+                raise ValueError(
+                    "base_sampler_type must be one of "
+                    f"{valid_base_sampler_types}, got {base_sampler_type!r}."
+                )
+            base_sampler_class = SegSamplerFactory.sampler_types[base_sampler_type]
             base_sampler_kwargs = base_sampler_class.filter_args(**kwargs)
             sampler_kwargs.update(base_sampler_kwargs)
             sampler_kwargs["base_sampler"] = base_sampler_class
             if base_sampler_type == "bucketing_seg_sampler":
-                subbase_sampler_class = sampler_dict[subbase_sampler_type]
-                subbase_sampler_kwargs = subbase_sampler_class.filter_args(**kwargs)
-                sampler_kwargs.update(subbase_sampler_kwargs)
+                if subbase_sampler_type not in valid_base_sampler_types:
+                    raise ValueError(
+                        "subbase_sampler_type must be one of "
+                        f"{valid_base_sampler_types}, got {subbase_sampler_type!r}."
+                    )
+                sampler_kwargs["subbase_sampler"] = (
+                    SegSamplerFactory.sampler_types[subbase_sampler_type]
+                )
 
-        if sampler_type in ["class_weighted_random_seg_chunk_sampler"]:
+        if sampler_type == "class_weighted_random_seg_chunk_sampler":
+            class_name = sampler_kwargs.get("class_name", "class_id")
             try:
-                class_name = sampler_kwargs["class_name"]
-            except:
-                class_name = "class_id"
-            sampler_kwargs["class_info"] = dataset.class_info[class_name]
+                sampler_kwargs["class_info"] = dataset.class_info[class_name]
+            except KeyError as error:
+                raise ValueError(
+                    f"Dataset does not provide class_info for class_name={class_name!r}."
+                ) from error
 
-        logging.info(f"sampler-args={sampler_kwargs}")
+        logging.info("sampler-args=%s", sampler_kwargs)
 
         return sampler_class(dataset.segments, **sampler_kwargs)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments accepted by :meth:`create`.
+
+        Args:
+            **kwargs: Candidate factory and sampler configuration arguments.
+
+        Returns:
+            Dictionary containing only arguments accepted by the factory.
+        """
 
         valid_args = (
             "dataset",
@@ -103,6 +145,7 @@ class SegSamplerFactory(object):
             "weight_exponent",
             "seg_weight_mode",
             "num_hard_prototypes",
+            "affinity_matrix",
             "class_name",
             "length_name",
             "iters_per_epoch",
@@ -110,14 +153,23 @@ class SegSamplerFactory(object):
             "max_batches_per_epoch",
             "shuffle",
             "drop_last",
+            "sample_all_segments",
             "sort_by_length",
             "seed",
         )
 
-        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        return {key: kwargs[key] for key in valid_args if key in kwargs}
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(
+        parser: ArgumentParser, prefix: Optional[str] = None
+    ) -> None:
+        """Add sampler factory configuration arguments to a parser.
+
+        Args:
+            parser: Argument parser to populate.
+            prefix: Optional key under which to nest these arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -204,6 +256,8 @@ class SegSamplerFactory(object):
 
         parser.add_argument(
             "--max-batch-length",
+            "--max-batch-duration",
+            dest="max_batch_length",
             type=float,
             default=None,
             help="Maximum total duration (in seconds) of segments/chunks in a batch. Used to control memory usage.",
@@ -266,7 +320,13 @@ class SegSamplerFactory(object):
         parser.add_argument(
             "--drop-last",
             action=ActionYesNo,
-            help="If set, drops the last batch in the epoch if it has fewer than min-batch-size samples.",
+            help="Drop the final partial batch in fixed-size SegSampler mode.",
+        )
+        parser.add_argument(
+            "--sample-all-segments",
+            default=False,
+            action=ActionYesNo,
+            help="Cover every segment at least once per epoch when supported by the selected sampler.",
         )
 
         parser.add_argument(
@@ -299,14 +359,6 @@ class SegSamplerFactory(object):
             default="class_id",
             help="Column name in the segment table that represents the class or label of each segment.",
         )
-        parser.add_argument(
-            "--skip-long-segs",
-            default=False,
-            action=ActionYesNo,
-            help="If True, skips segments longer than max-batch-length when sampling batches. This is useful to avoid memory issues with long segments."
-            "",
-        )
-
         parser.add_argument(
             "--sort-by-length",
             default=True,
