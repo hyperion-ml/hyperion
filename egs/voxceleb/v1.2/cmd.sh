@@ -10,19 +10,23 @@
 # conf/queue.conf in http://kaldi-asr.org/doc/queue.html for more information,
 # or search for the string 'default_config' in utils/queue.pl or utils/slurm.pl.
 
-if [ "$(hostname -d)" == "cm.gemini" ];then
-    #export train_cmd="queue.pl --config conf/coe_gpu_short.conf --mem 4G"
-    export train_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 4G"
-    export cuda_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 20G"
-    export cuda_cmd="queue.pl --config conf/coe_gpu_rtx.conf --mem 40G"
-    #export cuda_cmd="queue.pl --config conf/coe_gpu_v100.conf --mem 20G"
-    export cuda_eval_cmd="queue.pl --config conf/coe_gpu_short.conf --mem 4G"
-    # export cuda_eval_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 4G"
+if [ "$(hostname -d)" == "grid.cluster" ];then
+  # #export train_cmd="queue.pl --config conf/coe_gpu_short.conf --mem 4G"
+  # export train_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 4G"
+  # export cuda_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 20G"
+  # export cuda_cmd="queue.pl --config conf/coe_gpu_rtx.conf --mem 40G"
+  # #export cuda_cmd="queue.pl --config conf/coe_gpu_v100.conf --mem 20G"
+  # export cuda_eval_cmd="queue.pl --config conf/coe_gpu_short.conf --mem 4G"
+  # # export cuda_eval_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 4G"
+  export train_cmd="slurm.pl --mem 8G --config conf/slurm_coe_v100.conf"
+  export cuda_cmd="slurm.pl --mem 32G --num-threads 9 --config conf/slurm_coe_v100.conf"
+  export cuda_eval_cmd="$train_cmd"
 else
-    export train_cmd="queue.pl --mem 4G -l hostname=\"[bc][01]*\" -V" 
-    export cuda_cmd="queue.pl --mem 20G -l hostname=\"c[01]*\" -V"
-    export cuda_eval_cmd="$train_cmd"
+  export train_cmd="queue.pl --mem 4G -l hostname=\"[bc][01]*\" -V" 
+  export cuda_cmd="queue.pl --mem 20G -l hostname=\"c[01]*\" -V"
+  export cuda_eval_cmd="$train_cmd"
 fi
+
 
 
 

@@ -22,7 +22,7 @@ if [ "$(hostname -y)" == "clsp" ];then
   voxceleb1_root=/export/corpora5/VoxCeleb1_v2 # VoxCeleb1 v2
   voxceleb2_root=/export/corpora5/VoxCeleb2
   musan_root=/export/corpora5/JHU/musan
-elif [ "$(hostname --domain)" == "cm.gemini" ];then
+elif [ "$(hostname --domain)" == "grid.cluster" ];then
   # Example configuration for the CM Gemini cluster.
   voxceleb1_root=/exp/jvillalba/corpora/voxceleb1 # VoxCeleb1 v2
   voxceleb2_root=/expscratch/dgromero/corpora-open/vox2
