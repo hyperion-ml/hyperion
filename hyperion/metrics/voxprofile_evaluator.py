@@ -56,13 +56,14 @@ class VoxProfileEvaluator:
             >>> print(stats[["num_segments"]])
             >>> segments.save("exp/segments_metrics.csv")
 
-        CLI:
-            ``python -m hyperion.bin.eval_voxprofile_metrics \\
-              --segments-file data/segments.csv \\
-              --recordings-file data/recordings.csv \\
-              --batch-size 8 \\
-              --global-metrics-file exp/global_metrics.csv \\
-              --segments-metrics-file exp/segments_metrics.csv``
+        CLI example::
+
+            python -m hyperion.bin.eval_voxprofile_metrics \
+                --segments-file data/segments.csv \
+                --recordings-file data/recordings.csv \
+                --batch-size 8 \
+                --global-metrics-file exp/global_metrics.csv \
+                --segments-metrics-file exp/segments_metrics.csv
     """
 
     def __init__(

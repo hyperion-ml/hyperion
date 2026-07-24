@@ -249,10 +249,7 @@ class DiarAHCPLDA:
           hist_file: Optional path to save score histogram plot.
 
         Returns:
-          cluster_ids: Cluster assignments. Shape is ``(num_segments,)`` when no
-            interval merge is requested, otherwise ``(num_merged_segments,)``.
-          t_start: Input/merged segment start times if provided.
-          t_end: Input/merged segment end times if provided.
+          Tuple containing cluster assignments and optional segment start/end times.
         """
         if x.ndim != 2:
             raise ValueError(

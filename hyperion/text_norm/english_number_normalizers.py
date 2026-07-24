@@ -404,6 +404,7 @@ class EnglishNumberNormalizer:
         Preprocess a string to normalize patterns that could affect numeric interpretation.
 
         This method performs the following:
+
         - Replaces patterns like "<number> and a half" with "<number> point five"
           if the preceding word is a recognized number or multiplier.
         - Inserts spaces between number-letter boundaries (e.g., "20th" → "20 th")
@@ -415,7 +416,7 @@ class EnglishNumberNormalizer:
 
         Returns:
             str: A preprocessed string suitable for further normalization.
-    """
+        """
         # replace "<number> and a half" with "<number> point five"
         results = []
 

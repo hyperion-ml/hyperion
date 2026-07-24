@@ -100,10 +100,9 @@ class AHC(HyperNPModel):
 
         Args:
           t: threshold or number of clusters
-          criterion: if "threshold" with llr/prob larger than threshold or
-                    distance lower than threshold.
-                     if "num_clusters" returns the clusters corresponding
-                     to selecting a given number of clusters.
+          criterion: ``"threshold"`` selects scores above the threshold for
+            LLR/probability inputs (or distances below it). ``"num_clusters"``
+            selects the requested number of clusters.
 
         Returns:
           Clusters assigments for x as numpy integer vector (num_samples,).

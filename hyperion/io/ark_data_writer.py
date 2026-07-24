@@ -22,14 +22,14 @@ class ArkDataWriter(DataWriter):
 
     Attributes:
       archive_path: output data file path.
-      script_path: optional output scp file.
+      script_path: Optional output index file.
       binary: True if the the Ark file is binary, False if it is text file.
       flush: If True, it flushes the output after writing each feature file.
-      compress: It True, it uses Kaldi compression.
-      compression_method: Kaldi compression method:
-                          {auto (default), speech_feat,
-                           2byte-auto, 2byte-signed-integer,
-                           1byte-auto, 1byte-unsigned-integer, 1byte-0-1}.
+      compress: Whether to use Kaldi compression.
+      compression_method: Kaldi compression method. Supported values are
+        ``auto`` (default), ``speech_feat``, ``2byte-auto``,
+        ``2byte-signed-integer``, ``1byte-auto``,
+        ``1byte-unsigned-integer``, and ``1byte-0-1``.
 
     """
 
@@ -61,12 +61,12 @@ class ArkDataWriter(DataWriter):
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        """Function required when exiting from constructions of type
+        """Exit the writer context and close the output file.
 
-           with ArkDataWriter('file.h5') as f:
-              f.write(key, data)
+        Example::
 
-        It closes the output file.
+            with ArkDataWriter("file.ark") as writer:
+                writer.write(key, data)
         """
         self.close()
 

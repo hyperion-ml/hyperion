@@ -28,24 +28,9 @@ class TransformList(HyperNPModel):
     Attributes:
       transforms: list of transformation objects.
 
-    Example:
-      ```python
-      import numpy as np
-      from hyperion.np.transforms import MVN, PCA, TransformList
+    Example::
 
-      rng = np.random.default_rng(1234)
-      x = rng.standard_normal((3000, 256))
-
-      mvn = MVN()
-      mvn.fit(x)
-
-      pca = PCA(pca_dim=128)
-      pca.fit(mvn.predict(x))
-
-      pipeline = TransformList([mvn, pca], name="frontend")
-      y = pipeline.predict(x)
-      print(y.shape)  # (3000, 128)
-      ```
+      pipeline = TransformList([MVN(), PCA(pca_dim=128)], name="frontend")
     """
 
     def __init__(

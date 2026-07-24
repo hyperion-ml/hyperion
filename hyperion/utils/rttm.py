@@ -300,16 +300,13 @@ class RTTM:
         return key in self.segments.segment_id
 
     def __getitem__(self, key: Union[str, int]) -> Union["RTTM", pd.Series]:
-        """It allows to acces the de segments by file_id or segment
-           like in a ditionary, e.g.:
-           If input is a string key:
-               segmetns = SegmentList(...)
-               segment, tbeg, tend = segments['file']
+        """Access RTTM segments by file key or integer position.
+
         Args:
-          key: Segment or file key
+          key: File key or integer position.
+
         Returns:
-          if index_by_file is True if returns segments of a given file_id
-          in SegmentsList format, else it returns DataFrame
+          An ``RTTM`` object for a file or a row from the segment table.
         """
         if self.index_by_file:
             df = self.segments.loc[key]

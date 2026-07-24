@@ -21,6 +21,20 @@ Hyperion is a Speaker Recognition Toolkit based on PyTorch and numpy. It provide
 
 The full API is described in the documentation page [https://hyperion-ml.readthedocs.io](https://hyperion-ml.readthedocs.io)
 
+## Building the documentation
+
+Install the documentation dependencies and run the repository build script:
+
+```bash
+python3 -m pip install -r docs/requirements.txt
+./docs/build.sh
+```
+
+The generated site is at `docs/_build/html/index.html`. The script treats
+documentation warnings as errors. See the
+[documentation build guide](docs/building-documentation.rst) for link checking,
+doctests, and cleanup commands.
+
 ## Installation Instructions
 
 ### Prerequisites
@@ -184,5 +198,3 @@ hyperion/tools
     - tools: contains external repos and tools like kaldi, python, cudnn, etc.
     - tests: unit tests for the classes in hyperion
     - resources: data files required by unittest or recipes
-
-

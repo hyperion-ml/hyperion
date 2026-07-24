@@ -13,6 +13,12 @@ Generation flow:
 3. Each script is mapped to ``hyperion-<script-name>`` in ``pyproject.toml``.
 4. Dependencies are loaded from ``requirements.txt``.
 
+The machine-readable classification source is ``docs/cli_inventory.json``. It
+contains one record for every maintained executable module in ``hyperion/bin``:
+the installed command name, task family, stable/experimental status, planned
+guide page, and optional runtime requirements. Later CLI reference pages and CI
+checks are generated from or validated against this inventory.
+
 Regenerate entry points with:
 
 .. code-block:: bash
@@ -28,55 +34,64 @@ A script file like ``hyperion/bin/train_qvector.py`` becomes command:
 
    hyperion-train-qvector
 
-Current command groups
-----------------------
+Task-oriented command index
+----------------------------
 
-Training / fine-tuning:
+The following complete index is generated from ``docs/cli_inventory.json``.
+Stable commands are supported public interfaces. Experimental commands are
+visible for evaluation, but their configuration and checkpoint compatibility
+are not guaranteed across minor releases. Family guides with full workflows
+are linked below.
 
-* ``hyperion-train-qvector``
-* ``hyperion-train-dac``
-* ``hyperion-train-freevc``
-* ``hyperion-train-vi-anonymizer``
-* ``hyperion-train-wav2xvector``
-* ``hyperion-train-wav2vec2xvector``
-* ``hyperion-train-xvector-from-wav``
-* ``hyperion-finetune-dac``
-* ``hyperion-finetune-vi-anonymizer``
-* ``hyperion-finetune-wav2xvector``
+.. include:: generated/cli-index.rst
 
-Extraction / inference:
+Family guides
+-------------
 
-* ``hyperion-extract-wav2xvectors``
-* ``hyperion-extract-wav2vec2xvectors``
-* ``hyperion-extract-xvectors-from-wav``
-* ``hyperion-infer-qvectors``
+.. toctree::
+   :maxdepth: 1
 
-Evaluation / scoring:
+   cli/training
+   cli/fine-tuning
+   cli/extraction-inference
+   cli/backend-scoring-evaluation
+   cli/data-preparation
+   cli/conversion
+   cli/visualization-utilities
+   cli/experimental
 
-* ``hyperion-eval-verification-metrics``
-* ``hyperion-eval-verification-calibration``
-* ``hyperion-eval-verification-greedy-fusion``
-* ``hyperion-eval-speech-quality-metrics``
-* ``hyperion-eval-voxprofile-metrics``
-* ``hyperion-eval-plda-backend``
+Generated command and option reference
+--------------------------------------
 
-Data preparation / utilities:
+The complete parser-derived option reference is generated from command
+``--help`` output. It is included separately because it is intentionally an
+exact parser snapshot rather than a task guide:
 
-* ``hyperion-prepare-data``
-* ``hyperion-preprocess-audio-files``
-* ``hyperion-compute-mfcc-feats``
-* ``hyperion-compute-energy-vad``
-* ``hyperion-convert-vad-format``
-* ``hyperion-dataset``
-* ``hyperion-tables``
+.. toctree::
+   :maxdepth: 1
+
+   generated/cli-reference
 
 Scope notes
 -----------
 
 * ``hyperion/bin_deprec`` and ``hyperion/bin_deprec2`` are deprecated and not
   part of the documented CLI surface.
-* ``decode_wav2transducer`` and ``decode_wav2vec2rnn_transducer`` are currently
-  excluded from this documentation scope.
+* Experimental transducer decoders are listed in
+  :doc:`experimental-components`.
+
+Optional dependencies and TPM commands
+--------------------------------------
+
+The generated index labels **conditional runtime requirements**: dependencies,
+extras, model assets, or network retrieval needed for that command, but not for
+every Hyperion workflow. This does not promise that an asset is installed,
+licensed, available offline, or compatible with an arbitrary device.
+
+The policy for package extras, local assets, first-run downloads, offline
+execution, and stable TPM wrappers is defined in :doc:`optional-dependencies`.
+For reproducible work, provide local assets and pin model revisions rather than
+depending on a mutable remote default or a personal cache.
 
 Discover commands
 -----------------

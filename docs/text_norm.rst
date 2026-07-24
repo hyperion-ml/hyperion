@@ -1,39 +1,44 @@
-Text Normalization
-==================
+Text Normalization API
+======================
 
-Overview
---------
-
-``hyperion.text_norm`` contains text normalization utilities for ASR and speech
-processing evaluation pipelines.
-
-Primary components include:
-
-* ``BasicTextNormalizer``
-* ``EnglishTextNormalizer``
-* English number normalization helpers
-* spelling normalization helpers
-
-Package exports
----------------
-
-.. automodule:: hyperion.text_norm
-   :members:
+``hyperion.text_norm`` provides reusable normalization for speech transcripts,
+ASR targets, and text-based evaluation. Normalization policy is task-specific:
+record the normalizer configuration with any metric result that depends on it.
 
 Core normalizers
 ----------------
 
-.. automodule:: hyperion.text_norm.text_normalizer
-   :members:
+.. autoclass:: hyperion.text_norm.BasicTextNormalizer
+   :no-index:
+   :members: __call__
 
-.. automodule:: hyperion.text_norm.english_text_normalizer
-   :members:
+.. autoclass:: hyperion.text_norm.EnglishTextNormalizer
+   :no-index:
+   :members: __call__
 
-Helper modules
---------------
+``BasicTextNormalizer`` handles Unicode, punctuation/symbol removal,
+diacritics, bracketed text, whitespace, and optional grapheme splitting.
+``EnglishTextNormalizer`` adds English-oriented behavior. Apply the same
+normalizer to references and hypotheses before computing text metrics.
 
-.. automodule:: hyperion.text_norm.english_number_normalizers
-   :members:
+Numbers and spelling
+--------------------
 
-.. automodule:: hyperion.text_norm.spelling_normalizer
-   :members:
+.. autoclass:: hyperion.text_norm.english_number_normalizers.EnglishNumberNormalizer
+   :no-index:
+
+.. autoclass:: hyperion.text_norm.english_number_normalizers.EnglishReverseNumberNormalizer
+   :no-index:
+
+.. autoclass:: hyperion.text_norm.spelling_normalizer.SpellingNormalizer
+   :no-index:
+
+The number and spelling helpers are English-specific. Do not silently apply
+them to another language; use a language-appropriate normalization policy and
+document it with the evaluation protocol.
+
+See also
+--------
+
+* :doc:`metrics`
+* :doc:`documentation-policy`

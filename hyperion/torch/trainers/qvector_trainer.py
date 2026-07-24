@@ -27,56 +27,54 @@ from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
 class QVectorTrainer(SingleModelTrainer):
     """Trainer specialized for Q-vector models with categorical accuracy tracking.
 
-    Attributes (includes inherited members):
-        model (HyperTorchModel): Model instance to optimize.
-        optim (torch.optim.Optimizer | Dict[str, Any]): Optimizer or optimizer config.
-        lrsched (Optional[LRS]): Learning-rate scheduler or configuration dict.
-        wdsched (Optional[WDS]): Weight-decay scheduler or configuration dict.
-        train_mode (str): Name of the model's train mode to activate (e.g., ``\"full\"``).
-        exp_path (PathLike): Directory for checkpoints/logs.
-        num_epochs (int): Total training epochs to run.
-        cur_epoch (int): Epoch index to resume from.
-        max_steps (Optional[int]): Global step budget overriding epoch count.
-        cur_step (int): Current global optimization step.
-        grad_acc_steps (int): Minibatches accumulated before each optimizer step.
-        eff_batch_size (Optional[int]): Reference effective batch size.
-        val_steps (Optional[int]): Steps between validation passes.
-        val_hours (Optional[float]): Wall-clock hours between validation passes.
-        save_steps (Optional[int]): Steps between checkpoint saves.
-        save_hours (Optional[float]): Wall-clock hours between checkpoint saves.
-        device (Union[torch.device, int, None]): Device where the model executes.
-        loggers (LoggerList): Active logger instances.
-        ddp (bool): Whether DistributedDataParallel is enabled.
-        ddp_type (DDPType): Selected DDP backend flavor.
-        fsdp_reshard_after_forward (bool|int|None): FSDP2 reshard policy after forward.
-        fsdp_mp_param_dtype (FSDPMPDType|None): FSDP2 mixed-precision parameter dtype.
-        fsdp_mp_reduce_dtype (FSDPMPDType|None): FSDP2 mixed-precision reduction dtype.
-        fsdp_mp_output_dtype (FSDPMPDType|None): FSDP2 mixed-precision output dtype.
-        fsdp_cpu_offload (bool): Enables CPU offload for FSDP2.
-        use_amp (bool): Enables automatic mixed precision.
-        amp_dtype (AMPDType): Precision (float16/bfloat16) to use with AMP.
-        bf16_grad_scaler (bool): Enables GradScaler when using bfloat16 AMP.
-        log_interval (int): Step interval between progress logs.
-        use_tensorboard (bool): Enables TensorBoard logging.
-        use_wandb (bool): Enables Weights & Biases logging.
-        wandb (Dict[str, Any]): Additional W&B configuration.
-        grad_clip (float): Gradient-norm clipping threshold.
-        grad_clip_norm (Union[str, int]): Norm definition for clipping.
-        swa_start (int): Step at which to begin SWA averaging.
-        swa_lr (float): Learning rate used while performing SWA.
-        swa_anneal_steps (int): Steps used for SWA LR annealing.
-        swa_update_steps (int): Interval between SWA weight updates.
-        bn_update_steps (int): Max steps for BN statistics refresh after SWA.
-        compile_model (bool): Enables ``torch.compile`` for the model forward.
-        compile_dynamic (bool): Enables dynamic-shape compilation when compiling.
-        input_key (str): Key for the audio tensor in dataloader batches.
-        target_key (str): Key for supervision labels in the batch.
-        qmatrix_code_rate_weight (float): Weight applied to the q-matrix code-rate
-            regularizer in the total loss.
-        prototype_code_rate_weight (float): Weight applied to the prototype
-            code-rate regularizer in the total loss.
-        categorical_acc_metric (CategoricalAccuracy): Metric accumulator used when
-            the model exposes a `HydraClassifHeadOutput`.
+    Attributes (including inherited members):
+
+      model (HyperTorchModel): Model instance to optimize.
+      optim (torch.optim.Optimizer or Dict[str, Any]): Optimizer or optimizer configuration.
+      lrsched (Optional[LRS]): Learning-rate scheduler or configuration dictionary.
+      wdsched (Optional[WDS]): Weight-decay scheduler or configuration dictionary.
+      train_mode (str): Name of the model training mode to activate, for example ``"full"``.
+      exp_path (PathLike): Directory for checkpoints and logs.
+      num_epochs (int): Total number of epochs to run.
+      cur_epoch (int): Epoch index from which to resume.
+      max_steps (Optional[int]): Global step budget overriding the epoch count.
+      cur_step (int): Current global optimization step.
+      grad_acc_steps (int): Minibatches accumulated before each optimizer step.
+      eff_batch_size (Optional[int]): Reference effective batch size.
+      val_steps (Optional[int]): Steps between validation passes.
+      val_hours (Optional[float]): Wall-clock hours between validation passes.
+      save_steps (Optional[int]): Steps between checkpoint saves.
+      save_hours (Optional[float]): Wall-clock hours between checkpoint saves.
+      device (torch.device, int, or None): Device on which the model executes.
+      loggers (LoggerList): Active logger instances.
+      ddp (bool): Whether DistributedDataParallel is enabled.
+      ddp_type (DDPType): Selected distributed-data-parallel backend flavor.
+      fsdp_reshard_after_forward (bool, int, or None): FSDP2 reshard policy after the forward pass.
+      fsdp_mp_param_dtype (FSDPMPDType or None): FSDP2 mixed-precision parameter dtype.
+      fsdp_mp_reduce_dtype (FSDPMPDType or None): FSDP2 mixed-precision reduction dtype.
+      fsdp_mp_output_dtype (FSDPMPDType or None): FSDP2 mixed-precision output dtype.
+      fsdp_cpu_offload (bool): Enables CPU offload for FSDP2.
+      use_amp (bool): Enables automatic mixed precision.
+      amp_dtype (AMPDType): Precision (float16 or bfloat16) used with AMP.
+      bf16_grad_scaler (bool): Enables GradScaler with bfloat16 AMP.
+      log_interval (int): Step interval between progress logs.
+      use_tensorboard (bool): Enables TensorBoard logging.
+      use_wandb (bool): Enables Weights & Biases logging.
+      wandb (Dict[str, Any]): Additional Weights & Biases configuration.
+      grad_clip (float): Gradient-norm clipping threshold.
+      grad_clip_norm (str or int): Norm definition used for clipping.
+      swa_start (int): Step at which to begin stochastic weight averaging.
+      swa_lr (float): Learning rate used during stochastic weight averaging.
+      swa_anneal_steps (int): Steps used for SWA learning-rate annealing.
+      swa_update_steps (int): Interval between SWA weight updates.
+      bn_update_steps (int): Maximum steps used to refresh batch-norm statistics after SWA.
+      compile_model (bool): Enables ``torch.compile`` for model forward passes.
+      compile_dynamic (bool): Enables dynamic-shape compilation.
+      input_key (str): Key for the audio tensor in dataloader batches.
+      target_key (str): Key for supervision labels in dataloader batches.
+      qmatrix_code_rate_weight (float): Weight applied to the q-matrix code-rate regularizer in the total loss.
+      prototype_code_rate_weight (float): Weight applied to the prototype code-rate regularizer in the total loss.
+      categorical_acc_metric (CategoricalAccuracy): Metric accumulator used when the model exposes ``HydraClassifHeadOutput``.
     """
 
     def __init__(

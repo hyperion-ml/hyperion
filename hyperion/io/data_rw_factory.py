@@ -88,13 +88,16 @@ class DataWriterFactory:
       >>> w.close()
 
       Parse external kwargs before creating a writer:
-      >>> kwargs = {"compress": True, "compression_method": "speech_feat"}
-      >>> writer_kwargs = DataWriterFactory.filter_args(**kwargs)
-      >>> w = DataWriterFactory.create("h5:out/feat.h5", **writer_kwargs)
+      >>> writer_kwargs = DataWriterFactory.filter_args(
+      ...     compress=True, compression_method="speech_feat"
+      ... )
+      >>> w = DataWriterFactory.create(
+      ...     "h5:out/feat.h5", compress=writer_kwargs["compress"]
+      ... )
       >>> w.close()
 
-      Create an Ark writer with traditional SCP sidecar:
-      >>> w = DataWriterFactory.create("ark,scp:out/feat.ark,out/feat.scp")
+      Create an Ark writer with a CSV sidecar:
+      >>> w = DataWriterFactory.create("ark,csv:out/feat.ark,out/feat.csv")
       >>> w.close()
     """
 
@@ -228,9 +231,12 @@ class SequentialDataReaderFactory:
       >>> r.close()
 
       Parse kwargs from a larger config dictionary:
-      >>> kwargs = {"path_prefix": "/mnt/storage", "part_idx": 2, "num_parts": 8}
-      >>> reader_kwargs = SequentialDataReaderFactory.filter_args(**kwargs)
-      >>> r = SequentialDataReaderFactory.create("scp:data/feat.scp", **reader_kwargs)
+      >>> reader_kwargs = SequentialDataReaderFactory.filter_args(
+      ...     path_prefix="/mnt/storage", part_idx=2, num_parts=8
+      ... )
+      >>> r = SequentialDataReaderFactory.create(
+      ...     "csv:data/feat.csv", path_prefix=reader_kwargs["path_prefix"]
+      ... )
       >>> r.close()
     """
 
@@ -336,7 +342,7 @@ class RandomAccessDataReaderFactory:
       >>> r.close()
 
       Create random-access Ark reader from an scp file:
-      >>> r = RandomAccessDataReaderFactory.create("scp:data/feat_ark.scp")
+      >>> r = RandomAccessDataReaderFactory.create("csv:data/feat_ark.csv")
       >>> r.close()
     """
 

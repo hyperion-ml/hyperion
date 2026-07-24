@@ -989,7 +989,7 @@ class TorchTrainerBase:
         """
         Constructs a dictionary of training logs to be consumed by loggers.
 
-        This method adds a "train_" prefix to all user-supplied log keys, then
+        This method adds a ``train_`` prefix to all user-supplied log keys, then
         appends learning rate, weight decay values, gradient statistics, and
         gradient scaling factor (if AMP is used).
 
@@ -1011,13 +1011,13 @@ class TorchTrainerBase:
         """
         Constructs a dictionary of validation logs to be consumed by loggers.
 
-        This method adds a "val_" prefix to all user-supplied log keys.
+        This method adds a ``val_`` prefix to all user-supplied log keys.
 
         Args:
             logs (Dict[str, Any]): Dictionary of base validation metrics (e.g., loss, accuracy).
 
         Returns:
-            Dict[str, Any]: Prefixed validation logs (keys prefixed with 'val_').
+            Dict[str, Any]: Prefixed validation logs (keys prefixed with ``val_``).
         """
         val_logs = ODict(("val_" + k, v) for k, v in logs.items())
         return val_logs

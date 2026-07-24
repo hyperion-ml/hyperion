@@ -376,10 +376,8 @@ class SpectralClustering(HyperNPModel):
           x: Affinity/similarity matrix with shape ``(num_nodes, num_nodes)``.
 
         Returns:
-          y: Cluster assignments with shape ``(num_nodes,)``.
-          num_clusters: Predicted (or fixed) number of clusters.
-          eigengap_stats: Eigengap statistics dictionary, or ``None`` when
-            ``num_clusters`` is fixed.
+          Tuple containing cluster assignments, the selected number of clusters,
+          and optional eigengap statistics.
         """
         if x.ndim != 2 or x.shape[0] != x.shape[1]:
             raise ValueError(f"x must be a square matrix, got shape={x.shape}")

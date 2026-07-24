@@ -26,7 +26,7 @@ class BinVADReader(VADReader):
 
     Examples:
       >>> from hyperion.io.bin_vad_reader import BinVADReader
-      >>> with BinVADReader("scp:data/vad.scp", frame_length=25, frame_shift=10) as r:
+      >>> with BinVADReader("csv:data/vad.csv", frame_length=25, frame_shift=10) as r:
       ...     vad = r.read_binary(["utt1", "utt2"])
       ...     t_start, t_end = r.read_time_marks(["utt1", "utt2"])
     """

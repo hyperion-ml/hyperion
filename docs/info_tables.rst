@@ -17,8 +17,8 @@ make dataset metadata easier to manipulate consistently:
 * domain-specific child classes add validation and helper methods for their
   own manifest schema
 
-This tutorial focuses on the table types that appear most often in recipe
-pipelines:
+This guide focuses on the table types that appear most often in package-level
+data preparation and evaluation workflows:
 
 * :class:`SegmentSet`
 * :class:`RecordingSet`
@@ -32,33 +32,27 @@ It also shows how the same patterns extend to :class:`FeatureSet`,
 Representative Example Tables
 -----------------------------
 
-This tutorial is based on representative CSV manifests from:
-
-* ``recipes/talsp_pseudospkgen/v1/data/voxceleb1_test``
-* ``recipes/talsp_pseudospkgen/v1/data/libriheavy_50k_annotated``
-* ``recipes/talsp_pseudospkgen/v1/data/cv_eng_train_annotated``
-
 The schemas vary by dataset and task. That is normal. ``InfoTable`` does not
-force every recipe to have exactly the same columns. It only standardizes the
-table mechanics and the key columns required by each subclass.
+force every dataset to have exactly the same columns. It standardizes table
+mechanics and the key columns required by each subclass.
 
-The three segment manifests already show the main pattern:
+The following illustrative segment manifests show the main pattern:
 
 .. code-block:: text
 
-   # voxceleb1_test/segments.csv
+   # segments.csv: utterances with speaker labels
    id,video_id,speaker,gender,nationality,language_est,language_est_conf,duration,corpusid,dataset,source_type
    id10001-1zcIwhmdeo4-00001,1zcIwhmdeo4,id10001,m,Ireland,english,0.99,8.1200625,voxceleb,voxceleb1,afv
 
 .. code-block:: text
 
-   # libriheavy_50k_annotated/segments.csv
+   # segments.csv: time-marked excerpts from recordings
    id,recording,start,duration,transcript,transcript_no_punc,speaker,book,language,...,voxprofile_narrow_accent,...
    libriheavy-100-sea_fairies_..._0,libriheavy-100-sea_fairies_...,243.919,7.359999999999985,"The little girl was thoughtful...",...,eng,...
 
 .. code-block:: text
 
-   # cv_eng_train_annotated/segments.csv
+   # segments.csv: clips with transcript and demographic labels
    id,speaker,transcript,duration,language,age_decade,gender,gender_extended,sentence_domain,up_votes,down_votes,...,voxprofile_narrow_accent,...
    cv-common_voice_en_100038,cv-04960d53...,Why does Melissandre look like she wants to consume Jon Snow...,7.704,eng,fourties,m,male_masculine,,2,0,...
 
@@ -208,7 +202,7 @@ Two important schema patterns
 
 Pattern 1: one row is a slice of a larger recording
 
-This is what the LibriHeavy example shows. The manifest contains
+This is what the time-marked excerpt example shows. The manifest contains
 ``recording``, ``start``, and ``duration``.
 
 .. code-block:: python
@@ -282,8 +276,8 @@ Because labels are just columns, many operations are simple:
 Use :class:`RecordingSet` for per-recording storage metadata. Each row points
 to an audio file.
 
-Representative schema
-~~~~~~~~~~~~~~~~~~~~~
+Recording schema
+~~~~~~~~~~~~~~~~
 
 All three examples you provided use the same core columns:
 
@@ -329,17 +323,18 @@ If ``duration`` and ``sample_freq`` are missing or need recomputation:
 This method inspects the audio files and writes the resulting ``duration`` and
 ``sample_freq`` columns back into the table in memory.
 
-Saving and loading Kaldi-style ``scp`` files
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Saving and loading CSV manifests
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``RecordingSet`` also supports ``.scp``:
+Use CSV for recording manifests:
 
 .. code-block:: python
 
-   recordings = RecordingSet.load("data/my_dataset/wav.scp")
-   recordings.save("tmp/wav.scp")
+   recordings = RecordingSet.load("data/my_dataset/recordings.csv")
+   recordings.save("tmp/recordings.csv")
 
-In that case the table stores only ``id`` and ``storage_path``.
+The table stores the stable ``id`` and ``storage_path`` columns, with optional
+duration and sample-rate metadata.
 
 ``EnrollmentMap``
 -----------------
@@ -347,7 +342,7 @@ In that case the table stores only ``id`` and ``storage_path``.
 Use :class:`EnrollmentMap` when a model is enrolled from one or more segments.
 Each row says that model ``id`` is associated with one ``segmentid``.
 
-Representative schema
+Enrollment-map schema
 ~~~~~~~~~~~~~~~~~~~~~
 
 On disk, the CSV commonly looks like this:
@@ -460,8 +455,8 @@ Other class vocabularies are smaller and often only need:
    m,0,0.5
    f,1,0.5
 
-Loading and inspection
-~~~~~~~~~~~~~~~~~~~~~~
+Class-info loading and inspection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -592,16 +587,16 @@ The same ideas extend to the other manifest classes.
 ``FeatureSet``
 ~~~~~~~~~~~~~~
 
-Use :class:`FeatureSet` for feature archives such as Kaldi ``feats.scp`` or
-CSV manifests with ``storage_path`` and optional frame offsets.
+Use :class:`FeatureSet` for CSV-indexed feature archives with ``storage_path``
+and optional frame offsets.
 
 .. code-block:: python
 
    from hyperion.utils import FeatureSet
 
-   feats = FeatureSet.load("data/my_dataset/feats.scp")
+   feats = FeatureSet.load("data/my_dataset/features.csv")
    feats.add_prefix_to_storage_path("/mnt/features")
-   feats.save("tmp/feats.scp")
+   feats.save("tmp/features.csv")
 
 ``VADSet``
 ~~~~~~~~~~
@@ -612,7 +607,7 @@ CSV manifests with ``storage_path`` and optional frame offsets.
 
    from hyperion.utils import VADSet
 
-   vad = VADSet.load("data/my_dataset/vad.scp")
+   vad = VADSet.load("data/my_dataset/vad.csv")
    vad = vad.filter(items=vad.df["id"].head(100).tolist())
 
 ``ImageSet``

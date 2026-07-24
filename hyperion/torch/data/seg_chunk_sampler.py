@@ -25,6 +25,7 @@ class SegChunkSampler(HyperSampler):
     where fixed-duration windows are needed but input segments vary in length.
 
     Each segment is split into chunks using the following logic:
+
     - Chunks are drawn with random or fixed length in [min_chunk_length, max_chunk_length].
     - Adjacent chunks may overlap, with overlap chosen randomly in [min_chunk_overlap, max_chunk_overlap].
     - Short tails are covered by shifting the final chunk backward; tails longer than

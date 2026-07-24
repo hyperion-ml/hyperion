@@ -49,9 +49,10 @@ def compute_min_dcf(
 ) -> Tuple[
     Union[float, np.ndarray], Union[float, np.ndarray], Union[float, np.ndarray]
 ]:
-    """Computes minimum DCF
-        min_DCF = min_t prior*p_miss(t) + (1-prior)*p_fa(t)
-       where t is the decision threshold.
+    """Computes minimum DCF.
+
+    ``min_DCF = min_t prior * p_miss(t) + (1 - prior) * p_fa(t)``, where
+    ``t`` is the decision threshold.
 
     Args:
       tar: Target scores.

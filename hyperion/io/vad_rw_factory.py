@@ -23,9 +23,9 @@ class VADReaderFactory:
     """Factory that builds VAD readers from Kaldi-style read specifiers.
 
     Examples:
-      Create a binary VAD reader from an Ark/H5 script:
-      >>> r = VADReaderFactory.create("scp:data/vad.scp", frame_length=25, frame_shift=10)
-      >>> vad = r.read_binary(["utt1", "utt2"])
+      Create a table-based VAD reader from a CSV index:
+      >>> r = VADReaderFactory.create("csv:data/vad.csv")
+      >>> marks = r.read_time_marks(["utt1", "utt2"])
       >>> r.close()
 
       Create a table-based VAD reader:
@@ -34,9 +34,12 @@ class VADReaderFactory:
       >>> r.close()
 
       Parse only factory-relevant arguments from a larger config:
-      >>> kwargs = {"path_prefix": "/mnt/vad", "frame_shift": 10.0, "foo": 1}
-      >>> vad_kwargs = VADReaderFactory.filter_args(**kwargs)
-      >>> r = VADReaderFactory.create("scp:data/vad.scp", **vad_kwargs)
+      >>> vad_kwargs = VADReaderFactory.filter_args(
+      ...     path_prefix="/mnt/vad", frame_shift=10.0, foo=1
+      ... )
+      >>> r = VADReaderFactory.create(
+      ...     "csv:data/vad.csv", path_prefix=vad_kwargs["path_prefix"]
+      ... )
       >>> r.close()
     """
 

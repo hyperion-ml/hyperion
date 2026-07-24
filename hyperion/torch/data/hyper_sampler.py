@@ -22,6 +22,7 @@ class HyperSampler(Sampler):
 
     This sampler does not implement a specific sampling strategy itself,
     but provides a consistent foundation for:
+
       - distributed training using torch.distributed
       - reproducible shuffling with seeding
       - checkpointable epoch and batch counters

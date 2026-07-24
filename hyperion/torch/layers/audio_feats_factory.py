@@ -95,7 +95,8 @@ class AudioFeatsFactory:
           preemphasis_coeff: Coefficient for use in signal preemphasis (default = 0.97)
           window_type:       Type of window ["hamming"|"hanning"|"povey"|"rectangular"|
                              "blackman"] (default = 'povey')
-          use_fft_mag:       If false, it uses |X(f)|^2, if true, it uses |X(f)|,
+          use_fft_mag:       If false, it uses ``|X(f)|^2``; if true, it uses
+                             ``|X(f)|``,
                              (default = False)
           dither:            Dithering constant (0.0 means no dither)
                              (default = 1/2**15)

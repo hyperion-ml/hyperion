@@ -135,75 +135,11 @@ After installation, verify import and command registration:
    hyperion-train-qvector --help
    hyperion-eval-verification-metrics --help
 
-Recipes
--------
-
-There are recipes for several tasks under ``egs/``.
-
-Recipe prerequisites
-~~~~~~~~~~~~~~~~~~~~
-
-Install extra tools required by recipes:
-
-.. code-block:: bash
-
-   ./install_egs_requirements.sh
-
-Most recipes do not require Kaldi (only some older Kaldi x-vector paths). If
-needed, link your Kaldi installation in ``tools``:
-
-.. code-block:: bash
-
-   cd tools
-   ln -s ${your_kaldi_path} kaldi
-   cd -
-
-Prepare recipe paths/environment:
-
-.. code-block:: bash
-
-   ./prepare_egs_paths.sh
-
-This script creates ``tools/path.sh`` with environment variables used by recipe
-scripts.
-
-Recipe structure
-~~~~~~~~~~~~~~~~
-
-Recipes are Kaldi-like in structure, with data directories containing files
-such as:
-
-.. code-block:: text
-
-   wav.scp
-   utt2spk
-   spk2utt
-   ...
-
-Running recipe stages
-~~~~~~~~~~~~~~~~~~~~~
-
-Recipes are usually split into numbered scripts, for example:
-
-.. code-block:: bash
-
-   run_001_prepare_data.sh
-   run_002_compute_vad.sh
-   run_010_prepare_audios_to_train_xvector.sh
-   run_011_train_xvector.sh
-   run_030_extract_xvectors.sh
-   run_040_evaluate_plda_backend.sh
-
-Alternative configs can be passed with ``--config-file``, for example:
-
-.. code-block:: bash
-
-   run_001_prepare_data.sh --config-file global_conf/alternative_conf.sh
-   run_011_train_xvector.sh --config-file global_conf/alternative_conf.sh
-   run_040_evaluate_plda_backend.sh --config-file global_conf/alternative_conf.sh
-
 See Also
 --------
 
+* :doc:`quickstart`
+* :doc:`data-model`
 * :doc:`architecture`
 * :doc:`cli`
+* :doc:`documentation-policy`

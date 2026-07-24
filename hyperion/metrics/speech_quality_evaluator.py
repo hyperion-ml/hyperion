@@ -97,8 +97,8 @@ class SpeechQualityEvaluator:
         num_parts (int):
             Total number of shards or splits for evaluation.
 
-    Example:
-        ```python
+    Example::
+
         from hyperion.metrics import SpeechQualityEvaluator
 
         evaluator = SpeechQualityEvaluator(
@@ -114,7 +114,6 @@ class SpeechQualityEvaluator:
             ref_column="clean_id",
         )
         stats, segments_scored = evaluator(return_df=True)
-        ```
     """
 
     def __init__(

@@ -350,5 +350,5 @@ This is useful when aligning segment extraction with augmentation context.
 See Also
 --------
 
-* :doc:`numpy`
-* :doc:`getting-started`
+* :doc:`/numpy`
+* :doc:`/getting-started`

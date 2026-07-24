@@ -387,7 +387,7 @@ class InfoTable:
         Return a new InfoTable with missing values dropped.
 
         Args:
-            *args, **kwargs: Passed to pandas.DataFrame.dropna.
+            *args, ``**kwargs``: Passed to pandas.DataFrame.dropna.
 
         Returns:
             InfoTable: A new instance with rows (or columns) with NA removed.

@@ -1,0 +1,9 @@
+# Reproducible runtime used to generate docs/generated/cli-reference.rst.
+-r ../requirements.txt
+
+# Hyperion's current audio augmentation import uses torchaudio.io, which is
+# available in this compatible release line but not in newer Torchaudio builds.
+torch==2.8.0
+torchaudio==2.8.0
+torchvision==0.23.0
+einops>=0.8,<1.0

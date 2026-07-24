@@ -94,21 +94,16 @@ class SCPList:
         Tuple[Any, Any, Optional[Any], Optional[np.ndarray]],
         Tuple[Any, Optional[Any], Optional[np.ndarray]],
     ]:
-        """It allows to acces the data in the list by key or index like in
-           a ditionary, e.g.:
-           If input is a string key:
-               scp = SCPList(keys, file_paths, offsets, ranges)
-               file_path, offset, range = scp['data1']
-           If input is an index:
-               key, file_path, offset, range = scp[0]
+        """Access list data by key or integer index.
+
+        For a string key, returns ``(file_path, offset, range_spec)``. For an
+        integer index, returns ``(key, file_path, offset, range_spec)``.
 
         Args:
           key: String key or integer index.
+
         Returns:
-          If key is a string:
-              file_path, offset and range_spec given the key.
-          If key is the index in the key list:
-              key, file_path, offset and range_spec given the index.
+          Data associated with ``key`` as described above.
         """
         return_key = True
         if isinstance(key, str):

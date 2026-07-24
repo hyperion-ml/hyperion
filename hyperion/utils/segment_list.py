@@ -120,16 +120,13 @@ class SegmentList:
         return key in self.segments.segment_id
 
     def getitem_by_key(self, key: str) -> Union["SegmentList", pd.Series]:
-        """It acceses the segments by file_id or segment_id
-           like in a ditionary, e.g.:
-           If input is a string key:
-               segmetns = SegmentList(...)
-               segment, tbeg, tend = segments.getiem_by_key('file')
+        """Access segments by file or segment identifier.
+
         Args:
-          key: Segment or file key
+          key: Segment or file key.
+
         Returns:
-          if index_by_file is True if returns segments of a given file_id
-          in SegmentsList format, else it returns DataFrame
+          A ``SegmentList`` for a file or a row from the segment table.
         """
         if self.index_by_file:
             df = self.segments.loc[key]
@@ -138,16 +135,13 @@ class SegmentList:
             return self.segments.loc[key]
 
     def getitem_by_index(self, index: int) -> Union["SegmentList", pd.Series]:
-        """It accesses the segments by index
-           like in a ditionary, e.g.:
-           If input is a string key:
-               segmetns = SegmentList(...)
-               segment, tbeg, tend = segments.getitem_by_index(0)
+        """Access segments by integer position.
+
         Args:
-          key: Segment or file key
+          index: Segment or file position.
+
         Returns:
-          if index_by_file is True if returns segments of a given file_id
-          in SegmentsList format, else it returns DataFrame
+          A ``SegmentList`` for a file or a row from the segment table.
         """
         if self.index_by_file:
             if index < len(self.uniq_file_id):
@@ -168,16 +162,13 @@ class SegmentList:
     def __getitem__(
         self, key: Union[str, int, np.integer]
     ) -> Union["SegmentList", pd.Series]:
-        """It accesses the de segments by file_id or segment_id
-           like in a ditionary, e.g.:
-           If input is a string key:
-               segmetns = SegmentList(...)
-               segment, tbeg, tend = segments['file']
+        """Access segments by file/segment key or integer position.
+
         Args:
-          key: Segment or file key
+          key: Segment or file key, or integer position.
+
         Returns:
-          if index_by_file is True if returns segments of a given file_id
-          in SegmentsList format, else it returns DataFrame
+          A ``SegmentList`` for a file or a row from the segment table.
         """
         if isinstance(key, str):
             return self.getitem_by_key(key)

@@ -261,10 +261,10 @@ cleanest way to represent a prepared corpus on disk.
            "gender": "data/train/gender.csv",
        },
        features={
-           "mfcc": "data/train/mfcc.scp",
-           "fbank": "data/train/fbank.scp",
+           "mfcc": "data/train/mfcc.csv",
+           "fbank": "data/train/fbank.csv",
        },
-       vads={"speech": "data/train/vad.scp"},
+       vads={"speech": "data/train/vad.csv"},
        diarizations={"oracle": "data/train/diarization.csv"},
    )
 
@@ -339,8 +339,9 @@ Typical usage:
 
    dataset = HyperDataset.from_kaldi("data/kaldi_train")
 
-Those helpers are useful when your recipe already produces Lhotse manifests or
-Kaldi-style ``wav.scp``, ``segments``, ``utt2spk``, ``vad.scp``, or feature SCPs.
+Those helpers are useful when an existing corpus tool produces compatible
+manifests. Convert them to Hyperion CSV tables before using them in new
+workflows.
 
 Lazy Loading And Access Patterns
 --------------------------------

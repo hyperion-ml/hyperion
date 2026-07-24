@@ -1,5 +1,5 @@
 Transforms Tutorial (NumPy)
-==========================
+===========================
 
 This tutorial shows practical usage patterns for ``hyperion.np.transforms``.
 

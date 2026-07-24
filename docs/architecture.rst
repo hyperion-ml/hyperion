@@ -19,7 +19,6 @@ Supporting folders:
 
 * ``docs/``: Sphinx documentation.
 * ``tests/``: unit/integration tests.
-* ``egs/``: recipe pipelines.
 
 NumPy stack
 -----------
@@ -29,6 +28,7 @@ NumPy stack
 The base class is:
 
 .. autoclass:: hyperion.np.HyperNPModel
+   :no-index:
 
 Major subpackages include:
 
@@ -51,8 +51,10 @@ The PyTorch stack is layered:
 Base classes:
 
 .. autoclass:: hyperion.torch.HyperTorchModel
+   :no-index:
 
 .. autoclass:: hyperion.torch.narchs.net_arch.NetArch
+   :no-index:
 
 Training and data
 -----------------
@@ -66,8 +68,10 @@ Training/data-related packages live under ``hyperion.torch``:
 Current canonical trainer foundation is:
 
 .. autoclass:: hyperion.torch.trainers.torch_trainer_base.TorchTrainerBase
+   :no-index:
 
 .. autoclass:: hyperion.torch.trainers.single_model_trainer.SingleModelTrainer
+   :no-index:
 
 Third-party wrappers (TPM)
 --------------------------

@@ -1,136 +1,178 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from typing import Optional, Union
+from typing import Any, Dict, Optional, Type
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from .bucketing_seg_sampler import BucketingSegSampler
-from .class_weighted_embed_sampler import ClassWeightedEmbedSampler
+from .class_weighted_random_embed_sampler import ClassWeightedRandomEmbedSampler
 from .embed_dataset import EmbedDataset
 from .embed_sampler import EmbedSampler
+from .hyper_sampler import HyperSampler
 
-sampler_dict = {
-    "class_weighted_embed_sampler": ClassWeightedEmbedSampler,
+
+sampler_dict: Dict[str, Type[HyperSampler]] = {
+    "class_weighted_random_embed_sampler": ClassWeightedRandomEmbedSampler,
     "embed_sampler": EmbedSampler,
 }
 
 
-class EmbedSamplerFactory(object):
-    """Factory class to create different types of samplers for
-    embeddings like x-vectors.
+class EmbedSamplerFactory:
+    """Create samplers for fixed-dimensional embedding datasets.
+
+    Attributes:
+        sampler_types (Dict[str, Type[HyperSampler]]): Mapping from sampler type
+            names to their implementation classes.
     """
+
+    sampler_types: Dict[str, Type[HyperSampler]] = sampler_dict
 
     @staticmethod
     def create(
         dataset: EmbedDataset,
-        sampler_type: str = "class_weighted_embed_sampler",
-        **kwargs,
-    ):
-        """Functions that creates a sampler based on a dataset, sampler_type and sampler arguments.
+        sampler_type: str = "class_weighted_random_embed_sampler",
+        **kwargs: Any,
+    ) -> HyperSampler:
+        """Create an embedding sampler from dataset metadata and configuration.
 
         Args:
-          dataset: embeddings dataset object containing the data info
-          sampler_type: string indicating the sampler type.
-        """
+            dataset: Dataset providing ``embed_info`` and, for class-weighted
+                sampling, a mapping of class names to ``ClassInfo`` tables.
+            sampler_type: Registered sampler type to instantiate.
+            **kwargs: Sampler configuration arguments.
 
-        sampler_class = sampler_dict[sampler_type]
+        Returns:
+            Configured embedding sampler instance.
+
+        Raises:
+            ValueError: If ``sampler_type`` is unknown or the requested class
+                information is unavailable from the dataset.
+        """
+        if sampler_type not in EmbedSamplerFactory.sampler_types:
+            raise ValueError(f"Unknown sampler_type={sampler_type}.")
+
+        sampler_class = EmbedSamplerFactory.sampler_types[sampler_type]
         sampler_kwargs = sampler_class.filter_args(**kwargs)
 
-        if sampler_type in ["class_weighted_embed_sampler"]:
+        if sampler_type == "class_weighted_random_embed_sampler":
+            class_name = sampler_kwargs.get("class_name", "class_id")
             try:
-                class_name = sampler_kwargs["class_name"]
-            except:
-                class_name = "class_id"
-            sampler_kwargs["class_info"] = dataset.class_info[class_name]
+                sampler_kwargs["class_info"] = dataset.class_info[class_name]
+            except (AttributeError, KeyError, TypeError) as error:
+                raise ValueError(
+                    "Dataset does not provide class_info for "
+                    f"class_name={class_name!r}."
+                ) from error
 
-        logging.info(f"sampler-args={sampler_kwargs}")
-
+        logging.info("sampler-args=%s", sampler_kwargs)
         return sampler_class(dataset.embed_info, **sampler_kwargs)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments accepted by :meth:`create`.
 
+        Args:
+            **kwargs: Candidate factory and sampler configuration arguments.
+
+        Returns:
+            Dictionary containing only supported factory and sampler arguments.
+        """
         valid_args = (
+            "dataset",
+            "sampler_type",
             "batch_size",
             "num_embeds_per_class",
             "weight_exponent",
             "weight_mode",
             "num_hard_prototypes",
+            "affinity_matrix",
             "class_name",
             "max_batches_per_epoch",
             "shuffle",
+            "drop_last",
             "seed",
         )
-
-        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        return {key: kwargs[key] for key in valid_args if key in kwargs}
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(
+        parser: ArgumentParser, prefix: Optional[str] = None
+    ) -> None:
+        """Add embedding sampler factory arguments to a parser.
+
+        Args:
+            parser: Argument parser to populate.
+            prefix: Optional key under which to nest these arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
         parser.add_argument(
+            "--sampler-type",
+            choices=EmbedSamplerFactory.sampler_types.keys(),
+            default="class_weighted_random_embed_sampler",
+            help="Embedding sampler implementation to use.",
+        )
+        parser.add_argument(
             "--batch-size",
             type=int,
             default=1,
-            help=("batch size per gpu"),
+            help="Target number of embeddings per batch per GPU.",
         )
-
         parser.add_argument(
             "--num-embeds-per-class",
             type=int,
             default=1,
-            help=("number of embeds per class in batch"),
+            help="Number of embeddings sampled per selected class.",
         )
         parser.add_argument(
             "--weight-exponent",
-            default=1.0,
             type=float,
-            help=("exponent for class weights"),
+            default=1.0,
+            help="Exponent applied to class sampling weights.",
         )
         parser.add_argument(
             "--weight-mode",
-            default="custom",
             choices=["custom", "uniform", "data-prior"],
-            help=("method to get the class weights"),
+            default="custom",
+            help="Class weighting strategy for class-weighted sampling.",
         )
-
         parser.add_argument(
             "--num-hard-prototypes",
             type=int,
             default=0,
-            help=("number of hard prototype classes per batch"),
+            help="Number of hard-prototype classes per selected class.",
         )
-
         parser.add_argument(
             "--max-batches-per-epoch",
             type=int,
             default=None,
-            help=("Max. batches per epoch"),
+            help="Optional maximum number of batches per epoch.",
         )
-
         parser.add_argument(
             "--shuffle",
             action=ActionYesNo,
-            help="shuffles the embeddings at the beginning of the epoch",
+            help="Vary the sampling seed by epoch.",
         )
-
+        parser.add_argument(
+            "--drop-last",
+            action=ActionYesNo,
+            help="Drop embeddings that cannot fill a complete distributed batch.",
+        )
         parser.add_argument(
             "--seed",
             type=int,
             default=1234,
-            help=("seed for sampler random number generator"),
+            help="Base random seed for reproducible sampling.",
         )
-
         parser.add_argument(
             "--class-name",
             default="class_id",
-            help="which column in the info table indicates the class",
+            help="Embedding metadata column containing class IDs.",
         )
 
         if prefix is not None:

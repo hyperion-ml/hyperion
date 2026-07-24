@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from pathlib import Path
 from typing import List, Optional, Union
@@ -70,23 +71,30 @@ def bin_to_time_marks(
     output_dir: PathLike,
     path_prefix: Optional[PathLike] = None,
     format: str = "csv",
-)-> None:
+) -> None:
     """Convert binary VAD entries into per-recording time-mark tables."""
 
     output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, is_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     if format == "tsv":
         sep = "\t"
         ext = ".tsv"
     else:
         sep = ","
-        ext = ",csv"
+        ext = ".csv"
 
     v_reader = VRF.create(in_vad_file, path_prefix=path_prefix)
     ids = v_reader.keys
     output_files = []
     for id in tqdm(ids):
-        vad = v_reader.read_time_marks([id])[0]
+        time_marks = v_reader.read_time_marks([id])
+        if isinstance(time_marks, tuple):
+            # Binary VAD readers return separate start/end arrays, while table
+            # readers return a data frame per key. Normalize both contracts to
+            # the timestamp-table artifact written by this command.
+            vad = pd.DataFrame({"start": time_marks[0][0], "end": time_marks[1][0]})
+        else:
+            vad = time_marks[0]
         output_file = output_dir / Path(id).with_suffix(ext)
         vad.to_csv(output_file, sep=sep, index=False)
         output_files.append(output_file)
@@ -134,7 +142,7 @@ def time_marks_to_bin(
     frame_length: float = 25.0,
     snip_edges: bool = False,
     segments_file: Optional[PathLike] = None,
-)-> None:
+) -> None:
     """Convert time-mark VAD into binary frame-level VAD and write ark/scp output."""
 
     v_reader = VRF.create(in_vad_file, path_prefix=path_prefix)
@@ -174,7 +182,9 @@ def time_marks_to_bin(
 
 def main() -> None:
     """Parse CLI arguments and run VAD format conversion."""
-    parser = ArgumentParser(description="Convert VAD between binary and time-mark formats")
+    parser = ArgumentParser(
+        description="Convert VAD between binary and time-mark formats"
+    )
     parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
 
     subcommands = parser.add_subcommands()

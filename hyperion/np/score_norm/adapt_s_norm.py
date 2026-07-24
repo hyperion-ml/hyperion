@@ -25,14 +25,16 @@ class AdaptSNorm(ScoreNorm):
     """Class for adaptive S-Norm.
 
     Attributes:
-      nbest: number of samples selected to compute the statistics for each trial
-        by the adaptive algorith
-      nbest_discard: discard the nbest trials with higher scores, which could
-        be actual target trials.
-      std_floor: floor for standard deviations.
 
-    Example:
-      ```python
+      * ``nbest``: Number of cohort samples selected to compute each trial's
+        statistics.
+      * ``nbest_discard``: Number of highest-scoring trials discarded before
+        selection; this can avoid selecting actual target trials.
+      * ``std_floor``: Lower bound used for standard deviations inherited from
+        :class:`ScoreNorm`.
+
+    Example::
+
       import numpy as np
       from hyperion.np.score_norm import AdaptSNorm
 
@@ -49,7 +51,6 @@ class AdaptSNorm(ScoreNorm):
           nbest_sel_method="highest-other-side",
       )
       scores_as = as_norm.predict(scores, scores_coh_test, scores_enr_coh)
-      ```
     """
 
     def __init__(
@@ -64,10 +65,10 @@ class AdaptSNorm(ScoreNorm):
         Args:
           nbest: Number of cohort elements used for trial-dependent statistics.
           nbest_discard: Number of top cohort scores discarded before selecting
-            the `nbest` samples.
+            the ``nbest`` samples.
           nbest_sel_method: Cohort selection strategy. Supported values are
-            `"highest-other-side"` and `"highest-same-side"`.
-          **kwargs: Parameters forwarded to `ScoreNorm`.
+            ``"highest-other-side"`` and ``"highest-same-side"``.
+          kwargs: Parameters forwarded to ``ScoreNorm``.
         """
         super().__init__(**kwargs)
         self.nbest = nbest

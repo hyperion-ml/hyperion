@@ -39,43 +39,26 @@ class BinaryLogisticRegression(LogisticRegression):
       on the selected solver/penalty.
 
     Attributes:
-      A: Scaling Coefficients (num_feats, 1)
-      b: biases (1, )
-      penalty: str, ‘l1’ or ‘l2’, default: ‘l2’ ,
-                 Used to specify the norm used in the penalization. The ‘newton-cg’, ‘sag’ and ‘lbfgs’ solvers support only l2 penalties.
-                  New in version 0.19: l1 penalty with SAGA solver (allowing ‘multinomial’ + L1)
-      lambda_reg: float, default: 1e-5
-                     Regularization strength; must be a positive float.
-      use_bias: bool, default: True
-                   Specifies if a constant (a.k.a. bias or intercept) should be added to the decision function.
-      bias_scaling: float, default 1.
-                       Useful only when the solver ‘liblinear’ is used and use_bias is set to True.
-                       In this case, x becomes [x, bias_scaling], i.e. a “synthetic” feature with constant value equal to intercept_scaling is appended to the instance vector. The intercept becomes intercept_scaling * synthetic_feature_weight.
-                       Note! the synthetic feature weight is subject to l1/l2 regularization as all other features. To lessen the effect of regularization on synthetic feature weight (and therefore on the intercept) bias_scaling has to be increased.
-      prior: prior prob for having a positive sample.
-      random_state: default_rng instance or None, optional, default: None
-                    Used when solver == ‘sag’ or ‘liblinear’.
-      solver: {‘newton-cg’, ‘lbfgs’, ‘liblinear’, ‘sag’, ‘saga’},
-                 default: ‘lbfgs’ Algorithm to use in the optimization problem.
-                 For small datasets, ‘liblinear’ is a good choice, whereas ‘sag’ and
-                 ‘saga’ are faster for large ones.
-                 ‘newton-cg’, ‘lbfgs’ and ‘sag’ only handle L2 penalty, whereas
-                 ‘liblinear’ and ‘saga’ handle L1 penalty.
-                 Note that ‘sag’ and ‘saga’ fast convergence is only guaranteed on features with approximately the same scale.
-                 New in version 0.17: Stochastic Average Gradient descent solver.
-                 New in version 0.19: SAGA solver.
-      max_iter: int, default: 100
-                   Useful only for the newton-cg, sag and lbfgs solvers. Maximum number of iterations taken for the solvers to converge.
-      dual: bool, default: False
-               Dual or primal formulation. Dual formulation is only implemented for l2 penalty with liblinear solver. Prefer dual=False when n_samples > n_features.
-      tol: float, default: 1e-4
-              Tolerance for stopping criteria.
-      verbose: int, default: 0
-                  For the liblinear and lbfgs solvers set verbose to any positive number for verbosity.
-      warm_start: bool, default: True
-                     When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution. Useless for liblinear solver.
-                     New in version 0.17: warm_start to support lbfgs, newton-cg, sag, saga solvers.
-      lr_seed: seed for numpy random.
+
+      * ``A``: Scale coefficients with shape ``(num_features, 1)``.
+      * ``b``: Bias vector with shape ``(1,)``.
+      * ``penalty``: ``"l1"`` or ``"l2"`` regularization. The
+        ``newton-cg``, ``sag``, and ``lbfgs`` solvers support only L2;
+        ``liblinear`` and ``saga`` also support L1.
+      * ``lambda_reg``: Positive regularization strength.
+      * ``use_bias``: Whether to add an intercept to the decision function.
+      * ``bias_scaling``: Synthetic-feature scale used by ``liblinear`` when
+        ``use_bias`` is enabled. Increasing it reduces regularization on the
+        intercept weight.
+      * ``prior``: Prior probability of the positive class.
+      * ``random_state``: Optional random generator used by ``sag`` and
+        ``liblinear``.
+      * ``solver``: Optimization solver. ``liblinear`` is generally suitable
+        for small data sets, while ``sag`` and ``saga`` suit larger data sets
+        whose features have comparable scales.
+      * ``max_iter``, ``dual``, ``tol``, ``verbose``, ``warm_start``: Solver
+        convergence and reuse controls passed to the underlying estimator.
+      * ``lr_seed``: Random seed used by Hyperion's optimizer wrapper.
 
     Example:
       >>> import numpy as np

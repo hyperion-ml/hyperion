@@ -19,7 +19,9 @@ StrArrayLike = Union[np.ndarray, List[str]]
 
 class TrialNdx:
     """Contains the trial index to run speaker recognition trials.
-        Bosaris compatible Ndx.
+
+    BOSARIS-compatible trial index.
+
     Attributes:
       model_set: List of model names.
       seg_set: List of test segment names.
