@@ -1,0 +1,17 @@
+# Slurm policy for the CLSP GPU partition.
+num_gpus: 0
+num_threads: 1
+sbatch_command: sbatch
+base_options:
+  - --nodes=1
+  - --ntasks-per-node=1
+cpu_options:
+  - --partition=gpu
+  - --exclude=c04,c05,c23,c24,c25
+default_gpu_type: default
+gpu_types:
+  default:
+    options:
+      - --partition=gpu
+      - --gpus={num_gpus}
+      - --exclude=c04,c05,c17,c20,c24,c25,c26,c27
