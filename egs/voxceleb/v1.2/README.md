@@ -261,7 +261,7 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_idrnd_resnet100.v3.1.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.36 | 0.077 | 0.122 |
 | | | | Cosine + AS-Norm | 1.23 | 0.069 | 0.112 |
 | | | | Cosine + QMF | 1.17 | 0.065 | 0.110 |
-| config_fbank80_stmn_idrnd_resnet100.v3.1.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.27 | 0.072 | 0.121 |
+| config_fbank80_stmn_idrnd_resnet100.v3.2.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.27 | 0.072 | 0.121 |
 | | | | Cosine + AS-Norm | 1.15 | 0.065 | 0.107 |
 | | | | Cosine + QMF | 1.10 | 0.062 | 0.102 |
 | config_fbank80_stmn_res2net50w26s8.v3.0.sh | Res2Net50 w26 scale=8 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 1.41 | 0.081 | 0.132 |
