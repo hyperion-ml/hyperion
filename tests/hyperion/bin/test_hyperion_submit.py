@@ -137,20 +137,26 @@ def test_local_array_substitutes_job_and_redirects_logs(tmp_path: Path) -> None:
     assert (tmp_path / "logs" / "task.2.log").read_text().splitlines() == ["2", "2"]
 
 
-def test_multi_gpu_command_uses_torchrun() -> None:
-    """Only multi-GPU commands receive a torchrun prefix."""
+def test_multi_gpu_command_uses_torchrun_and_resolves_entrypoint(monkeypatch) -> None:
+    """Multi-GPU commands use torchrun with a PATH-resolved entry point."""
+    monkeypatch.setattr(
+        "hyperion.bin.hyperion_submit.shutil.which", lambda command: f"/env/bin/{command}"
+    )
     assert _command_with_torchrun(["program"], 1) == ["program"]
     assert _command_with_torchrun(["program"], 2) == [
         "torchrun",
         "--standalone",
         "--nnodes=1",
         "--nproc-per-node=2",
-        "program",
+        "/env/bin/program",
     ]
 
 
-def test_slurm_script_logs_environment_and_expands_array(tmp_path: Path) -> None:
+def test_slurm_script_logs_environment_and_expands_array(tmp_path: Path, monkeypatch) -> None:
     """Rendered scripts retain the legacy diagnostics without Conda wrapping."""
+    monkeypatch.setattr(
+        "hyperion.bin.hyperion_submit.shutil.which", lambda command: f"/env/bin/{command}"
+    )
     options = make_options(
         tmp_path,
         command=["program", "--part-idx", "JOB", "out.JOB.ark"],

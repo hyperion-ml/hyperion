@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -200,12 +201,16 @@ def _command_with_torchrun(command: Sequence[str], num_gpus: int) -> list[str]:
     """
     if num_gpus <= 1:
         return list(command)
+    entrypoint = shutil.which(command[0])
+    if entrypoint is None:
+        raise FileNotFoundError(f"could not find multi-GPU command: {command[0]}")
     return [
         "torchrun",
         "--standalone",
         "--nnodes=1",
         f"--nproc-per-node={num_gpus}",
-        *command,
+        entrypoint,
+        *command[1:],
     ]
 
 
