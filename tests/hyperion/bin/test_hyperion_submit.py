@@ -170,6 +170,8 @@ def test_slurm_script_logs_environment_and_expands_array(tmp_path: Path, monkeyp
     assert "export JOB=\"${SLURM_ARRAY_TASK_ID}\"" in script
     assert "env | sort | grep '^SLURM_'" in script
     assert "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES-}" in script
+    assert "exec > " in script
+    assert "exec >> " not in script
     assert "torchrun --standalone --nnodes=1 --nproc-per-node=2" in script
     assert '"${JOB}"' in script
     assert "conda activate" not in script

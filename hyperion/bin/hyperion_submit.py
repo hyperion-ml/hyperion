@@ -279,7 +279,7 @@ def render_slurm_script(options: SubmitOptions, cwd: Path) -> str:
     return f"""#!/usr/bin/env bash
 cd {shlex.quote(str(cwd))}
 {array_setup}mkdir -p \"$(dirname {output_file})\"
-exec >> {output_file} 2>&1
+exec > {output_file} 2>&1
 echo \"# Running on $(hostname)\"
 echo \"# Started at $(date)\"
 env | sort | grep '^SLURM_' | while IFS= read -r line; do echo \"# $line\"; done
