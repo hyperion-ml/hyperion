@@ -14,3 +14,4 @@ gpu_types:
     options:
       - --partition=gpu
       - --gres=gpu:v100:{num_gpus}
+

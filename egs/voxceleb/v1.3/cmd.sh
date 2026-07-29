@@ -7,6 +7,7 @@
 # backend.  Local execution does not enforce resource requests; run stages one
 # at a time when the machine cannot accommodate concurrent work.
 
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
 if [ "$(hostname -d)" == "grid.cluster" ];then
   export train_cmd="hyperion-submit slurm --cfg conf/submit_coe_v100.yaml --mem 8G"
   export cuda_cmd="hyperion-submit slurm --cfg conf/submit_coe_v100.yaml --mem 32G --num-threads 9"
