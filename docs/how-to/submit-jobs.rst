@@ -114,6 +114,13 @@ in a caller-visible temporary location when submission fails, so the exact
 launched command can be inspected.  It uses argument-safe quoting rather than
 building a shell command string from recipe text.
 
+The requested ``--output-file`` is the program's combined log.  Slurm's own
+fallback stdout and stderr files are stored in the adjacent ``q/`` directory:
+``slurm-%j.out`` and ``slurm-%j.err`` for a regular job, or
+``slurm-%A_%a.out`` and ``slurm-%A_%a.err`` for an array.  They normally only
+contain scheduler or early script-launch diagnostics, and keep Slurm's default
+``slurm-<jobid>.out`` files out of the submission directory.
+
 The launcher requests resources from Slurm; it does not discover or select
 GPUs itself.  In particular, it must not call ``free-gpu``.  The generated
 script preserves Slurm's ``CUDA_VISIBLE_DEVICES`` value.  A missing value is

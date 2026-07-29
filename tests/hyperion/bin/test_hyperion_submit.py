@@ -11,6 +11,7 @@ from hyperion.bin.hyperion_submit import (
     SubmitOptions,
     _command_with_torchrun,
     _make_submit_options,
+    _slurm_fallback_log_paths,
     _slurm_options,
     render_slurm_script,
     run_local,
@@ -204,6 +205,15 @@ def test_slurm_options_translate_resources_and_array_limit(tmp_path: Path) -> No
     assert "--gres=gpu:v100:2" in args
 
 
+def test_slurm_fallback_logs_are_per_array_task(tmp_path: Path) -> None:
+    """Scheduler diagnostics use Slurm filename tokens outside the submit directory."""
+    stdout, stderr = _slurm_fallback_log_paths(
+        tmp_path / "logs" / "extract.JOB.log", ArraySpec("JOB", 1, 10)
+    )
+    assert stdout == tmp_path / "logs" / "q" / "slurm-%A_%a.out"
+    assert stderr == tmp_path / "logs" / "q" / "slurm-%A_%a.err"
+
+
 def test_run_slurm_uses_stub_scheduler_commands(tmp_path: Path, monkeypatch) -> None:
     """Slurm execution submits and waits without a real Slurm installation."""
     options = make_options(tmp_path, output_file=tmp_path / "logs" / "job.log")
@@ -228,3 +238,5 @@ def test_run_slurm_uses_stub_scheduler_commands(tmp_path: Path, monkeypatch) -> 
     script_path = Path(sbatch_args[-1])
     assert script_path.exists()
     assert "--partition=cpu" in sbatch_args
+    assert f"--output={tmp_path / 'logs' / 'q' / 'slurm-%j.out'}" in sbatch_args
+    assert f"--error={tmp_path / 'logs' / 'q' / 'slurm-%j.err'}" in sbatch_args

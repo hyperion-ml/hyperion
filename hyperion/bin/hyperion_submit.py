@@ -259,6 +259,27 @@ def _slurm_script_path(output_file: Path) -> Path:
     return output_file.parent / "q" / f"{output_file.stem}.submit.sh"
 
 
+def _slurm_fallback_log_paths(
+    output_file: Path, array: ArraySpec | None
+) -> tuple[Path, Path]:
+    """Return Slurm stdout/stderr destinations kept beside the batch script.
+
+    The batch script redirects the actual program output to ``output_file``.
+    These files capture only scheduler or early script-launch diagnostics that
+    occur before that redirection.
+
+    Args:
+        output_file: Requested combined program log.
+        array: Optional array specification.
+
+    Returns:
+        Paths containing Slurm's ``%j`` or ``%A_%a`` filename tokens.
+    """
+    job_token = "%A_%a" if array is not None else "%j"
+    directory = output_file.parent / "q"
+    return directory / f"slurm-{job_token}.out", directory / f"slurm-{job_token}.err"
+
+
 def render_slurm_script(options: SubmitOptions, cwd: Path) -> str:
     """Render the batch script executed by Slurm.
 
@@ -408,6 +429,8 @@ def run_slurm(options: SubmitOptions, config: dict[str, Any]) -> None:
 
     command = [str(config.get("sbatch_command", "sbatch"))]
     command.extend(_slurm_options(options, config))
+    fallback_stdout, fallback_stderr = _slurm_fallback_log_paths(output_file, options.array)
+    command.extend([f"--output={fallback_stdout}", f"--error={fallback_stderr}"])
     command.append(str(script_path.resolve()))
     logging.info("submitting Slurm job: %s", shlex.join(command))
     submitted = subprocess.run(command, check=True, capture_output=True, text=True)
