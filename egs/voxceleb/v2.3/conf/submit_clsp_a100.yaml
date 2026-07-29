@@ -1,0 +1,17 @@
+# Slurm policy for the CLSP A100 partition.
+num_gpus: 0
+num_threads: 1
+sbatch_command: sbatch
+base_options:
+  - --nodes=1
+  - --ntasks-per-node=1
+cpu_options:
+  - --partition=cpu
+  - --exclude=c02,c10
+default_gpu_type: a100
+gpu_types:
+  a100:
+    options:
+      - --partition=gpu-a100
+      - --account=a100acct
+      - --gpus={num_gpus}

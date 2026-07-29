@@ -1,29 +1,28 @@
-# you can change cmd.sh depending on what type of queue you are using.
-# If you have no queueing system and want to run on a local machine, you
-# can change all instances 'queue.pl' to run.pl (but be careful and run
-# commands one by one: most recipes will exhaust the memory on your
-# machine).  queue.pl works with GridEngine (qsub).  slurm.pl works
-# with slurm.  Different queues are configured differently, with different
-# queue names and different ways of specifying things like memory;
-# to account for these differences you can create and edit the file
-# conf/queue.conf to match your queue's configuration.  Search for
-# conf/queue.conf in http://kaldi-asr.org/doc/queue.html for more information,
-# or search for the string 'default_config' in utils/queue.pl or utils/slurm.pl.
+# Select the submission backend used by this recipe.  The Slurm YAML file
+# contains site-specific policy such as partitions, GPU selection, exclusions,
+# and scheduler options.  The recipe requests portable resources such as
+# memory, CPU threads, and GPU count through hyperion-submit.
+#
+# The three command variables retain the recipe's resource defaults:
+#   train_cmd:      CPU jobs, 4 GB RAM
+#   cuda_cmd:       GPU training jobs, 30 GB RAM
+#   cuda_eval_cmd:  GPU evaluation jobs, 4 GB RAM
+#
+# Outside the Slurm cluster, all commands use hyperion-submit local and run
+# synchronously in the current environment.  Run stages one at a time when
+# the local machine cannot accommodate concurrent work.
 
-if [ "$(hostname -d)" == "cm.gemini" ];then
-    #export train_cmd="queue.pl --config conf/coe_gpu_short.conf --mem 4G"
-    export train_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 4G"
-    export cuda_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 20G"
-    #export cuda_cmd="queue.pl --config conf/coe_gpu_v100.conf --mem 20G"
-    #export cuda_cmd="queue.pl --config conf/coe_gpu_a100.conf --mem 20G"
-    export cuda_cmd="queue.pl --config conf/coe_gpu_rtx.conf --mem 30G"
-    export cuda_eval_cmd="queue.pl --config conf/coe_gpu_short.conf --mem 4G"
-    # export cuda_eval_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 4G"
+# This preserves the distributed-training diagnostics used by the original
+# recipe's environment setup.
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
+
+if [ "$(hostname -d)" == "grid.cluster" ]; then
+    submit_cfg=conf/submit_coe_v100.yaml
+    export train_cmd="hyperion-submit slurm --cfg $submit_cfg --mem 4G"
+    export cuda_cmd="hyperion-submit slurm --cfg $submit_cfg --mem 30G"
+    export cuda_eval_cmd="hyperion-submit slurm --cfg $submit_cfg --mem 4G"
 else
-    export train_cmd="queue.pl --mem 4G -l hostname=\"[bc][01]*\" -V" 
-    export cuda_cmd="queue.pl --mem 20G -l hostname=\"c[01]*\" -V"
-    export cuda_eval_cmd="$train_cmd"
+    export train_cmd="hyperion-submit local"
+    export cuda_cmd="hyperion-submit local"
+    export cuda_eval_cmd="hyperion-submit local"
 fi
-
-
-

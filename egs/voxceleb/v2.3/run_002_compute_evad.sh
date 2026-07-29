@@ -18,7 +18,7 @@ config_file=default_config.sh
 . $config_file
 
 if [ -z "$vad_config" ];then
-  echo "We are not using VAD in this configuration"
+  echo "[run002] VAD disabled in this configuration; skipping"
   exit 0
 fi
 
@@ -28,6 +28,7 @@ fi
 
 
 if [ $stage -le 1 ]; then
+  echo "[run002][stage1] Creating data split directories for VAD"
   # Prepare to distribute data over multiple machines
   # This only does something at CLSP grid
   for name in voxceleb2cat_train voxceleb1_test $extra_data
@@ -40,14 +41,15 @@ fi
 
 #Train datasets
 if [ $stage -le 2 ];then
+  echo "[run002][stage2] Computing energy VADs (nj=$nj)"
   for name in voxceleb2cat_train voxceleb1_test $extra_data
   do
     # This creates links to distribute data in CLSP grid
     # If you are not at CLSP grid, it does nothing and can be deleted
     hyp_utils/create_data_split_links.sh $vad_dir/$name/vad.JOB.ark $nj
-    echo "compute vad for $name"
-    $train_cmd JOB=1:$nj $vad_dir/$name/log/vad.JOB.log \
-	       hyp_utils/conda_env.sh \
+    echo "[run002][stage2] Computing VAD for $name"
+
+    $train_cmd --array JOB=1:$nj --output-file $vad_dir/$name/log/vad.JOB.log -- \
 	       hyperion-compute-energy-vad --cfg $vad_config \
 	       --recordings-file data/$name/recordings.csv \
 	       --output-spec ark,csv:$vad_dir/$name/vad.JOB.ark,$vad_dir/$name/vad.JOB.csv \
@@ -56,11 +58,10 @@ if [ $stage -le 2 ];then
     hyperion-tables cat \
 		    --table-type features \
 		    --output-file $vad_dir/$name/vad.csv --num-tables $nj
+    echo "[run002][stage2] Registering VAD table for $name"
     hyperion-dataset add_features \
 		     --dataset data/$name \
 		     --features-name vad \
 		     --features-file $vad_dir/$name/vad.csv
   done
 fi
-
-

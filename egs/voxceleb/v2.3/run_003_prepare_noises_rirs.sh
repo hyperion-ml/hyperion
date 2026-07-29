@@ -16,6 +16,7 @@ config_file=default_config.sh
 
 # We prepare the noise files and RIR for online speech augmentation
 if [ $stage -le 1 ]; then
+  echo "[run003][stage1] Preparing MUSAN noise, music, and speech manifests"
   for name in noise music speech
   do
     hyperion-prepare-data musan \
@@ -26,6 +27,7 @@ if [ $stage -le 1 ]; then
 fi
 
 if [ $stage -le 2 ]; then
+  echo "[run003][stage2] Preprocessing MUSAN audio (nj=$nj)"
   # # Prepare to distribute data over multiple machines
   # # This only does something at CLSP grid
   # hyp_utils/create_data_split_dirs.sh $vad_dir $USER/hyp-data/voxceleb/v1.2/vad $nodes
@@ -35,8 +37,8 @@ if [ $stage -le 2 ]; then
     input_data_dir=data/$name
     output_data_dir=data/${name}_proc_audio
     output_dir=exp/proc_audio/$name
-    $train_cmd JOB=1:$nj $output_dir/log/preproc_audios_${name}.JOB.log \
-	       hyp_utils/conda_env.sh \
+
+    $train_cmd --array JOB=1:$nj --output-file $output_dir/log/preproc_audios_${name}.JOB.log -- \
 	       hyperion-preprocess-audio-files \
 	       --audio-format flac  \
 	       --part-idx JOB --num-parts $nj \
@@ -57,14 +59,15 @@ if [ $stage -le 2 ]; then
 fi
 
 if [ $stage -le 3 ]; then
+  echo "[run003][stage3] Generating babble noise mixtures"
   # Create Babble noise from MUSAN speech files
   for name in musan_speech
   do
     input_data_dir=data/$name
     output_data_dir=data/${name}_babble
     output_dir=exp/proc_audio/${name}_babble
-    $train_cmd $output_dir/log/make_babble_noise_${name}.log \
-	       hyp_utils/conda_env.sh \
+
+    $train_cmd --output-file $output_dir/log/make_babble_noise_${name}.log -- \
 	       hyperion-make-babble-noise-audio-files \
 	       --audio-format flac \
 	       --min-spks 3 --max-spks 10 --num-reuses 5 \
@@ -78,6 +81,7 @@ if [ $stage -le 3 ]; then
 fi
 
 if [ $stage -le 4 ]; then
+  echo "[run003][stage4] Preparing and packing RIRS_NOISES datasets"
   if [ ! -d "RIRS_NOISES" ]; then
     # Download the package that includes the real RIRs, simulated RIRs, isotropic noises and point-source noises
     wget --no-check-certificate http://www.openslr.org/resources/28/rirs_noises.zip
@@ -90,8 +94,8 @@ if [ $stage -le 4 ]; then
   do
     output_dir=exp/rirs/$rirs
     data_dir=data/$rirs
-    $train_cmd $output_dir/log/pack_rirs_${name}.log \
-	       hyp_utils/conda_env.sh \
+
+    $train_cmd --output-file $output_dir/log/pack_rirs_${name}.log -- \
 	       hyperion-pack-wav-rirs ${args} --input $data_dir/recordings.csv \
 	       --output h5,csv:$output_dir/rirs.h5,$output_dir/rirs.csv || exit 1;
     hyperion-dataset add_features --dataset $data_dir \
@@ -99,4 +103,3 @@ if [ $stage -le 4 ]; then
 
   done
 fi
-

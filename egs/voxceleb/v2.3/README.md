@@ -1,12 +1,18 @@
-# VoxCeleb V2.1
+# VoxCeleb V2.3
 
-Recipe for the VoxCeleb Speaker Verification Task using Wav2Vec2, WavLM or Hubert models from HuggingFace as feature extractors
+Recipe for the VoxCeleb Speaker Verification Task using Wav2Vec2, WavLM, or
+HuBERT models from Hugging Face as front-ends for x-vector networks.
 
-## Differences w.r.t VoxCeleb V2 recipe
+## What this recipe does
 
-   - Kaldi format is replaced by new format based on pandas tables
-   - Kaldi style bash scripts are removed and replaced by python scripts
-   - Most python scripts are called using Hyperion entry points 
+This version uses Hyperion table formats and command-line entry points. The
+front-end is loaded from Hugging Face and is combined with an ECAPA-TDNN
+x-vector network. Training includes frozen-front-end training followed by
+fine-tuning and optional large-margin objectives, depending on the selected
+configuration.
+
+The recipe no longer uses Kaldi queue wrappers. Jobs are launched through
+``hyperion-submit`` and the backend is selected in ``cmd.sh``.
 
 ## Citing
 
@@ -26,48 +32,99 @@ Recipe for the VoxCeleb Speaker Verification Task using Wav2Vec2, WavLM or Huber
 
 ## Usage
 
-   - Run the run_0*.sh scripts in sequence
-   - By default it will use config global_conf/config_wavlmbaseplus_ecapatdnn512x3_v2.0.sh
-   - To use other configs: 
+Run the stages from the recipe directory in order. The default model
+configuration is
+``global_conf/config_wavlmbaseplus_ecapatdnn512x3_v2.0.sh``.
+
+To select another front-end or network configuration:
+
 ```bash
-run_005_train_xvector.sh --config-file global_conf/other_config.sh
-run_006_extract_xvectors.sh --config-file global_conf/other_config.sh --use-gpu true
-run_007_eval_be.sh --config-file global_conf/other_config.sh
+./run_005_train_xvector.sh --config-file global_conf/other_config.sh
+./run_006_extract_xvectors.sh --config-file global_conf/other_config.sh --use-gpu true
+./run_007_eval_be.sh --config-file global_conf/other_config.sh
 ```
+
+Each stage supports its usual ``stage`` and configuration options, so a
+completed stage can be skipped when resuming an experiment.
+
+## Job submission
+
+``cmd.sh`` selects the backend for all stages. On the configured Slurm site it
+uses ``conf/submit_coe_v100.yaml``; on other hosts it uses the synchronous
+local backend. The YAML file contains site-specific ``sbatch`` policy, while
+the command variables in ``cmd.sh`` request portable resources:
+
+* ``train_cmd``: CPU jobs with 4 GB of memory.
+* ``cuda_cmd``: GPU training jobs with 30 GB of memory.
+* ``cuda_eval_cmd``: GPU evaluation jobs with 4 GB of memory.
+
+The local backend uses the current Python environment and runs the command
+synchronously:
+
+```bash
+hyperion-submit local --output-file exp/example/log/job.log -- \
+  hyperion-eval-verification-metrics --help
+```
+
+To submit directly to Slurm, select the recipe's YAML policy and request the
+resources needed by the command:
+
+```bash
+hyperion-submit slurm --cfg conf/submit_coe_v100.yaml \
+  --num-gpus 4 --num-threads 9 --mem 30G \
+  --output-file exp/example/log/train.log -- \
+  hyperion-train-wav2vec2xvector ...
+```
+
+When more than one GPU is requested, ``hyperion-submit`` prepends
+``torchrun`` and preserves Slurm's ``CUDA_VISIBLE_DEVICES`` assignment. It
+does not search for or select GPUs itself.
+
+Large extraction and preprocessing stages use arrays. ``JOB`` is substituted
+in command arguments and output paths, and ``--max-jobs-run`` can limit the
+number of simultaneously running tasks:
+
+```bash
+hyperion-submit slurm --cfg conf/submit_coe_v100.yaml \
+  --array JOB=1:100 --max-jobs-run 20 --num-gpus 1 \
+  --output-file exp/example/log/extract.JOB.log -- \
+  hyperion-extract-wav2vec2xvectors --part-idx JOB --num-parts 100
+```
+
+Submission is synchronous: the stage waits for every local or Slurm task and
+returns a failure if any task fails. Slurm fallback diagnostics are kept in
+the ``q/`` directory beside the requested log.
 
 
 ## Recipe Steps:
 
    - `run_001_prepare_data.sh`
-      - Data preparation script to generate Kaldi style data directories for 
-          - VoxCeleb2 train+test
-          - VoxCeleb1 O/E/H eval sets
+      - Generates Hyperion tables for VoxCeleb2 train/test and VoxCeleb1 O/E/H evaluation sets.
 
    - `run_002_compute_evad.sh`
-      - Computes Energy VAD for all datasets
+      - Computes energy-based VAD for all datasets, using a synchronous array of jobs.
 
    - `run_003_prepare_noises_rirs.sh`
-      - Prepares MUSAN noises, music to be used by SpeechAugment class.
-      - Creates Babble noise from MUSAN speech to be used by SpeechAugment class.
-      - Prepares RIRs by compacting then into HDF5 files, to be used by SpeechAugment class.
+      - Prepares MUSAN noise and music for SpeechAugment.
+      - Creates babble noise from MUSAN speech.
+      - Packs RIRS_NOISES into HDF5-backed Hyperion datasets.
 
    - `run_004_prepare_xvec_train_data.sh`
-      - Transforms all the audios that we are going to use to train the x-vector into a common format, e.g., .flac.
-      - Removes silence from the audios
-      - Removes utterances shorter than 4secs and speakers with less than 8 utterances.
-      - Creates training and validation lists for x-vector training
+      - Converts training audio to a common format and applies optional VAD trimming.
+      - Removes short utterances and speakers with too few samples.
+      - Creates training and validation tables for x-vector training.
 
    - `run_005_train_xvector.sh`
-      - Trains the x-vector model on frozen wav2vec features
-      - Finetunes wav2vec+x-vector model
-      - Large margin finetuning of wav2vec+x-vector model
+      - Trains the x-vector model with the selected frozen front-end.
+      - Fine-tunes the front-end and x-vector network.
+      - Optionally applies a large-margin objective.
 
    - `run_006_extract_xvectors.sh`
       - Extracts x-vectors for VoxCeleb2 or VoxCeleb2+augmentation for PLDA training
-      - Exctracts x-vectors for VoxCeleb1 test sets
+      - Extracts x-vectors for VoxCeleb1 evaluation sets.
 
    - `run_007_eval_be.sh`
-      - Trains PLDA and evals PLDA and cosine scoring back-ends
+      - Trains and evaluates cosine, AS-Norm, QMF, and PLDA back ends.
 
 
 ## Results
@@ -179,4 +236,3 @@ run_007_eval_be.sh --config-file global_conf/other_config.sh
 | config_wav2vec2xlsr300m_ecapatdnn512x3_v2.1.sh | Wav2Vec2-XLSR300M+ECAPA-TDNN 512x3 | Stage3: ArcFace m=0.4/intertop_m=0.1 | Cosine | 2.06 | 0.124 | 0.206 |
 | | | | Cosine + AS-Norm | 1.97 | 0.125 | 0.212 |
 | | | | Cosine + QMF | 1.87 | 0.120 | 0.204 |
-

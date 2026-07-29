@@ -16,6 +16,7 @@ config_file=default_config.sh
 . $config_file
 
 if [ $stage -le 1 ]; then
+  echo "[run004][stage1] Preparing audio split links for $nnet_data"
   # Prepare to distribute data over multiple machines
   # This only does something at CLSP grid
   hyp_utils/create_data_split_dirs.sh \
@@ -24,6 +25,7 @@ if [ $stage -le 1 ]; then
 fi
 
 if [ $stage -le 2 ];then
+  echo "[run004][stage2] Preprocessing training audio for $nnet_data (nj=$nj)"
   output_dir=exp/proc_audio/$nnet_data
   # This creates links to distribute data in CLSP grid
   # If you are not at CLSP grid, it does nothing and can be deleted
@@ -33,8 +35,7 @@ if [ $stage -le 2 ];then
     update_durs="--update-seg-durs"
   fi
   
-  $train_cmd JOB=1:$nj $output_dir/log/preproc_audios_${nnet_data}.JOB.log \
-	     hyp_utils/conda_env.sh \
+  $train_cmd --array JOB=1:$nj --output-file $output_dir/log/preproc_audios_${nnet_data}.JOB.log -- \
 	     hyperion-preprocess-audio-files \
 	     --audio-format flac --remove-dc-offset $vad_args \
 	     --part-idx JOB --num-parts $nj \
@@ -45,6 +46,7 @@ if [ $stage -le 2 ];then
   hyperion-tables cat \
 		  --table-type recordings \
 		  --output-file $output_dir/recordings.csv --num-tables $nj
+  echo "[run004][stage2] Registering processed recordings"
 
   hyperion-dataset set_recordings $update_durs \
 		   --dataset data/$nnet_data \
@@ -54,6 +56,7 @@ if [ $stage -le 2 ];then
 fi
 
 if [ $stage -le 3 ];then
+  echo "[run004][stage3] Removing short segments and pruning classes"
   hyperion-dataset remove_short_segments \
 		   --dataset data/${nnet_data}_proc_audio \
 		   --output-dataset data/${nnet_data}_filtered \
@@ -65,6 +68,7 @@ if [ $stage -le 3 ];then
 fi
 
 if [ $stage -le 4 ];then
+  echo "[run004][stage4] Splitting filtered data into train and validation sets"
   hyperion-dataset split_train_val \
 		   --dataset data/${nnet_data}_filtered \
 		   --val-prob 0.03 \
@@ -73,4 +77,3 @@ if [ $stage -le 4 ];then
 		   --train-dataset data/${nnet_data}_xvector_train \
 		   --val-dataset data/${nnet_data}_xvector_val 
 fi
-

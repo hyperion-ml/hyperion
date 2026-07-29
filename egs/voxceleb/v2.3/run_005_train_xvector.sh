@@ -34,16 +34,16 @@ if [ "$use_wandb" == "true" ];then
 fi
 
 if [ "$interactive" == "true" ];then
-    export cuda_cmd=run.pl
+    echo "[run005] Interactive mode: using hyperion-submit local"
+    export cuda_cmd="hyperion-submit local"
 fi
 
 # Network Training
 if [ $stage -le 1 ]; then
-  
+  echo "[run005][stage1] Training base wav2vec2 x-vector model: $nnet_s1_name"
   mkdir -p $nnet_s1_dir/log
   $cuda_cmd \
-    --gpu $ngpu $nnet_s1_dir/log/train.log \
-    hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+    --num-gpus $ngpu --output-file $nnet_s1_dir/log/train.log -- \
     hyperion-train-wav2vec2xvector $nnet_type --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
     --data.train.dataset.recordings-file $train_data_dir/recordings.csv \
     --data.train.dataset.segments-file $train_data_dir/segments.csv \
@@ -61,10 +61,10 @@ if [ $stage -le 2 ]; then
   if [ "$use_wandb" == "true" ];then
     extra_args="$extra_args --trainer.wandb.name $nnet_s2_name.$(date -Iminutes)"
   fi
+  echo "[run005][stage2] Fine-tuning wav2vec2 x-vector model: $nnet_s2_name"
   mkdir -p $nnet_s2_dir/log
   $cuda_cmd \
-    --gpu $ngpu $nnet_s2_dir/log/train.log \
-    hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+    --num-gpus $ngpu --output-file $nnet_s2_dir/log/train.log -- \
     hyperion-finetune-wav2vec2xvector $nnet_type --cfg $nnet_s2_base_cfg $nnet_s2_args $extra_args \
     --data.train.dataset.recordings-file $train_data_dir/recordings.csv \
     --data.train.dataset.segments-file $train_data_dir/segments.csv \
@@ -82,10 +82,10 @@ if [ $stage -le 3 ]; then
   if [ "$use_wandb" == "true" ];then
     extra_args="$extra_args --trainer.wandb.name $nnet_s3_name.$(date -Iminutes)"
   fi
+  echo "[run005][stage3] Large-margin fine-tuning: $nnet_s3_name"
   mkdir -p $nnet_s3_dir/log
   $cuda_cmd \
-    --gpu $ngpu $nnet_s3_dir/log/train.log \
-    hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+    --num-gpus $ngpu --output-file $nnet_s3_dir/log/train.log -- \
     hyperion-finetune-wav2vec2xvector $nnet_type --cfg $nnet_s3_base_cfg $nnet_s3_args $extra_args \
     --data.train.dataset.recordings-file $train_data_dir/recordings.csv \
     --data.train.dataset.segments-file $train_data_dir/segments.csv \
