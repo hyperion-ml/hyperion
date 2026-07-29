@@ -624,7 +624,7 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
 
         m = re.match(r"eer", name)
         if m is not None:
-            return 0, "EER(\%)"
+            return 0, "EER(%)"
 
         m = re.match(r"min-dcf", name)
         if m is not None:

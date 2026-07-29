@@ -149,6 +149,10 @@ Use this order to identify updates:
    ``docs/cli_inventory.json`` for every maintained command.
 #. Regenerate checked-in derived docs after CLI changes; review the resulting
    parser-help diff rather than editing it manually.
+#. Add an ``Unreleased`` :doc:`release-notes` entry for every stable public
+   API change, maintained CLI addition/removal/rename, artifact or
+   configuration compatibility change, and deprecation. Deprecations must link
+   to both their replacement and migration instructions.
 
 Stable interfaces need full contracts. Experimental interfaces need a visible
 experimental notice, prerequisites, and explicitly limited compatibility.
@@ -167,6 +171,7 @@ public-doc or CLI change, at minimum run:
    python docs/check_api_coverage.py
    python docs/check_cli_coverage.py
    python docs/render_cli_index.py --check
+   python docs/check_release_notes.py
    HYPERION_PYTHON=python docs/build.sh html
 
 Use the full local documentation-CI sequence, including link checking and the

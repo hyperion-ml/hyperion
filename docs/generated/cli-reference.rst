@@ -21513,6 +21513,143 @@ Support level: **stable**.
      --cohort-dir COHORT_DIR
                            Path to output cohort dataset (default: null)
 
+hyperion-submit
+---------------
+
+Module: ``hyperion.bin.hyperion_submit``.
+Support level: **stable**.
+Conditional runtime requirements: ``Slurm (slurm backend only)``.
+
+.. code-block:: text
+
+   usage: hyperion_submit.py {local,slurm} ...
+
+   Run Hyperion recipe commands locally or through Slurm
+
+   options:
+     -h, --help            Show this help message and exit.
+
+   subcommands:
+     For more details of each subcommand, add it as an argument followed by
+     --help.
+
+     Available subcommands:
+                           (required)
+       local
+       slurm
+
+hyperion-submit local
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   usage: hyperion_submit.py [options] local [--cfg CFG] --output-file
+                                             OUTPUT_FILE [--num-gpus NUM_GPUS]
+                                             [--num-threads NUM_THREADS]
+                                             [--mem MEM | --mem-per-cpu MEM_PER_CPU]
+                                             [--time TIME] [--array ARRAY]
+                                             [--max-jobs-run MAX_JOBS_RUN]
+                                             [-v {0,1,2,3}]
+                                             [--sbatch-command SBATCH_COMMAND]
+                                             [--base-options [ITEM,...]]
+                                             [--cpu-options [ITEM,...]]
+                                             [--gpu-types GPU_TYPES]
+                                             [--default-gpu-type DEFAULT_GPU_TYPE]
+                                             ...
+
+   positional arguments:
+     command               command after --
+
+   options:
+     -h, --help            Show this help message and exit.
+     --cfg CFG             YAML submitter config
+     --print_config [=flags]
+                           Print the configuration after applying all other
+                           arguments and exit. The optional flags customizes the
+                           output and are one or more keywords separated by
+                           comma. The supported flags are: skip_default,
+                           skip_unset.
+     --output-file OUTPUT_FILE
+                           combined stdout/stderr log (required)
+     --num-gpus NUM_GPUS   GPUs per task (type: int, default: 0)
+     --num-threads NUM_THREADS
+                           CPU threads per task (type: int, default: 1)
+     --mem MEM             total memory per node (default: null)
+     --mem-per-cpu MEM_PER_CPU
+                           memory per allocated CPU (default: null)
+     --time TIME           wall-clock limit (default: null)
+     --array ARRAY         array range NAME=START:END (default: null)
+     --max-jobs-run MAX_JOBS_RUN
+                           maximum running array tasks (type: int, default: null)
+     -v {0,1,2,3}, --verbose {0,1,2,3}
+                           (type: <function <lambda> at <address>>, default: 1)
+     --sbatch-command SBATCH_COMMAND
+                           (default: sbatch)
+     --base-options [ITEM,...]
+                           (type: <class 'list'>, default: [])
+     --cpu-options [ITEM,...]
+                           (type: <class 'list'>, default: [])
+     --gpu-types GPU_TYPES
+                           (type: <class 'dict'>, default: {})
+     --default-gpu-type DEFAULT_GPU_TYPE
+                           (default: null)
+
+hyperion-submit slurm
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   usage: hyperion_submit.py [options] slurm [--cfg CFG] --output-file
+                                             OUTPUT_FILE [--num-gpus NUM_GPUS]
+                                             [--num-threads NUM_THREADS]
+                                             [--mem MEM | --mem-per-cpu MEM_PER_CPU]
+                                             [--time TIME] [--array ARRAY]
+                                             [--max-jobs-run MAX_JOBS_RUN]
+                                             [-v {0,1,2,3}]
+                                             [--sbatch-command SBATCH_COMMAND]
+                                             [--base-options [ITEM,...]]
+                                             [--cpu-options [ITEM,...]]
+                                             [--gpu-types GPU_TYPES]
+                                             [--default-gpu-type DEFAULT_GPU_TYPE]
+                                             ...
+
+   positional arguments:
+     command               command after --
+
+   options:
+     -h, --help            Show this help message and exit.
+     --cfg CFG             YAML submitter config
+     --print_config [=flags]
+                           Print the configuration after applying all other
+                           arguments and exit. The optional flags customizes the
+                           output and are one or more keywords separated by
+                           comma. The supported flags are: skip_default,
+                           skip_unset.
+     --output-file OUTPUT_FILE
+                           combined stdout/stderr log (required)
+     --num-gpus NUM_GPUS   GPUs per task (type: int, default: 0)
+     --num-threads NUM_THREADS
+                           CPU threads per task (type: int, default: 1)
+     --mem MEM             total memory per node (default: null)
+     --mem-per-cpu MEM_PER_CPU
+                           memory per allocated CPU (default: null)
+     --time TIME           wall-clock limit (default: null)
+     --array ARRAY         array range NAME=START:END (default: null)
+     --max-jobs-run MAX_JOBS_RUN
+                           maximum running array tasks (type: int, default: null)
+     -v {0,1,2,3}, --verbose {0,1,2,3}
+                           (type: <function <lambda> at <address>>, default: 1)
+     --sbatch-command SBATCH_COMMAND
+                           (default: sbatch)
+     --base-options [ITEM,...]
+                           (type: <class 'list'>, default: [])
+     --cpu-options [ITEM,...]
+                           (type: <class 'list'>, default: [])
+     --gpu-types GPU_TYPES
+                           (type: <class 'dict'>, default: {})
+     --default-gpu-type DEFAULT_GPU_TYPE
+                           (default: null)
+
 hyperion-tables
 ---------------
 

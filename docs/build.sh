@@ -12,10 +12,10 @@ case "${target}" in
         rm -rf "${build_dir}"
         exit 0
         ;;
-    html|linkcheck|doctest)
+    html|linkcheck|doctest|spelling)
         ;;
     *)
-        echo "Usage: $0 [html|linkcheck|doctest|clean]" >&2
+        echo "Usage: $0 [html|linkcheck|doctest|spelling|clean]" >&2
         exit 2
         ;;
 esac
@@ -24,6 +24,10 @@ esac
 # for that target. HTML and doctest builds remain reliable offline by default.
 if [[ "${target}" == "linkcheck" ]]; then
     export HYPERION_DOCS_ONLINE=1
+fi
+
+if [[ "${target}" == "spelling" ]]; then
+    export HYPERION_DOCS_SPELLING=1
 fi
 
 if [[ -n "${HYPERION_PYTHON:-}" ]]; then

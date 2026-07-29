@@ -37,6 +37,53 @@ assigned to documentation that mentions it:
 
 The documentation CI workflow runs this check before the strict HTML build.
 
+Check public namespace coverage
+-------------------------------
+
+``docs/namespace_inventory.json`` is the source of truth for the intended
+stable, experimental, and explicitly excluded package namespaces. Every record
+has a landing/reference page and an owner page for its documentation contract.
+Validate it with:
+
+.. code-block:: bash
+
+   python docs/check_namespace_coverage.py
+
+Add, remove, reclassify, or move a maintained package namespace only with its
+inventory record and documented owner page updated in the same pull request.
+
+Check tutorial quality coverage
+-------------------------------
+
+``docs/tutorial_inventory.json`` records every maintained tutorial's support
+level, prerequisites, expected outputs, and validation path. The checker also
+rejects links to ``egs/`` from core-package tutorials:
+
+.. code-block:: bash
+
+   python docs/check_tutorial_coverage.py
+
+Check release notes
+-------------------
+
+``docs/release-notes.rst`` has an ``Unreleased`` section for stable public
+API, CLI, artifact/configuration compatibility, and deprecation entries. Its
+checker requires all categories and replacement/migration links for every
+deprecation entry:
+
+.. code-block:: bash
+
+   python docs/check_release_notes.py
+
+Continuous-integration quality gates
+------------------------------------
+
+``.github/workflows/docs.yml`` exposes separate ``html``, ``doctest``, and
+``linkcheck`` jobs. The HTML and doctest jobs are offline-safe. The linkcheck
+job runs in GitHub Actions, where network access is available, and validates
+external links and intersphinx inventories. Configure these three workflow
+checks as required branch-protection checks for the default branch.
+
 Check CLI coverage and generated index drift
 --------------------------------------------
 
@@ -49,6 +96,7 @@ entry points, and assigned family guides:
 
    python docs/check_cli_coverage.py
    python docs/render_cli_index.py --check
+   python docs/check_cli_quality.py
 
 The full-runtime CI job additionally checks the generated option reference.
 It uses ``--allow-unavailable`` only so that existing parser-import diagnostics
@@ -64,6 +112,9 @@ From the repository root, run the lightweight CI job with:
 
    python -m pip install -r docs/requirements.txt
    python docs/check_api_coverage.py
+   python docs/check_namespace_coverage.py
+   python docs/check_tutorial_coverage.py
+   python docs/check_release_notes.py
    python docs/check_cli_coverage.py
    python docs/render_cli_index.py --check
    HYPERION_PYTHON=python docs/build.sh html
@@ -117,6 +168,12 @@ and ``--jobs`` controls the number of concurrent help processes.
 used by the checked-in snapshot and its CI drift check. Update it and regenerate
 the reference together when changing the supported CLI runtime.
 
+The CI quality gate also verifies that every maintained command is classified,
+listed in ``docs/generated/cli-index.rst``, and represented by a top-level
+section in ``docs/generated/cli-reference.rst``. Therefore, changing a
+maintained parser requires regenerating and committing the help snapshot, even
+when its task-family classification stays the same.
+
 The build treats warnings as errors. This is deliberate: unresolved links,
 invalid cross-references, and malformed reStructuredText must be fixed before
 the documentation is published.
@@ -157,6 +214,32 @@ Run the external-link checker:
 
 ``linkcheck`` enables ``HYPERION_DOCS_ONLINE`` automatically and therefore
 requires network access.
+
+Run the spelling builder with the reviewed project dictionary:
+
+.. code-block:: bash
+
+   ./docs/build.sh spelling
+
+``docs/spelling_wordlist.txt`` contains established toolkit, speech-domain,
+and dependency terms such as ``x-vector``, ``PLDA``, ``jsonargparse``,
+``Kaldi``, ``VoxProfile``, and ``TPM``. Add a term only after confirming that
+it is a deliberate project spelling, not a typo.
+
+The spelling builder also needs the Enchant system library. The CI job installs
+``enchant-2`` and ``aspell-en`` on Ubuntu. On a local machine, install the
+equivalent Enchant package for your platform before running the command.
+
+External-link retry policy
+--------------------------
+
+The strict HTML job validates internal document references and fails
+immediately; an unavailable external service never excuses a broken internal
+reference. The separate network-enabled linkcheck job retries external-link
+and intersphinx failures three times, with a 30-second delay. If all attempts
+fail, CI remains failed and its logs identify the external target. Retry the
+workflow after a transient provider outage; add an ignore rule only for a
+documented, deliberate permanent exception.
 
 Run executable documentation examples after they are added:
 

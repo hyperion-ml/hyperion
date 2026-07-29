@@ -58,6 +58,8 @@ including:
    data-preparation-and-cli-extensions
    contributor-validation
    deprecation-and-compatibility
+   release-notes
+   tutorial-quality
    public-surface
    api-contract-coverage
 
@@ -75,7 +77,6 @@ including:
    experimental-components
    numpy
    numpy-extension-points
-   np/speech_augmentation
    metrics
    io
    utils

@@ -3,9 +3,10 @@ Public Surface Inventory
 
 This inventory defines the documentation scope for the current package. It is
 an architectural map, not a promise that every implementation module is a
-directly supported import path. The API-reference work will use it to decide
-which modules require curated pages and which types should be treated as
-implementation details.
+directly supported import path. The machine-readable source of truth is
+``docs/namespace_inventory.json``; every listed namespace has a support level,
+landing/reference page, and owner page. Run
+``python docs/check_namespace_coverage.py`` to validate it.
 
 Stable package areas
 --------------------
@@ -78,7 +79,8 @@ Out of scope
 ------------
 
 * ``egs/`` recipes and their shell/tooling dependencies.
-* ``hyperion/bin_deprec/`` and ``hyperion/bin_deprec2/``.
+* ``hyperion.bin_deprec`` and ``hyperion.bin_deprec2``
+  (``hyperion/bin_deprec*/`` on disk).
 * ``hyperion.helpers``: compatibility-oriented composition helpers that are
   currently internal rather than a supported extension surface.
 * Private names and incidental implementation modules that are neither
@@ -88,8 +90,8 @@ Inventory maintenance
 ---------------------
 
 When adding a package area, command, or top-level extension point, update this
-page and :doc:`documentation-policy` in the same pull request if its support
-level or scope changes.
+page, ``docs/namespace_inventory.json``, and :doc:`documentation-policy` in
+the same pull request if its support level or scope changes.
 
 See also
 --------

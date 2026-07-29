@@ -4,9 +4,11 @@ on:
   pull_request:
   push:
     branches: [master]
+  schedule:
+    - cron: "17 6 * * 1"
 
 jobs:
-  build:
+  html:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,14 +19,58 @@ jobs:
         run: python -m pip install -r docs/requirements.txt
       - name: Check public API documentation coverage
         run: python docs/check_api_coverage.py
+      - name: Check public namespace documentation coverage
+        run: python docs/check_namespace_coverage.py
+      - name: Check tutorial quality coverage
+        run: python docs/check_tutorial_coverage.py
+      - name: Check release-note discipline
+        run: python docs/check_release_notes.py
       - name: Check CLI classification coverage
         run: python docs/check_cli_coverage.py
       - name: Check generated CLI index for drift
         run: python docs/render_cli_index.py --check
+      - name: Check CLI task-index and generated-help visibility
+        run: python docs/check_cli_quality.py
       - name: Build strict HTML documentation
         run: HYPERION_PYTHON=python docs/build.sh html
-      - name: Check external documentation links
-        run: HYPERION_PYTHON=python docs/build.sh linkcheck
+
+  doctest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install documentation dependencies
+        run: python -m pip install -r docs/requirements.txt
+      - name: Run executable documentation examples
+        run: HYPERION_PYTHON=python docs/build.sh doctest
+
+  linkcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install documentation dependencies
+        run: python -m pip install -r docs/requirements.txt
+      - name: Check external documentation links with retry
+        run: HYPERION_PYTHON=python bash docs/run_linkcheck_with_retry.sh
+
+  spelling:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Enchant dictionary backend
+        run: sudo apt-get update && sudo apt-get install -y enchant-2 aspell-en
+      - name: Install documentation dependencies
+        run: python -m pip install -r docs/requirements.txt
+      - name: Check documentation spelling
+        run: HYPERION_PYTHON=python docs/build.sh spelling
 
   cli-reference:
     runs-on: ubuntu-latest
@@ -39,5 +85,7 @@ jobs:
         run: >-
           python docs/generate_cli_reference.py --check --allow-unavailable
           --timeout 90 --jobs 4
+      - name: Check CLI task-index and generated-help visibility
+        run: python docs/check_cli_quality.py
       - name: Run representative CLI end-to-end checks
-        run: python -m pytest tests/docs/test_cli_end_to_end.py
+        run: python -m pytest tests/docs

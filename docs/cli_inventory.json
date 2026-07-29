@@ -63,6 +63,7 @@
     {"script": "generate_adv_attacks_xvector_verif", "command": "hyperion-generate-adv-attacks-xvector-verif", "family": "backend_scoring_evaluation", "status": "stable", "guide": "cli/backend-scoring-evaluation.rst", "optional_requirements": ["PyTorch"]},
     {"script": "hyperion_dataset", "command": "hyperion-dataset", "family": "data_preparation", "status": "stable", "guide": "cli/data-preparation.rst", "optional_requirements": []},
     {"script": "hyperion_tables", "command": "hyperion-tables", "family": "data_preparation", "status": "stable", "guide": "cli/data-preparation.rst", "optional_requirements": []},
+    {"script": "hyperion_submit", "command": "hyperion-submit", "family": "visualization_utilities", "status": "stable", "guide": "cli/visualization-utilities.rst", "optional_requirements": ["Slurm (slurm backend only)"]},
     {"script": "infer_qvectors", "command": "hyperion-infer-qvectors", "family": "extraction_inference", "status": "experimental", "guide": "cli/experimental.rst", "optional_requirements": ["PyTorch", "Q-vector checkpoint"]},
     {"script": "make_babble_noise_audio_files", "command": "hyperion-make-babble-noise-audio-files", "family": "format_conversion", "status": "stable", "guide": "cli/conversion.rst", "optional_requirements": ["audio backend"]},
     {"script": "make_wav2xvector", "command": "hyperion-make-wav2xvector", "family": "training", "status": "stable", "guide": "cli/training.rst", "optional_requirements": ["PyTorch"]},

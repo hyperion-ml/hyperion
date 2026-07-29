@@ -57,7 +57,7 @@ class TorchModelLoader(object):
 
         cfg = TorchModelLoader._fix_compatibility(class_obj, cfg)
 
-        p = re.compile("^module\.")
+        p = re.compile(r"^module\.")
         num_tries = 3
         for tries in range(num_tries):
             try:

@@ -441,7 +441,7 @@ class HyperTorchModel(nn.Module):
         if not state_dict:
             return state_dict
 
-        p = re.compile("^(module\.)+")
+        p = re.compile(r"^(module\.)+")
         if p.match(list(state_dict.keys())[0]) is not None:
             state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())
 

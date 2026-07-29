@@ -159,3 +159,4 @@ Stable commands:
 * ``hyperion-merge-trials``
 * ``hyperion-plot-embedding-tsne`` Conditional runtime requirements: matplotlib, scikit-learn.
 * ``hyperion-plot-embedding-tsne-per-class`` Conditional runtime requirements: matplotlib, scikit-learn.
+* ``hyperion-submit`` Conditional runtime requirements: Slurm (slurm backend only).

@@ -4,7 +4,8 @@ Command-Line Interface
 Entry point model
 -----------------
 
-Hyperion CLI commands are generated from scripts in ``hyperion/bin``.
+Hyperion CLI commands are generated from scripts in ``hyperion.bin``
+(``hyperion/bin`` on disk).
 
 Generation flow:
 
