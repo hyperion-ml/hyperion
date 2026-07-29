@@ -73,6 +73,12 @@ Homepage = "https://github.com/hyperion-ml/hyperion"
 [tool.setuptools]
 packages = { find = { exclude = ["tests"] } }
 
+[tool.isort]
+profile = "black"
+line_length = 88
+skip_gitignore = true
+extend_skip_glob = ["hyp_utils/kaldi/**"]
+
 # [tool.setuptools.dynamic]
 # dependencies = {file = ["requirements.txt"]}
 # version = {attr = "hyperion.__version__"}

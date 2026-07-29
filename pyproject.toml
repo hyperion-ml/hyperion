@@ -117,3 +117,9 @@ hyperion-eval-cosine-scoring-backend-with-qmf = "hyperion.bin.eval_cosine_scorin
 
 [tool.setuptools.packages.find]
 exclude = [ "tests",]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+skip_gitignore = true
+extend_skip_glob = [ "hyp_utils/kaldi/**",]
