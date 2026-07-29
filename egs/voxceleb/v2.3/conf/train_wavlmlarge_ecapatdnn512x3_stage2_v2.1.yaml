@@ -1,0 +1,70 @@
+data:
+  train:
+    dataset:
+      class_names:
+      - speaker
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - speaker
+      target_sample_freq: 16000
+      wav_scale: 1
+    sampler:
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+      class_name: speaker
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      class_names:
+      - speaker
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - speaker
+      target_sample_freq: 16000
+      wav_scale: 1
+    sampler:
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+      class_name: speaker
+    data_loader:
+      num_workers: 8
+model:
+  hf_feats:
+    encoder_lr: 1e-2
+    feat_extract_lr: 1e-2
+  xvector:
+    override_output: true
+    cos_scale: 32.0
+    margin: 0.2
+    margin_warmup_epochs: 0
+    intertop_k: 5
+    intertop_margin: 0.1
+trainer: 
+  optim:
+    opt_type: sgd
+    #lr: 5e-2
+    lr: 1e-3
+    momentum: 0.9
+    weight_decay: 1e-4
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 7500
+    hold_steps: 20000
+    #min_lr: 5e-4
+    min_lr: 1e-6
+    warmup_steps: 10000
+    update_lr_on_opt_step: true
+  use_amp: true
+  log_interval: 1000
+  epochs: 14
+  eff_batch_size: 512
+  target_key: speaker
+  train_mode: full
