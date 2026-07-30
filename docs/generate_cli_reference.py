@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import difflib
 import json
 import os
 import re
@@ -236,8 +237,27 @@ def main() -> int:
         args.include_optional,
     )
     if args.check:
-        if not OUTPUT_PATH.is_file() or OUTPUT_PATH.read_text(encoding="utf-8") != content:
+        existing = (
+            OUTPUT_PATH.read_text(encoding="utf-8")
+            if OUTPUT_PATH.is_file()
+            else ""
+        )
+        if existing != content:
             print("CLI reference is stale; rerun docs/generate_cli_reference.py", file=sys.stderr)
+            diff = difflib.unified_diff(
+                existing.splitlines(),
+                content.splitlines(),
+                fromfile=str(OUTPUT_PATH),
+                tofile="regenerated CLI reference",
+                n=2,
+            )
+            diff_lines = list(diff)
+            print("\n".join(diff_lines[:200]), file=sys.stderr)
+            if len(diff_lines) > 200:
+                print(
+                    f"... diff truncated ({len(diff_lines) - 200} more lines)",
+                    file=sys.stderr,
+                )
             return 1
     else:
         OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
