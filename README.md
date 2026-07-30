@@ -125,16 +125,23 @@ modify this file manually to adapt it to your grid.
 
 ## Recipes structure
 
-The structure of the recipes is very similar to Kaldi, so if should be
-familiar for most people.
-Data preparation is also similar to Kaldi. Each dataset has
-a directory with files like
+The recipe layout is inspired by Kaldi: each dataset is prepared in a
+directory under `data/`, and the numbered `run_*.sh` scripts operate on those
+prepared datasets. However, the maintained recipes generally use Hyperion's
+`HyperDataset` format rather than a collection of Kaldi mapping files. A
+typical prepared dataset contains a manifest describing the available tables:
 ```
-wav.scp
-utt2spk
-spk2utt
-...
+dataset.yaml
+segments.csv       # segment IDs, recordings, speakers, timing, and metadata
+recordings.csv     # recording IDs and audio storage paths
+speaker.csv        # optional class/speaker information
+trials.csv         # optional enrollment/test trial definitions
 ```
+
+Some older recipes still use Kaldi-style data directories, with files such as
+`wav.scp`, `utt2spk`, and `spk2utt`. Those layouts remain supported where the
+recipe expects them, but they are not the standard output of the current
+dataset-preparation classes.
 
 ### Running the recipes
 
