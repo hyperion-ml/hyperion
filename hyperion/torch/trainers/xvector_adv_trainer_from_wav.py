@@ -305,9 +305,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        XVectorTrainerFromWav.add_class_args(
-            parser, train_modes=train_modes, skip=skip
-        )
+        XVectorTrainerFromWav.add_class_args(parser, train_modes=train_modes, skip=skip)
         parser.add_argument(
             "--p-attack",
             default=0.5,
