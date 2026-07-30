@@ -178,6 +178,17 @@ Formatting notes from the current tree:
 
 Prefer targeted tests that match the area you changed.
 
+### CLI reference checks
+
+The required CLI-reference workflow checks commands whose entries in
+`docs/cli_inventory.json` have `cli_check` set to `true` or omit it.
+
+Commands requiring optional or difficult-to-install dependencies such as ONNX
+Runtime, VoxProfile, ART, or k2 use `cli_check: false`. They are checked only
+by the manually triggered `.github/workflows/optional-cli.yml` workflow. Do
+not add those dependencies to the normal CLI-reference runtime solely to make
+the required check pass.
+
 Useful commands:
 
 - `pytest tests/hyperion/utils/test_trial_scores.py`

@@ -28,7 +28,7 @@ from hyperion.torch.models import ResNet1dXVector as R1dXVec
 from hyperion.torch.models import ResNetXVector as RXVec
 from hyperion.torch.models import SpineNetXVector as SpineXVec
 from hyperion.torch.models import TDNNXVector as TDXVec
-from hyperion.torch.models import TransformerXVectorV1 as TFXVec
+from hyperion.torch.models import TransformerV1XVector as TFXVec
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
 from hyperion.torch.utils import ddp

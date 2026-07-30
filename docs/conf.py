@@ -40,7 +40,9 @@ _intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable", None),
     "pandas": ("https://pandas.pydata.org/docs", None),
     "scipy": ("https://docs.scipy.org/doc/scipy", None),
-    "torch": ("https://pytorch.org/docs/stable", None),
+    # Pin the inventory because PyTorch's stable URL redirects to a versioned
+    # site and breaks fragment validation in Sphinx linkcheck.
+    "torch": ("https://docs.pytorch.org/docs/2.8", None),
     "jsonargparse": ("https://jsonargparse.readthedocs.io/en/stable", None),
 }
 

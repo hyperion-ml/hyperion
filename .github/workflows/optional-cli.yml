@@ -1,0 +1,23 @@
+name: Optional CLI Checks
+
+on:
+  workflow_dispatch:
+
+jobs:
+  optional-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install base CLI-reference runtime
+        run: python -m pip install -r docs/requirements-cli-reference.txt
+      - name: Install optional CLI dependencies
+        run: >-
+          python -m pip install
+          "adversarial-robustness-toolbox>=1.17"
+          k2
+          "voxprofile @ git+https://github.com/hyperion-ml/vox-profile-release"
+      - name: Check optional CLI help
+        run: python docs/check_optional_cli.py --timeout 300 --jobs 4

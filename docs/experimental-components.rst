@@ -57,8 +57,6 @@ metadata supplied through the audio dataset configuration.
 * ``hyperion-train-wav2vec2rnn-transducer``
 * ``hyperion-train-wav2vec2transducer``
 * ``hyperion-finetune-wav2vec2transducer``
-* ``hyperion-decode-wav2transducer``
-* ``hyperion-decode-wav2vec2rnn-transducer``
 
 Record the tokenizer model and vocabulary, blank/special-token convention,
 decoder settings, and exact ``k2`` version with every checkpoint. The decoder

@@ -27,7 +27,7 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import HyperTorchModel
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-from hyperion.torch.models.audio_discrimitator import AudioMultiDiscriminator
+from hyperion.torch.models.audio_discriminator import AudioMultiDiscriminator
 from hyperion.torch.models.freevc import HFWavLMFreeVC
 from hyperion.torch.narchs import AudioFeatsMVN
 from hyperion.torch.trainers import FreeVCTrainer as Trainer

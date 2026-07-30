@@ -27,7 +27,7 @@ from hyperion.torch import HyperTorchModel
 
 # from hyperion.torch.models import SpineNetXVector as SpineXVec
 # from hyperion.torch.models import TDNNXVector as TDXVec
-# from hyperion.torch.models import TransformerXVectorV1 as TFXVec
+# from hyperion.torch.models import TransformerV1XVector as TFXVec
 # from hyperion.torch.models import EfficientNetXVector as EXVec
 from hyperion.torch.models import ResNet1dXVector as R1dXVec
 from hyperion.torch.models import ResNetXVector as RXVec

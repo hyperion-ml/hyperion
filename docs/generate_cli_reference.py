@@ -91,6 +91,7 @@ def render(
     allow_unavailable: bool,
     selected_scripts: set[str] | None,
     jobs: int,
+    include_optional: bool,
 ) -> tuple[str, list[str]]:
     """Render every inventory command and return unavailable command names."""
     inventory = json.loads(INVENTORY_PATH.read_text(encoding="utf-8"))
@@ -106,6 +107,8 @@ def render(
     ]
 
     commands = sorted(inventory["commands"], key=lambda item: item["command"])
+    if not include_optional:
+        commands = [command for command in commands if command.get("cli_check", True)]
     if selected_scripts:
         commands = [item for item in commands if item["script"] in selected_scripts]
     def capture(command: dict[str, object], arguments: list[str]) -> tuple[bool, str]:
@@ -203,6 +206,11 @@ def main() -> int:
         metavar="SCRIPT",
         help="Generate only this module stem; may be supplied more than once.",
     )
+    parser.add_argument(
+        "--include-optional",
+        action="store_true",
+        help="Include commands marked as requiring optional CLI dependencies.",
+    )
     args = parser.parse_args()
 
     inventory_scripts = {
@@ -216,7 +224,12 @@ def main() -> int:
     if args.jobs < 1:
         parser.error("--jobs must be at least 1")
     content, unavailable = render(
-        args.python, args.timeout, args.allow_unavailable, selected_scripts, args.jobs
+        args.python,
+        args.timeout,
+        args.allow_unavailable,
+        selected_scripts,
+        args.jobs,
+        args.include_optional,
     )
     if args.check:
         if not OUTPUT_PATH.is_file() or OUTPUT_PATH.read_text(encoding="utf-8") != content:

@@ -155,3 +155,7 @@ def main() -> None:
     logging.debug(args)
 
     eval_lgbe(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

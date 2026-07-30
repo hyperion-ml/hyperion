@@ -10,9 +10,9 @@ Stable x-vector fine-tuning
 
 ``hyperion-finetune-wav2xvector`` and
 ``hyperion-finetune-wav2vec2xvector`` fine-tune waveform models;
-``hyperion-finetune-xvector-from-feats`` and
-``hyperion-finetune-xvector-from-wav`` target feature or waveform paths.
-DFR variants additionally configure domain/fairness regularization.
+``hyperion-finetune-xvector-from-wav`` targets waveform paths.
+The waveform DFR variant additionally configures domain/fairness
+regularization.
 
 Use a new experiment path and record both the base checkpoint and target class
 inventory in configuration:

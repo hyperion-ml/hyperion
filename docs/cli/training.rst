@@ -78,15 +78,15 @@ on development data that is disjoint from labeled evaluation trials.
 Other stable training commands
 ------------------------------
 
-``hyperion-train-xvector-from-feats``, ``hyperion-train-xvector-from-wav``,
-``hyperion-train-dino-wav2xvector``, and ``hyperion-make-wav2xvector`` use the
+``hyperion-train-xvector-from-wav``, ``hyperion-train-dino-wav2xvector``, and
+``hyperion-make-wav2xvector`` use the
 same configuration principles: CSV-aligned inputs, an explicit experiment path,
 and a parser-selected model/trainer configuration. Inspect their exact parser
 surface before creating a new configuration:
 
 .. code-block:: bash
 
-   hyperion-train-xvector-from-feats --help
+   hyperion-train-xvector-from-wav --help
    hyperion-train-dino-wav2xvector --help
 
 See also

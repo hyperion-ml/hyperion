@@ -20,8 +20,7 @@ For a native waveform checkpoint:
 
 For a Hugging Face waveform model, use
 ``hyperion-extract-wav2vec2xvectors`` with the matching checkpoint. Feature and
-legacy waveform paths use ``hyperion-extract-xvectors-from-feats`` and
-``hyperion-extract-xvectors-from-wav``. Sliding-window variants additionally
+legacy waveform paths use ``hyperion-extract-xvectors-from-wav``. Sliding-window variants additionally
 produce window-level embeddings and timestamps.
 
 Hugging Face extraction has conditional ``transformers`` and pretrained-asset

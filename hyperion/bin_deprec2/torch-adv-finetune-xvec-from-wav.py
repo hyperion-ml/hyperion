@@ -25,7 +25,7 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import HyperTorchModel
 from hyperion.torch.adv_attacks import AttackFactory
 from hyperion.torch.data import AudioDataset as AD
-from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.data import ClassWeightedRandomSegChunkSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import XVector as XVec
 from hyperion.torch.narchs import AudioFeatsMVN as AF

@@ -288,20 +288,26 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
 
     @staticmethod
     def add_class_args(
-        parser: Any, prefix: Optional[str] = None, skip: set = set()
+        parser: Any,
+        prefix: Optional[str] = None,
+        train_modes: Optional[List[str]] = None,
+        skip: set = set(),
     ) -> None:
         """Registers adversarial wav-trainer arguments on a parser.
 
         Args:
           parser: Parser instance to extend.
           prefix: Optional nested prefix.
+          train_modes: Allowed model train-mode values.
           skip: Argument names to skip.
         """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        XVectorTrainerFromWav.add_class_args(parser, skip=skip)
+        XVectorTrainerFromWav.add_class_args(
+            parser, train_modes=train_modes, skip=skip
+        )
         parser.add_argument(
             "--p-attack",
             default=0.5,

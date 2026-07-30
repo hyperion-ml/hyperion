@@ -32,7 +32,7 @@ from hyperion.torch.models import Wav2ResNetXVector as RXVec
 
 # from hyperion.torch.models import SpineNetXVector as SpineXVec
 # from hyperion.torch.models import TDNNXVector as TDXVec
-# from hyperion.torch.models import TransformerXVectorV1 as TFXVec
+# from hyperion.torch.models import TransformerV1XVector as TFXVec
 from hyperion.torch.trainers import DINOXVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
 

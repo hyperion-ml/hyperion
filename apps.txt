@@ -2,13 +2,10 @@ compute_energy_vad.py
 extract_wav2vec2xvectors.py
 extract_xvectors_from_wav.py
 finetune_wav2vec2xvector.py
-finetune_xvector_dfr_from_feats.py
 finetune_xvector_dfr_from_wav.py
-finetune_xvector_from_feats.py
 finetune_xvector_from_wav.py
 make_babble_noise_audio_files.py
 pack_wav_rirs.py
 preprocess_audio_files.py
 train_wav2vec2xvector.py
-train_xvector_from_feats.py
 train_xvector_from_wav.py

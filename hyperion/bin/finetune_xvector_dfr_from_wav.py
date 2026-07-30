@@ -24,7 +24,7 @@ from jsonargparse import (
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import HyperTorchModel
-from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.data import ClassWeightedRandomSegChunkSampler as Sampler
 from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import XVector as XVec
@@ -182,8 +182,6 @@ def train_xvec(gpu_id: int, args: Any) -> None:
         train_mode=train_mode,
         **trn_args,
     )
-    if args.resume:
-        trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
 
     ddp.ddp_cleanup()
@@ -307,8 +305,8 @@ def main() -> None:
         help="validation utterance/class list",
     )
 
-    AD.add_argparse_args(parser)
-    Sampler.add_argparse_args(parser)
+    AD.add_argparse_args(parser, skip={"seed"})
+    Sampler.add_class_args(parser)
 
     parser.add_argument(
         "--num-workers",
@@ -362,13 +360,6 @@ def main() -> None:
 
     # parser.add_argument('--num-gpus', type=int, default=1,
     #                     help='number of gpus, if 0 it uses cpu')
-    parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
-    parser.add_argument(
-        "--resume",
-        action="store_true",
-        default=False,
-        help="resume training from checkpoint",
-    )
     parser.add_argument(
         "--train-mode",
         default="ft-embed-affine",

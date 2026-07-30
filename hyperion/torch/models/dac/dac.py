@@ -15,7 +15,7 @@ import torch
 import torch.amp
 import torch.nn as nn
 import torch.nn.functional as F  # xxx
-from einops import rearrange  # xxx
+# from einops import rearrange  # xxx
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn.utils import weight_norm  # xxx
 

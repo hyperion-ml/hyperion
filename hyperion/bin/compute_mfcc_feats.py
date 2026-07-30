@@ -22,8 +22,8 @@ from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import SequentialDataReaderFactory as DRF
-from hyperion.io import compression_methods
 from hyperion.np.feats import MFCC
+from hyperion.utils.kaldi_matrix import compression_methods
 from hyperion.utils.misc import PathLike
 
 

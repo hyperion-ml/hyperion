@@ -999,12 +999,13 @@ class LegacyAudioDataset(Dataset):
             for example use transcodec only if the segment is spoof: spoof_det == 'spoof'""",
         )
 
-        parser.add_argument(
-            "--seed",
-            default=11235811,
-            type=int,
-            help="random seed",
-        )
+        if "seed" not in skip:
+            parser.add_argument(
+                "--seed",
+                default=11235811,
+                type=int,
+                help="random seed",
+            )
 
         AR.add_class_args(parser)
         if prefix is not None:

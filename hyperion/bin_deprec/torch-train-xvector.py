@@ -15,7 +15,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
-from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.data import ClassWeightedRandomSegChunkSampler as Sampler
 from hyperion.torch.data import SeqDataset
 from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.helpers import TorchNALoader

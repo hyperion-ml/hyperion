@@ -27,6 +27,7 @@ torch29 = [ "torch==2.9.1", "torchaudio==2.9.1", "torchvision==0.24.1",]
 gcc217 = [ "h5py==3.11.0", "onnxruntime==1.16.3", "numpy>=1.26,<2.0",]
 onnx-cpu-modern = [ "onnxruntime>=1.18,<1.19",]
 voxprofile = [ "voxprofile @ git+https://github.com/hyperion-ml/vox-profile-release",]
+art = [ "adversarial-robustness-toolbox>=1.17",]
 
 [project.urls]
 Homepage = "https://github.com/hyperion-ml/hyperion"
@@ -74,11 +75,8 @@ hyperion-infer-qvectors = "hyperion.bin.infer_qvectors:main"
 hyperion-eval-xvec-cosine-scoring-from-art-test-wav = "hyperion.bin.eval_xvec_cosine_scoring_from_art_test_wav:main"
 hyperion-eval-cosine-scoring-backend = "hyperion.bin.eval_cosine_scoring_backend:main"
 hyperion-train-wav2vec2transducer = "hyperion.bin.train_wav2vec2transducer:main"
-hyperion-finetune-xvector-dfr-from-feats = "hyperion.bin.finetune_xvector_dfr_from_feats:main"
 hyperion-tables = "hyperion.bin.hyperion_tables:main"
 hyperion-cluster-embeddings = "hyperion.bin.cluster_embeddings:main"
-hyperion-extract-xvectors-slidwin-from-feats = "hyperion.bin.extract_xvectors_slidwin_from_feats:main"
-hyperion-finetune-xvector-from-feats = "hyperion.bin.finetune_xvector_from_feats:main"
 hyperion-accum-speech-quality-metrics = "hyperion.bin.accum_speech_quality_metrics:main"
 hyperion-merge-trials = "hyperion.bin.merge_trials:main"
 hyperion-eval-xvec-cosine-scoring-from-test-wav = "hyperion.bin.eval_xvec_cosine_scoring_from_test_wav:main"
@@ -96,16 +94,12 @@ hyperion-eval-xvec-cosine-scoring-from-adv-test-wav-wavegan = "hyperion.bin.eval
 hyperion-finetune-xvector-from-wav = "hyperion.bin.finetune_xvector_from_wav:main"
 hyperion-eval-plda-backend = "hyperion.bin.eval_plda_backend:main"
 hyperion-extract-wav2xvectors = "hyperion.bin.extract_wav2xvectors:main"
-hyperion-extract-xvectors-from-feats = "hyperion.bin.extract_xvectors_from_feats:main"
 hyperion-finetune-xvector-dfr-from-wav = "hyperion.bin.finetune_xvector_dfr_from_wav:main"
-hyperion-train-xvector-from-feats = "hyperion.bin.train_xvector_from_feats:main"
 hyperion-apply-mvn-select-frames = "hyperion.bin.apply_mvn_select_frames:main"
-hyperion-decode-wav2transducer = "hyperion.bin.decode_wav2transducer:main"
 hyperion-train-dac = "hyperion.bin.train_dac:main"
 hyperion-train-freevc = "hyperion.bin.train_freevc:main"
 hyperion-finetune-wav2vec2transducer = "hyperion.bin.finetune_wav2vec2transducer:main"
 hyperion-train-wav2vec2xvector = "hyperion.bin.train_wav2vec2xvector:main"
-hyperion-decode-wav2vec2rnn-transducer = "hyperion.bin.decode_wav2vec2rnn_transducer:main"
 hyperion-eval-voxprofile-metrics = "hyperion.bin.eval_voxprofile_metrics:main"
 hyperion-generate-adv-attacks-xvector-classif = "hyperion.bin.generate_adv_attacks_xvector_classif:main"
 hyperion-audio-to-duration = "hyperion.bin.audio_to_duration:main"

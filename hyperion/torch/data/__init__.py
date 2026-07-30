@@ -7,6 +7,7 @@ from .audio_dataset import AudioDataset
 
 # samplers
 from .bucketing_seg_sampler import BucketingSegSampler
+from .class_weighted_seg_chunk_sampler import ClassWeightedRandomSegChunkSampler
 from .dino_audio_dataset import DINOAudioDataset
 from .embed_sampler_factory import EmbedSamplerFactory
 

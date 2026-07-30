@@ -23,7 +23,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.data import ClassWeightedRandomSegChunkSampler as Sampler
 from hyperion.torch.data import FeatSeqDataset as SD
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import ConformerV1XVector as CXVec
@@ -32,7 +32,7 @@ from hyperion.torch.models import ResNet1dXVector as R1dXVec
 from hyperion.torch.models import ResNetXVector as RXVec
 from hyperion.torch.models import SpineNetXVector as SpineXVec
 from hyperion.torch.models import TDNNXVector as TDXVec
-from hyperion.torch.models import TransformerXVectorV1 as TFXVec
+from hyperion.torch.models import TransformerV1XVector as TFXVec
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
 

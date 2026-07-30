@@ -18,7 +18,6 @@ Stable commands:
 * ``hyperion-train-verification-greedy-fusion``
 * ``hyperion-train-wav2vec2xvector`` Conditional runtime requirements: PyTorch, transformers.
 * ``hyperion-train-wav2xvector`` Conditional runtime requirements: PyTorch.
-* ``hyperion-train-xvector-from-feats`` Conditional runtime requirements: PyTorch.
 * ``hyperion-train-xvector-from-wav`` Conditional runtime requirements: PyTorch.
 
 Experimental commands:
@@ -29,9 +28,9 @@ Experimental commands:
 * ``hyperion-train-tokenizer`` Conditional runtime requirements: PyTorch, codec training data.
 * ``hyperion-train-vi-anonymizer`` Conditional runtime requirements: PyTorch, VITS assets.
 * ``hyperion-train-vi-emo-normalizer`` Conditional runtime requirements: PyTorch, VITS assets.
-* ``hyperion-train-wav2rnn-transducer`` Conditional runtime requirements: PyTorch, transducer training data.
-* ``hyperion-train-wav2vec2rnn-transducer`` Conditional runtime requirements: PyTorch, transformers, transducer training data.
-* ``hyperion-train-wav2vec2transducer`` Conditional runtime requirements: PyTorch, transformers, transducer training data.
+* ``hyperion-train-wav2rnn-transducer`` Conditional runtime requirements: k2, PyTorch, transducer training data.
+* ``hyperion-train-wav2vec2rnn-transducer`` Conditional runtime requirements: k2, PyTorch, transformers, transducer training data.
+* ``hyperion-train-wav2vec2transducer`` Conditional runtime requirements: k2, PyTorch, transformers, transducer training data.
 
 Fine-tuning and adaptation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -45,9 +44,7 @@ Stable commands:
 * ``hyperion-adv-finetune-xvector-from-wav`` Conditional runtime requirements: PyTorch.
 * ``hyperion-finetune-wav2vec2xvector`` Conditional runtime requirements: PyTorch, transformers.
 * ``hyperion-finetune-wav2xvector`` Conditional runtime requirements: PyTorch.
-* ``hyperion-finetune-xvector-dfr-from-feats`` Conditional runtime requirements: PyTorch.
 * ``hyperion-finetune-xvector-dfr-from-wav`` Conditional runtime requirements: PyTorch.
-* ``hyperion-finetune-xvector-from-feats`` Conditional runtime requirements: PyTorch.
 * ``hyperion-finetune-xvector-from-wav`` Conditional runtime requirements: PyTorch.
 
 Experimental commands:
@@ -55,14 +52,14 @@ Experimental commands:
 * ``hyperion-finetune-dac`` Conditional runtime requirements: PyTorch, codec checkpoint.
 * ``hyperion-finetune-qvector`` Conditional runtime requirements: PyTorch, Q-vector checkpoint.
 * ``hyperion-finetune-vi-anonymizer`` Conditional runtime requirements: PyTorch, VITS checkpoint.
-* ``hyperion-finetune-wav2vec2transducer`` Conditional runtime requirements: PyTorch, transformers, transducer checkpoint.
+* ``hyperion-finetune-wav2vec2transducer`` Conditional runtime requirements: k2, PyTorch, transformers, transducer checkpoint.
 
 Extraction and inference
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Embedding extraction, model inference, and decoding commands.
 
-Read the :doc:`extraction and inference guide </cli/experimental>`.
+Read the :doc:`extraction and inference guide </cli/extraction-inference>`.
 
 Stable commands:
 
@@ -71,15 +68,11 @@ Stable commands:
 * ``hyperion-eval-xvec-logits-from-wav`` Conditional runtime requirements: PyTorch.
 * ``hyperion-extract-wav2vec2xvectors`` Conditional runtime requirements: PyTorch, transformers.
 * ``hyperion-extract-wav2xvectors`` Conditional runtime requirements: PyTorch.
-* ``hyperion-extract-xvectors-from-feats`` Conditional runtime requirements: PyTorch.
 * ``hyperion-extract-xvectors-from-wav`` Conditional runtime requirements: PyTorch.
-* ``hyperion-extract-xvectors-slidwin-from-feats`` Conditional runtime requirements: PyTorch.
 * ``hyperion-extract-xvectors-slidwin-from-wav`` Conditional runtime requirements: PyTorch.
 
 Experimental commands:
 
-* ``hyperion-decode-wav2transducer`` Conditional runtime requirements: PyTorch, transducer checkpoint.
-* ``hyperion-decode-wav2vec2rnn-transducer`` Conditional runtime requirements: PyTorch, transformers, transducer checkpoint.
 * ``hyperion-infer-qvectors`` Conditional runtime requirements: PyTorch, Q-vector checkpoint.
 
 Backends, scoring, and evaluation
@@ -91,14 +84,14 @@ Read the :doc:`backends, scoring, and evaluation guide </cli/backend-scoring-eva
 
 Stable commands:
 
-* ``hyperion-accum-speech-quality-metrics`` Conditional runtime requirements: speech-quality metric dependencies.
+* ``hyperion-accum-speech-quality-metrics`` Conditional runtime requirements: ONNX Runtime, speech-quality metric dependencies.
 * ``hyperion-accum-voxprofile-metrics`` Conditional runtime requirements: voxprofile extra.
 * ``hyperion-cluster-embeddings``
 * ``hyperion-eval-cosine-scoring-backend``
 * ``hyperion-eval-cosine-scoring-backend-with-qmf``
 * ``hyperion-eval-lgbe``
 * ``hyperion-eval-plda-backend``
-* ``hyperion-eval-speech-quality-metrics`` Conditional runtime requirements: TPM model packages, optional quality model assets.
+* ``hyperion-eval-speech-quality-metrics`` Conditional runtime requirements: ONNX Runtime, TPM model packages, optional quality model assets.
 * ``hyperion-eval-verification-anonymization-metrics``
 * ``hyperion-eval-verification-calibration``
 * ``hyperion-eval-verification-greedy-fusion``
@@ -106,10 +99,10 @@ Stable commands:
 * ``hyperion-eval-voxprofile-metrics`` Conditional runtime requirements: voxprofile extra, VoxProfile model assets.
 * ``hyperion-eval-xvec-cosine-scoring-from-adv-test-wav`` Conditional runtime requirements: PyTorch.
 * ``hyperion-eval-xvec-cosine-scoring-from-adv-test-wav-wavegan`` Conditional runtime requirements: PyTorch.
-* ``hyperion-eval-xvec-cosine-scoring-from-art-test-wav`` Conditional runtime requirements: PyTorch.
+* ``hyperion-eval-xvec-cosine-scoring-from-art-test-wav`` Conditional runtime requirements: ART, PyTorch.
 * ``hyperion-eval-xvec-cosine-scoring-from-test-wav`` Conditional runtime requirements: PyTorch.
 * ``hyperion-eval-xvec-cosine-scoring-from-transfer-adv-test-wav`` Conditional runtime requirements: PyTorch.
-* ``hyperion-eval-xvec-cosine-scoring-from-transfer-art-test-wav`` Conditional runtime requirements: PyTorch.
+* ``hyperion-eval-xvec-cosine-scoring-from-transfer-art-test-wav`` Conditional runtime requirements: ART, PyTorch.
 * ``hyperion-generate-adv-attacks-xvector-classif`` Conditional runtime requirements: PyTorch.
 * ``hyperion-generate-adv-attacks-xvector-verif`` Conditional runtime requirements: PyTorch.
 

@@ -14,7 +14,6 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from art.classifiers import PyTorchClassifier
 from art.estimators.classification import PyTorchClassifier
 from jsonargparse import (
     ActionConfigFile,

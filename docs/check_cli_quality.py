@@ -32,6 +32,7 @@ def main() -> int:
         command
         for command in inventory["commands"]
         if command["status"] in MAINTAINED_STATUSES
+        and command.get("cli_check", True)
     ]
     classified_scripts = {command["script"] for command in inventory["commands"]}
     errors: list[str] = []

@@ -14,7 +14,6 @@ from typing import Any
 
 import numpy as np
 import torch
-import torch.nn as nn
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
@@ -24,11 +23,11 @@ from jsonargparse import (
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import HyperTorchModel
-from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.data import ClassWeightedRandomSegChunkSampler as Sampler
 from hyperion.torch.data import FeatSeqDataset as SD
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import XVector as XVec
-from hyperion.torch.trainers import XVectorTrainerDeepFeatReg as Trainer
+from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp, open_device
 from hyperion.utils.misc import PathLike
 
@@ -86,17 +85,15 @@ def init_data(
 def init_xvector(
     num_classes: int,
     in_model_path: PathLike,
-    prior_model_path: PathLike | None,
     rank: int,
     train_mode: str,
     **kwargs: Any,
-) -> tuple[torch.nn.Module, torch.nn.Module]:
-    """Load and reconfigure x-vector model checkpoint for deep-feature regularization.
+) -> torch.nn.Module:
+    """Load and reconfigure x-vector model checkpoint for fine-tuning.
 
     Args:
         num_classes: Number of target classes in current training data.
         in_model_path: Input model checkpoint path used as fine-tuning start.
-        prior_model_path: Optional checkpoint for prior-model regularization target.
         rank: Distributed rank of the current process.
         train_mode: Fine-tuning mode.
         **kwargs: Additional parsed args containing model configuration.
@@ -107,21 +104,15 @@ def init_xvector(
     xvec_args["num_classes"] = num_classes
     model = HyperTorchModel.auto_load(in_model_path)
     model.rebuild_output_layer(**xvec_args)
-    if prior_model_path:
-        prior_model = HyperTorchModel.auto_load(prior_model_path)
-    else:
-        prior_model = model.copy()
-    prior_model.freeze()
-    prior_model.eval()
     if train_mode == "ft-embed-affine":
         model.freeze_preembed_layers()
     if rank == 0:
         logging.info("x-vector-model={}".format(model))
-    return model, prior_model
+    return model
 
 
 def train_xvec(gpu_id: int, args: Any) -> None:
-    """Run distributed x-vector fine-tuning with deep-feature regularization.
+    """Run distributed x-vector fine-tuning from features.
 
     Args:
         gpu_id: Local GPU index used by this process.
@@ -141,16 +132,14 @@ def train_xvec(gpu_id: int, args: Any) -> None:
     device, rank, world_size = ddp.ddp_init(**ddp_args)
     kwargs["rank"] = rank
     train_loader, test_loader = init_data(**kwargs)
-    model, prior_model = init_xvector(train_loader.dataset.num_classes, **kwargs)
+    model = init_xvector(train_loader.dataset.num_classes, **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs)
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
     metrics = {"acc": CategoricalAccuracy()}
-
     trainer = Trainer(
         model,
-        prior_model,
         device=device,
         metrics=metrics,
         ddp=world_size > 1,
@@ -164,12 +153,8 @@ def train_xvec(gpu_id: int, args: Any) -> None:
     ddp.ddp_cleanup()
 
 
-# def train_xvec(data_rspec, train_list, val_list, in_model_path,
-#                prior_model_path,
-#                reg_layers_enc, reg_layers_classif,
-#                reg_weight_enc, reg_weight_classif, reg_loss,
-#                num_gpus, resume, num_workers,
-#                train_mode, **kwargs):
+# (data_rspec, train_list, val_list, in_model_path,
+#                num_gpus, resume, num_workers, train_mode, **kwargs):
 
 #     set_float_cpu('float32')
 #     logging.info('initializing devices num_gpus={}'.format(num_gpus))
@@ -207,12 +192,6 @@ def train_xvec(gpu_id: int, args: Any) -> None:
 #     xvec_args['num_classes'] = train_data.num_classes
 #     model = HyperTorchModel.auto_load(in_model_path)
 #     model.rebuild_output_layer(**xvec_args)
-#     if prior_model_path:
-#         prior_model = HyperTorchModel.auto_load(prior_model_path)
-#     else:
-#         prior_model = model.copy()
-#     prior_model.freeze()
-#     prior_model.eval()
 #     if train_mode == 'ft-embed-affine':
 #         model.freeze_preembed_layers()
 #     logging.info(str(model))
@@ -221,17 +200,7 @@ def train_xvec(gpu_id: int, args: Any) -> None:
 #     lr_sch = LRSF.create(optimizer, **lrsch_args)
 #     metrics = { 'acc': CategoricalAccuracy() }
 
-#     if reg_loss == 'l1':
-#         reg_loss = nn.L1Loss()
-#     else:
-#         reg_loss = nn.MSELoss()
-
-#     trainer = Trainer(model, prior_model, optimizer,
-#                       reg_layers_enc=reg_layers_enc,
-#                       reg_layers_classif=reg_layers_classif,
-#                       reg_weight_enc=reg_weight_enc,
-#                       reg_weight_classif=reg_weight_classif,
-#                       reg_loss=reg_loss,
+#     trainer = Trainer(model, optimizer,
 #                       device=device, metrics=metrics, lr_scheduler=lr_sch,
 #                       data_parallel=(num_gpus>1), train_mode=train_mode,
 #                       **trn_args)
@@ -241,33 +210,22 @@ def train_xvec(gpu_id: int, args: Any) -> None:
 
 
 def main() -> None:
-    """Parse CLI arguments and start x-vector DFR fine-tuning.
+    """Parse CLI arguments and start x-vector fine-tuning from features.
 
     Args:
         None.
     """
-    parser = ArgumentParser(
-        description="Fine-tune x-vector model with deep feature loss regularization"
-    )
+    parser = ArgumentParser(description="Fine-tune x-vector model")
 
     parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
     parser.add_argument(
-        "--data-rspec",
-        dest="data_rspec",
-        required=True,
-        help="input feature archive/specifier",
+        "--data-rspec", required=True, help="input feature archive/specifier"
     )
     parser.add_argument(
-        "--train-list",
-        dest="train_list",
-        required=True,
-        help="training utterance/class list",
+        "--train-list", required=True, help="training utterance/class list"
     )
     parser.add_argument(
-        "--val-list",
-        dest="val_list",
-        required=True,
-        help="validation utterance/class list",
+        "--val-list", required=True, help="validation utterance/class list"
     )
 
     SD.add_argparse_args(parser)
@@ -278,28 +236,10 @@ def main() -> None:
         default=5,
         help="number of dataloader worker processes",
     )
-
-    # parser.add_argument('--reg-layers-enc', type=int, default=None, nargs='+',
-    #                     help='list of layers from the encoder nnet to use for regularization ')
-    # parser.add_argument('--reg-layers-classif', type=int, default=None, nargs='+',
-    #                     help='list of layers from the classif nnet to use for regularization ')
-    # parser.add_argument('--reg-weight-enc', type=float, default=0.1,
-    #                     help='weight for regularization from enc layers')
-    # parser.add_argument('--reg-weight-classif', type=float, default=0.1,
-    #                     help='weight for regularization from classif layers')
-    # parser.add_argument('--reg-loss', default='l1',
-    #                     choices=['l1', 'mse'],
-    #                     help=('type of regularization loss'))
-
     parser.add_argument(
         "--in-model-path",
         required=True,
         help="input model checkpoint path used as fine-tuning starting point",
-    )
-    parser.add_argument(
-        "--prior-model-path",
-        default=None,
-        help="optional prior-model checkpoint path for regularization target",
     )
     XVec.add_finetune_args(parser)
     Trainer.add_class_args(parser)
@@ -355,6 +295,7 @@ def main() -> None:
     multiprocessing.set_start_method("forkserver")
     train_xvec(gpu_id, args)
 
+    # args = parser.parse_args()
     # config_logger(args.verbose)
     # del args.verbose
     # logging.debug(args)
