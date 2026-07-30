@@ -25,8 +25,8 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import HyperTorchModel
 from hyperion.torch.adv_attacks import AttackFactory
-from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.data import ClassWeightedRandomSegChunkSampler as Sampler
+from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import EfficientNetXVector as EXVec
