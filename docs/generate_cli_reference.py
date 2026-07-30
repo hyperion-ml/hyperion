@@ -30,6 +30,10 @@ def capture_help(
     """Capture help for one command invocation."""
     env = os.environ.copy()
     env.setdefault("MPLCONFIGDIR", str(REPO_DIR / "docs" / "_build" / ".matplotlib"))
+    # Some CLI imports load librosa/numba. JIT compilation is unnecessary for
+    # help capture and can fail while importing packages from non-standard
+    # filesystem paths.
+    env.setdefault("NUMBA_DISABLE_JIT", "1")
     try:
         completed = subprocess.run(
             [python, "-m", f"hyperion.bin.{script}", *arguments, "--help"],
