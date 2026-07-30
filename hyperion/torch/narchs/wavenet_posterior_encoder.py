@@ -130,9 +130,7 @@ class WaveNetPosteriorEncoder(NetArch):
 
         x_mask = seq_lengths_to_mask(x_lengths, x.size(2), time_dim=2)
         if x_mask is None:
-            x_mask = torch.ones(
-                x.size(0), 1, x.size(2), device=x.device, dtype=x.dtype
-            )
+            x_mask = torch.ones(x.size(0), 1, x.size(2), device=x.device, dtype=x.dtype)
         else:
             x_mask = x_mask.to(device=x.device, dtype=x.dtype)
         x = self.in_conv(x) * x_mask

@@ -27,9 +27,7 @@ def _assert_pos_dur(t_start: np.ndarray, t_end: np.ndarray) -> None:
     t_start = np.asarray(t_start)
     t_end = np.asarray(t_end)
     if t_start.ndim != 1 or t_end.ndim != 1:
-        raise ValueError(
-            f"timestamps must be 1-D, got {t_start.shape=} {t_end.shape=}"
-        )
+        raise ValueError(f"timestamps must be 1-D, got {t_start.shape=} {t_end.shape=}")
     if t_start.shape[0] != t_end.shape[0]:
         raise ValueError(
             f"t_start and t_end must have same length, got {len(t_start)} and {len(t_end)}"

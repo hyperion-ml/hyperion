@@ -266,8 +266,7 @@ def compute_area_under_rocch(p_miss: np.ndarray, p_fa: np.ndarray) -> float:
 
 
 def test_roc() -> None:
-    """Plots ROC and ROCCH examples for synthetic score configurations.
-    """
+    """Plots ROC and ROCCH examples for synthetic score configurations."""
     import matplotlib.pyplot as plt
 
     plt.figure()

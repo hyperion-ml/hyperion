@@ -1,7 +1,8 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from collections import OrderedDict
 from copy import deepcopy
@@ -37,7 +38,9 @@ class Utt2Info:
 
     @classmethod
     def create(
-        cls, key: Union[Sequence[str], np.ndarray], info: Union[Sequence[object], np.ndarray]
+        cls,
+        key: Union[Sequence[str], np.ndarray],
+        info: Union[Sequence[object], np.ndarray],
     ) -> "Utt2Info":
         key = np.asarray(key)
         info = np.asarray(info)
@@ -96,14 +99,12 @@ class Utt2Info:
         return key in self.utt_info.index
 
     @overload
-    def __getitem__(self, key: str) -> Union[object, np.ndarray]:
-        ...
+    def __getitem__(self, key: str) -> Union[object, np.ndarray]: ...
 
     @overload
     def __getitem__(
         self, key: Union[int, np.integer]
-    ) -> Union[Tuple[str, object], Tuple[str, np.ndarray]]:
-        ...
+    ) -> Union[Tuple[str, object], Tuple[str, np.ndarray]]: ...
 
     def __getitem__(
         self, key: Union[str, int, np.integer]

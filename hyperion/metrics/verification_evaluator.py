@@ -20,9 +20,9 @@ matplotlib.rc("text", usetex=True)
 import matplotlib.pyplot as plt
 
 from ..hyp_defs import float_cpu
+from ..np.metrics.dcf import fast_eval_dcf_eer, fast_eval_equalized_dcf_eer
 from ..np.metrics.dcf_plot import NormDCFPlot
 from ..np.metrics.det_plot import DETPlot
-from ..np.metrics.dcf import fast_eval_dcf_eer, fast_eval_equalized_dcf_eer
 from ..np.metrics.utils import effective_prior
 from ..utils import SparseTrialKey, SparseTrialScores, TrialKey, TrialScores
 from ..utils.misc import PathLike
@@ -154,9 +154,7 @@ class VerificationEvaluator:
         self._p_tar_sort = np.argsort(p_tar)
         self.p_tar = p_tar
 
-    def __call__(
-        self, return_df: bool = True
-    ) -> Optional[
+    def __call__(self, return_df: bool = True) -> Optional[
         Union[
             Tuple[Union[float, np.ndarray], Union[float, np.ndarray], float, int, int],
             pd.DataFrame,
@@ -172,9 +170,7 @@ class VerificationEvaluator:
         """
         return self.compute_dcf_eer(return_df)
 
-    def compute_dcf_eer(
-        self, return_df: bool = True
-    ) -> Optional[
+    def compute_dcf_eer(self, return_df: bool = True) -> Optional[
         Union[
             Tuple[Union[float, np.ndarray], Union[float, np.ndarray], float, int, int],
             pd.DataFrame,

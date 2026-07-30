@@ -104,7 +104,7 @@ class ContrastiveLoss(nn.Module):
                     logging.info(
                         "updating constrastive loss margin=%.2f",
                         self.cur_margin,
-                )
+                    )
 
     def update(self, step: int) -> None:
         """Updates both scheduled loss parameters.

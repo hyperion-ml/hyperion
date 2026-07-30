@@ -1,7 +1,8 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba, Yen-Ju Lu)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba, Yen-Ju Lu)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from typing import Any, Dict
 
 import torch
@@ -21,8 +22,9 @@ class TransducerJoiner(nn.Module):
       vocab_size: Output vocabulary size.
     """
 
-    def __init__(self, enc_feats: int, pred_feats: int, hid_feats: int,
-                 vocab_size: int) -> None:
+    def __init__(
+        self, enc_feats: int, pred_feats: int, hid_feats: int, vocab_size: int
+    ) -> None:
         """
         Initializes the RNN-T joiner network layers.
 
@@ -56,10 +58,9 @@ class TransducerJoiner(nn.Module):
         }
         return config
 
-    def forward(self,
-                enc_out: torch.Tensor,
-                pred_out: torch.Tensor,
-                project_input: bool = True) -> torch.Tensor:
+    def forward(
+        self, enc_out: torch.Tensor, pred_out: torch.Tensor, project_input: bool = True
+    ) -> torch.Tensor:
         """
         Args:
           enc_out: Output from the encoder with shape `(N, T, C)` or

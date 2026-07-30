@@ -11,11 +11,11 @@ from typing import Any, List, Optional, Sequence, Union
 import numpy as np
 from scipy.special import ndtri
 
+from ...utils.misc import PathLike
 from ...utils.sparse_trial_key import SparseTrialKey
 from ...utils.sparse_trial_scores import SparseTrialScores
 from ...utils.trial_key import TrialKey
 from ...utils.trial_scores import TrialScores
-from ...utils.misc import PathLike
 from .dcf import compute_act_dcf
 from .roc import compute_roc, compute_rocch
 
@@ -648,7 +648,9 @@ class DETPlot:
         )
         return h_h
 
-    def save(self, img_path: PathLike, dpi: Optional[int] = None, **kwargs: Any) -> None:
+    def save(
+        self, img_path: PathLike, dpi: Optional[int] = None, **kwargs: Any
+    ) -> None:
         """Saves the DET figure to an image file.
 
         Args:

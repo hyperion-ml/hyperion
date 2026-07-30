@@ -1,7 +1,8 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from typing import Any, Dict, Optional
 
@@ -75,7 +76,9 @@ class CarliniWagner(AdvAttack):
                 f"Carlini-Wagner attacks require initial_c > 0, got initial_c={initial_c}"
             )
         if norm_time and time_dim is None:
-            raise ValueError("Carlini-Wagner attacks require time_dim when norm_time=True")
+            raise ValueError(
+                "Carlini-Wagner attacks require time_dim when norm_time=True"
+            )
         self.confidence = confidence
         self.lr = lr
         self.max_iter = max_iter

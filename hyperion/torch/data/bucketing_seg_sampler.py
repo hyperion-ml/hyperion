@@ -96,14 +96,10 @@ class BucketingSegSampler(HyperSampler):
             )
             segments = segments.iloc[np.flatnonzero(valid_lengths)]
             if len(segments) == 0:
-                raise ValueError(
-                    f"No segments have finite {length_name} values."
-                )
+                raise ValueError(f"No segments have finite {length_name} values.")
             lengths = lengths[valid_lengths]
         if np.any(lengths <= 0):
-            raise ValueError(
-                f"{length_name} must contain positive segment lengths."
-            )
+            raise ValueError(f"{length_name} must contain positive segment lengths.")
         if max_batch_length is not None and max_batch_length <= 0:
             raise ValueError(
                 f"max_batch_length must be positive, got {max_batch_length}."
@@ -111,9 +107,7 @@ class BucketingSegSampler(HyperSampler):
         self.sample_all_segments = sample_all_segments
         self._overlength_segments: Optional[SegmentSet] = None
         if max_batch_length is not None:
-            in_range_segments = segments.loc[
-                segments[length_name] <= max_batch_length
-            ]
+            in_range_segments = segments.loc[segments[length_name] <= max_batch_length]
             if self.sample_all_segments:
                 self._overlength_segments = segments.loc[
                     segments[length_name] > max_batch_length

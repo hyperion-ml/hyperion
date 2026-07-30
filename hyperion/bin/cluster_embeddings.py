@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-""" 
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba) 
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+"""
+
 import logging
 import os
 import sys
@@ -69,7 +70,9 @@ def add_common_args(parser: ArgumentParser) -> None:
     )
 
 
-def load_data(segments_file: PathLike, feats_file: PathLike) -> Tuple[SegmentSet, np.ndarray]:
+def load_data(
+    segments_file: PathLike, feats_file: PathLike
+) -> Tuple[SegmentSet, np.ndarray]:
     """Load segments metadata and corresponding embeddings."""
     logging.info("loading data")
     segments = SegmentSet.load(segments_file)

@@ -292,9 +292,7 @@ class SpeechQualityEvaluator:
                 try:
                     metrics["pesq"] = float(compute_pesq(pred=x, target=x_ref, fs=fs))
                     metrics["si_pesq"] = float(
-                        compute_pesq(
-                            pred=x, target=x_ref, fs=fs, scale_invariant=True
-                        )
+                        compute_pesq(pred=x, target=x_ref, fs=fs, scale_invariant=True)
                     )
                 except ImportError as e:
                     self._disabled_ref_metric_groups.add("pesq")

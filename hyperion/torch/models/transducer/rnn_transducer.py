@@ -1,6 +1,6 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -18,8 +18,8 @@ import torch
 
 from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
-from ...narchs import RNNTransducerDecoder
 from ...hyper_torch_model import HyperTorchModel
+from ...narchs import RNNTransducerDecoder
 
 
 @dataclass

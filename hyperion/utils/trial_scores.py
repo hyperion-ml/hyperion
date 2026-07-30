@@ -211,9 +211,7 @@ class TrialScores:
             score_mask = np.asarray(f["score_mask"], dtype="bool")
             if "q_measures" in f:
                 q_grp = f["q_measures"]
-                q_measures = {
-                    k: np.asarray(q_grp[k], dtype=float_cpu()) for k in q_grp
-                }
+                q_measures = {k: np.asarray(q_grp[k], dtype=float_cpu()) for k in q_grp}
             else:
                 q_measures = None
         return cls(model_set, seg_set, scores, score_mask, q_measures)
@@ -345,9 +343,7 @@ class TrialScores:
         seg_set = scr_list[0].seg_set
         scores = scr_list[0].scores
         score_mask = scr_list[0].score_mask
-        q_measures = (
-            {k: scr_list[0].q_measures[k] for k in q_keys} if q_keys else None
-        )
+        q_measures = {k: scr_list[0].q_measures[k] for k in q_keys} if q_keys else None
         for i in range(1, num_scr):
             scr_i = scr_list[i]
             new_model_set = np.union1d(model_set, scr_i.model_set)
@@ -387,8 +383,7 @@ class TrialScores:
             score_mask_2[ix_a] = scr_i.score_mask[ix_b]
             if q_keys:
                 q_measures_2 = {
-                    k: np.zeros(shape, dtype=scr_i.q_measures[k].dtype)
-                    for k in q_keys
+                    k: np.zeros(shape, dtype=scr_i.q_measures[k].dtype) for k in q_keys
                 }
                 for k in q_keys:
                     q_measures_2[k][ix_a] = scr_i.q_measures[k][ix_b]

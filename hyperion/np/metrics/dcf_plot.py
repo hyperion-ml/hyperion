@@ -3,17 +3,17 @@ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import warnings
 from typing import Any, List, Optional, Union
 
 import numpy as np
 from scipy.special import expit, logit
-import warnings
 
+from ...utils.misc import PathLike
 from ...utils.sparse_trial_key import SparseTrialKey
 from ...utils.sparse_trial_scores import SparseTrialScores
 from ...utils.trial_key import TrialKey
 from ...utils.trial_scores import TrialScores
-from ...utils.misc import PathLike
 from .dcf import compute_act_dcf, compute_min_dcf
 
 
@@ -237,7 +237,9 @@ class NormDCFPlot:
             Any: Matplotlib line handle.
         """
         if self.minDCF is None:
-            raise ValueError("Call set_system_from_scores or set_system_from_trials first")
+            raise ValueError(
+                "Call set_system_from_scores or set_system_from_trials first"
+            )
         legend = self._resolve_legend(legend, "MinDCF")
         return self._plot_series(self.minDCF, color, line_type, line_width, legend)
 
@@ -260,7 +262,9 @@ class NormDCFPlot:
             Any: Matplotlib line handle.
         """
         if self.actDCF is None:
-            raise ValueError("Call set_system_from_scores or set_system_from_trials first")
+            raise ValueError(
+                "Call set_system_from_scores or set_system_from_trials first"
+            )
         legend = self._resolve_legend(legend, "ActDCF")
         return self._plot_series(self.actDCF, color, line_type, line_width, legend)
 
@@ -283,7 +287,9 @@ class NormDCFPlot:
             Any: Matplotlib line handle.
         """
         if self.minPmiss is None:
-            raise ValueError("Call set_system_from_scores or set_system_from_trials first")
+            raise ValueError(
+                "Call set_system_from_scores or set_system_from_trials first"
+            )
         legend = self._resolve_legend(legend, "MinDCF PMiss")
         y = self.minPmiss * self.Ptar_norm
         return self._plot_series(y, color, line_type, line_width, legend)
@@ -307,7 +313,9 @@ class NormDCFPlot:
             Any: Matplotlib line handle.
         """
         if self.minPfa is None:
-            raise ValueError("Call set_system_from_scores or set_system_from_trials first")
+            raise ValueError(
+                "Call set_system_from_scores or set_system_from_trials first"
+            )
         legend = self._resolve_legend(legend, "MinDCF PFA")
         y = self.minPfa * self.Pnon_norm
         return self._plot_series(y, color, line_type, line_width, legend)
@@ -331,7 +339,9 @@ class NormDCFPlot:
             Any: Matplotlib line handle.
         """
         if self.actPmiss is None:
-            raise ValueError("Call set_system_from_scores or set_system_from_trials first")
+            raise ValueError(
+                "Call set_system_from_scores or set_system_from_trials first"
+            )
         legend = self._resolve_legend(legend, "ActDCF PMiss")
         y = self.actPmiss * self.Ptar_norm
         return self._plot_series(y, color, line_type, line_width, legend)
@@ -355,12 +365,16 @@ class NormDCFPlot:
             Any: Matplotlib line handle.
         """
         if self.actPfa is None:
-            raise ValueError("Call set_system_from_scores or set_system_from_trials first")
+            raise ValueError(
+                "Call set_system_from_scores or set_system_from_trials first"
+            )
         legend = self._resolve_legend(legend, "ActDCF PFA")
         y = self.actPfa * self.Pnon_norm
         return self._plot_series(y, color, line_type, line_width, legend)
 
-    def plot_both_dcf(self, color: Optional[str] = None, line_width: float = 1.5) -> Any:
+    def plot_both_dcf(
+        self, color: Optional[str] = None, line_width: float = 1.5
+    ) -> Any:
         """Plots both minimum and actual DCF curves.
 
         Args:
@@ -374,7 +388,9 @@ class NormDCFPlot:
         h_act = self.plot_act_dcf(color=color, line_width=line_width)
         return h_min, h_act
 
-    def save(self, img_path: PathLike, dpi: Optional[int] = None, **kwargs: Any) -> None:
+    def save(
+        self, img_path: PathLike, dpi: Optional[int] = None, **kwargs: Any
+    ) -> None:
         """Saves the current normalized DCF figure.
 
         Args:
@@ -450,7 +466,9 @@ class NormDCFPlot:
             Any: Matplotlib handle for the plotted point, or ``None`` if unavailable.
         """
         if self.minDCF is None:
-            raise ValueError("Call set_system_from_scores or set_system_from_trials first")
+            raise ValueError(
+                "Call set_system_from_scores or set_system_from_trials first"
+            )
         if self.dr30FA is None:
             warnings.warn(
                 "DR30 Pfa point is unavailable for current system; nothing will be plotted.",
@@ -495,7 +513,9 @@ class NormDCFPlot:
             Any: Matplotlib handle for the plotted point, or ``None`` if unavailable.
         """
         if self.minDCF is None:
-            raise ValueError("Call set_system_from_scores or set_system_from_trials first")
+            raise ValueError(
+                "Call set_system_from_scores or set_system_from_trials first"
+            )
         if self.dr30Miss is None:
             warnings.warn(
                 "DR30 Pmiss point is unavailable for current system; nothing will be plotted.",

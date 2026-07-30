@@ -1,12 +1,14 @@
 """
- Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import re
 from fractions import Fraction
 from typing import Iterator, List, Match, Optional, Union
 
 from more_itertools import windowed
+
 
 class EnglishNumberNormalizer:
     """
@@ -58,12 +60,33 @@ class EnglishNumberNormalizer:
     def _init_digits(self) -> None:
         """Initializes mappings for zero, one-to-nineteen, plural, and ordinal forms."""
         self.zeros = {"o", "zero"}
-        self.ones = {name: i for i, name in enumerate([
-            "one", "two", "three", "four", "five", "six",
-            "seven", "eight", "nine", "ten", "eleven", "twelve",
-            "thirteen", "fourteen", "fifteen", "sixteen",
-            "seventeen", "eighteen", "nineteen"
-        ], start=1)}
+        self.ones = {
+            name: i
+            for i, name in enumerate(
+                [
+                    "one",
+                    "two",
+                    "three",
+                    "four",
+                    "five",
+                    "six",
+                    "seven",
+                    "eight",
+                    "nine",
+                    "ten",
+                    "eleven",
+                    "twelve",
+                    "thirteen",
+                    "fourteen",
+                    "fifteen",
+                    "sixteen",
+                    "seventeen",
+                    "eighteen",
+                    "nineteen",
+                ],
+                start=1,
+            )
+        }
         self.ones_plural = {
             "sixes" if name == "six" else name + "s": (value, "s")
             for name, value in self.ones.items()
@@ -86,8 +109,14 @@ class EnglishNumberNormalizer:
     def _init_tens(self) -> None:
         """Initializes mappings for tens (twenty, thirty, etc.), including plural and ordinal forms."""
         self.tens = {
-            "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
-            "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+            "twenty": 20,
+            "thirty": 30,
+            "forty": 40,
+            "fifty": 50,
+            "sixty": 60,
+            "seventy": 70,
+            "eighty": 80,
+            "ninety": 90,
         }
         self.tens_plural = {
             name.replace("y", "ies"): (val, "s") for name, val in self.tens.items()
@@ -127,16 +156,24 @@ class EnglishNumberNormalizer:
     def _init_prefix_suffix(self) -> None:
         """Initializes mappings for prefix symbols (positive, negative) and suffix terms (currency, percent)."""
         self.preceding_prefixers = {
-            "minus": "-", "negative": "-",
-            "plus": "+", "positive": "+",
+            "minus": "-",
+            "negative": "-",
+            "plus": "+",
+            "positive": "+",
         }
         self.following_prefixers = {
-            "pound": "£", "pounds": "£",
-            "euro": "€", "euros": "€",
-            "dollar": "$", "dollars": "$",
-            "cent": "¢", "cents": "¢",
+            "pound": "£",
+            "pounds": "£",
+            "euro": "€",
+            "euros": "€",
+            "dollar": "$",
+            "dollars": "$",
+            "cent": "¢",
+            "cents": "¢",
         }
-        self.prefixes = set(self.preceding_prefixers.values()) | set(self.following_prefixers.values())
+        self.prefixes = set(self.preceding_prefixers.values()) | set(
+            self.following_prefixers.values()
+        )
         self.suffixers = {
             "per": {"cent": "%"},
             "percent": "%",
@@ -163,7 +200,6 @@ class EnglishNumberNormalizer:
             self.suffixers,
             self.specials,
         )
-
 
     def process_words(self, words: List[str]) -> Iterator[str]:
         """
@@ -460,6 +496,7 @@ class EnglishNumberNormalizer:
         Returns:
             str: A cleaned-up string with currency and linguistic adjustments.
         """
+
         def combine_cents(m: Match) -> str:
             try:
                 currency = m.group(1)
@@ -542,6 +579,7 @@ class EnglishReverseNumberNormalizer(EnglishNumberNormalizer):
         str_to_tens_suffixed (dict[str, str]):
             Mapping from suffixed tens (e.g., '90s', '90th') to spelled-out versions like 'nineties', 'ninetieth'.
     """
+
     def __init__(self) -> None:
         super().__init__()
         # Reverse dictionaries

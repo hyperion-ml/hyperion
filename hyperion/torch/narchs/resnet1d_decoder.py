@@ -1,14 +1,14 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import math
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..layer_blocks import (
     DC1dDecBlock,
@@ -183,7 +183,7 @@ class ResNet1dDecoder(NetArch):
                 use_norm=use_norm,
                 norm_layer=self._norm_layer,
                 norm_before=norm_before,
-                **bargs
+                **bargs,
             )
 
             self.blocks.append(block_i)
@@ -203,7 +203,7 @@ class ResNet1dDecoder(NetArch):
                     use_norm=use_norm,
                     norm_layer=self._norm_layer,
                     norm_before=norm_before,
-                    **bargs
+                    **bargs,
                 )
 
                 self.blocks.append(block_i)
@@ -503,9 +503,7 @@ class ResNet1dDecoder(NetArch):
         return args
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Add command-line arguments for this decoder.
 
         Args:

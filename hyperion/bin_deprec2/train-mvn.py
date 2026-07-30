@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Trains global mean and variance normalization of i-vectors.
 """
@@ -29,7 +30,7 @@ def train_mvn(
     save_tlist,
     append_tlist,
     output_path,
-    **kwargs
+    **kwargs,
 ):
 
     if preproc_file is not None:

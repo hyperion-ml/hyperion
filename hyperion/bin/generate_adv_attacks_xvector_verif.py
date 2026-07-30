@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
-  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
-  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 import sys
@@ -171,9 +172,7 @@ def init_model(
     return model
 
 
-def init_attack_factory(
-    wav_scale: float = 1.0, **kwargs: Any
-) -> RandomAttackFactory:
+def init_attack_factory(wav_scale: float = 1.0, **kwargs: Any) -> RandomAttackFactory:
     """Initialize random attack factory for waveform perturbations.
 
     Args:

@@ -451,9 +451,7 @@ class TrialKey:
                     raise ValueError(
                         "All TrialKey objects must have the same number of model conditions"
                     )
-            _check_equal_names(
-                "model_cond_name", [k.model_cond_name for k in key_list]
-            )
+            _check_equal_names("model_cond_name", [k.model_cond_name for k in key_list])
             model_cond_name = key_list[0].model_cond_name
         else:
             model_cond_name = None
@@ -477,9 +475,7 @@ class TrialKey:
                     raise ValueError(
                         "All TrialKey objects must have the same number of trial conditions"
                     )
-            _check_equal_names(
-                "trial_cond_name", [k.trial_cond_name for k in key_list]
-            )
+            _check_equal_names("trial_cond_name", [k.trial_cond_name for k in key_list])
             trial_cond_name = key_list[0].trial_cond_name
         else:
             trial_cond_name = None
@@ -803,7 +799,9 @@ class TrialKey:
                 raise ValueError(f"non shape {self.non.shape} does not match {shape}")
         if self.spoof is not None:
             if self.spoof.shape != shape:
-                raise ValueError(f"spoof shape {self.spoof.shape} does not match {shape}")
+                raise ValueError(
+                    f"spoof shape {self.spoof.shape} does not match {shape}"
+                )
         if np.any(np.logical_and(self.tar, self.non)):
             raise ValueError("tar and non overlap")
         if self.spoof is not None:

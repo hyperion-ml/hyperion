@@ -95,15 +95,12 @@ class ClassWeightedRandomEmbedSampler(HyperSampler):
         if len(class_info) == 0:
             raise ValueError("class_info must contain at least one row.")
         if "id" not in embed_set or class_name not in embed_set:
-            raise ValueError(
-                f"embed_set must contain 'id' and {class_name!r} columns."
-            )
+            raise ValueError(f"embed_set must contain 'id' and {class_name!r} columns.")
         if batch_size <= 0:
             raise ValueError(f"batch_size must be positive, got {batch_size}.")
         if num_embeds_per_class <= 0:
             raise ValueError(
-                "num_embeds_per_class must be positive, "
-                f"got {num_embeds_per_class}."
+                "num_embeds_per_class must be positive, " f"got {num_embeds_per_class}."
             )
         if num_hard_prototypes < 0:
             raise ValueError(
@@ -253,8 +250,7 @@ class ClassWeightedRandomEmbedSampler(HyperSampler):
         affinity = torch.as_tensor(affinity_matrix).clone()
         if affinity.ndim != 2 or affinity.size(0) != affinity.size(1):
             raise ValueError(
-                "affinity_matrix must be square, "
-                f"got shape={tuple(affinity.shape)}."
+                "affinity_matrix must be square, " f"got shape={tuple(affinity.shape)}."
             )
         class_idx = self.class_info["class_idx"].values
         if np.any(class_idx < 0) or np.any(class_idx >= affinity.size(0)):
@@ -459,9 +455,7 @@ class ClassWeightedRandomEmbedSampler(HyperSampler):
         return filter_func_args(ClassWeightedRandomEmbedSampler.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """
         Add class-weighted embedding sampler arguments to a parser.
 

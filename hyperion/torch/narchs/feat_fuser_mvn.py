@@ -1,7 +1,8 @@
 """
- Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import torch
@@ -152,9 +153,7 @@ class FeatFuserMVN(NetArch):
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Register CLI arguments for ``FeatFuserMVN``.
 
         Args:

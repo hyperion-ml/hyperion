@@ -96,9 +96,7 @@ class VerificationEvaluator:
         self._p_tar_sort = np.argsort(p_tar)
         self.p_tar = p_tar
 
-    def compute_dcf_eer(
-        self, return_df: bool = True
-    ) -> Union[
+    def compute_dcf_eer(self, return_df: bool = True) -> Union[
         pd.DataFrame,
         Tuple[Union[float, np.ndarray], Union[float, np.ndarray], float, int, int],
         None,
@@ -473,7 +471,11 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
         prior_idx: int = 0,
         higher_better: bool = False,
         return_df: bool = True,
-    ) -> Union[pd.DataFrame, Tuple[List[str], List[str], np.ndarray, np.ndarray, np.ndarray], None]:
+    ) -> Union[
+        pd.DataFrame,
+        Tuple[List[str], List[str], np.ndarray, np.ndarray, np.ndarray],
+        None,
+    ]:
         """
         Find the best attacks from the point of view of some of the stats. E.g.,
         Attacks with best SNR or with lowest Linf.

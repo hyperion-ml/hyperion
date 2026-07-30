@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Evals logistic regression
 """
@@ -33,7 +34,7 @@ def eval_lr(
     score_file,
     vector_score_file,
     eval_type,
-    **kwargs
+    **kwargs,
 ):
 
     if preproc_file is not None:

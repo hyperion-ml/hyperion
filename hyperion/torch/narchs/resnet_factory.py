@@ -5,8 +5,8 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 from typing import Any, Callable, Dict, Optional, Sequence, Type, Union
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from .resnet import *
 

@@ -76,7 +76,9 @@ class LoudnessNorm(nn.Module):
 
                 input_lufs = self.loudness_meter(x_in)
 
-            input_lufs = input_lufs.to(x.dtype)  # shape (...), without the channel/time dims
+            input_lufs = input_lufs.to(
+                x.dtype
+            )  # shape (...), without the channel/time dims
             gain_db = target_lufs - input_lufs
             gain_db = gain_db.view(*gain_db.shape, *([1] * (x.dim() - gain_db.dim())))
             gain = 10 ** (gain_db / 20)

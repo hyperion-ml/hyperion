@@ -15,8 +15,8 @@ from ..hyper_torch_model import HyperTorchModel
 from ..loggers import LoggerList
 from ..losses import BCEWithLLR
 from ..lr_schedulers import LRScheduler as LRS
-from ..wd_schedulers import WDScheduler as WDS
 from ..utils.misc import get_selfsim_tarnon
+from ..wd_schedulers import WDScheduler as WDS
 from .single_model_trainer import SingleModelTrainer
 from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType
 

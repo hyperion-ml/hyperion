@@ -1,7 +1,8 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import math
 from typing import Optional, Sequence, Tuple, Union
 
@@ -17,7 +18,9 @@ def _to_frame_array(frames: Union[np.ndarray, Sequence[int]]) -> np.ndarray:
 
 
 def _frame_params(
-    fs: Union[int, float], frame_length: Union[int, float], frame_shift: Union[int, float]
+    fs: Union[int, float],
+    frame_length: Union[int, float],
+    frame_shift: Union[int, float],
 ) -> Tuple[int, int]:
     """Convert frame length/shift in ms to samples and validate them."""
     if fs <= 0:
@@ -35,7 +38,9 @@ def _frame_params(
     return frame_length_samples, frame_shift_samples
 
 
-def _merge_frames(s_start: np.ndarray, s_end: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def _merge_frames(
+    s_start: np.ndarray, s_end: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
     """Merge overlapping/contiguous sample intervals.
 
     Args:

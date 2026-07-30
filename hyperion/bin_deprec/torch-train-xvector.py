@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import argparse
 import logging
 import os
@@ -10,8 +11,9 @@ import sys
 import time
 
 import numpy as np
-
 import torch
+from torch.utils.data import DataLoader
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.data import SeqDataset
@@ -21,10 +23,9 @@ from hyperion.torch.layers import GlobalPool1dFactory as PF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models.xvectors.xvector import XVector
-from hyperion.torch.trainers.xvector_trainer import XVectorTrainer
 from hyperion.torch.torch_defs import float_torch
+from hyperion.torch.trainers.xvector_trainer import XVectorTrainer
 from hyperion.torch.utils import open_device
-from torch.utils.data import DataLoader
 
 
 def train_xvector(
@@ -41,7 +42,7 @@ def train_xvector(
     resume_path,
     num_gpus,
     seed,
-    **kwargs
+    **kwargs,
 ):
 
     device = open_device(num_gpus=num_gpus)

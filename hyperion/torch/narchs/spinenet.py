@@ -4,11 +4,9 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-
-import numpy as np
-
 from typing import Any, Dict, Optional, Sequence, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import BatchNorm1d, Conv1d, Linear

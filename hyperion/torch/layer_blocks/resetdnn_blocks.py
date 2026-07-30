@@ -1,7 +1,8 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 #
 
 from typing import Optional, Type
@@ -10,8 +11,7 @@ import torch
 import torch.nn as nn
 from torch.nn import BatchNorm1d, Conv1d
 
-from ..layers import ActivationSpec
-from ..layers import Dropout1d
+from ..layers import ActivationSpec, Dropout1d
 from .etdnn_blocks import ETDNNBlock
 
 

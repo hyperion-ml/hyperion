@@ -1,22 +1,28 @@
 #!/usr/bin/env python
 """
-  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
-  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 import sys
 import time
+
 # [Added Sonal May21]
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -46,7 +52,7 @@ class MyModel(nn.Module):
         sigma=0,
         smoothing_after_wavegan=None,
         wave_gan_defender=None,
-        wav_scale=2 ** 15 - 1,
+        wav_scale=2**15 - 1,
     ):
         super().__init__()
         self.feat_extractor = feat_extractor
@@ -187,7 +193,7 @@ def eval_cosine_scoring_wavegan(
     smoothing_after_wavegan,
     wave_gan_root_dir,
     wave_gan_model_ckpt,
-    **kwargs
+    **kwargs,
 ):
 
     device = init_device(use_gpu)

@@ -1,7 +1,8 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from typing import Any, Dict, Optional, Union
 
 from jsonargparse import ActionParser, ArgumentParser
@@ -53,8 +54,7 @@ class HFWav2Vec2RNNRNNTransducer(HFWav2RNNTransducer):
         else:
             assert isinstance(transducer, RNNRNNTransducer)
 
-        super().__init__(hf_feats, transducer, feat_fusion_start,
-                         feat_fusion_method)
+        super().__init__(hf_feats, transducer, feat_fusion_start, feat_fusion_method)
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
@@ -86,14 +86,11 @@ class HFWav2Vec2RNNRNNTransducer(HFWav2RNNTransducer):
             parser = ArgumentParser(prog="")
 
         HFWav2Vec2.add_class_args(parser, prefix="hf_feats")
-        RNNRNNTransducer.add_class_args(parser,
-                                        prefix="transducer",
-                                        skip={"in_feats"})
+        RNNRNNTransducer.add_class_args(parser, prefix="transducer", skip={"in_feats"})
         HFWav2RNNTransducer.add_class_args(parser)
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
@@ -108,8 +105,7 @@ class HFWav2Vec2RNNRNNTransducer(HFWav2RNNTransducer):
         base_args = {}
         child_args = HFWav2Vec2.filter_finetune_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
-        child_args = RNNRNNTransducer.filter_finetune_args(
-            **kwargs["transducer"])
+        child_args = RNNRNNTransducer.filter_finetune_args(**kwargs["transducer"])
         base_args["transducer"] = child_args
         return base_args
 
@@ -129,5 +125,4 @@ class HFWav2Vec2RNNRNNTransducer(HFWav2RNNTransducer):
         RNNRNNTransducer.add_finetune_args(parser, prefix="transducer")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

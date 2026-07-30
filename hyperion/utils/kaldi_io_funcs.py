@@ -4,8 +4,9 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 Low-level helpers for reading/writing Kaldi token and scalar fields.
 """
+
 import struct
-from typing import Any, IO
+from typing import IO, Any
 
 
 def init_kaldi_output_stream(f: IO[Any], binary: bool) -> None:

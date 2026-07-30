@@ -155,8 +155,7 @@ class LDA(HyperNPModel):
 
         if Sb.shape != Sw.shape:
             raise ValueError(
-                "Sb and Sw must have the same shape, "
-                f"got {Sb.shape} and {Sw.shape}"
+                "Sb and Sw must have the same shape, " f"got {Sb.shape} and {Sw.shape}"
             )
 
         try:

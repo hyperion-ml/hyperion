@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from typing import Any, Optional, Tuple
@@ -43,9 +43,7 @@ class TransformerConv2dSubsampler(nn.Module):
         """
         super().__init__()
         if time_dim not in (1, 2, -1):
-            raise ValueError(
-                f"invalid time_dim={time_dim}, expected one of (1, 2, -1)"
-            )
+            raise ValueError(f"invalid time_dim={time_dim}, expected one of (1, 2, -1)")
         self.time_dim = time_dim
         hid_act = AF.create(hid_act)
         self.stride = stride
@@ -139,9 +137,7 @@ class TransformerConv1dSubsampler(nn.Module):
         """
         super().__init__()
         if time_dim not in (1, 2, -1):
-            raise ValueError(
-                f"invalid time_dim={time_dim}, expected one of (1, 2, -1)"
-            )
+            raise ValueError(f"invalid time_dim={time_dim}, expected one of (1, 2, -1)")
         self.time_dim = time_dim
         hid_act = AF.create(hid_act)
         self.stride = stride

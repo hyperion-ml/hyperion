@@ -1,11 +1,11 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import typing
 
 import logging
 import os.path as path
+import typing
 from collections import OrderedDict
 from copy import deepcopy
 
@@ -28,7 +28,13 @@ class ExtSegmentList(object):
       _uniq_series_id: unique series id.
     """
 
-    def __init__(self, segments: typing.Any, ext_segments: typing.Any=None, files: typing.Any=None, index_column: typing.Any="file_id") -> None:
+    def __init__(
+        self,
+        segments: typing.Any,
+        ext_segments: typing.Any = None,
+        files: typing.Any = None,
+        index_column: typing.Any = "file_id",
+    ) -> None:
         self.segments = segments
         if files is None:
             file_id = self.segments["file_id"].unique()
@@ -58,11 +64,11 @@ class ExtSegmentList(object):
         file_id: typing.Any,
         tbeg: typing.Any,
         tend: typing.Any,
-        ext_segment_id: typing.Any=None,
-        series_id: typing.Any=None,
-        name: typing.Any=np.nan,
-        score: typing.Any=np.nan,
-        index_column: typing.Any="file_id",
+        ext_segment_id: typing.Any = None,
+        series_id: typing.Any = None,
+        name: typing.Any = np.nan,
+        score: typing.Any = np.nan,
+        index_column: typing.Any = "file_id",
     ) -> typing.Any:
 
         if ext_segment_id is None:
@@ -105,10 +111,10 @@ class ExtSegmentList(object):
     def create_from_segment_list(
         cls,
         segment_list: typing.Any,
-        series_id: typing.Any=None,
-        name: typing.Any=np.nan,
-        score: typing.Any=np.nan,
-        index_column: typing.Any="file_id",
+        series_id: typing.Any = None,
+        name: typing.Any = np.nan,
+        score: typing.Any = np.nan,
+        index_column: typing.Any = "file_id",
     ) -> typing.Any:
 
         segments = deepcopy(segment_list.segments)
@@ -315,7 +321,7 @@ class ExtSegmentList(object):
         else:
             return self.filter([key])
 
-    def save(self, file_path: typing.Any, sep: typing.Any=" ") -> None:
+    def save(self, file_path: typing.Any, sep: typing.Any = " ") -> None:
         """Saves segments to text file.
 
         Args:
@@ -348,7 +354,12 @@ class ExtSegmentList(object):
         )
 
     @classmethod
-    def load(cls, file_path: typing.Any, sep: typing.Any=" ", index_column: typing.Any="file_id") -> typing.Any:
+    def load(
+        cls,
+        file_path: typing.Any,
+        sep: typing.Any = " ",
+        index_column: typing.Any = "file_id",
+    ) -> typing.Any:
         """Loads script list from text file.
 
         Args:
@@ -387,7 +398,7 @@ class ExtSegmentList(object):
 
         return cls(segments, ext_segments, files, index_column)
 
-    def filter(self, filter_key: typing.Any, keep: typing.Any=True) -> typing.Any:
+    def filter(self, filter_key: typing.Any, keep: typing.Any = True) -> typing.Any:
         if self.index_column == "series_id":
             if not keep:
                 filter_key = np.setdiff1d(np.asarray(self.files.index), filter_key)
@@ -422,7 +433,9 @@ class ExtSegmentList(object):
         return self.filter(key)
 
     @classmethod
-    def merge(cls, segment_lists: typing.Any, index_column: typing.Any="file_id") -> typing.Any:
+    def merge(
+        cls, segment_lists: typing.Any, index_column: typing.Any = "file_id"
+    ) -> typing.Any:
         segments = []
         files = []
         ext_segments = []
@@ -454,7 +467,7 @@ class ExtSegmentList(object):
             return 0
         return 1
 
-    def merge_adjacent_segments_old(self, max_segments: typing.Any=0) -> None:
+    def merge_adjacent_segments_old(self, max_segments: typing.Any = 0) -> None:
         if max_segments == 0:
             max_segments = len(self.segments)
 
@@ -558,7 +571,7 @@ class ExtSegmentList(object):
         )
         # logging.debug('E',self.ext_segments)
 
-    def merge_adjacent_segments(self, max_segments: typing.Any=0) -> None:
+    def merge_adjacent_segments(self, max_segments: typing.Any = 0) -> None:
         if max_segments == 0:
             max_segments = len(self.segments)
 
@@ -650,7 +663,9 @@ class ExtSegmentList(object):
         # assert len(self.ext_segments.ext_segment_id.unique()) == len(self.ext_segments.ext_segment_id)
         # #logging.debug('E',self.ext_segments)
 
-    def assign_names(self, ext_segments_ids: typing.Any, names: typing.Any, scores: typing.Any=None) -> None:
+    def assign_names(
+        self, ext_segments_ids: typing.Any, names: typing.Any, scores: typing.Any = None
+    ) -> None:
         assert len(names) == len(ext_segments_ids)
         if scores is not None:
             assert len(scores) == len(ext_segments_ids)

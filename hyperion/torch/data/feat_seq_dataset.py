@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import copy
@@ -12,10 +12,9 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.distributed as dist
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.utils.data import Dataset
 
 from ...io import RandomAccessDataReaderFactory as RF
@@ -200,12 +199,16 @@ class FeatSeqDataset(Dataset):
 
         if "feat_file" not in skip:
             parser.add_argument(
-                "--audio-file", required=True, help=("feature manifest file"),
+                "--audio-file",
+                required=True,
+                help=("feature manifest file"),
             )
 
         if "segments_file" not in skip:
             parser.add_argument(
-                "--segments-file", required=True, help=("segments manifest file"),
+                "--segments-file",
+                required=True,
+                help=("segments manifest file"),
             )
 
         parser.add_argument(
@@ -218,7 +221,10 @@ class FeatSeqDataset(Dataset):
         )
 
         parser.add_argument(
-            "--class-files", default=None, nargs="+", help=("list of class info files"),
+            "--class-files",
+            default=None,
+            nargs="+",
+            help=("list of class info files"),
         )
 
         parser.add_argument(

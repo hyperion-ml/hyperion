@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import multiprocessing
 import os
@@ -143,7 +144,7 @@ def train_xvec(gpu_id: int, args: Any) -> None:
         metrics=metrics,
         ddp=world_size > 1,
         train_mode=train_mode,
-        **trn_args
+        **trn_args,
     )
     if args.resume:
         trainer.load_last_checkpoint()

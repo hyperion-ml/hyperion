@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from typing import Optional
@@ -231,7 +231,7 @@ def st_logE(x: np.ndarray, frame_length: int, frame_shift: int) -> np.ndarray:
     num_frames = int(np.floor((len(x) - frame_length + frame_shift) / frame_shift))
     num_frames = max(0, num_frames)
 
-    x2 = x ** 2
+    x2 = x**2
     e = np.zeros((num_frames,), dtype=float_cpu())
     j = 0
     for i in range(num_frames):

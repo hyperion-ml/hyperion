@@ -9,6 +9,7 @@ import numpy as np
 
 from .snr import project_target_scale_invariant
 
+
 def compute_pesq(
     pred: np.ndarray,
     target: np.ndarray,

@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 """
-  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
-  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 import sys
 import time
-from typing import Any, Dict, List, Optional, Tuple
 
 # [Added Sonal May21]
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd

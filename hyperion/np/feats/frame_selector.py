@@ -33,9 +33,7 @@ class FrameSelector:
             frame count and VAD selector length.
         """
         if tol_num_frames < 0:
-            raise ValueError(
-                f"tol_num_frames must be >= 0, got {tol_num_frames!r}"
-            )
+            raise ValueError(f"tol_num_frames must be >= 0, got {tol_num_frames!r}")
         self.tol_num_frames = tol_num_frames
 
     def select(self, x: np.ndarray, sel: np.ndarray) -> np.ndarray:
@@ -93,9 +91,7 @@ class FrameSelector:
         return d
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Adds frame-selector options to parser.
 
         Args:

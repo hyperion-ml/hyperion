@@ -1,13 +1,14 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 #
 
+from typing import Any, Callable, Dict, Optional, Tuple, Union
+
 import torch
 import torch.nn as nn
-from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from ..layers.attention_v1 import *
 from .conformer_conv import ConformerConvBlock
@@ -181,18 +182,18 @@ class ConformerEncoderBlockV1(nn.Module):
     ) -> Any:
         """Creates multihead attention block from att_type string
 
-      Args:
-           att_type: string in ['scaled-dot-prod-v1', 'local-scaled-dot-prod-v1', 'block-scaled-dot-prod-v1']
-           num_feats: input/output feat. dimension (aka d_model)
-           num_heads: number of heads
-           context: block attention receptive field
-           dropout_rate: dropout rate for attention block
-           pos_enc_type: type of positional encoder
-           causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
-                           that query q_i only attends to key k_j when j<=i
+        Args:
+             att_type: string in ['scaled-dot-prod-v1', 'local-scaled-dot-prod-v1', 'block-scaled-dot-prod-v1']
+             num_feats: input/output feat. dimension (aka d_model)
+             num_heads: number of heads
+             context: block attention receptive field
+             dropout_rate: dropout rate for attention block
+             pos_enc_type: type of positional encoder
+             causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
+                             that query q_i only attends to key k_j when j<=i
 
-        Returns:
-           Attention nn.Module
+          Returns:
+             Attention nn.Module
         """
 
         assert num_feats % num_heads == 0

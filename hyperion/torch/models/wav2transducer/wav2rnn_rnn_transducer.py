@@ -1,6 +1,6 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Yen-Ju Lu)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Yen-Ju Lu)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from typing import Any, Dict, Optional, Union

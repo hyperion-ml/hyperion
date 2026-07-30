@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2022 Jesus Villalba (Johns Hopkins University)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
+Copyright 2022 Jesus Villalba (Johns Hopkins University)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 import sys
@@ -23,7 +24,9 @@ from hyperion.utils import SegmentSet
 from hyperion.utils.misc import PathLike
 
 
-def audio_to_duration(audio_file: PathLike, output_file: PathLike, **kwargs: Any) -> None:
+def audio_to_duration(
+    audio_file: PathLike, output_file: PathLike, **kwargs: Any
+) -> None:
     """Compute utterance durations from audio and save them to a table.
 
     Args:

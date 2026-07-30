@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2020 Jesus Villalba (Johns Hopkins University)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
+Copyright 2020 Jesus Villalba (Johns Hopkins University)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import time
 from pathlib import Path
@@ -10,15 +11,19 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 matplotlib.use("Agg")
 # matplotlib.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 import matplotlib.pyplot as plt
-
 import torch
 import torch.nn as nn
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
@@ -101,7 +106,7 @@ def eval_vae(
     write_img_path,
     img_frames,
     use_gpu,
-    **kwargs
+    **kwargs,
 ):
 
     logging.info("initializing")

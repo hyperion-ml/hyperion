@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import multiprocessing
 import os
@@ -11,11 +12,15 @@ import time
 from pathlib import Path
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import HyperTorchModel
 from hyperion.torch.adv_attacks import AttackFactory
@@ -37,7 +42,7 @@ def init_data(
     num_workers,
     num_gpus,
     rank,
-    **kwargs
+    **kwargs,
 ):
 
     ad_args = AD.filter_args(**kwargs)
@@ -144,7 +149,7 @@ def train_xvec(gpu_id, args):
         metrics=metrics,
         ddp=world_size > 1,
         train_mode=train_mode,
-        **trn_args
+        **trn_args,
     )
     if args.resume:
         trainer.load_last_checkpoint()

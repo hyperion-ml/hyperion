@@ -1,13 +1,14 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 #
+
+from typing import Callable, Tuple, Union
 
 import torch
 import torch.nn as nn
-from typing import Callable, Tuple, Union
-
 
 Padding1d = Union[int, Tuple[int]]
 Padding2d = Union[int, Tuple[int, int]]
@@ -114,7 +115,7 @@ class SubPixelConv2d(nn.Module):
         super().__init__()
         self.conv = nn.Conv2d(
             in_channels,
-            (stride ** 2) * out_channels,
+            (stride**2) * out_channels,
             kernel_size,
             stride=1,
             padding=padding,
@@ -167,20 +168,18 @@ def ICNR2d(
     with torch.no_grad():
         if stride < 1:
             raise ValueError(f"stride must be >= 1, got {stride}")
-        factor = stride ** 2
+        factor = stride**2
         if tensor.shape[0] % factor != 0:
             raise ValueError(
                 f"tensor.shape[0] ({tensor.shape[0]}) must be divisible by stride**2 ({factor})"
             )
         new_shape = [tensor.shape[0] // factor] + list(tensor.shape[1:])
-        subkernel = torch.zeros(
-            new_shape, device=tensor.device, dtype=tensor.dtype
-        )
+        subkernel = torch.zeros(new_shape, device=tensor.device, dtype=tensor.dtype)
         subkernel = initializer(subkernel)
         subkernel = subkernel.transpose(0, 1).contiguous()
         subkernel = subkernel.view(subkernel.shape[0], subkernel.shape[1], -1)
 
-        kernel = subkernel.repeat(1, 1, stride ** 2)
+        kernel = subkernel.repeat(1, 1, stride**2)
 
         transposed_shape = [tensor.shape[1], tensor.shape[0]] + list(tensor.shape[2:])
         kernel = kernel.contiguous().view(transposed_shape).transpose(0, 1).contiguous()
@@ -215,9 +214,7 @@ def ICNR1d(
                 f"tensor.shape[0] ({tensor.shape[0]}) must be divisible by stride ({stride})"
             )
         new_shape = [tensor.shape[0] // stride] + list(tensor.shape[1:])
-        subkernel = torch.zeros(
-            new_shape, device=tensor.device, dtype=tensor.dtype
-        )
+        subkernel = torch.zeros(new_shape, device=tensor.device, dtype=tensor.dtype)
         subkernel = initializer(subkernel)
         subkernel = subkernel.transpose(0, 1).contiguous()
         subkernel = subkernel.view(subkernel.shape[0], subkernel.shape[1], -1)

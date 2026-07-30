@@ -565,307 +565,311 @@ class HFWavLM(HFWav2VecBase):
 
         def _use_arg(var_name: str) -> bool:
             return var_name not in skip
+
         if _use_arg("vocab_size"):
             parser.add_argument(
                 "--vocab-size",
-            default=32,
-            type=int,
-            help=(
-                "vocabulary size of the "
-                "model. Defines the different tokens that can be represented by the "
-                "*inputs_ids* passed to the forward method."
-            ),
-        )
+                default=32,
+                type=int,
+                help=(
+                    "vocabulary size of the "
+                    "model. Defines the different tokens that can be represented by the "
+                    "*inputs_ids* passed to the forward method."
+                ),
+            )
         if _use_arg("hidden_size"):
             parser.add_argument(
                 "--hidden-size",
-            default=768,
-            type=int,
-            help=("dimensionality of the encoder layers and the pooler layer."),
+                default=768,
+                type=int,
+                help=("dimensionality of the encoder layers and the pooler layer."),
             )
         if _use_arg("num_hidden_layers"):
             parser.add_argument(
                 "--num-hidden-layers",
-            default=12,
-            type=int,
-            help=("number of hidden layers in the Transformer encoder"),
+                default=12,
+                type=int,
+                help=("number of hidden layers in the Transformer encoder"),
             )
         if _use_arg("num_attention_heads"):
             parser.add_argument(
                 "--num-attention-heads",
-            default=12,
-            type=int,
-            help=(
-                "number of attention heads for "
-                "each attention layer in the Transformer encoder"
-            ),
-        )
+                default=12,
+                type=int,
+                help=(
+                    "number of attention heads for "
+                    "each attention layer in the Transformer encoder"
+                ),
+            )
         if _use_arg("intermediate_size"):
             parser.add_argument(
                 "--intermediate-size",
-            default=3072,
-            type=int,
-            help=(
-                "dimensionality of the " "feed-forward layer in the Transformer encoder"
-            ),
-        )
+                default=3072,
+                type=int,
+                help=(
+                    "dimensionality of the "
+                    "feed-forward layer in the Transformer encoder"
+                ),
+            )
         if _use_arg("hidden_act"):
             parser.add_argument(
                 "--hidden-act",
-            default="gelu",
-            choices=["gelu", "relu", "selu", "gelu_new"],
-            help=(
-                "the non-linear "
-                "activation function (function or string) in the encoder and pooler"
-            ),
-        )
+                default="gelu",
+                choices=["gelu", "relu", "selu", "gelu_new"],
+                help=(
+                    "the non-linear "
+                    "activation function (function or string) in the encoder and pooler"
+                ),
+            )
         if _use_arg("hidden_dropout"):
             parser.add_argument(
                 "--hidden-dropout",
-            default=0.1,
-            type=float,
-            help=(
-                "the dropout probability for all "
-                "fully connected layers in the embeddings, encoder, and pooler"
-            ),
-        )
+                default=0.1,
+                type=float,
+                help=(
+                    "the dropout probability for all "
+                    "fully connected layers in the embeddings, encoder, and pooler"
+                ),
+            )
         if _use_arg("activation_dropout"):
             parser.add_argument(
                 "--activation-dropout",
-            default=0.1,
-            type=float,
-            help=(
-                "the dropout probability for all "
-                "intermediate layer in feedforward transformer layers"
-            ),
-        )
+                default=0.1,
+                type=float,
+                help=(
+                    "the dropout probability for all "
+                    "intermediate layer in feedforward transformer layers"
+                ),
+            )
         if _use_arg("attention_dropout"):
             parser.add_argument(
                 "--attention-dropout",
-            default=0.1,
-            type=float,
-            help=("the dropout ratio for the attention probabilities"),
+                default=0.1,
+                type=float,
+                help=("the dropout ratio for the attention probabilities"),
             )
         if _use_arg("layerdrop"):
             parser.add_argument(
                 "--layerdrop",
-            default=0.1,
-            type=float,
-            help=("prob. of dropping a layer"),
+                default=0.1,
+                type=float,
+                help=("prob. of dropping a layer"),
             )
         if _use_arg("initializer_range"):
             parser.add_argument(
                 "--initializer-range",
-            default=0.02,
-            type=float,
-            help=(
-                "the standard deviation of the "
-                "truncated_normal_initializer for initializing all weight matrices"
-            ),
-        )
+                default=0.02,
+                type=float,
+                help=(
+                    "the standard deviation of the "
+                    "truncated_normal_initializer for initializing all weight matrices"
+                ),
+            )
         if _use_arg("layer_norm_eps"):
             parser.add_argument(
                 "--layer-norm-eps",
-            default=1e-12,
-            type=float,
-            help=(
-                "the standard deviation of the "
-                "truncated_normal_initializer for initializing all weight matrices"
-            ),
-        )
+                default=1e-12,
+                type=float,
+                help=(
+                    "the standard deviation of the "
+                    "truncated_normal_initializer for initializing all weight matrices"
+                ),
+            )
         if _use_arg("feat_extract_norm"):
             parser.add_argument(
                 "--feat-extract-norm",
-            default="group",
-            choices=["group", "layer"],
-            help=(
-                "the norm to be applied to 1D convolutional layers in feature encoder. "
-                "One of `group` for group normalization of only the first 1D convolutional "
-                "layer or `layer` for layer normalization of all 1D convolutional layers"
-            ),
-        )
+                default="group",
+                choices=["group", "layer"],
+                help=(
+                    "the norm to be applied to 1D convolutional layers in feature encoder. "
+                    "One of `group` for group normalization of only the first 1D convolutional "
+                    "layer or `layer` for layer normalization of all 1D convolutional layers"
+                ),
+            )
         if _use_arg("feat_proj_dropout"):
             parser.add_argument(
                 "--feat-proj-dropout",
-            default=0.1,
-            type=float,
-            help=("the dropout probability for output of the feature encoder"),
+                default=0.1,
+                type=float,
+                help=("the dropout probability for output of the feature encoder"),
             )
         if _use_arg("feat_extract_activation"):
             parser.add_argument(
                 "--feat-extract-activation",
-            default="gelu",
-            choices=["gelu", "relu", "selu", "gelu_new"],
-            help=(
-                "the non-linear activation function (function or string) in the 1D "
-                "convolutional layers of the feature extractor"
-            ),
-        )
+                default="gelu",
+                choices=["gelu", "relu", "selu", "gelu_new"],
+                help=(
+                    "the non-linear activation function (function or string) in the 1D "
+                    "convolutional layers of the feature extractor"
+                ),
+            )
         if _use_arg("conv_dim"):
             parser.add_argument(
                 "--conv-dim",
-            default=[512, 512, 512, 512, 512, 512, 512],
-            nargs="+",
-            type=int,
-            help=(
-                "a tuple of integers defining the number of input and output channels of each 1D convolutional layer in the "
-                "feature encoder. The length of *conv_dim* defines the number of 1D convolutional layers"
-            ),
-        )
+                default=[512, 512, 512, 512, 512, 512, 512],
+                nargs="+",
+                type=int,
+                help=(
+                    "a tuple of integers defining the number of input and output channels of each 1D convolutional layer in the "
+                    "feature encoder. The length of *conv_dim* defines the number of 1D convolutional layers"
+                ),
+            )
         if _use_arg("conv_stride"):
             parser.add_argument(
                 "--conv-stride",
-            default=[5, 2, 2, 2, 2, 2, 2],
-            nargs="+",
-            type=int,
-            help=(
-                "a tuple of integers defining the stride of each 1D convolutional layer in the feature encoder"
-            ),
-        )
+                default=[5, 2, 2, 2, 2, 2, 2],
+                nargs="+",
+                type=int,
+                help=(
+                    "a tuple of integers defining the stride of each 1D convolutional layer in the feature encoder"
+                ),
+            )
         if _use_arg("conv_kernel"):
             parser.add_argument(
                 "--conv-kernel",
-            default=[10, 3, 3, 3, 3, 3, 3],
-            nargs="+",
-            type=int,
-            help=(
-                "a tuple of integers defining the kernel size of each 1D convolutional layer in the feature encoder"
-            ),
-        )
+                default=[10, 3, 3, 3, 3, 3, 3],
+                nargs="+",
+                type=int,
+                help=(
+                    "a tuple of integers defining the kernel size of each 1D convolutional layer in the feature encoder"
+                ),
+            )
         if _use_arg("conv_bias"):
             parser.add_argument(
                 "--conv-bias",
-            default=False,
-            action=ActionYesNo,
-            help=("whether the 1D convolutional layers have a bias"),
+                default=False,
+                action=ActionYesNo,
+                help=("whether the 1D convolutional layers have a bias"),
             )
         if _use_arg("num_conv_pos_embeddings"):
             parser.add_argument(
                 "--num-conv-pos-embeddings",
-            default=128,
-            type=int,
-            help=(
-                "number of convolutional positional embeddings. Defines the kernel size of 1D convolutional positional "
-                "embeddings layer"
-            ),
-        )
+                default=128,
+                type=int,
+                help=(
+                    "number of convolutional positional embeddings. Defines the kernel size of 1D convolutional positional "
+                    "embeddings layer"
+                ),
+            )
         if _use_arg("num_conv_pos_embedding_groups"):
             parser.add_argument(
                 "--num-conv-pos-embedding-groups",
-            default=16,
-            type=int,
-            help=("number of groups of 1D convolutional positional embeddings layer"),
+                default=16,
+                type=int,
+                help=(
+                    "number of groups of 1D convolutional positional embeddings layer"
+                ),
             )
         if _use_arg("do_stable_layer_norm"):
             parser.add_argument(
                 "--do-stable-layer-norm",
-            default=False,
-            action=ActionYesNo,
-            help=(
-                "whether to apply *stable* layer norm architecture of the Transformer encoder"
-            ),
-        )
+                default=False,
+                action=ActionYesNo,
+                help=(
+                    "whether to apply *stable* layer norm architecture of the Transformer encoder"
+                ),
+            )
         if _use_arg("apply_spec_augment"):
             parser.add_argument(
                 "--apply-spec-augment",
-            default=True,
-            action=ActionYesNo,
-            help=(
-                "whether to apply *SpecAugment* data augmentation to the outputs of the feature encoder"
-            ),
-        )
+                default=True,
+                action=ActionYesNo,
+                help=(
+                    "whether to apply *SpecAugment* data augmentation to the outputs of the feature encoder"
+                ),
+            )
         if _use_arg("mask_time_prob"):
             parser.add_argument(
                 "--mask-time-prob",
-            default=0.05,
-            type=float,
-            help=(
-                "percentage (between 0 and 1) of all feature vectors along the time axis which will be masked"
-            ),
-        )
+                default=0.05,
+                type=float,
+                help=(
+                    "percentage (between 0 and 1) of all feature vectors along the time axis which will be masked"
+                ),
+            )
         if _use_arg("mask_time_length"):
             parser.add_argument(
                 "--mask-time-length",
-            default=10,
-            type=int,
-            help=("length of vector span along the time axis"),
+                default=10,
+                type=int,
+                help=("length of vector span along the time axis"),
             )
         if _use_arg("mask_time_min_masks"):
             parser.add_argument(
                 "--mask-time-min-masks",
-            default=2,
-            type=int,
-            help=(
-                "the minimum number of masks of length `mask_time_length` generated along the time axis"
-            ),
-        )
+                default=2,
+                type=int,
+                help=(
+                    "the minimum number of masks of length `mask_time_length` generated along the time axis"
+                ),
+            )
         if _use_arg("mask_feature_prob"):
             parser.add_argument(
                 "--mask-feature-prob",
-            default=0.0,
-            type=float,
-            help=(
-                "percentage (between 0 and 1) of all feature vectors along the feature axis which will be masked"
-            ),
-        )
+                default=0.0,
+                type=float,
+                help=(
+                    "percentage (between 0 and 1) of all feature vectors along the feature axis which will be masked"
+                ),
+            )
         if _use_arg("mask_feature_length"):
             parser.add_argument(
                 "--mask-feature-length",
-            default=10,
-            type=int,
-            help=(" length of vector span along the feature axis"),
+                default=10,
+                type=int,
+                help=(" length of vector span along the feature axis"),
             )
         if _use_arg("mask_feature_min_masks"):
             parser.add_argument(
                 "--mask-feature-min-masks",
-            default=0,
-            type=int,
-            help=(
-                "The minimum number of masks of length `mask_feature_length` generated along the feature axis"
-            ),
-        )
+                default=0,
+                type=int,
+                help=(
+                    "The minimum number of masks of length `mask_feature_length` generated along the feature axis"
+                ),
+            )
         if _use_arg("add_adapter"):
             parser.add_argument(
                 "--add-adapter",
-            default=False,
-            action=ActionYesNo,
-            help=(
-                "whether a convolutional network should be stacked on top of the WavLM Encoder"
-            ),
-        )
+                default=False,
+                action=ActionYesNo,
+                help=(
+                    "whether a convolutional network should be stacked on top of the WavLM Encoder"
+                ),
+            )
         if _use_arg("adapter_kernel_size"):
             parser.add_argument(
                 "--adapter-kernel-size",
-            default=3,
-            type=int,
-            help=("kernel size of the convolutional layers in the adapter network"),
+                default=3,
+                type=int,
+                help=("kernel size of the convolutional layers in the adapter network"),
             )
         if _use_arg("adapter_stride"):
             parser.add_argument(
                 "--adapter-stride",
-            default=2,
-            type=int,
-            help=("stride of the convolutional layers in the adapter network"),
+                default=2,
+                type=int,
+                help=("stride of the convolutional layers in the adapter network"),
             )
         if _use_arg("num_adapter_layers"):
             parser.add_argument(
                 "--num-adapter-layers",
-            default=3,
-            type=int,
-            help=(
-                "number of convolutional layers that should be used in the adapter network"
-            ),
-        )
+                default=3,
+                type=int,
+                help=(
+                    "number of convolutional layers that should be used in the adapter network"
+                ),
+            )
         if _use_arg("output_hidden_size"):
             parser.add_argument(
                 "--output-hidden-size",
-            default=None,
-            type=int,
-            help=(
-                "dimensionality of the encoder output layer. If not defined, this defaults to *hidden-size*."
-                " Only relevant if `add_adapter is True"
-            ),
-        )
+                default=None,
+                type=int,
+                help=(
+                    "dimensionality of the encoder output layer. If not defined, this defaults to *hidden-size*."
+                    " Only relevant if `add_adapter is True"
+                ),
+            )
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
@@ -921,92 +925,93 @@ class HFWavLM(HFWav2VecBase):
 
         def _use_arg(var_name: str) -> bool:
             return var_name not in skip
+
         if _use_arg("hidden_dropout"):
             parser.add_argument(
                 "--hidden-dropout",
-            default=0.1,
-            type=float,
-            help=(
-                "the dropout probability for all "
-                "fully connected layers in the embeddings, encoder, and pooler"
-            ),
-        )
+                default=0.1,
+                type=float,
+                help=(
+                    "the dropout probability for all "
+                    "fully connected layers in the embeddings, encoder, and pooler"
+                ),
+            )
         if _use_arg("activation_dropout"):
             parser.add_argument(
                 "--activation-dropout",
-            default=0.1,
-            type=float,
-            help=(
-                "the dropout probability for all "
-                "intermediate layer in feedforward transformer layers"
-            ),
-        )
+                default=0.1,
+                type=float,
+                help=(
+                    "the dropout probability for all "
+                    "intermediate layer in feedforward transformer layers"
+                ),
+            )
         if _use_arg("attention_dropout"):
             parser.add_argument(
                 "--attention-dropout",
-            default=0.1,
-            type=float,
-            help=("the dropout ratio for the attention probabilities"),
+                default=0.1,
+                type=float,
+                help=("the dropout ratio for the attention probabilities"),
             )
         if _use_arg("apply_spec_augment"):
             parser.add_argument(
                 "--apply-spec-augment",
-            default=True,
-            action=ActionYesNo,
-            help=(
-                "whether to apply *SpecAugment* data augmentation to the outputs of the feature encoder"
-            ),
-        )
+                default=True,
+                action=ActionYesNo,
+                help=(
+                    "whether to apply *SpecAugment* data augmentation to the outputs of the feature encoder"
+                ),
+            )
         if _use_arg("mask_time_prob"):
             parser.add_argument(
                 "--mask-time-prob",
-            default=0.05,
-            type=float,
-            help=(
-                "percentage (between 0 and 1) of all feature vectors along the time axis which will be masked"
-            ),
-        )
+                default=0.05,
+                type=float,
+                help=(
+                    "percentage (between 0 and 1) of all feature vectors along the time axis which will be masked"
+                ),
+            )
         if _use_arg("mask_time_length"):
             parser.add_argument(
                 "--mask-time-length",
-            default=10,
-            type=int,
-            help=("length of vector span along the time axis"),
+                default=10,
+                type=int,
+                help=("length of vector span along the time axis"),
             )
         if _use_arg("mask_time_min_masks"):
             parser.add_argument(
                 "--mask-time-min-masks",
-            default=2,
-            type=int,
-            help=(
-                "the minimum number of masks of length `mask_time_length` generated along the time axis"
-            ),
-        )
+                default=2,
+                type=int,
+                help=(
+                    "the minimum number of masks of length `mask_time_length` generated along the time axis"
+                ),
+            )
         if _use_arg("mask_feature_prob"):
             parser.add_argument(
                 "--mask-feature-prob",
-            default=0.0,
-            type=float,
-            help=(
-                "percentage (between 0 and 1) of all feature vectors along the feature axis which will be masked"
-            ),
-        )
+                default=0.0,
+                type=float,
+                help=(
+                    "percentage (between 0 and 1) of all feature vectors along the feature axis which will be masked"
+                ),
+            )
         if _use_arg("mask_feature_length"):
             parser.add_argument(
                 "--mask-feature-length",
-            default=10,
-            type=int,
-            help=(" length of vector span along the feature axis"),
+                default=10,
+                type=int,
+                help=(" length of vector span along the feature axis"),
             )
         if _use_arg("mask_feature_min_masks"):
             parser.add_argument(
                 "--mask-feature-min-masks",
-            default=0,
-            type=int,
-            help=(
-                "The minimum number of masks of length `mask_feature_length` generated along the feature axis"
-            ),
-        )
+                default=0,
+                type=int,
+                help=(
+                    "The minimum number of masks of length `mask_feature_length` generated along the feature axis"
+                ),
+            )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

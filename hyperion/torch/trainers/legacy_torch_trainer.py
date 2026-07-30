@@ -314,9 +314,7 @@ class LegacyTorchTrainer:
         if ddp:
             model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
             if self.rank == 0:
-                logging.info(
-                    "training in multiple gpus with distributed-data-parallel"
-                )
+                logging.info("training in multiple gpus with distributed-data-parallel")
             optimizer = self._make_optimizer(optim, model)
             model = TorchDDP(
                 model,
@@ -1208,7 +1206,10 @@ class LegacyTorchTrainer:
 
     @staticmethod
     def add_class_args(
-        parser: Any, prefix: Optional[str] = None, train_modes: Optional[List[str]] = None, skip: set = set()
+        parser: Any,
+        prefix: Optional[str] = None,
+        train_modes: Optional[List[str]] = None,
+        skip: set = set(),
     ) -> None:
         """Registers trainer arguments on an ``ArgumentParser``.
 

@@ -3,6 +3,7 @@
 Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import multiprocessing
 
@@ -280,7 +281,9 @@ def make_parser(model_class: Type[HyperTorchModel]) -> ArgumentParser:
 
 def main() -> None:
     """Parse CLI arguments and launch VI emotion normalizer training."""
-    parser = ArgumentParser(description="Train VI emotion normalizer model from audio files")
+    parser = ArgumentParser(
+        description="Train VI emotion normalizer model from audio files"
+    )
     parser.add_argument(
         "--cfg",
         action=ActionConfigFile,

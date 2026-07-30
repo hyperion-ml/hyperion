@@ -1,7 +1,8 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from typing import List, Optional, Union
 
 import numpy as np
@@ -96,9 +97,7 @@ class SegmentVADReader(VADReader):
 
         return vad
 
-    def read_timestamps(
-        self, keys: ReadKeys, merge_tol: float = 0
-    ) -> List[np.ndarray]:
+    def read_timestamps(self, keys: ReadKeys, merge_tol: float = 0) -> List[np.ndarray]:
         """Read timestamp intervals for keys.
 
         Args:

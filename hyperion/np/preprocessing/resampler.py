@@ -42,7 +42,9 @@ class ResamplerToTargetFreq:
         self.target_sample_freq = target_sample_freq
         self.resamplers: Dict[float, Callable[[np.ndarray], np.ndarray]] = {}
 
-    def get_resampler(self, input_sample_freq: float) -> Callable[[np.ndarray], np.ndarray]:
+    def get_resampler(
+        self, input_sample_freq: float
+    ) -> Callable[[np.ndarray], np.ndarray]:
         """Returns a cached resampling function for an input sample rate.
 
         Args:
@@ -129,7 +131,9 @@ class ResamplerFromInputFreq:
           input_sample_freq: Input sampling rate in Hz.
         """
         if input_sample_freq <= 0:
-            raise ValueError(f"input_sample_freq must be > 0, got {input_sample_freq!r}")
+            raise ValueError(
+                f"input_sample_freq must be > 0, got {input_sample_freq!r}"
+            )
         self.input_sample_freq = input_sample_freq
         self.resamplers: Dict[float, Callable[[np.ndarray], np.ndarray]] = {}
 

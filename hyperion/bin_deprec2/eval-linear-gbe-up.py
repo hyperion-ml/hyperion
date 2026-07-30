@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Evals linear GBE with uncertainty propagation.
 """
@@ -34,7 +35,7 @@ def eval_linear_gbe(
     vector_score_file,
     normalize,
     eval_method,
-    **kwargs
+    **kwargs,
 ):
 
     if preproc_file is not None:

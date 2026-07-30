@@ -300,7 +300,8 @@ class HyperDataset:
         assert isinstance(data, dict)
         objects = {k: (v if isinstance(v, types) else None) for k, v in data.items()}
         paths = {
-            k: (Path(v) if isinstance(v, (str, Path)) else None) for k, v in data.items()
+            k: (Path(v) if isinstance(v, (str, Path)) else None)
+            for k, v in data.items()
         }
         return objects, paths
 
@@ -1310,9 +1311,9 @@ class HyperDataset:
 
         if update_seg_durs:
             rec_ids = self.segments(keep_loaded=True).recording()
-            self.segments()["duration"] = self.videos().loc[
-                rec_ids, "duration"
-            ].to_numpy()
+            self.segments()["duration"] = (
+                self.videos().loc[rec_ids, "duration"].to_numpy()
+            )
 
     def add_features(
         self, features_name: str, features: Union[PathLike, FeatureSet]

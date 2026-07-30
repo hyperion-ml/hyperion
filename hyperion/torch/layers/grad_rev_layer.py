@@ -11,7 +11,9 @@ from torch import Tensor
 class GradientReversalFunction(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx: torch.autograd.function.FunctionCtx, x: Tensor, scale: float) -> Tensor:
+    def forward(
+        ctx: torch.autograd.function.FunctionCtx, x: Tensor, scale: float
+    ) -> Tensor:
         """
         In the forward pass, we just pass through the input.
         ctx is used to store context information for the backward pass.

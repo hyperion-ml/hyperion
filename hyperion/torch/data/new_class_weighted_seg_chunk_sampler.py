@@ -164,13 +164,9 @@ class ClassWeightedRandomSegChunkSampler(HyperSampler):
             min_batch_size = batch_size
 
         if min_batch_size <= 0:
-            raise ValueError(
-                f"min_batch_size must be positive, got {min_batch_size}."
-            )
+            raise ValueError(f"min_batch_size must be positive, got {min_batch_size}.")
         if max_batch_size is not None and max_batch_size <= 0:
-            raise ValueError(
-                f"max_batch_size must be positive, got {max_batch_size}."
-            )
+            raise ValueError(f"max_batch_size must be positive, got {max_batch_size}.")
 
         # computing max-batch-size
         if max_batch_length is None:
@@ -507,8 +503,9 @@ class ClassWeightedRandomSegChunkSampler(HyperSampler):
                 hard_class_idx.flatten(), "id"
             ].values.reshape(hard_class_idx.shape)
             valid_hard_class = (
-                self.class_info.loc[hard_class_ids.flatten(), "max_seg_duration"]
-                .values.reshape(hard_class_idx.shape)
+                self.class_info.loc[
+                    hard_class_ids.flatten(), "max_seg_duration"
+                ].values.reshape(hard_class_idx.shape)
                 >= chunk_length
             )
             hard_class_idx = np.where(
@@ -806,9 +803,7 @@ class ClassWeightedRandomSegChunkSampler(HyperSampler):
         return filter_func_args(ClassWeightedRandomSegChunkSampler.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """
         Adds command-line arguments for configuring the ClassWeightedRandomSegChunkSampler.
 

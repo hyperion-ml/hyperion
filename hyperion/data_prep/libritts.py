@@ -14,7 +14,14 @@ import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet, TrialKey, TrialNdx
+from ..utils import (
+    ClassInfo,
+    HyperDataset,
+    RecordingSet,
+    SegmentSet,
+    TrialKey,
+    TrialNdx,
+)
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
@@ -46,9 +53,10 @@ def _read_malformed_trans(path: PathLike) -> pd.DataFrame:
         return "\t".join(fixed_parts)
 
     # Step 1: Write the cleaned file
-    with path.open("r", encoding="utf-8") as infile, fixed_path.open(
-        "w", encoding="utf-8"
-    ) as outfile:
+    with (
+        path.open("r", encoding="utf-8") as infile,
+        fixed_path.open("w", encoding="utf-8") as outfile,
+    ):
         for line in infile:
             if not is_balanced_quotes(line):
                 line = fix_quotes(line)

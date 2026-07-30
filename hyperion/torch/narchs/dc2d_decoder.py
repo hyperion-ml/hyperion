@@ -1,15 +1,14 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import math
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..layer_blocks import DC2dDecBlock
 from ..layers import ActivationFactory as AF
@@ -469,7 +468,9 @@ class DC2dDecoder(NetArch):
 
     @staticmethod
     def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, head_channels: bool = False
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        head_channels: bool = False,
     ) -> None:
         """Add decoder arguments to an argument parser.
 

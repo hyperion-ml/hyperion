@@ -12,11 +12,11 @@ from .audio_dataset import AudioDataset
 from .bucketing_seg_sampler import BucketingSegSampler
 from .class_weighted_seg_chunk_sampler import ClassWeightedRandomSegChunkSampler
 from .feat_seq_dataset import FeatSeqDataset
+from .hyper_sampler import HyperSampler
 from .legacy_audio_dataset import LegacyAudioDataset
 from .random_seg_chunk_sampler import RandomSegChunkSampler
 from .seg_chunk_sampler import SegChunkSampler
 from .seg_sampler import LengthSamplingMethod, SegSampler
-from .hyper_sampler import HyperSampler
 
 sampler_dict: Dict[str, Type[HyperSampler]] = {
     "class_weighted_random_seg_chunk_sampler": ClassWeightedRandomSegChunkSampler,
@@ -96,9 +96,9 @@ class SegSamplerFactory:
                         "subbase_sampler_type must be one of "
                         f"{valid_base_sampler_types}, got {subbase_sampler_type!r}."
                     )
-                sampler_kwargs["subbase_sampler"] = (
-                    SegSamplerFactory.sampler_types[subbase_sampler_type]
-                )
+                sampler_kwargs["subbase_sampler"] = SegSamplerFactory.sampler_types[
+                    subbase_sampler_type
+                ]
 
         if sampler_type == "class_weighted_random_seg_chunk_sampler":
             class_name = sampler_kwargs.get("class_name", "class_id")
@@ -161,9 +161,7 @@ class SegSamplerFactory:
         return {key: kwargs[key] for key in valid_args if key in kwargs}
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Add sampler factory configuration arguments to a parser.
 
         Args:

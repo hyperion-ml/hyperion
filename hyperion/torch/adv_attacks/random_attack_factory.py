@@ -335,9 +335,7 @@ class RandomAttackFactory:
         return filter_func_args(RandomAttackFactory.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Register CLI arguments for random attack sampling.
 
         Args:

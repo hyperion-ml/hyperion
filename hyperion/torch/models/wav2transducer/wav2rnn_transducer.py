@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from typing import Any, Dict, Optional, Union
@@ -13,8 +13,8 @@ except ModuleNotFoundError:
 import torch
 from jsonargparse import ActionParser, ArgumentParser
 
-from ...narchs import AudioFeatsMVN
 from ...hyper_torch_model import HyperTorchModel
+from ...narchs import AudioFeatsMVN
 from ...utils import remove_silence
 from ..transducer import RNNTransducer, RNNTransducerOutput
 

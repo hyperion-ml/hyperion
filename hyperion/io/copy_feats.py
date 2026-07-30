@@ -105,9 +105,7 @@ class CopyFeats:
         input_spec = [str(spec) for spec in input_spec]
 
         if num_parts > 1 and len(input_spec) > 1:
-            raise ValueError(
-                "Merging and splitting at the same time is not supported"
-            )
+            raise ValueError("Merging and splitting at the same time is not supported")
 
         num_frames_ctx = (
             open(str(write_num_frames), "w", encoding="utf-8")

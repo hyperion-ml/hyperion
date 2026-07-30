@@ -277,9 +277,7 @@ class GMM(ExpFamilyMixture):
                 self._cholLambda = None
             N_sum = np.sum(N)
             if N_sum <= 0:
-                raise ValueError(
-                    "all components were pruned (sum(N)==0); reduce min_N"
-                )
+                raise ValueError("all components were pruned (sum(N)==0); reduce min_N")
             self.pi = N / N_sum
             self._log_pi = None
         elif self.pi is None:

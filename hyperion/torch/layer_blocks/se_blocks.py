@@ -1,12 +1,13 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
 from torch.nn import Conv1d, Conv2d
-from typing import Any, Optional
 
 from ..layers import ActivationFactory as AF
 

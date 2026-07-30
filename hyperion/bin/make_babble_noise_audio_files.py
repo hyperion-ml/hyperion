@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2020 Jesus Villalba (Johns Hopkins University)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
+Copyright 2020 Jesus Villalba (Johns Hopkins University)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import math
 import os
@@ -86,9 +87,10 @@ def make_babble_noise_audio_files(
 
     count = 0
     t1 = time.time()
-    with AR(recordings=recordings_file, **input_args) as reader, Writer(
-        output_path, output_recordings_file, **output_args
-    ) as writer:
+    with (
+        AR(recordings=recordings_file, **input_args) as reader,
+        Writer(output_path, output_recordings_file, **output_args) as writer,
+    ):
         keys = reader.keys
         for iters in range(num_reuses):
             keys = rng.permutation(keys)

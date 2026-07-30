@@ -1,6 +1,6 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -15,8 +15,7 @@ except ModuleNotFoundError:
 
 import torch
 
-from ...narchs import ConformerEncoderV1
-from ...narchs import RNNTransducerDecoder
+from ...narchs import ConformerEncoderV1, RNNTransducerDecoder
 from .rnn_transducer import RNNTransducer
 
 

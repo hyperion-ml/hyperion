@@ -373,7 +373,9 @@ class NoiseAugment:
     def reseed(self, seed: Union[int, np.random.SeedSequence]) -> None:
         """Reseeds this augmenter and all child augmenters."""
         root_seed = (
-            seed if isinstance(seed, np.random.SeedSequence) else np.random.SeedSequence(seed)
+            seed
+            if isinstance(seed, np.random.SeedSequence)
+            else np.random.SeedSequence(seed)
         )
         child_seeds = root_seed.spawn(len(self.augmenters) + 1)
         self.rng = np.random.default_rng(seed=child_seeds[0])

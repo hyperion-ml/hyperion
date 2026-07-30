@@ -181,11 +181,7 @@ class RecordingSet(InfoTable):
                         num_samples = None
                         sample_rate = None
 
-                if (
-                    num_samples is None
-                    or sample_rate is None
-                    or sample_rate <= 0
-                ):
+                if num_samples is None or sample_rate is None or sample_rate <= 0:
                     try:
                         info = torchaudio.info(audio_file)
                         num_samples = info.num_frames
@@ -195,11 +191,7 @@ class RecordingSet(InfoTable):
                         num_samples = None
                         sample_rate = None
 
-                if (
-                    num_samples is None
-                    or sample_rate is None
-                    or sample_rate <= 0
-                ):
+                if num_samples is None or sample_rate is None or sample_rate <= 0:
                     x, fs = reader.read(_id)
                     num_samples = x[0].shape[0]
                     sample_rate = fs[0]

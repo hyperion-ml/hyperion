@@ -1,7 +1,8 @@
 """
- Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import time
 from typing import Any, Dict, Optional, Tuple
@@ -235,9 +236,7 @@ class SPLDA(PLDABase):
         return scores
 
     @staticmethod
-    def _llr_compQ(
-        VWF: torch.Tensor, icholL: Any
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _llr_compQ(VWF: torch.Tensor, icholL: Any) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute transformed latent variables and their quadratic norm."""
         gamma = icholL(VWF)
         return gamma, torch.sum(gamma * gamma, dim=1)
@@ -246,7 +245,9 @@ class SPLDA(PLDABase):
         self,
         x1: torch.Tensor,
         x2: torch.Tensor,
-        aux_comps: Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]] = None,
+        aux_comps: Optional[
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+        ] = None,
         preproc: bool = True,
     ) -> torch.Tensor:
         """Compute 1-vs-1 LLR scores.
@@ -287,7 +288,9 @@ class SPLDA(PLDABase):
     def llr_self(
         self,
         x: torch.Tensor,
-        aux_comps: Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]] = None,
+        aux_comps: Optional[
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+        ] = None,
         preproc: bool = True,
     ) -> torch.Tensor:
         """Compute self-similarity LLR scores.
@@ -323,7 +326,9 @@ class SPLDA(PLDABase):
         self,
         x1: torch.Tensor,
         x2: torch.Tensor,
-        aux_comps: Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]] = None,
+        aux_comps: Optional[
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+        ] = None,
         preproc: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute pairwise and self-similarity LLR scores.

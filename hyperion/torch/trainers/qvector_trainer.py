@@ -260,10 +260,7 @@ class QVectorTrainer(SingleModelTrainer):
         prototype_code_rate = None
         if isinstance(batch_output.head_output, HydraClassifHeadOutput):
             prototype_code_rate = batch_output.head_output.prototype_code_rate
-            if (
-                prototype_code_rate is not None
-                and self.prototype_code_rate_weight != 0
-            ):
+            if prototype_code_rate is not None and self.prototype_code_rate_weight != 0:
                 loss = loss - self.prototype_code_rate_weight * prototype_code_rate
 
         return loss, batch_output
@@ -290,7 +287,9 @@ class QVectorTrainer(SingleModelTrainer):
 
             batch_metrics["categorical_acc"] = categorical_acc
             if batch_output.head_output.loss is not None:
-                batch_metrics["classification_loss"] = batch_output.head_output.loss.item()
+                batch_metrics["classification_loss"] = (
+                    batch_output.head_output.loss.item()
+                )
             if batch_output.head_output.prototype_code_rate is not None:
                 batch_metrics["prototype_code_rate"] = (
                     batch_output.head_output.prototype_code_rate.item()

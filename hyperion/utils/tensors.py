@@ -1,7 +1,8 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from typing import Sequence, Tuple
 
 import numpy as np
@@ -91,9 +92,7 @@ def to3D_by_seq(
     num_seqs = len(x)
     for i, seq in enumerate(x):
         if seq.shape[1] != dim:
-            raise ValueError(
-                f"x[{i}] has feature dim {seq.shape[1]}, expected {dim}"
-            )
+            raise ValueError(f"x[{i}] has feature dim {seq.shape[1]}, expected {dim}")
 
     if max_length == 0:
         for i in range(num_seqs):

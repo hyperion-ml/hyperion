@@ -89,7 +89,9 @@ class TrialStats:
                     model_id = ndx.model_set[i]
                     seg_id = ndx.seg_set[j]
                     try:
-                        stats_mat[i, j] = self.df_stats.at[(model_id, seg_id), stat_name]
+                        stats_mat[i, j] = self.df_stats.at[
+                            (model_id, seg_id), stat_name
+                        ]
                     except KeyError:
                         err_str = f"{stat_name} not found for {model_id}-{seg_id}"
                         if raise_missing:

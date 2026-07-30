@@ -1,6 +1,6 @@
 """
- Copyright 2019 Jesus Villalba (Johns Hopkins University)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
+Copyright 2019 Jesus Villalba (Johns Hopkins University)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -169,8 +169,7 @@ def eval_xvector_logits(
     writer_spec = logits_path if logits_path is not None else output_spec
 
     ar_args = AR.filter_args(**kwargs)
-    logging.info("opening output stream: %s with args=%s", writer_spec,
-                 str(ar_args))
+    logging.info("opening output stream: %s with args=%s", writer_spec, str(ar_args))
     with DWF.create(writer_spec, metadata_columns=metadata_columns) as writer:
         input_stream = dataset_path if dataset_path is not None else recordings_file
         logging.info(f"opening input stream: {input_stream} with args={ar_args}")

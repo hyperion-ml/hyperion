@@ -3,6 +3,7 @@
 Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import multiprocessing
 import os
@@ -361,9 +362,7 @@ def main() -> None:
 
     # parser.add_argument('--num-gpus', type=int, default=1,
     #                     help='number of gpus, if 0 it uses cpu')
-    parser.add_argument(
-        "--seed", type=int, default=1123581321, help="random seed"
-    )
+    parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(
         "--resume",
         action="store_true",

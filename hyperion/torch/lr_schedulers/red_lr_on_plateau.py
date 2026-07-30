@@ -1,11 +1,11 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from math import inf
 from functools import partial
+from math import inf
 from typing import Any, Callable, Mapping, Optional
 
 import torch.optim as optim
@@ -177,9 +177,7 @@ class ReduceLROnPlateau(LRScheduler):
         else:  # mode == 'max' and epsilon_mode == 'abs':
             return a > best + threshold
 
-    def _init_is_better(
-        self, mode: str, threshold: float, threshold_mode: str
-    ) -> None:
+    def _init_is_better(self, mode: str, threshold: float, threshold_mode: str) -> None:
         """Initialize comparison baseline and comparator closure."""
         if mode not in {"min", "max"}:
             raise ValueError("mode " + mode + " is unknown!")

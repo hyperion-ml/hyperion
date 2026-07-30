@@ -9,8 +9,8 @@ from typing import Any, Dict, Optional
 import torch
 import torch.nn as nn
 
-from ...narchs import TorchNALoader
 from ...hyper_torch_model import HyperTorchModel
+from ...narchs import TorchNALoader
 
 
 class AE(HyperTorchModel):

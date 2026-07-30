@@ -38,7 +38,9 @@ class FilterBankFactory:
     """
 
     @staticmethod
-    def _resolve_freq_range(fs: float, low_freq: float, high_freq: float) -> Tuple[float, float]:
+    def _resolve_freq_range(
+        fs: float, low_freq: float, high_freq: float
+    ) -> Tuple[float, float]:
         """Resolves and validates low/high cutoff frequencies.
 
         Args:

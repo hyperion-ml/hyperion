@@ -321,7 +321,8 @@ class TransformerEncoderV1(NetArch):
             return (None, self.in_feats, None)
 
     def out_shape(
-        self, in_shape: Optional[Tuple[Optional[int], Optional[int], Optional[int]]] = None
+        self,
+        in_shape: Optional[Tuple[Optional[int], Optional[int], Optional[int]]] = None,
     ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         """Infer the output shape given an input shape.
 

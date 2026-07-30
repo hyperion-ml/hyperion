@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import argparse
@@ -11,9 +11,9 @@ import sys
 import time
 
 import numpy as np
-
 import torch
 import torch.nn as nn
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.data import PairedSeqDataset as SD
@@ -36,7 +36,7 @@ def train_vae(
     num_gpus,
     resume,
     num_workers,
-    **kwargs
+    **kwargs,
 ):
 
     set_float_cpu("float32")
@@ -100,7 +100,7 @@ def train_vae(
         metrics=metrics,
         lr_scheduler=lr_sch,
         data_parallel=(num_gpus > 1),
-        **trn_args
+        **trn_args,
     )
     if resume:
         trainer.load_last_checkpoint()

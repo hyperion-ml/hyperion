@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
-  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
-  Trains calibration for SRE18 tel condition
+Trains calibration for SRE18 tel condition
 """
 
 import logging

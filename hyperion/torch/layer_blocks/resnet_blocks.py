@@ -3,11 +3,12 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Any, Callable, Dict, Optional, Union
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
 from torch.nn import BatchNorm2d, Conv2d, Dropout2d
-from typing import Any, Callable, Dict, Optional, Union
 
 from ..layers import ActivationFactory as AF
 
@@ -604,4 +605,3 @@ class ResNetEndpointBlock(nn.Module):
             x = self.upsample(x)
 
         return x
-

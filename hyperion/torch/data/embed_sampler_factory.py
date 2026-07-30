@@ -13,7 +13,6 @@ from .embed_dataset import EmbedDataset
 from .embed_sampler import EmbedSampler
 from .hyper_sampler import HyperSampler
 
-
 sampler_dict: Dict[str, Type[HyperSampler]] = {
     "class_weighted_random_embed_sampler": ClassWeightedRandomEmbedSampler,
     "embed_sampler": EmbedSampler,
@@ -98,9 +97,7 @@ class EmbedSamplerFactory:
         return {key: kwargs[key] for key in valid_args if key in kwargs}
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Add embedding sampler factory arguments to a parser.
 
         Args:

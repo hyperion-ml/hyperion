@@ -1,19 +1,18 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
-from hyperion.utils.list_utils import ismember
-from hyperion.utils.kaldi_matrix import compression_methods
-
+from hyperion.hyp_defs import float_cpu, set_float_cpu
 from hyperion.io.data_rw_factory import DataWriterFactory as DWF
-from hyperion.io.data_rw_factory import SequentialDataReaderFactory as SDRF
 from hyperion.io.data_rw_factory import RandomAccessDataReaderFactory as RDRF
+from hyperion.io.data_rw_factory import SequentialDataReaderFactory as SDRF
+from hyperion.utils.kaldi_matrix import compression_methods
+from hyperion.utils.list_utils import ismember
 
 input_prefix = "./tests/data_in/ark/"
 feat_scp_b = "scp:./tests/data_in/ark/feat_b.scp"

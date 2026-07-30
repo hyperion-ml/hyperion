@@ -36,6 +36,7 @@ _RESERVED_BASE_OPTION_PREFIXES = (
     "--time",
 )
 
+
 @dataclass(frozen=True)
 class ArraySpec:
     """Inclusive task range and task-variable name.
@@ -71,7 +72,9 @@ class ArraySpec:
         name, start, end = match.groups()
         start_i, end_i = int(start), int(end)
         if start_i <= 0 or start_i > end_i:
-            raise ValueError("array bounds must be positive and START must not exceed END")
+            raise ValueError(
+                "array bounds must be positive and START must not exceed END"
+            )
         return cls(name=name, start=start_i, end=end_i)
 
     def values(self) -> range:
@@ -229,14 +232,18 @@ def run_local(options: SubmitOptions) -> None:
     for task_id in task_ids:
         output_file = _task_output_file(options, task_id)
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        command = _command_with_torchrun(_task_command(options, task_id), options.num_gpus)
+        command = _command_with_torchrun(
+            _task_command(options, task_id), options.num_gpus
+        )
         env = os.environ.copy()
         if options.array is not None:
             assert task_id is not None
             env[options.array.name] = str(task_id)
         logging.info("running locally: %s", shlex.join(command))
         with output_file.open("w", encoding="utf-8") as log_file:
-            subprocess.run(command, check=True, env=env, stdout=log_file, stderr=subprocess.STDOUT)
+            subprocess.run(
+                command, check=True, env=env, stdout=log_file, stderr=subprocess.STDOUT
+            )
 
 
 def _shell_quote_with_array(value: str, array: ArraySpec | None) -> str:
@@ -296,7 +303,7 @@ def render_slurm_script(options: SubmitOptions, cwd: Path) -> str:
     )
     array_setup = ""
     if options.array is not None:
-        array_setup = f"export {options.array.name}=\"${{SLURM_ARRAY_TASK_ID}}\"\n"
+        array_setup = f'export {options.array.name}="${{SLURM_ARRAY_TASK_ID}}"\n'
     return f"""#!/usr/bin/env bash
 cd {shlex.quote(str(cwd))}
 {array_setup}mkdir -p \"$(dirname {output_file})\"
@@ -347,7 +354,9 @@ def _slurm_options(options: SubmitOptions, config: dict[str, Any]) -> list[str]:
             try:
                 result.append(option.format(num_gpus=options.num_gpus))
             except KeyError as exc:
-                raise ValueError(f"unsupported placeholder in Slurm option: {option}") from exc
+                raise ValueError(
+                    f"unsupported placeholder in Slurm option: {option}"
+                ) from exc
     else:
         result.extend(config.get("cpu_options", []))
     return result
@@ -396,7 +405,9 @@ def wait_for_slurm_job(job_id: str, poll_interval: float = 2.0) -> None:
         capture_output=True,
         text=True,
     )
-    states = [line.split("|", maxsplit=1) for line in accounting.stdout.splitlines() if line]
+    states = [
+        line.split("|", maxsplit=1) for line in accounting.stdout.splitlines() if line
+    ]
     if not states:
         raise RuntimeError(f"Slurm accounting returned no records for job {job_id}")
     failures = []
@@ -406,7 +417,9 @@ def wait_for_slurm_job(job_id: str, poll_interval: float = 2.0) -> None:
         if state != "COMPLETED" or not exit_code.startswith("0:"):
             failures.append(line)
     if failures:
-        raise RuntimeError(f"Slurm job {job_id} failed: {', '.join('|'.join(x) for x in failures)}")
+        raise RuntimeError(
+            f"Slurm job {job_id} failed: {', '.join('|'.join(x) for x in failures)}"
+        )
 
 
 def run_slurm(options: SubmitOptions, config: dict[str, Any]) -> None:
@@ -429,7 +442,9 @@ def run_slurm(options: SubmitOptions, config: dict[str, Any]) -> None:
 
     command = [str(config.get("sbatch_command", "sbatch"))]
     command.extend(_slurm_options(options, config))
-    fallback_stdout, fallback_stderr = _slurm_fallback_log_paths(output_file, options.array)
+    fallback_stdout, fallback_stderr = _slurm_fallback_log_paths(
+        output_file, options.array
+    )
     command.extend([f"--output={fallback_stdout}", f"--error={fallback_stderr}"])
     command.append(str(script_path.resolve()))
     logging.info("submitting Slurm job: %s", shlex.join(command))
@@ -442,9 +457,13 @@ def run_slurm(options: SubmitOptions, config: dict[str, Any]) -> None:
 def _add_common_args(parser: ArgumentParser) -> None:
     """Add portable submitter arguments to a backend parser."""
     parser.add_argument("--cfg", action=ActionConfigFile, help="YAML submitter config")
-    parser.add_argument("--output-file", required=True, help="combined stdout/stderr log")
+    parser.add_argument(
+        "--output-file", required=True, help="combined stdout/stderr log"
+    )
     parser.add_argument("--num-gpus", type=int, default=0, help="GPUs per task")
-    parser.add_argument("--num-threads", type=int, default=1, help="CPU threads per task")
+    parser.add_argument(
+        "--num-threads", type=int, default=1, help="CPU threads per task"
+    )
     memory = parser.add_mutually_exclusive_group()
     memory.add_argument("--mem", default=None, help="total memory per node")
     memory.add_argument("--mem-per-cpu", default=None, help="memory per allocated CPU")
@@ -476,7 +495,9 @@ def make_parser() -> ArgumentParser:
     Returns:
         Configured parser with local and Slurm subcommands.
     """
-    parser = ArgumentParser(description="Run Hyperion recipe commands locally or through Slurm")
+    parser = ArgumentParser(
+        description="Run Hyperion recipe commands locally or through Slurm"
+    )
     subcommands = parser.add_subcommands(required=True)
     local_parser = ArgumentParser(prog="hyperion-submit local")
     slurm_parser = ArgumentParser(prog="hyperion-submit slurm")
@@ -493,7 +514,9 @@ def main() -> None:
     """Parse arguments and execute the selected backend."""
     parser = make_parser()
     if "--" not in sys.argv[1:] and not {"-h", "--help"}.intersection(sys.argv[1:]):
-        parser.error("the target command must be separated from submitter options with --")
+        parser.error(
+            "the target command must be separated from submitter options with --"
+        )
     args = parser.parse_args()
     subcommand = args.subcommand
     kwargs = args.as_dict()[subcommand]

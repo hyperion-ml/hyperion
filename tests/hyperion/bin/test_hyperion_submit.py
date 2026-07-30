@@ -1,8 +1,8 @@
 """Tests for the scheduler-neutral recipe submitter."""
 
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -141,7 +141,8 @@ def test_local_array_substitutes_job_and_redirects_logs(tmp_path: Path) -> None:
 def test_multi_gpu_command_uses_torchrun_and_resolves_entrypoint(monkeypatch) -> None:
     """Multi-GPU commands use torchrun with a PATH-resolved entry point."""
     monkeypatch.setattr(
-        "hyperion.bin.hyperion_submit.shutil.which", lambda command: f"/env/bin/{command}"
+        "hyperion.bin.hyperion_submit.shutil.which",
+        lambda command: f"/env/bin/{command}",
     )
     assert _command_with_torchrun(["program"], 1) == ["program"]
     assert _command_with_torchrun(["program"], 2) == [
@@ -153,10 +154,13 @@ def test_multi_gpu_command_uses_torchrun_and_resolves_entrypoint(monkeypatch) ->
     ]
 
 
-def test_slurm_script_logs_environment_and_expands_array(tmp_path: Path, monkeypatch) -> None:
+def test_slurm_script_logs_environment_and_expands_array(
+    tmp_path: Path, monkeypatch
+) -> None:
     """Rendered scripts retain the legacy diagnostics without Conda wrapping."""
     monkeypatch.setattr(
-        "hyperion.bin.hyperion_submit.shutil.which", lambda command: f"/env/bin/{command}"
+        "hyperion.bin.hyperion_submit.shutil.which",
+        lambda command: f"/env/bin/{command}",
     )
     options = make_options(
         tmp_path,
@@ -168,7 +172,7 @@ def test_slurm_script_logs_environment_and_expands_array(tmp_path: Path, monkeyp
     )
     script = render_slurm_script(options, tmp_path)
 
-    assert "export JOB=\"${SLURM_ARRAY_TASK_ID}\"" in script
+    assert 'export JOB="${SLURM_ARRAY_TASK_ID}"' in script
     assert "env | sort | grep '^SLURM_'" in script
     assert "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES-}" in script
     assert "exec > " in script

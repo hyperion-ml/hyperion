@@ -35,6 +35,7 @@ class CodecAugment:
       tel_mask: Boolean mask selecting telephony codecs in ``codec_types``.
       media_mask: Boolean mask selecting non-telephony codecs in ``codec_types``.
     """
+
     SUPPORTED_CODEC_TYPES = (
         "alaw",
         "mulaw",
@@ -75,7 +76,9 @@ class CodecAugment:
             f"init codec augment with prob={codec_prob} {codec_types=} {codec_choice_prob=}"
         )
         if not np.isscalar(codec_prob):
-            raise TypeError(f"codec_prob must be a scalar value, got {type(codec_prob)}")
+            raise TypeError(
+                f"codec_prob must be a scalar value, got {type(codec_prob)}"
+            )
         codec_prob = float(codec_prob)
         if not np.isfinite(codec_prob) or codec_prob < 0 or codec_prob > 1:
             raise ValueError(f"codec_prob must be in [0, 1], got {codec_prob}")
@@ -104,15 +107,21 @@ class CodecAugment:
                 ) from err
 
             if len(values) != 2:
-                raise ValueError(f"{name} must contain exactly two values, got {values}")
+                raise ValueError(
+                    f"{name} must contain exactly two values, got {values}"
+                )
 
             out = []
             for v in values:
                 if not np.isscalar(v):
-                    raise TypeError(f"{name} entries must be scalar values, got {type(v)}")
+                    raise TypeError(
+                        f"{name} entries must be scalar values, got {type(v)}"
+                    )
                 v_f = float(v)
                 if not np.isfinite(v_f) or not v_f.is_integer():
-                    raise ValueError(f"{name} entries must be finite integers, got {values}")
+                    raise ValueError(
+                        f"{name} entries must be finite integers, got {values}"
+                    )
                 out.append(int(v_f))
 
             low, high = out
@@ -136,7 +145,9 @@ class CodecAugment:
         vorbis_compression = _validate_int_pair(
             "vorbis_compression", vorbis_compression, -1, 10
         )
-        opus_compression = _validate_int_pair("opus_compression", opus_compression, 0, 10)
+        opus_compression = _validate_int_pair(
+            "opus_compression", opus_compression, 0, 10
+        )
 
         self.codec_prob = codec_prob
         self.codec_types = list(codec_types)
@@ -354,7 +365,9 @@ class CodecAugment:
                 "sample_freq must be provided when codec augmentation is applied"
             )
         if not np.isscalar(sample_freq):
-            raise TypeError(f"sample_freq must be a scalar value, got {type(sample_freq)}")
+            raise TypeError(
+                f"sample_freq must be a scalar value, got {type(sample_freq)}"
+            )
         sample_freq = float(sample_freq)
         if not np.isfinite(sample_freq) or sample_freq <= 0:
             raise ValueError(

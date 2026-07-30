@@ -1,11 +1,12 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Any, Optional
 
 import h5py
 import numpy as np
-from typing import Any, Optional
 
 from .score_norm import ScoreNorm
 from .t_norm import TNorm

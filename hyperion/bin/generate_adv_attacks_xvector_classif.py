@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
-  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
-  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 import sys
@@ -440,7 +441,10 @@ def main() -> None:
         "--model-path", required=True, help="x-vector model checkpoint path"
     )
     parser.add_argument(
-        "--use-gpu", default=False, action="store_true", help="run attack generation on GPU"
+        "--use-gpu",
+        default=False,
+        action="store_true",
+        help="run attack generation on GPU",
     )
 
     RandomAttackFactory.add_class_args(parser, prefix="attacks")

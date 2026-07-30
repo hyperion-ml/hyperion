@@ -311,21 +311,21 @@ class ScaledDotProdAttV2(nn.Module):
         attn_mask = None
         if mask is not None:
             if mask.dim() == 2:
-                assert mask.shape[0] == bsz, (
-                    f"mask batch axis ({mask.shape[0]}) must match batch size ({bsz})"
-                )
-                assert mask.shape[-1] >= k_length, (
-                    f"mask key axis ({mask.shape[-1]}) must be >= k_length ({k_length})"
-                )
+                assert (
+                    mask.shape[0] == bsz
+                ), f"mask batch axis ({mask.shape[0]}) must match batch size ({bsz})"
+                assert (
+                    mask.shape[-1] >= k_length
+                ), f"mask key axis ({mask.shape[-1]}) must be >= k_length ({k_length})"
                 attn_mask = mask[:, None, None, :k_length]
             else:
                 assert mask.dim() >= 2, "mask must have at least 2 dimensions"
-                assert mask.shape[-2] >= q_length, (
-                    f"mask query axis ({mask.shape[-2]}) must be >= q_length ({q_length})"
-                )
-                assert mask.shape[-1] >= k_length, (
-                    f"mask key axis ({mask.shape[-1]}) must be >= k_length ({k_length})"
-                )
+                assert (
+                    mask.shape[-2] >= q_length
+                ), f"mask query axis ({mask.shape[-2]}) must be >= q_length ({q_length})"
+                assert (
+                    mask.shape[-1] >= k_length
+                ), f"mask key axis ({mask.shape[-1]}) must be >= k_length ({k_length})"
                 attn_mask = mask[..., :q_length, :k_length]
             if attn_mask.dtype == torch.bool:
                 min_value = torch.finfo(query.dtype).min
@@ -333,9 +333,9 @@ class ScaledDotProdAttV2(nn.Module):
                     ~attn_mask, min_value
                 )
             else:
-                assert torch.is_floating_point(attn_mask), (
-                    "ScaledDotProdAttV2 expects float additive masks or bool masks."
-                )
+                assert torch.is_floating_point(
+                    attn_mask
+                ), "ScaledDotProdAttV2 expects float additive masks or bool masks."
 
         query = query.transpose(1, 2)  # (bsz, q_heads, query_len, head_dim)
         key = key.transpose(1, 2)  # (bs, kv_heads, key_len, head_dim)
@@ -629,21 +629,21 @@ class TorchScaledDotProdAttV2(ScaledDotProdAttV2):
         attn_mask = mask
         if attn_mask is not None:
             if attn_mask.dim() == 2:
-                assert attn_mask.shape[0] == bsz, (
-                    f"mask batch axis ({attn_mask.shape[0]}) must match batch size ({bsz})"
-                )
-                assert attn_mask.shape[-1] >= k_length, (
-                    f"mask key axis ({attn_mask.shape[-1]}) must be >= k_length ({k_length})"
-                )
+                assert (
+                    attn_mask.shape[0] == bsz
+                ), f"mask batch axis ({attn_mask.shape[0]}) must match batch size ({bsz})"
+                assert (
+                    attn_mask.shape[-1] >= k_length
+                ), f"mask key axis ({attn_mask.shape[-1]}) must be >= k_length ({k_length})"
                 attn_mask = attn_mask[:, None, None, :k_length]
             else:
                 assert attn_mask.dim() >= 2, "mask must have at least 2 dimensions"
-                assert attn_mask.shape[-2] >= q_length, (
-                    f"mask query axis ({attn_mask.shape[-2]}) must be >= q_length ({q_length})"
-                )
-                assert attn_mask.shape[-1] >= k_length, (
-                    f"mask key axis ({attn_mask.shape[-1]}) must be >= k_length ({k_length})"
-                )
+                assert (
+                    attn_mask.shape[-2] >= q_length
+                ), f"mask query axis ({attn_mask.shape[-2]}) must be >= q_length ({q_length})"
+                assert (
+                    attn_mask.shape[-1] >= k_length
+                ), f"mask key axis ({attn_mask.shape[-1]}) must be >= k_length ({k_length})"
                 attn_mask = attn_mask[..., :q_length, :k_length]
 
         # SDPA with memory-efficient backend is currently (torch==2.1.2) bugged with non-contiguous inputs with custom attn_mask,
@@ -736,12 +736,12 @@ class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
             assert (
                 mask.dim() == 2
             ), "HFFlashScaledDotProdAttV2 expects mask with shape (batch, k_len)."
-            assert mask.shape[0] == bsz, (
-                f"mask batch axis ({mask.shape[0]}) must match batch size ({bsz})"
-            )
-            assert mask.shape[-1] >= k_length, (
-                f"mask key axis ({mask.shape[-1]}) must be >= k_length ({k_length})"
-            )
+            assert (
+                mask.shape[0] == bsz
+            ), f"mask batch axis ({mask.shape[0]}) must match batch size ({bsz})"
+            assert (
+                mask.shape[-1] >= k_length
+            ), f"mask key axis ({mask.shape[-1]}) must be >= k_length ({k_length})"
             attn_mask = mask[:, :k_length]
             if attn_mask.dtype != torch.bool:
                 attn_mask = attn_mask >= 0

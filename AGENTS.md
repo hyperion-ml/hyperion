@@ -115,6 +115,7 @@ The active, maintained code is more modern than some legacy areas. Match the act
 Formatting notes from the current tree:
 
 - Black/isort are included as dependencies and the README advertises Black style, but there is no large centralized lint config beyond `pyproject.toml`.
+- Python files under `hyperion/` and `tests/` must pass both Black and isort. Use `black hyperion tests` and `isort hyperion tests` when formatting these directories; isort uses the Black-compatible configuration in `pyproject.toml`.
 - Existing code mixes old `%`/`.format(...)` logging and newer f-strings. In active files, prefer f-strings for plain string construction and `logging.*("...", arg)` when that keeps log formatting lazy.
 - Keep imports grouped as: stdlib, third-party, local package imports.
 
@@ -126,6 +127,7 @@ Formatting notes from the current tree:
 - If you add, remove, or rename a maintained script here, regenerate `pyproject.toml` with:
   - `python generate_pyproject.py`
 - Do not manually edit the generated script list in `pyproject.toml` unless there is a strong reason.
+- `pyproject.toml` is generated from `proto_pyproject.toml`, with package dependencies populated from `requirements.txt` and console scripts populated from `hyperion/bin/*.py` by `generate_pyproject.py`. Keep prototype changes in `proto_pyproject.toml`; regenerate the generated file instead of editing those generated sections directly.
 
 ### `hyperion/np/`
 

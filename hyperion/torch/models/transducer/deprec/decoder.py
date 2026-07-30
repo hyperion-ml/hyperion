@@ -17,10 +17,9 @@
 import logging
 from typing import Optional, Tuple
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 
 # TODO(fangjun): Support switching between LSTM and GRU
@@ -102,7 +101,7 @@ class Decoder(nn.Module):
         """
         embedding_out = self.embedding(y)
         embedding_out = self.embedding_dropout(embedding_out)
-        #print("yy", y.shape, embedding_out.shape, y)
+        # print("yy", y.shape, embedding_out.shape, y)
         rnn_out, (h, c) = self.rnn(embedding_out, states)
         out = self.output_linear(rnn_out)
 
@@ -139,7 +138,6 @@ class Decoder(nn.Module):
 
         return args
 
-
     @staticmethod
     def filter_finetune_args(**kwargs):
         valid_args = (
@@ -151,50 +149,51 @@ class Decoder(nn.Module):
         return args
 
     @staticmethod
-    def add_class_args(parser,
-                       prefix=None,
-                       skip=set(["in_feats", "blank_id", "vocab_size"])):
+    def add_class_args(
+        parser, prefix=None, skip=set(["in_feats", "blank_id", "vocab_size"])
+    ):
 
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
         if "in_feats" not in skip:
-            parser.add_argument("--in-feats",
-                                type=int,
-                                required=True,
-                                help=("input feature dimension"))
+            parser.add_argument(
+                "--in-feats", type=int, required=True, help=("input feature dimension")
+            )
         if "blank_id" not in skip:
-            parser.add_argument("--blank-id",
-                                type=int,
-                                required=True,
-                                help=("blank id from sp model"))
+            parser.add_argument(
+                "--blank-id", type=int, required=True, help=("blank id from sp model")
+            )
         if "vocab_size" not in skip:
-            parser.add_argument("--vocab-size",
-                                type=int,
-                                required=True,
-                                help=("output prediction dimension"))
-        parser.add_argument("--embedding-dim",
-                            default=1024,
-                            type=int,
-                            help=("feature dimension"))
-        parser.add_argument("--embedding-dropout-rate",
-                            default=0.0,
-                            type=float,
-                            help=("dropout prob for decoder input embeddings"))
-        parser.add_argument("--rnn-dropout-rate",
-                            default=0.0,
-                            type=float,
-                            help=("dropout prob for decoder RNN "))
+            parser.add_argument(
+                "--vocab-size",
+                type=int,
+                required=True,
+                help=("output prediction dimension"),
+            )
+        parser.add_argument(
+            "--embedding-dim", default=1024, type=int, help=("feature dimension")
+        )
+        parser.add_argument(
+            "--embedding-dropout-rate",
+            default=0.0,
+            type=float,
+            help=("dropout prob for decoder input embeddings"),
+        )
+        parser.add_argument(
+            "--rnn-dropout-rate",
+            default=0.0,
+            type=float,
+            help=("dropout prob for decoder RNN "),
+        )
 
         parser.add_argument("--num-layers", default=2, type=int, help=(""))
 
         parser.add_argument("--hidden-dim", default=512, type=int, help=(""))
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
-
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     def change_config(
         self,
@@ -213,37 +212,40 @@ class Decoder(nn.Module):
 
             self.rnn_dropout_rate = rnn_dropout_rate
             self.rnn.p = self.rnn_dropout_rate
-            
+
             self.embedding_dropout_rate = embedding_dropout_rate
             self.embedding_dropout = nn.Dropout(self.embedding_dropout_rate)
 
-
-
     @staticmethod
-    def add_finetune_args(parser,
-                       prefix=None,
-                       skip=set(["in_feats", "blank_id", "vocab_size"])):
+    def add_finetune_args(
+        parser, prefix=None, skip=set(["in_feats", "blank_id", "vocab_size"])
+    ):
 
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument("--override-dropouts",
-                            default=False,
-                            action=ActionYesNo,
-                            help=(
-                                "whether to use the dropout probabilities passed in the "
-                                "arguments instead of the defaults in the pretrained model."
-                            ))
-        parser.add_argument("--embedding-dropout-rate",
-                            default=0.0,
-                            type=float,
-                            help=("dropout prob for decoder input embeddings"))
-        parser.add_argument("--rnn-dropout-rate",
-                            default=0.0,
-                            type=float,
-                            help=("dropout prob for decoder RNN "))
+        parser.add_argument(
+            "--override-dropouts",
+            default=False,
+            action=ActionYesNo,
+            help=(
+                "whether to use the dropout probabilities passed in the "
+                "arguments instead of the defaults in the pretrained model."
+            ),
+        )
+        parser.add_argument(
+            "--embedding-dropout-rate",
+            default=0.0,
+            type=float,
+            help=("dropout prob for decoder input embeddings"),
+        )
+        parser.add_argument(
+            "--rnn-dropout-rate",
+            default=0.0,
+            type=float,
+            help=("dropout prob for decoder RNN "),
+        )
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

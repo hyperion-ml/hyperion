@@ -118,9 +118,7 @@ def apply_gain(x: ArrayLike, feat_type: str, AdB: ArrayLike) -> ArrayLike:
     }
     if feat_type not in f_dict:
         valid = ", ".join(sorted(f_dict.keys()))
-        raise ValueError(
-            f"Unknown feat_type={feat_type!r}. Supported values: {valid}"
-        )
+        raise ValueError(f"Unknown feat_type={feat_type!r}. Supported values: {valid}")
     f = f_dict[feat_type]
     return f(x, AdB)
 

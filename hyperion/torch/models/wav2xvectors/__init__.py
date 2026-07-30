@@ -1,6 +1,6 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from .hf_hubert2conformer_v1_xvector import HFHubert2ConformerV1XVector
@@ -9,10 +9,10 @@ from .hf_wav2vec2bert2conformer_v1_xvector import HFWav2Vec2Bert2ConformerV1XVec
 from .hf_wav2vec2bert2resnet1d_xvector import HFWav2Vec2Bert2ResNet1dXVector
 from .hf_wav2vec2conformer_v1_xvector import HFWav2Vec2ConformerV1XVector
 from .hf_wav2vec2resnet1d_xvector import HFWav2Vec2ResNet1dXVector
-from .hf_whisper2conformer_v1_xvector import HFWhisper2ConformerV1XVector
-from .hf_whisper2resnet1d_xvector import HFWhisper2ResNet1dXVector
 from .hf_wavlm2conformer_v1_xvector import HFWavLM2ConformerV1XVector
 from .hf_wavlm2resnet1d_xvector import HFWavLM2ResNet1dXVector
+from .hf_whisper2conformer_v1_xvector import HFWhisper2ConformerV1XVector
+from .hf_whisper2resnet1d_xvector import HFWhisper2ResNet1dXVector
 from .wav2conformer_v1_xvector import Wav2ConformerV1XVector
 from .wav2convnext1d_xvector import Wav2ConvNext1dXVector
 from .wav2convnext2d_xvector import Wav2ConvNext2dXVector

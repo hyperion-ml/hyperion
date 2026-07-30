@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import math
@@ -262,13 +262,17 @@ def eval_nnet_overlap_add(
     # put time dimension back in his place and normalize
     if prev_end < T_out:
         if prev_end == 0:
-            raise RuntimeError("Unable to cover any output positions in overlap-add eval")
+            raise RuntimeError(
+                "Unable to cover any output positions in overlap-add eval"
+            )
         # Fill uncovered tail with the last valid frame.
         y[prev_end:T_out] = y[prev_end - 1 : prev_end]
         count[prev_end:T_out] = count[prev_end - 1 : prev_end]
 
     if torch.any(count[:prev_end] == 0):
-        raise RuntimeError("Uncovered middle positions found in overlap-add aggregation")
+        raise RuntimeError(
+            "Uncovered middle positions found in overlap-add aggregation"
+        )
 
     y = y.transpose(0, time_dim) / count
 

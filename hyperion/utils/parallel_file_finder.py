@@ -2,10 +2,10 @@
 Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import typing
 
 import os
 import re
+import typing
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Pattern, Union
@@ -25,7 +25,9 @@ class ParallelFileFinder:
         >>> print(len(wav_files))
     """
 
-    def __init__(self, root: str, pattern: Union[str, Pattern], num_threads: int = 16) -> None:
+    def __init__(
+        self, root: str, pattern: Union[str, Pattern], num_threads: int = 16
+    ) -> None:
         """Initialize the parallel file finder.
 
         Args:

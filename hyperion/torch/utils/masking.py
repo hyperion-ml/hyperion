@@ -198,7 +198,9 @@ def seq_lengths_to_self_attn_mask(
     if not need_mask:
         return None
     if max_length is None:
-        raise ValueError("max_length must be provided when lengths is None and a mask is required.")
+        raise ValueError(
+            "max_length must be provided when lengths is None and a mask is required."
+        )
 
     device = (
         device

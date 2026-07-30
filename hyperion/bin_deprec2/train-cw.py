@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Trains Centering and whitening
 """
@@ -50,7 +51,7 @@ def train_cw(
     append_tlist,
     input_path,
     output_path,
-    **kwargs
+    **kwargs,
 ):
 
     if preproc_file is not None:

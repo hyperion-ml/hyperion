@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
- Evals calibration
+Evals calibration
 """
 
 import logging
@@ -19,10 +19,10 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger, float_cpu
 from hyperion.np.classifiers import BinaryLogisticRegression as LR
 from hyperion.np.metrics import compute_act_dcf, compute_min_dcf
+from hyperion.utils.misc import PathLike
 from hyperion.utils.trial_key import TrialKey
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
-from hyperion.utils.misc import PathLike
 
 
 def eval_verification_calibration(
@@ -55,7 +55,9 @@ def eval_verification_calibration(
 
 def main() -> None:
     """Parse CLI arguments and run verification score calibration."""
-    parser = ArgumentParser(description="Evaluate logistic calibration for verification")
+    parser = ArgumentParser(
+        description="Evaluate logistic calibration for verification"
+    )
 
     parser.add_argument(
         "--in-score-file",

@@ -1,13 +1,13 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.nn as nn
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
@@ -580,7 +580,10 @@ class ConformerEncoderV1(NetArch):
 
         if "num_blocks" not in skip:
             parser.add_argument(
-                "--num-blocks", default=6, type=int, help=("number of tranformer blocks")
+                "--num-blocks",
+                default=6,
+                type=int,
+                help=("number of tranformer blocks"),
             )
 
         if "d_model" not in skip:
@@ -683,7 +686,10 @@ class ConformerEncoderV1(NetArch):
             )
         if "dropout_rate" not in skip:
             parser.add_argument(
-                "--dropout-rate", default=0.1, type=float, help="feed-forward layer dropout"
+                "--dropout-rate",
+                default=0.1,
+                type=float,
+                help="feed-forward layer dropout",
             )
 
         if "in_layer_type" not in skip:

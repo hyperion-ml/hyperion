@@ -1,7 +1,8 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import math
 from typing import Any, Dict, Optional, Tuple, Union
@@ -180,7 +181,7 @@ class PGDAttack(AdvAttack):
             # compute norm
             l2 = torch.norm(u, dim=1, keepdim=True)
             # apply theorem and rescale norm
-            x = eps * u / (l2 ** 2 + z).sqrt()
+            x = eps * u / (l2**2 + z).sqrt()
         elif norm == 1:
             # sample from \propto exp(-|t|^p)
             u = torch.rand(shape, dtype=dtype, device=device).reshape(shape[0], -1)

@@ -1,15 +1,14 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
 from typing import Any, Dict, Optional, Sequence, Set, Tuple
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from ...utils.misc import filter_func_args
@@ -93,9 +92,7 @@ class RNNEncoder(NetArch):
         num_directions = 2 if bidirectional else 1
         self.rnn_out_feats *= num_directions
         if subsample_input:
-            self.subsampler = Subsampler(in_feats,
-                                         hid_feats,
-                                         hid_act=subsampling_act)
+            self.subsampler = Subsampler(in_feats, hid_feats, hid_act=subsampling_act)
             lstm_in_dim = hid_feats
         else:
             self.subsampler = None
@@ -147,10 +144,9 @@ class RNNEncoder(NetArch):
             x, _ = self.subsampler(x)
             x_lengths = (x_lengths + 3) // 4
 
-        x = pack_padded_sequence(input=x,
-                                 lengths=x_lengths.cpu(),
-                                 batch_first=True,
-                                 enforce_sorted=False)
+        x = pack_padded_sequence(
+            input=x, lengths=x_lengths.cpu(), batch_first=True, enforce_sorted=False
+        )
         x, _ = self.rnn(x)
         x, x_lengths = pad_packed_sequence(x, batch_first=True)
         if self.out_feats > 0:
@@ -217,7 +213,7 @@ class RNNEncoder(NetArch):
         base_config = super().get_config(no_class_name=no_class_name)
         base_config.update(config)
         return base_config
-        #return dict(list(base_config.items()) + list(config.items()))
+        # return dict(list(base_config.items()) + list(config.items()))
 
     def change_config(self, override_dropouts: bool, dropout_rate: float) -> None:
         """Update mutable configuration values.
@@ -261,10 +257,9 @@ class RNNEncoder(NetArch):
             parser = ArgumentParser(prog="")
 
         if "in_feats" not in skip:
-            parser.add_argument("--in-feats",
-                                type=int,
-                                required=True,
-                                help=("input feature dimension"))
+            parser.add_argument(
+                "--in-feats", type=int, required=True, help=("input feature dimension")
+            )
 
         if "hid_feats" not in skip:
             parser.add_argument(
@@ -279,9 +274,9 @@ class RNNEncoder(NetArch):
                 "--out-feats",
                 default=512,
                 type=int,
-                help=
-                ("number of output dimensions of the encoder, if 0 output projection is removed"
-                 ),
+                help=(
+                    "number of output dimensions of the encoder, if 0 output projection is removed"
+                ),
             )
 
         if "proj_feats" not in skip:
@@ -327,19 +322,19 @@ class RNNEncoder(NetArch):
                 help="whether to subsaple input features x4",
             )
         if "subsampling_act" not in skip:
-            parser.add_argument("--subsampling-act",
-                                default="relu",
-                                help="activation for subsampler block")
+            parser.add_argument(
+                "--subsampling-act",
+                default="relu",
+                help="activation for subsampler block",
+            )
 
         if "dropout_rate" not in skip:
-            parser.add_argument("--dropout-rate",
-                                default=0,
-                                type=float,
-                                help="dropout probability")
+            parser.add_argument(
+                "--dropout-rate", default=0, type=float, help="dropout probability"
+            )
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
@@ -392,13 +387,11 @@ class RNNEncoder(NetArch):
 
         if "dropout_rate" not in skip:
             try:
-                parser.add_argument("--dropout-rate",
-                                    default=0,
-                                    type=float,
-                                    help="dropout probability")
+                parser.add_argument(
+                    "--dropout-rate", default=0, type=float, help="dropout probability"
+                )
             except:
                 pass
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

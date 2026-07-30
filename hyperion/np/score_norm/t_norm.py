@@ -1,11 +1,12 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Optional
 
 import h5py
 import numpy as np
-from typing import Optional
 
 from .score_norm import ScoreNorm
 
@@ -52,8 +53,7 @@ class TNorm(ScoreNorm):
             mu_t = np.mean(scores_coh_test, axis=0, keepdims=True) / n_t
             if self.norm_var:
                 s_t = np.sqrt(
-                    np.mean(scores_coh_test ** 2, axis=0, keepdims=True) / n_t
-                    - mu_t ** 2
+                    np.mean(scores_coh_test**2, axis=0, keepdims=True) / n_t - mu_t**2
                 )
 
         if self.norm_var:

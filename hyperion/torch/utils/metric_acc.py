@@ -31,7 +31,9 @@ class MetricAcc:
     """
 
     def __init__(
-        self, device: Optional[torch.device] = None, keys: Optional[Sequence[str]] = None
+        self,
+        device: Optional[torch.device] = None,
+        keys: Optional[Sequence[str]] = None,
     ) -> None:
         """Create a metric accumulator.
 
@@ -137,9 +139,7 @@ class MetricAcc:
                 "Use set_keys(...) to redefine tracked keys."
             )
 
-    def update(
-        self, metrics: Mapping[str, MetricValue], num_samples: int = 1
-    ) -> None:
+    def update(self, metrics: Mapping[str, MetricValue], num_samples: int = 1) -> None:
         """Update running averages with a new batch of metrics.
 
         Uses a per-metric weighted-average update. Missing metrics in a batch are

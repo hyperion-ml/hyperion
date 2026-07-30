@@ -1490,7 +1490,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         if skip is None:
             skip = set()
 
-        FreeVCTrainer.add_loss_weights_args(parser, skip=skip.union({"loss_mel_weight"}))
+        FreeVCTrainer.add_loss_weights_args(
+            parser, skip=skip.union({"loss_mel_weight"})
+        )
         if "loss_mel_weight" not in skip:
             parser.add_argument(
                 "--loss-mel-weight",

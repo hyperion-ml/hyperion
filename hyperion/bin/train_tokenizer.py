@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 from pathlib import Path
@@ -130,7 +131,9 @@ def train_sentencepiece(
     # generate_sentencepiece_tokens(model_file, tokenizer_path)
 
 
-def generate_sentencepiece_tokens(model_file: PathLike, tokenizer_path: PathLike) -> None:
+def generate_sentencepiece_tokens(
+    model_file: PathLike, tokenizer_path: PathLike
+) -> None:
     """Generate ``tokens.txt`` from a SentencePiece model.
 
     Args:

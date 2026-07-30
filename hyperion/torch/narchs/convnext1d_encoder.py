@@ -1,6 +1,6 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -19,7 +19,8 @@ from ..layer_blocks import (
     ConvNext1dEndpoint,
     ConvNext1dStemBlock,
 )
-from ..layers import ActivationFactory as AF, RMSNorm
+from ..layers import ActivationFactory as AF
+from ..layers import RMSNorm
 from ..utils import scale_seq_lengths, seq_lengths_to_mask
 from .convnext2d_encoder import ConvNextNormLayerType
 from .net_arch import NetArch
@@ -54,7 +55,7 @@ class ConvNext1dShortName(str, Enum):
 
     @staticmethod
     def to_config(
-        short_name: Union[str, "ConvNext1dShortName"]
+        short_name: Union[str, "ConvNext1dShortName"],
     ) -> Tuple[List[int], List[int], List[int]]:
         """Map a preset name to the corresponding ConvNeXt layout.
 
@@ -189,7 +190,9 @@ class ConvNext1dEncoder(NetArch):
         hid_act: str = "gelu",
         head_act: Optional[str] = None,
         drop_path_rate: float = 0.0,
-        norm_layer: Union[str, ConvNextNormLayerType, None] = ConvNextNormLayerType.LAYERNORM,
+        norm_layer: Union[
+            str, ConvNextNormLayerType, None
+        ] = ConvNextNormLayerType.LAYERNORM,
         multilayer: bool = False,
         multilayer_concat=False,
         endpoint_channels: Optional[int] = None,
@@ -226,7 +229,9 @@ class ConvNext1dEncoder(NetArch):
         self.in_kernel_size = in_kernel_size
         self.in_stride = in_stride
         self.short_name = (
-            short_name.value if isinstance(short_name, ConvNext1dShortName) else short_name
+            short_name.value
+            if isinstance(short_name, ConvNext1dShortName)
+            else short_name
         )
         if short_name is not None:
             convb_repeats, convb_channels, downb_strides = (
@@ -702,7 +707,9 @@ class ConvNext1dEncoder(NetArch):
             parser = ArgumentParser(prog="")
 
         if "in_feats" not in skip:
-            parser.add_argument("--in-feats", type=int, help=("input channel dimension"))
+            parser.add_argument(
+                "--in-feats", type=int, help=("input channel dimension")
+            )
 
         if "in_kernel_size" not in skip:
             parser.add_argument(
@@ -779,7 +786,9 @@ class ConvNext1dEncoder(NetArch):
 
         if "hid_act" not in skip:
             try:
-                parser.add_argument("--hid-act", default="gelu", help="hidden activation")
+                parser.add_argument(
+                    "--hid-act", default="gelu", help="hidden activation"
+                )
             except Exception:
                 pass
 

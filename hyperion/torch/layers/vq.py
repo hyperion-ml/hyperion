@@ -2419,7 +2419,9 @@ class AdaptiveRateDistortionEMVectorQuantizer(VectorQuantizerBase):
             )
         self.usage_lambda_lr = float(usage_lambda_lr)
         if self.usage_lambda_lr < 0.0:
-            raise ValueError(f"usage_lambda_lr must be >= 0, got {self.usage_lambda_lr}")
+            raise ValueError(
+                f"usage_lambda_lr must be >= 0, got {self.usage_lambda_lr}"
+            )
         self.usage_lambda_max = float(usage_lambda_max)
         if self.usage_lambda_max < 0.0:
             raise ValueError(
@@ -2599,9 +2601,9 @@ class AdaptiveRateDistortionEMVectorQuantizer(VectorQuantizerBase):
         embed2_mean = self.codebook_precs[unused].reciprocal() + (
             self.codebook[unused].to(torch.float32) ** 2
         )
-        self.ema_embed2_acc.data[unused] = (
-            embed2_mean * self.ema_cluster_size[unused].unsqueeze(-1)
-        )
+        self.ema_embed2_acc.data[unused] = embed2_mean * self.ema_cluster_size[
+            unused
+        ].unsqueeze(-1)
         self.codebook_weights.copy_(
             self._compute_weights_from_counts(self.ema_cluster_size).to(
                 self.codebook_weights.dtype
@@ -2754,7 +2756,9 @@ class AdaptiveRateDistortionEMVectorQuantizer(VectorQuantizerBase):
 
     @staticmethod
     def filter_args(**kwargs):
-        return filter_func_args(AdaptiveRateDistortionEMVectorQuantizer.__init__, kwargs)
+        return filter_func_args(
+            AdaptiveRateDistortionEMVectorQuantizer.__init__, kwargs
+        )
 
 
 class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantizerBase):
@@ -3450,9 +3454,9 @@ class BinarySplittingGMMVectorQuantizer(_GumbelSoftSamplingMixin, VectorQuantize
             codes = soft_one_hot.max(dim=1)[1]  # (B*T)
         else:
             codes = logits.max(dim=1)[1]  # (B*T)
-            soft_one_hot = F.one_hot(
-                codes, num_classes=self.codebook_size
-            ).to(logits.dtype)
+            soft_one_hot = F.one_hot(codes, num_classes=self.codebook_size).to(
+                logits.dtype
+            )
 
         codes = codes.view(latents_shape[0], -1)  # (B, T)
         if return_probs:

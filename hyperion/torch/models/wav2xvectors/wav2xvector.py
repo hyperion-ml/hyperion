@@ -11,8 +11,8 @@ import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
-from ...narchs import AudioFeatsMVN
 from ...hyper_torch_model import HyperTorchModel
+from ...narchs import AudioFeatsMVN
 from ...utils import collate_seqs_1d, collate_seqs_2d, remove_silence
 
 

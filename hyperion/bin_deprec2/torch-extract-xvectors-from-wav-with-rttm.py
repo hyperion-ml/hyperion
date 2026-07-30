@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
- Copyright 2019 Jesus Villalba (Johns Hopkins University)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
+Copyright 2019 Jesus Villalba (Johns Hopkins University)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -11,10 +11,14 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
@@ -103,7 +107,7 @@ def extract_xvectors(
     num_augs,
     aug_info_path,
     use_gpu,
-    **kwargs
+    **kwargs,
 ):
 
     rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])

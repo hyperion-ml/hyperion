@@ -223,9 +223,7 @@ class HiFiGenerator(NetArch):
 
         if x_lengths is not None:
             if x_lengths.device != x.device:
-                raise ValueError(
-                    "x_lengths must be on the same device as x"
-                )
+                raise ValueError("x_lengths must be on the same device as x")
             x_mask = seq_lengths_to_mask(x_lengths, x.size(2), time_dim=2).to(x.dtype)
             x = x * x_mask
         else:

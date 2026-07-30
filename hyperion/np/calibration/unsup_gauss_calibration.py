@@ -2,6 +2,7 @@
 Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from typing import Any, Optional
 
 import numpy as np
@@ -61,7 +62,11 @@ class UnsupGaussCalibration(GaussCalibration):
             raise ValueError("x must contain only finite values")
 
         if self.is_init():
-            assert self.mu1 is not None and self.mu2 is not None and self.sigma2 is not None
+            assert (
+                self.mu1 is not None
+                and self.mu2 is not None
+                and self.sigma2 is not None
+            )
             if not np.isfinite(self.sigma2) or self.sigma2 <= 0:
                 raise ValueError(
                     f"sigma2 must be finite and > 0 before EM, got {self.sigma2}"
@@ -86,7 +91,11 @@ class UnsupGaussCalibration(GaussCalibration):
 
         if not np.all(np.isfinite(sigma2)) or np.any(sigma2 <= 0):
             raise ValueError(f"sigma2 must be finite and > 0 before EM, got {sigma2}")
-        if not np.all(np.isfinite(pi)) or np.any(pi <= 0) or not np.isclose(np.sum(pi), 1):
+        if (
+            not np.all(np.isfinite(pi))
+            or np.any(pi <= 0)
+            or not np.isclose(np.sum(pi), 1)
+        ):
             raise ValueError(f"pi must be finite, positive, and sum to 1, got {pi}")
 
         mu = np.vstack((mu1, mu2))
@@ -98,8 +107,12 @@ class UnsupGaussCalibration(GaussCalibration):
         self.sigma2 = float(gmm.Sigma[0])
         self.prior = float(gmm.pi[0])
         if not np.isfinite(self.sigma2) or self.sigma2 <= 0:
-            raise ValueError(f"sigma2 must be finite and > 0 after EM, got {self.sigma2}")
+            raise ValueError(
+                f"sigma2 must be finite and > 0 after EM, got {self.sigma2}"
+            )
         if not np.isfinite(self.prior) or not (0 < self.prior < 1):
-            raise ValueError(f"prior must be finite and in (0, 1) after EM, got {self.prior}")
+            raise ValueError(
+                f"prior must be finite and in (0, 1) after EM, got {self.prior}"
+            )
 
         self._compute_scale_bias()

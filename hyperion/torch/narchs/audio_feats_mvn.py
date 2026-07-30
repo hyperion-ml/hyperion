@@ -164,9 +164,7 @@ class AudioFeatsMVN(NetArch):
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Register CLI arguments for `AudioFeatsMVN`.
 
         Args:

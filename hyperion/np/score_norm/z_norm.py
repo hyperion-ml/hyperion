@@ -1,10 +1,11 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 from .score_norm import ScoreNorm
 
@@ -51,8 +52,7 @@ class ZNorm(ScoreNorm):
             mu_z = np.mean(scores_enr_coh, axis=1, keepdims=True) / n_z
             if self.norm_var:
                 s_z = np.sqrt(
-                    np.mean(scores_enr_coh ** 2, axis=1, keepdims=True) / n_z
-                    - mu_z ** 2
+                    np.mean(scores_enr_coh**2, axis=1, keepdims=True) / n_z - mu_z**2
                 )
 
         if self.norm_var:

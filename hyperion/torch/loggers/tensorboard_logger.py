@@ -124,9 +124,8 @@ class TensorBoardLogger(Logger):
             return
 
         if (
-            (self.cur_step % self.interval) == 0
-            and self.cur_step != self._last_batch_logged_step
-        ):
+            self.cur_step % self.interval
+        ) == 0 and self.cur_step != self._last_batch_logged_step:
             for k, v in (logs or {}).items():
                 self.train_writer.add_scalar(k, v, self.cur_step)
             self._last_batch_logged_step = self.cur_step

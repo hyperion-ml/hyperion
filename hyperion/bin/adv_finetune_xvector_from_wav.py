@@ -3,6 +3,7 @@
 Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import multiprocessing
 import os
@@ -278,10 +279,8 @@ def make_parser(xvec_class: Any) -> ArgumentParser:
 
 def main() -> None:
     """Parse CLI arguments and launch adversarial x-vector fine-tuning."""
-    parser = ArgumentParser(
-        description="""Fine-tune x-vector model from audio files 
-        with adversarial training"""
-    )
+    parser = ArgumentParser(description="""Fine-tune x-vector model from audio files 
+        with adversarial training""")
     parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
 
     subcommands = parser.add_subcommands()

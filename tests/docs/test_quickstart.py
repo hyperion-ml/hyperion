@@ -17,15 +17,15 @@ def test_speaker_verification_quickstart() -> None:
     tests_per_speaker = 3
     model_ids = np.array([f"spk-{i}" for i in range(num_speakers)])
     speaker_centers = rng.normal(size=(num_speakers, embedding_dim))
-    enroll_embeddings = speaker_centers + 0.10 * rng.normal(
-        size=speaker_centers.shape
-    )
+    enroll_embeddings = speaker_centers + 0.10 * rng.normal(size=speaker_centers.shape)
     test_speaker_ids = np.repeat(model_ids, tests_per_speaker)
     test_embeddings = np.repeat(speaker_centers, tests_per_speaker, axis=0)
     test_embeddings += 0.10 * rng.normal(size=test_embeddings.shape)
     segment_ids = np.array([f"test-{i}" for i in range(len(test_embeddings))])
     is_target = model_ids[:, None] == test_speaker_ids[None, :]
-    key = TrialKey(model_set=model_ids, seg_set=segment_ids, tar=is_target, non=~is_target)
+    key = TrialKey(
+        model_set=model_ids, seg_set=segment_ids, tar=is_target, non=~is_target
+    )
 
     score_matrix = cosine_scoring(enroll_embeddings, test_embeddings)
     scores = TrialScores(

@@ -6,9 +6,8 @@ from typing import Any, Mapping, Optional, Union
 
 import librosa
 import numpy as np
-import yaml
-
 import torch
+import yaml
 
 try:
     # import parallel_wavegan.models
@@ -19,7 +18,6 @@ except Exception:
     pass
 
 from sklearn.preprocessing import StandardScaler
-
 from torch import nn
 
 

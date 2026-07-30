@@ -410,7 +410,9 @@ class DACTrainer(TorchTrainerBase):
         self.discrim_model.eval()
         self.cur_val_log_samples = 0
 
-    def preprocess_train_data(self, batch_data: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
+    def preprocess_train_data(
+        self, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
         """Prepares and renames training batch data into a standardized format.
 
         Args:
@@ -429,7 +431,9 @@ class DACTrainer(TorchTrainerBase):
         batch_size = output_batch_data["source_audios"].size(0)
         return batch_size, output_batch_data
 
-    def preprocess_val_data(self, batch_data: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
+    def preprocess_val_data(
+        self, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
         """Prepares validation data using the same layout as training data.
 
         Args:
@@ -931,9 +935,7 @@ class DACTrainer(TorchTrainerBase):
         )
         torch.save(checkpoint, file_path)
 
-    def load_checkpoint(
-        self, epoch: int, step: int
-    ) -> Optional[Dict[str, Any]]:
+    def load_checkpoint(self, epoch: int, step: int) -> Optional[Dict[str, Any]]:
         """Loads training state from checkpoint files for both generator and discriminator.
 
         Args:

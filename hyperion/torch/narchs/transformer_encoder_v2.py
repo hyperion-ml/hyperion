@@ -515,7 +515,10 @@ class TransformerEncoderV2(NetArch):
 
         # code for multilayer aggregation
         if multilayer:
-            if endpoint_scale_layer < -num_superblocks or endpoint_scale_layer >= num_superblocks:
+            if (
+                endpoint_scale_layer < -num_superblocks
+                or endpoint_scale_layer >= num_superblocks
+            ):
                 raise ValueError(
                     "endpoint_scale_layer contains an invalid stage index "
                     f"{endpoint_scale_layer}; valid range is [{-num_superblocks}, {num_superblocks - 1}]"

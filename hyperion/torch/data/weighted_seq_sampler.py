@@ -1,16 +1,17 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
+
 # import os
 import math
 
 import numpy as np
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.distributed as dist
+from jsonargparse import ActionParser, ArgumentParser
 from torch.utils.data import Sampler
 
 

@@ -51,9 +51,7 @@ def compute_snr(
     return P_x - P_n
 
 
-def compute_stats_adv_attack(
-    x: torch.Tensor, x_adv: torch.Tensor
-) -> Tuple[
+def compute_stats_adv_attack(x: torch.Tensor, x_adv: torch.Tensor) -> Tuple[
     torch.Tensor,
     torch.Tensor,
     torch.Tensor,

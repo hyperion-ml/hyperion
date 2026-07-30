@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from typing import List, Optional, Tuple, Union
@@ -11,8 +11,8 @@ from ..utils import PathLike
 from ..utils.vad_utils import bin_vad_to_timestamps
 from .data_reader import DataReader
 from .data_rw_factory import RandomAccessDataReaderFactory as DRF
-from .vad_reader import FrameCountArg, FrameIndexArg, ReadKeys, TimeArg, VADReader
 from .rw_specifiers import RSpecifier
+from .vad_reader import FrameCountArg, FrameIndexArg, ReadKeys, TimeArg, VADReader
 
 
 class BinVADReader(VADReader):

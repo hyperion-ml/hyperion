@@ -1,13 +1,13 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
+from typing import Any, Dict, List, Union
 
 import h5py
 import numpy as np
-from typing import Any, Dict, List, Union
 
 from ..hyper_np_model import HyperNPModel
 from .cent_whiten import CentWhiten
@@ -83,8 +83,7 @@ class TransformList(HyperNPModel):
             raise ValueError("t cannot be None")
         if not isinstance(t, HyperNPModel):
             raise TypeError(
-                "t must be a HyperNPModel instance, "
-                f"got {type(t).__name__}"
+                "t must be a HyperNPModel instance, " f"got {type(t).__name__}"
             )
         self.transforms.append(t)
         self.update_names()

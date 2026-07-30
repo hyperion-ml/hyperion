@@ -74,7 +74,7 @@ class KaldiDataReader:
             # separate offset from filename (optional),
             offset = None
             if re.search(":[0-9]+$", file_path):
-                (file_path, offset) = file_path.rsplit(":", 1)
+                file_path, offset = file_path.rsplit(":", 1)
 
             if file_path.split(".")[-1] == "gz":
                 f = gzip.open(file_path, mode)

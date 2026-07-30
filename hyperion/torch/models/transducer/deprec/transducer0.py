@@ -17,6 +17,7 @@
 Note we use `rnnt_loss` from torchaudio, which exists only in
 torchaudio >= v0.10.0. It also means you have to use torch >= v1.10.0
 """
+
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 try:
@@ -26,14 +27,15 @@ except ModuleNotFoundError:
 
 import logging
 
+import torch
+import torch.nn as nn
 import torchaudio
 import torchaudio.functional
 
-import torch
-import torch.nn as nn
 from hyperion.utils.text import add_sos
 
 from ...hyper_torch_model import HyperTorchModel
+
 # from .conformer import Conformer
 from .decoder import Decoder
 from .encoder_interface import EncoderInterface
@@ -132,7 +134,8 @@ class Transducer(HyperTorchModel):
 
         assert hasattr(torchaudio.functional, "rnnt_loss"), (
             f"Current torchaudio version: {torchaudio.__version__}\n"
-            "Please install a version >= 0.10.0")
+            "Please install a version >= 0.10.0"
+        )
 
         x_lens = x_lens.to(torch.int32)
 
@@ -212,8 +215,7 @@ class Transducer(HyperTorchModel):
         Joiner.add_class_args(parser, prefix="joiner")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     def change_config(
         self,
@@ -247,8 +249,7 @@ class Transducer(HyperTorchModel):
         # Joiner.add_finetune_args(parser, prefix="joiner")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     add_argparse_args = add_class_args
     add_argparse_finetune_args = add_finetune_args

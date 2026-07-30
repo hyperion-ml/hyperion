@@ -91,9 +91,7 @@ class ClassInfo(InfoTable):
 
         total = weights.sum()
         if total is None or not np.isfinite(total) or total <= 0:
-            raise ValueError(
-                f"weights must have a finite positive sum, got {total}"
-            )
+            raise ValueError(f"weights must have a finite positive sum, got {total}")
 
         self.df["weights"] = weights / total
 
@@ -108,9 +106,7 @@ class ClassInfo(InfoTable):
         weights = self.df["weights"]
         total = weights.sum()
         if total is None or not np.isfinite(total) or total <= 0:
-            raise ValueError(
-                f"weights must have a finite positive sum, got {total}"
-            )
+            raise ValueError(f"weights must have a finite positive sum, got {total}")
 
         self.df["weights"] = weights / total
 
@@ -216,17 +212,13 @@ class ClassInfo(InfoTable):
         df_list = [table.df for table in tables]
         df = pd.concat(df_list)
         if not df["id"].is_unique:
-            logging.warning(
-                """there are duplicated ids in original tables, 
-                            removing duplicated rows"""
-            )
+            logging.warning("""there are duplicated ids in original tables, 
+                            removing duplicated rows""")
             df.drop_duplicates(subset="id", keep="first", inplace=True)
 
         if not df["class_idx"].is_unique:
-            logging.warning(
-                """class_idx in concat tables are not unique, 
-                we will assign new class_idx"""
-            )
+            logging.warning("""class_idx in concat tables are not unique, 
+                we will assign new class_idx""")
             df.drop(columns=["class_idx"], inplace=True)
         return cls(df)
 

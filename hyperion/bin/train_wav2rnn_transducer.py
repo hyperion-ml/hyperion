@@ -3,6 +3,7 @@
 Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu, Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import multiprocessing
 import os
@@ -128,7 +129,10 @@ def init_data(
 
 
 def init_model(
-    rank: int, model_class: Type[torch.nn.Module], tokenizers: Dict[str, Any], **kwargs: Any
+    rank: int,
+    model_class: Type[torch.nn.Module],
+    tokenizers: Dict[str, Any],
+    **kwargs: Any,
 ) -> torch.nn.Module:
     """Initialize transducer model and inject tokenizer-dependent dimensions.
 

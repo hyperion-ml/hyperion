@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -201,7 +201,9 @@ class SVMC(HyperNPModel):
         with file_path.open("rb") as f:
             model = pickle.load(f)
         if not isinstance(model, cls):
-            raise TypeError(f"Expected {cls.__name__} in pickle, got {type(model).__name__}")
+            raise TypeError(
+                f"Expected {cls.__name__} in pickle, got {type(model).__name__}"
+            )
         return model
 
     def save_params(self, f):
@@ -322,7 +324,8 @@ class SVMC(HyperNPModel):
         parser.add_argument("--name", default="svc", help="model name")
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     @staticmethod
@@ -355,7 +358,8 @@ class SVMC(HyperNPModel):
 
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     # for backward compatibility

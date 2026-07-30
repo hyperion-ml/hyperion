@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """
-  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
-  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 """
+
 import logging
 import time
 from pathlib import Path
@@ -156,9 +157,7 @@ def load_cohort_data(
     return segments, x  # , q
 
 
-def average_qm(
-    q: pd.DataFrame, model_set: np.ndarray, ids: np.ndarray
-) -> pd.DataFrame:
+def average_qm(q: pd.DataFrame, model_set: np.ndarray, ids: np.ndarray) -> pd.DataFrame:
     """Average per-segment quality measures by enrollment model id."""
     q_avg = average_vectors(q.values, ids)
     q_avg = pd.DataFrame(q, columns=q.columns)

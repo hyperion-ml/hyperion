@@ -22,8 +22,7 @@ import torch
 from .hf_wav2transducer import HFWav2Transducer
 
 
-def greedy_search(model: HFWav2Transducer,
-                  encoder_out: torch.Tensor) -> List[int]:
+def greedy_search(model: HFWav2Transducer, encoder_out: torch.Tensor) -> List[int]:
     """
     Args:
       model:
@@ -40,8 +39,7 @@ def greedy_search(model: HFWav2Transducer,
     blank_id = model.transducer.decoder.blank_id
     device = model.device
 
-    sos = torch.tensor([blank_id], device=device,
-                       dtype=torch.int64).reshape(1, 1)
+    sos = torch.tensor([blank_id], device=device, dtype=torch.int64).reshape(1, 1)
     decoder_out, (h, c) = model.transducer.decoder(sos)
     T = encoder_out.size(1)
     t = 0
@@ -122,8 +120,7 @@ def beam_search(
     max_u = 20000  # terminate after this number of steps
     u = 0
 
-    cache: Dict[str, Tuple[torch.Tensor, Tuple[torch.Tensor,
-                                               torch.Tensor]]] = {}
+    cache: Dict[str, Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]] = {}
 
     while t < T and u < max_u:
         # fmt: off
@@ -155,8 +152,9 @@ def beam_search(
             cached_key = "_".join(map(str, y_star.ys))
 
             if cached_key not in cache:
-                decoder_input = torch.tensor([y_star.ys[-1]],
-                                             device=device).reshape(1, 1)
+                decoder_input = torch.tensor([y_star.ys[-1]], device=device).reshape(
+                    1, 1
+                )
 
                 decoder_out, decoder_state = model.transducer.decoder(
                     decoder_input,
@@ -192,7 +190,7 @@ def beam_search(
             topk_log_prob = log_prob.topk(beam, dim=-1)
 
             # Second, choose other labels
-            #for i, v in enumerate(log_prob.tolist()):
+            # for i, v in enumerate(log_prob.tolist()):
             for v, i in zip(*topk_log_prob):
                 v = v.item()
                 i = i.item()
@@ -210,7 +208,7 @@ def beam_search(
             # check whether B contains more than "beam" elements more probable
             # than the most probable in A
             A_most_probable = max(A, key=lambda hyp: hyp.log_prob)
-            #print("tuAB1", t, u, len(A), A_most_probable.log_prob, len(B))
+            # print("tuAB1", t, u, len(A), A_most_probable.log_prob, len(B))
             B = sorted(
                 [hyp for hyp in B if hyp.log_prob > A_most_probable.log_prob],
                 key=lambda hyp: hyp.log_prob,

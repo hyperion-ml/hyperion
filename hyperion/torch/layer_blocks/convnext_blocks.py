@@ -1,6 +1,6 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from typing import Optional, Type, Union
@@ -8,8 +8,8 @@ from typing import Optional, Type, Union
 import torch
 import torch.nn as nn
 
-from ..layers import ActivationFactory as AF, ActivationSpec
-from ..layers import DropPath1d, DropPath2d, GRN1d, GRN2d, Interpolate
+from ..layers import ActivationFactory as AF
+from ..layers import ActivationSpec, DropPath1d, DropPath2d, GRN1d, GRN2d, Interpolate
 
 
 class ConvNext2dBlock(nn.Module):

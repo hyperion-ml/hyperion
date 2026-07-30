@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from typing import Any, Optional, Tuple, Union
@@ -109,7 +109,7 @@ class LinearGBEUP(LinearGBE):
             prior_nu=prior_nu,
             post_beta=post_beta,
             post_nu=post_nu,
-            **kwargs
+            **kwargs,
         )
 
     @staticmethod

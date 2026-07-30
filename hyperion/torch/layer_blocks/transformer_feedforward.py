@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from typing import Any
@@ -45,9 +45,7 @@ class PositionwiseFeedForward(nn.Module):
         """
         super().__init__()
         if time_dim not in (1, 2, -1):
-            raise ValueError(
-                f"invalid time_dim={time_dim}, expected one of (1, 2, -1)"
-            )
+            raise ValueError(f"invalid time_dim={time_dim}, expected one of (1, 2, -1)")
         self.w_1 = nn.Linear(num_feats, hid_feats)
         self.w_2 = nn.Linear(hid_feats, num_feats)
         self.dropout_rate = dropout_rate
@@ -121,9 +119,7 @@ class Conv1dx2(nn.Module):
 
         super().__init__()
         if time_dim not in (1, 2, -1):
-            raise ValueError(
-                f"invalid time_dim={time_dim}, expected one of (1, 2, -1)"
-            )
+            raise ValueError(f"invalid time_dim={time_dim}, expected one of (1, 2, -1)")
         self.w_1 = nn.Conv1d(
             num_channels,
             hid_channels,
@@ -204,9 +200,7 @@ class Conv1dLinear(nn.Module):
         """
         super().__init__()
         if time_dim not in (1, 2, -1):
-            raise ValueError(
-                f"invalid time_dim={time_dim}, expected one of (1, 2, -1)"
-            )
+            raise ValueError(f"invalid time_dim={time_dim}, expected one of (1, 2, -1)")
         self.w_1 = nn.Conv1d(
             num_channels,
             hid_channels,

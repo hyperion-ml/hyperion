@@ -152,13 +152,9 @@ class SegSampler(HyperSampler):
         if len(segments) == 0:
             raise ValueError("segments must contain at least one row.")
         if min_batch_size <= 0:
-            raise ValueError(
-                f"min_batch_size must be positive, got {min_batch_size}."
-            )
+            raise ValueError(f"min_batch_size must be positive, got {min_batch_size}.")
         if max_batch_size is not None and max_batch_size <= 0:
-            raise ValueError(
-                f"max_batch_size must be positive, got {max_batch_size}."
-            )
+            raise ValueError(f"max_batch_size must be positive, got {max_batch_size}.")
         if max_batch_length is not None and max_batch_length <= 0:
             raise ValueError(
                 f"max_batch_length must be positive, got {max_batch_length}."
@@ -341,7 +337,7 @@ class SegSampler(HyperSampler):
             total = num_rank_segs * self.world_size
             indices = indices[:total]
 
-        return indices[self.rank:total:self.world_size]
+        return indices[self.rank : total : self.world_size]
 
     def _build_sample_all_plan(self, shuffled: bool) -> list[list[int]]:
         """Build this rank's finite coverage plan.
@@ -375,8 +371,7 @@ class SegSampler(HyperSampler):
 
             candidate_max_length = max(max_length, seg_length)
             is_full = (
-                self.max_batch_size is not None
-                and len(batch) >= self.max_batch_size
+                self.max_batch_size is not None and len(batch) >= self.max_batch_size
             )
             if batch and (
                 is_full
@@ -427,12 +422,8 @@ class SegSampler(HyperSampler):
 
     def _refresh_sample_all_plan(self) -> None:
         """Build the current epoch's coverage plan for iteration."""
-        self._sample_all_batch_plan = self._build_sample_all_plan(
-            shuffled=self.shuffle
-        )
-        self._set_sample_all_len(
-            len(self._sample_all_batch_plan), synchronize=True
-        )
+        self._sample_all_batch_plan = self._build_sample_all_plan(shuffled=self.shuffle)
+        self._set_sample_all_len(len(self._sample_all_batch_plan), synchronize=True)
 
     def _take_variable_min_batch(self, remaining_idxs: Deque[int]) -> list[int]:
         """
@@ -725,9 +716,7 @@ class SegSampler(HyperSampler):
         return filter_func_args(SegSampler.__init__, kwargs, skip={"segments"})
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """
         Adds SegSampler-specific arguments to a parser.
 

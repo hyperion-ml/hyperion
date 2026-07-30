@@ -72,8 +72,12 @@ class HFWav2Vec2Bert2ConformerV1XVector(HFWav2XVector):
     @staticmethod
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         base_args: Dict[str, Any] = {}
-        base_args["hf_feats"] = HFWav2Vec2Bert.filter_finetune_args(**kwargs["hf_feats"])
-        base_args["xvector"] = ConformerV1XVector.filter_finetune_args(**kwargs["xvector"])
+        base_args["hf_feats"] = HFWav2Vec2Bert.filter_finetune_args(
+            **kwargs["hf_feats"]
+        )
+        base_args["xvector"] = ConformerV1XVector.filter_finetune_args(
+            **kwargs["xvector"]
+        )
         return base_args
 
     @staticmethod

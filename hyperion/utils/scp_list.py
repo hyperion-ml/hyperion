@@ -1,7 +1,8 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 import os.path as path
@@ -88,9 +89,7 @@ class SCPList:
             self._create_dict()
         return key in self.key_to_index
 
-    def __getitem__(
-        self, key: Union[str, int, np.integer]
-    ) -> Union[
+    def __getitem__(self, key: Union[str, int, np.integer]) -> Union[
         Tuple[Any, Any, Optional[Any], Optional[np.ndarray]],
         Tuple[Any, Optional[Any], Optional[np.ndarray]],
     ]:

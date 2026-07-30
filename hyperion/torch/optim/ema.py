@@ -1,13 +1,13 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import math
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
 
 import torch
 from jsonargparse import ActionParser, ArgumentParser
-
 
 ParamGroup = Iterable[torch.Tensor]
 ParamsLike = Union[ParamGroup, Iterable[ParamGroup]]
@@ -105,9 +105,7 @@ class ExpMovingAvg:
         self.global_step += 1
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Add EMA-specific CLI arguments to an argument parser.
 
         Args:

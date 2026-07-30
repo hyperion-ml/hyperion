@@ -478,9 +478,7 @@ class ConformerDecoderV1(NetArch):
         """
         max_in_length = x.size(self.in_time_dim)
         if x_mask is None and x_lengths is not None:
-            x_mask = seq_lengths_to_mask(
-                x_lengths, max_in_length, time_dim=2, ndim=3
-            )
+            x_mask = seq_lengths_to_mask(x_lengths, max_in_length, time_dim=2, ndim=3)
 
         if self.src_time_dim != 1:
             x_src = x_src.transpose(1, self.src_time_dim).contiguous()

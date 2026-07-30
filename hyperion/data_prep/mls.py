@@ -12,7 +12,13 @@ import numpy as np
 import pandas as pd
 import pycountry
 
-from ..utils import ClassInfo, HyperDataset, ParallelFileFinder, RecordingSet, SegmentSet
+from ..utils import (
+    ClassInfo,
+    HyperDataset,
+    ParallelFileFinder,
+    RecordingSet,
+    SegmentSet,
+)
 from ..utils.misc import PathLike
 from ..utils.scp_list import SCPList
 from .data_prep import DataPrep

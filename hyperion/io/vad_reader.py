@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from types import TracebackType
@@ -135,9 +135,7 @@ class VADReader:
         frame_shift = frame_shift / 1000
         duration = np.asarray(duration, dtype=float)
         if snip_edges:
-            num_frames = np.floor(
-                (duration - frame_length + frame_shift) / frame_shift
-            )
+            num_frames = np.floor((duration - frame_length + frame_shift) / frame_shift)
         else:
             num_frames = np.round(duration / frame_shift)
         num_frames = np.maximum(num_frames, 0)

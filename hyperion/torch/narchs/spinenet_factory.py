@@ -1,7 +1,8 @@
 """
- Copyright 2020 Magdalena Rybicka
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Magdalena Rybicka
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from typing import Any, Dict, Optional
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser

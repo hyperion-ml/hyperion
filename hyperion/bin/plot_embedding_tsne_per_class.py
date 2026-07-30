@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-""" 
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba) 
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+"""
+
 import logging
 import os
 import sys
@@ -210,7 +211,10 @@ def main() -> None:
     SklTSNE.add_class_args(parser, prefix="tsne")
 
     parser.add_argument(
-        "--max-classes", default=None, type=int, help="Maximum number of classes to plot."
+        "--max-classes",
+        default=None,
+        type=int,
+        help="Maximum number of classes to plot.",
     )
     parser.add_argument(
         "--do-ahc",

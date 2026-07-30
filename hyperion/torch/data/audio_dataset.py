@@ -489,7 +489,9 @@ class AudioDataset(Dataset):
             "enable_transcodec": True,
         }
         if self.enable_tel_codecs_if is not None:
-            enable_codecs["enable_tel_codecs"] = segments.loc[seg_id, "enable_tel_codecs"]
+            enable_codecs["enable_tel_codecs"] = segments.loc[
+                seg_id, "enable_tel_codecs"
+            ]
 
         if self.enable_media_codecs_if is not None:
             enable_codecs["enable_media_codecs"] = segments.loc[
@@ -497,7 +499,9 @@ class AudioDataset(Dataset):
             ]
 
         if self.enable_transcodec_if is not None:
-            enable_codecs["enable_transcodec"] = segments.loc[seg_id, "enable_transcodec"]
+            enable_codecs["enable_transcodec"] = segments.loc[
+                seg_id, "enable_transcodec"
+            ]
 
         return enable_codecs
 

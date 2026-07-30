@@ -11,10 +11,10 @@ import torch.distributions as pdf
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
+from ...hyper_torch_model import HyperTorchModel
 from ...layers import pdf_storage
 from ...layers import tensor2pdf as t2pdf
 from ...narchs import TorchNALoader
-from ...hyper_torch_model import HyperTorchModel
 
 
 class VAE(HyperTorchModel):

@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Evaluate the likelihood of the ubm on some data
 """
@@ -38,7 +39,7 @@ def eval_elbo(
         batch_size=1,
         shuffle_seqs=False,
         preproc=preproc,
-        **sr_args
+        **sr_args,
     )
 
     t1 = time.time()

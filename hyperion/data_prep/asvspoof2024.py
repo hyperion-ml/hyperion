@@ -13,7 +13,14 @@ import numpy as np
 import pandas as pd
 from jsonargparse import ActionYesNo, ArgumentParser
 
-from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet, TrialKey, TrialNdx
+from ..utils import (
+    ClassInfo,
+    HyperDataset,
+    RecordingSet,
+    SegmentSet,
+    TrialKey,
+    TrialNdx,
+)
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 

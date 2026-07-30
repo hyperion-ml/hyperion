@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Evals PLDA LLR
 """
@@ -32,7 +33,7 @@ def eval_plda(
     model_file,
     score_file,
     pool_method,
-    **kwargs
+    **kwargs,
 ):
 
     if preproc_file is not None:

@@ -1,15 +1,14 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn import Dropout, Linear
 
 from ..layer_blocks import MBConvBlock, MBConvInOutBlock
@@ -196,9 +195,7 @@ class EfficientNet(NetArch):
         cur_feats = None
         if self.time_se:
             if in_feats is None:
-                raise ValueError(
-                    "in_feats must be provided when time_se=True."
-                )
+                raise ValueError("in_feats must be provided when time_se=True.")
             cur_feats = (in_feats + in_stride - 1) // in_stride
 
         num_superblocks = len(self.b0_mbconv_repeats)
@@ -594,9 +591,7 @@ class EfficientNet(NetArch):
         return args
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Add constructor arguments to an ``ArgumentParser``.
 
         Args:
@@ -768,9 +763,7 @@ class EfficientNet(NetArch):
     add_argparse_args = add_class_args
 
     @staticmethod
-    def add_finetune_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Add finetuning-specific arguments to an ``ArgumentParser``.
 
         Args:

@@ -14,10 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 
 class Joiner(nn.Module):
@@ -58,17 +57,15 @@ class Joiner(nn.Module):
 
         return output
 
-
     def get_config(self):
         config = {
-            "in_feats" : self.in_feats,
+            "in_feats": self.in_feats,
             "out_dims": self.out_dims,
             "num_layers": self.num_layers,
         }
 
         # base_config = super().get_config()
         return dict(list(config.items()))
-
 
     @staticmethod
     def filter_args(**kwargs):
@@ -80,7 +77,6 @@ class Joiner(nn.Module):
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
         return args
-
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set(["in_feats", "out_dims"])):
@@ -95,7 +91,10 @@ class Joiner(nn.Module):
 
         if "out_dims" not in skip:
             parser.add_argument(
-                "--out-dims", type=int, required=True, help=("output feature dimension (vocab size)")
+                "--out-dims",
+                type=int,
+                required=True,
+                help=("output feature dimension (vocab size)"),
             )
         parser.add_argument(
             "--num-layers", default=1, type=int, help=("layers of the joiner")
@@ -103,7 +102,6 @@ class Joiner(nn.Module):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-
 
     # @staticmethod
     # def add_class_args(parser, prefix=None, skip=set()):

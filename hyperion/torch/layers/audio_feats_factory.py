@@ -6,8 +6,8 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import re
 from typing import Any
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...np.feats.filter_banks import FilterBankFactory as FBF
 from .audio_feats import *

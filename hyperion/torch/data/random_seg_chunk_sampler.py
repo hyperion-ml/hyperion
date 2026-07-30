@@ -137,9 +137,7 @@ class RandomSegChunkSampler(HyperSampler):
             raise ValueError(
                 f"{length_name} must contain numeric source segment lengths."
             ) from error
-        if not np.all(np.isfinite(self._seg_lengths)) or np.any(
-            self._seg_lengths <= 0
-        ):
+        if not np.all(np.isfinite(self._seg_lengths)) or np.any(self._seg_lengths <= 0):
             raise ValueError(
                 f"{length_name} must contain finite, positive source segment lengths."
             )
@@ -171,13 +169,9 @@ class RandomSegChunkSampler(HyperSampler):
                 )
             min_batch_size = batch_size
         if min_batch_size <= 0:
-            raise ValueError(
-                f"min_batch_size must be positive, got {min_batch_size}."
-            )
+            raise ValueError(f"min_batch_size must be positive, got {min_batch_size}.")
         if max_batch_size is not None and max_batch_size <= 0:
-            raise ValueError(
-                f"max_batch_size must be positive, got {max_batch_size}."
-            )
+            raise ValueError(f"max_batch_size must be positive, got {max_batch_size}.")
 
         if max_batch_length is None:
             max_batch_size_from_length = int(
@@ -185,9 +179,7 @@ class RandomSegChunkSampler(HyperSampler):
             )
         else:
             min_batch_size = int(max_batch_length / self.max_chunk_length)
-            max_batch_size_from_length = int(
-                max_batch_length / self.min_chunk_length
-            )
+            max_batch_size_from_length = int(max_batch_length / self.min_chunk_length)
         max_batch_size = (
             max_batch_size_from_length
             if max_batch_size is None
@@ -243,22 +235,15 @@ class RandomSegChunkSampler(HyperSampler):
             avg_seg_length = np.mean(
                 self._sorted_lengths[-self._num_sampleable_segments :]
             )
-            avg_chunk_length = (
-                self.min_chunk_length + self.max_chunk_length
-            ) / 2
-            self.num_chunks_per_seg_epoch = math.ceil(
-                avg_seg_length / avg_chunk_length
-            )
+            avg_chunk_length = (self.min_chunk_length + self.max_chunk_length) / 2
+            self.num_chunks_per_seg_epoch = math.ceil(avg_seg_length / avg_chunk_length)
             return
         if not isinstance(num_chunks_per_seg_epoch, (int, float)):
             raise ValueError(
                 "num_chunks_per_seg_epoch must be a positive number or 'auto', "
                 f"got {num_chunks_per_seg_epoch!r}."
             )
-        if (
-            not math.isfinite(num_chunks_per_seg_epoch)
-            or num_chunks_per_seg_epoch <= 0
-        ):
+        if not math.isfinite(num_chunks_per_seg_epoch) or num_chunks_per_seg_epoch <= 0:
             raise ValueError(
                 "num_chunks_per_seg_epoch must be finite and positive, "
                 f"got {num_chunks_per_seg_epoch}."
@@ -310,7 +295,9 @@ class RandomSegChunkSampler(HyperSampler):
         batch_size = int(self.min_batch_size * self.max_chunk_length / chunk_length)
         return min(batch_size, self.max_batch_size)
 
-    def _sample_segment_idxs(self, num_segments: int, chunk_length: float) -> np.ndarray:
+    def _sample_segment_idxs(
+        self, num_segments: int, chunk_length: float
+    ) -> np.ndarray:
         """Sample source segment row indices that can contain a chunk.
 
         Args:
@@ -405,9 +392,7 @@ class RandomSegChunkSampler(HyperSampler):
         return filter_func_args(RandomSegChunkSampler.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None
-    ) -> None:
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Add command-line arguments for configuring the sampler.
 
         Args:

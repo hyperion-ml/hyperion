@@ -33,7 +33,9 @@ class PosEncoder(PosEncoderBase):
     def __init__(self, num_feats: int, dropout_rate: float = 0):
         super().__init__()
         if num_feats % 2 != 0:
-            raise ValueError(f"{self.__class__.__name__} requires even num_feats, got {num_feats}")
+            raise ValueError(
+                f"{self.__class__.__name__} requires even num_feats, got {num_feats}"
+            )
         self.num_feats = num_feats
         self.dropout_rate = dropout_rate
         self.xscale = math.sqrt(self.num_feats)

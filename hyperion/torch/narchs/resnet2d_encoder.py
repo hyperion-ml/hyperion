@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -16,9 +16,9 @@ from ..layer_blocks import (
     DC2dEncBlock,
     Res2Net2dBasicBlock,
     Res2Net2dBNBlock,
-    ResNet2dEndpoint,
     ResNet2dBasicBlock,
     ResNet2dBNBlock,
+    ResNet2dEndpoint,
     SEResNet2dBasicBlock,
     SEResNet2dBNBlock,
 )
@@ -239,9 +239,7 @@ class ResNet2dEncoder(NetArch):
                 num_feats_i = int(self.in_feats / (self._downsample_factor * stride_i))
                 bargs["num_feats"] = num_feats_i
             drop_i = (
-                0.0
-                if total_blocks <= 1
-                else drop_connect_rate * k / (total_blocks - 1)
+                0.0 if total_blocks <= 1 else drop_connect_rate * k / (total_blocks - 1)
             )
             block_i = self._block(
                 cur_in_channels,
@@ -256,7 +254,7 @@ class ResNet2dEncoder(NetArch):
                 use_norm=use_norm,
                 norm_layer=self._norm_layer,
                 norm_before=norm_before,
-                **bargs
+                **bargs,
             )
 
             blocks_i.append(block_i)
@@ -284,7 +282,7 @@ class ResNet2dEncoder(NetArch):
                     use_norm=use_norm,
                     norm_layer=self._norm_layer,
                     norm_before=norm_before,
-                    **bargs
+                    **bargs,
                 )
 
                 blocks_i.append(block_i)

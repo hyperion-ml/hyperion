@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import multiprocessing
 import os
@@ -109,7 +110,10 @@ def init_student_xvector(
 
 
 def init_teacher_xvector(
-    student_model: HyperTorchModel, rank: int, xvec_class: Type[HyperTorchModel], **kwargs: Any
+    student_model: HyperTorchModel,
+    rank: int,
+    xvec_class: Type[HyperTorchModel],
+    **kwargs: Any,
 ) -> HyperTorchModel:
     """Initialize teacher x-vector model.
 

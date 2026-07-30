@@ -1,12 +1,13 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Any, Optional
 
 import h5py
 import numpy as np
 import scipy.linalg as la
-from typing import Any, Optional
 
 from ..hyper_np_model import HyperNPModel
 from .cent_whiten import CentWhiten

@@ -1,6 +1,6 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -49,7 +49,7 @@ class ConvNext2dShortName(str, Enum):
 
     @staticmethod
     def to_config(
-        short_name: Union[str, "ConvNext2dShortName"]
+        short_name: Union[str, "ConvNext2dShortName"],
     ) -> Tuple[List[int], List[int], List[int]]:
         """Map a preset name to the corresponding encoder layout.
 
@@ -116,7 +116,9 @@ class ConvNextNormLayerType(str, Enum):
         return [o.value for o in ConvNextNormLayerType]
 
     @staticmethod
-    def to_class(value: Optional[Union[str, "ConvNextNormLayerType"]]) -> Type[nn.Module]:
+    def to_class(
+        value: Optional[Union[str, "ConvNextNormLayerType"]],
+    ) -> Type[nn.Module]:
         """Map a normalization identifier to the corresponding module class.
 
         Args:
@@ -172,7 +174,9 @@ class ConvNext2dEncoder(NetArch):
         hid_act: str = "gelu",
         head_act: Optional[str] = None,
         drop_path_rate: float = 0.0,
-        norm_layer: Optional[Union[str, ConvNextNormLayerType]] = ConvNextNormLayerType.LAYERNORM,
+        norm_layer: Optional[
+            Union[str, ConvNextNormLayerType]
+        ] = ConvNextNormLayerType.LAYERNORM,
         multilayer: bool = False,
         multilayer_concat: bool = False,
         endpoint_channels: Optional[int] = None,
@@ -206,7 +210,9 @@ class ConvNext2dEncoder(NetArch):
         self.in_kernel_size = in_kernel_size
         self.in_stride = in_stride
         self.short_name = (
-            short_name.value if isinstance(short_name, ConvNext2dShortName) else short_name
+            short_name.value
+            if isinstance(short_name, ConvNext2dShortName)
+            else short_name
         )
         if short_name is not None:
             convb_repeats, convb_channels, downb_strides = (
@@ -645,7 +651,9 @@ class ConvNext2dEncoder(NetArch):
 
     @staticmethod
     def add_class_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Optional[set[str]] = None
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[set[str]] = None,
     ) -> None:
         """Register constructor arguments on a parser.
 
@@ -722,7 +730,9 @@ class ConvNext2dEncoder(NetArch):
 
         if "hid_act" not in skip:
             try:
-                parser.add_argument("--hid-act", default="gelu", help="hidden activation")
+                parser.add_argument(
+                    "--hid-act", default="gelu", help="hidden activation"
+                )
             except Exception:
                 pass
 
@@ -821,7 +831,9 @@ class ConvNext2dEncoder(NetArch):
 
     @staticmethod
     def add_finetune_args(
-        parser: ArgumentParser, prefix: Optional[str] = None, skip: Optional[set[str]] = None
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[set[str]] = None,
     ) -> None:
         """Register finetuning arguments on a parser.
 

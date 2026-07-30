@@ -3,6 +3,7 @@
 Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu, Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import multiprocessing
 import os
@@ -103,7 +104,10 @@ def init_data(
 
 
 def init_model(
-    in_model_file: PathLike, rank: int, model_class: Type[HyperTorchModel], **kwargs: Any
+    in_model_file: PathLike,
+    rank: int,
+    model_class: Type[HyperTorchModel],
+    **kwargs: Any,
 ) -> HyperTorchModel:
     """Load and reconfigure model checkpoint for fine-tuning.
 

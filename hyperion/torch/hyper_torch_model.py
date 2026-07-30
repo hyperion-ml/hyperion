@@ -426,7 +426,7 @@ class HyperTorchModel(nn.Module):
 
     @staticmethod
     def _remove_module_prefix(
-        state_dict: Dict[str, torch.Tensor]
+        state_dict: Dict[str, torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         """Remove leading ``module.`` prefixes from state-dict keys.
 

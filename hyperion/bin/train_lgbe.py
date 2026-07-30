@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-""" 
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba) 
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+"""
+
 import logging
 import os
 import sys

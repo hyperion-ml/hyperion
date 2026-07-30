@@ -183,9 +183,7 @@ class CORAL(HyperNPModel):
 
         if x_out is None:
             if sample_weight_out is not None:
-                raise ValueError(
-                    "sample_weight_out was provided but x_out is None."
-                )
+                raise ValueError("sample_weight_out was provided but x_out is None.")
             if self.update_mu:
                 raise ValueError(
                     "update_mu=True requires x_out to compute out-domain mean."

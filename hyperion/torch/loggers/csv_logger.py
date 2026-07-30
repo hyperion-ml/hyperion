@@ -45,7 +45,11 @@ class CSVLogger(Logger):
     @staticmethod
     def _has_step_columns(fieldnames: Optional[List[str]]) -> bool:
         """Checks whether a CSV header already includes batch/step columns."""
-        return fieldnames is not None and "batch" in fieldnames and "global_step" in fieldnames
+        return (
+            fieldnames is not None
+            and "batch" in fieldnames
+            and "global_step" in fieldnames
+        )
 
     def _rewrite_legacy_file(self, fieldnames: List[str]) -> None:
         """Rewrites an existing legacy CSV file with the modern schema."""
@@ -94,7 +98,9 @@ class CSVLogger(Logger):
                     existing_fieldnames
                 ):
                     self._rewrite_legacy_file(existing_fieldnames)
-            self._header_written = self.file_path.exists() and self.file_path.stat().st_size > 0
+            self._header_written = (
+                self.file_path.exists() and self.file_path.stat().st_size > 0
+            )
             self.csv_file = self.file_path.open("a", newline="")
         else:
             self._header_written = False

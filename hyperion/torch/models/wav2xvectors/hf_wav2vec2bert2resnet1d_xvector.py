@@ -72,7 +72,9 @@ class HFWav2Vec2Bert2ResNet1dXVector(HFWav2XVector):
     @staticmethod
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         base_args: Dict[str, Any] = {}
-        base_args["hf_feats"] = HFWav2Vec2Bert.filter_finetune_args(**kwargs["hf_feats"])
+        base_args["hf_feats"] = HFWav2Vec2Bert.filter_finetune_args(
+            **kwargs["hf_feats"]
+        )
         base_args["xvector"] = ResNet1dXVector.filter_finetune_args(**kwargs["xvector"])
         return base_args
 
