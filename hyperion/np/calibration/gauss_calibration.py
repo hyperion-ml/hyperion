@@ -14,7 +14,7 @@ ScoreInput = Union[float, np.ndarray]
 
 class GaussCalibration(HyperNPModel):
     """Class for supervised Gaussian calibration.
-       The model assumes that targer and non-target score distributions are Gaussians
+       The model assumes that target and non-target score distributions are Gaussians
        with shared covariance.
 
     Attributes:

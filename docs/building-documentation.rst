@@ -215,7 +215,8 @@ Run the external-link checker:
 ``linkcheck`` enables ``HYPERION_DOCS_ONLINE`` automatically and therefore
 requires network access.
 
-Run the spelling builder with the reviewed project dictionary:
+Run the spelling check for authored RST documentation with the reviewed project
+dictionary:
 
 .. code-block:: bash
 
@@ -224,11 +225,8 @@ Run the spelling builder with the reviewed project dictionary:
 ``docs/spelling_wordlist.txt`` contains established toolkit, speech-domain,
 and dependency terms such as ``x-vector``, ``PLDA``, ``jsonargparse``,
 ``Kaldi``, ``VoxProfile``, and ``TPM``. Add a term only after confirming that
-it is a deliberate project spelling, not a typo.
-
-The spelling builder also needs the Enchant system library. The CI job installs
-``enchant-2`` and ``aspell-en`` on Ubuntu. On a local machine, install the
-equivalent Enchant package for your platform before running the command.
+it is a deliberate project spelling, not a typo. Generated API documentation,
+Python docstrings, and CLI references are intentionally excluded.
 
 External-link retry policy
 --------------------------

@@ -29,9 +29,6 @@ extensions = [
     "sphinx_rtd_theme",
 ]
 
-if os.environ.get("HYPERION_DOCS_SPELLING", "").lower() in {"1", "true", "yes"}:
-    extensions.append("sphinxcontrib.spelling")
-
 autosummary_generate = True
 autosectionlabel_prefix_document = True
 
@@ -97,13 +94,6 @@ todo_include_todos = False
 # marked with Sphinx's ``testcode``/``testoutput`` directives; otherwise the
 # doctest builder mistakes explanatory API examples for hermetic tests.
 doctest_test_doctest_blocks = ""
-
-# Keep toolkit and speech-domain terminology in a reviewed project dictionary
-# rather than disabling spelling checks for technical documentation.
-spelling_lang = "en_US"
-spelling_word_list_filename = ["spelling_wordlist.txt"]
-spelling_show_suggestions = True
-spelling_warning = True
 
 # Strict builds use ``-W`` in docs/build.sh. Keep unresolved Python references
 # visible without enabling nitpicky mode until the public API inventory has

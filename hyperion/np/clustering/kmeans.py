@@ -291,7 +291,7 @@ class KMeans(HyperNPModel):
         return mu
 
     def _compute_centroids(self, x: np.ndarray, index: np.ndarray) -> np.ndarray:
-        """Compute the centroids given cluster assigments.
+        """Compute the centroids given cluster assignments.
 
         Args:
           x: Input data with shape ``(num_samples, feat_dim)``.
@@ -337,7 +337,7 @@ class KMeans(HyperNPModel):
     def _compute_centroids_multithread(
         self, x: np.ndarray, index: np.ndarray
     ) -> np.ndarray:
-        """Compute the centroids given cluster assigments.
+        """Compute the centroids given cluster assignments.
 
         Args:
           x: Input data with shape ``(num_samples, feat_dim)``.

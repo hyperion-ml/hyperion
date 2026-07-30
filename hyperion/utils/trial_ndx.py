@@ -113,7 +113,7 @@ class TrialNdx:
                 f.write("%s %s\n" % (self.model_set[item[1]], self.seg_set[item[0]]))
 
     def save_table(self, file_path: PathLike, sep: Optional[str] = None) -> None:
-        """Saves object to pandas tabnle file.
+        """Saves object to a pandas table file.
 
         Args:
           file_path: File to write the list.
@@ -289,7 +289,7 @@ class TrialNdx:
         """Prepares the data structures required for evaluation.
 
         Args:
-          ndx: TrialNdx object cotaining the trials for the main evaluation.
+          ndx: TrialNdx object containing the trials for the main evaluation.
           enroll: Utt2Info where key are file_ids and second column are model names
           test: Utt2Info of where key are test segments names.
                 Needed in the cases enroll-coh and coh-coh.

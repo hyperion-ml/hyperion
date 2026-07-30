@@ -19,7 +19,7 @@ class TorchModelLoader(object):
 
         Args:
           class_obj: class type of the model.
-          cfg: configuration dictiory that inits the model.
+          cfg: configuration dictionary that initializes the model.
 
         Returns:
           Fixed configuration dictionary.

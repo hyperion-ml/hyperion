@@ -132,7 +132,7 @@ class AudioWriter:
                 self.f_script.write(f"{row}\n")
 
     def __enter__(self):
-        """Function required when entering contructions of type
+        """Function required when entering constructions of type
 
         with AudioWriter('./path') as f:
            f.write(key, data, fs)
@@ -140,7 +140,7 @@ class AudioWriter:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        """Function required when exiting from contructions of type
+        """Function required when exiting from constructions of type
 
         with AudioWriter('./path') as f:
            f.write(key, data, fs)

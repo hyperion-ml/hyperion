@@ -112,7 +112,7 @@ class SparseTrialScores(TrialScores):
                 )
 
     def save_table(self, file_path: PathLike, sep: Optional[str] = None) -> None:
-        """Saves object to pandas tabnle file.
+        """Saves object to a pandas table file.
 
         Args:
           file_path: File to write the list.

@@ -169,7 +169,7 @@ class SCPList:
 
         Args:
           script: Second column of scp file.
-          offset_sep: Separtor between file_path and offset.
+          offset_sep: Separator between file_path and offset.
 
         Returns:
           file_path, offset and range_spec.
@@ -305,7 +305,7 @@ class SCPList:
     def filter(
         self, filter_key: Union[List[str], np.ndarray], keep: bool = True
     ) -> "SCPList":
-        """Removes elements from SCPList ojbect by key
+        """Removes elements from SCPList object by key
 
         Args:
           filter_key: List with the keys of the elements to keep or remove.

@@ -1,6 +1,6 @@
 sphinx>=7,<9
 sphinx_rtd_theme>=2,<4
-sphinxcontrib-spelling>=8,<9
+codespell>=2.3,<3
 numpy>=1.26,<2.0
 pandas>=2.1,<2.3
 scipy>=1.11,<1.13

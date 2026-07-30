@@ -207,7 +207,7 @@ class BinaryLogisticRegression(LogisticRegression):
 
     @staticmethod
     def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
-        """It adds the arguments corresponding to the class to jsonarparse.
+        """It adds the arguments corresponding to the class to jsonargparse.
         Args:
           parser: jsonargparse object
           prefix: argument prefix.

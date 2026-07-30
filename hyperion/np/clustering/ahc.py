@@ -105,7 +105,7 @@ class AHC(HyperNPModel):
             selects the requested number of clusters.
 
         Returns:
-          Clusters assigments for x as numpy integer vector (num_samples,).
+          Cluster assignments for x as a NumPy integer vector (num_samples,).
         """
         if criterion == "threshold":
             return self.get_flat_clusters_from_thr(t)
@@ -194,7 +194,7 @@ class AHC(HyperNPModel):
 
         Returns:
             homogeneity vector (num_samples,)
-            completenes vector (num_samples,)
+            completeness vector (num_samples,)
         """
         if self.flat_clusters is None:
             self.compute_flat_clusters()

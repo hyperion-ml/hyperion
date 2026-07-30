@@ -339,7 +339,7 @@ class QScoringHomoGBE(HyperNPModel):
             "--normalize",
             default=False,
             action="store_true",
-            help=("normalizes the ouput probabilities to sum to one"),
+            help=("normalizes the output probabilities to sum to one"),
         )
         if prefix is not None:
             outer_parser.add_argument(

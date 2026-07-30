@@ -13,7 +13,7 @@ from .gauss_calibration import GaussCalibration
 
 class UnsupGaussCalibration(GaussCalibration):
     """Class for unsupervised Gaussian calibration.
-       The model assumes that targer and non-target score distributions are Gaussians
+       The model assumes that target and non-target score distributions are Gaussians
        with shared covariance.
        The model is trained using a mixture of two Gaussians using EM algorithm.
 

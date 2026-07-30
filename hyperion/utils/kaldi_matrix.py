@@ -62,7 +62,7 @@ class KaldiMatrix:
           f: Python file object
           binary: True if we read from binary file and False if we read from text file.
           row_offset: Reads matrix starting from a given row instead of row 0.
-          num_rows: Num. of rows to read, if 0 if read all the rows.
+          num_rows: Number of rows to read; if 0, read all rows.
           sequential_mode: True if we are reading the ark file sequentially and False if
             we are using random access.
 
@@ -569,7 +569,7 @@ class KaldiCompressedMatrix:
           v: numpy array with the column to compress.
 
         Returns:
-          Byte array with the header of the column containg the 0, 25, 75 and 100 percentile values.
+          Byte array with the header of the column containing the 0, 25, 75 and 100 percentile values.
         """
         one = np.uint16(1)
         if self.num_rows >= 5:
@@ -616,7 +616,7 @@ class KaldiCompressedMatrix:
           v: numpy array with the column to compress.
 
         Returns:
-          Byte array with the header of the column containg the 0, 25, 75 and 100 percentile values.
+          Byte array with the header of the column containing the 0, 25, 75 and 100 percentile values.
           Byte array with the coded column.
         """
 
@@ -628,7 +628,7 @@ class KaldiCompressedMatrix:
         """Compress column for the speech-feat compression.
 
         Args:
-          col_header: Byte array with the header of the column containg the 0, 25, 75 and 100 percentile values.
+          col_header: Byte array with the header of the column containing the 0, 25, 75 and 100 percentile values.
           col_data: Byte array with the coded column.
 
         Returns:
@@ -687,7 +687,7 @@ class KaldiCompressedMatrix:
         return v_out
 
     def to_ndarray(self) -> np.ndarray:
-        """Uncompresses matrix to numpy array.
+        """Decompresses matrix to a NumPy array.
         Returns:
           numpy array with uncompressed matrix.
         """
@@ -714,7 +714,7 @@ class KaldiCompressedMatrix:
         return mat
 
     def to_matrix(self) -> KaldiMatrix:
-        """Uncompresses matrix to KaldiMatrix object.
+        """Decompresses matrix to a KaldiMatrix object.
         Returns:
           KaldiMatrix with uncompressed matrix.
         """
@@ -731,13 +731,13 @@ class KaldiCompressedMatrix:
         num_rows: int = 0,
         sequential_mode: bool = True,
     ) -> "KaldiCompressedMatrix":
-        """Reads kaldi compressed matrix/vector from file.
+        """Reads a Kaldi compressed matrix/vector from a file.
 
         Args:
           f: Python file object
           binary: True if we read from binary file and False if we read from text file.
           row_offset: Reads matrix starting from a given row instead of row 0.
-          num_rows: Num. of rows to read, if 0 if read all the rows.
+          num_rows: Number of rows to read; if 0, read all rows.
           sequential_mode: True if we are reading the ark file sequentially and False if
             we are using random access.
 

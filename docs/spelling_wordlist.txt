@@ -1,4 +1,4 @@
-# Hyperion and speech-processing vocabulary accepted by the Sphinx spelling builder.
+# Hyperion and speech-processing vocabulary accepted by the documentation spelling check.
 Hyperion
 xvector
 xvectors
@@ -141,3 +141,21 @@ seg
 stderr
 stdout
 wav
+src
+len
+subclasses
+lifecycle
+warmup
+checkpointing
+Noam
+Tokenizers
+tokenizer
+utt
+lang
+num
+dataframe
+df
+rttm
+kaldi
+uncompress
+param

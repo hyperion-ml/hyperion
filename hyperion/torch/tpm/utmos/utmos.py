@@ -116,7 +116,7 @@ class UTMOSV2:
         return audio_ids, pred_mos
 
     def delete_model(self):
-        """Relases the model memory"""
+        """Releases the model memory"""
         del self.model
         self.model = None
 

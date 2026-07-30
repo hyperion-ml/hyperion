@@ -225,7 +225,7 @@ class SVMC(HyperNPModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        """It adds the arguments corresponding to the class to jsonarparse.
+        """It adds the arguments corresponding to the class to jsonargparse.
         Args:
           parser: jsonargparse object
           prefix: argument prefix.
@@ -340,7 +340,7 @@ class SVMC(HyperNPModel):
 
     @staticmethod
     def add_eval_args(parser, prefix=None):
-        """It adds the arguments needed to evaluate the class to jsonarparse.
+        """It adds the arguments needed to evaluate the class to jsonargparse.
         Args:
           parser: jsonargparse object
           prefix: argument prefix.
