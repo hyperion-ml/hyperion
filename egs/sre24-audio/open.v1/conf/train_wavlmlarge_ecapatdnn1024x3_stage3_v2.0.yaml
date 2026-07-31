@@ -95,4 +95,3 @@ trainer:
   swa_anneal_epochs: 2
   target_key: speaker
   train_mode: full
-master_port: 8765

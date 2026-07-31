@@ -69,4 +69,3 @@ trainer:
   epochs: 100
   eff_batch_size: 256
   target_key: spoof_det
-master_port: 5678

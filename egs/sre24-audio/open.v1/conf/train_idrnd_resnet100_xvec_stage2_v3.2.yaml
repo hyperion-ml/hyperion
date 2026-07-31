@@ -79,5 +79,3 @@ trainer:
   swa_lr: 1e-4
   swa_anneal_epochs: 2
   target_key: speaker
-master_port: 6421
-  
