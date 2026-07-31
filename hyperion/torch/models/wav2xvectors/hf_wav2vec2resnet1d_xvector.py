@@ -32,6 +32,7 @@ class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
         feat_fuser: Union[Dict[str, Any], FeatFuserMVN],
         xvector: Union[Dict[str, Any], ResNet1dXVector],
         feat_fusion_start: int = 0,
+        bias_weight_decay: Optional[float] = None,
     ) -> None:
         """Initializes the wrapper.
 
@@ -57,7 +58,9 @@ class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
             assert isinstance(xvector, ResNet1dXVector)
             assert xvector.encoder_net.in_feats == hf_feats.hidden_size
 
-        super().__init__(hf_feats, feat_fuser, xvector, feat_fusion_start)
+        super().__init__(
+            hf_feats, feat_fuser, xvector, feat_fusion_start, bias_weight_decay
+        )
         # feat_fusion_method)
 
     @staticmethod

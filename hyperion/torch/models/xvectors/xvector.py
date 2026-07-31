@@ -955,6 +955,7 @@ class XVector(HyperTorchModel):
         intertop_margin: float = 0.0,
         num_subcenters: int = 2,
         head_type: Union[str, XVectorHeadType] = XVectorHeadType.XVECTOR,
+        bias_weight_decay: Optional[float] = None,
     ) -> None:
         """Change the output head or dropout configuration.
 
@@ -971,8 +972,13 @@ class XVector(HyperTorchModel):
             intertop_margin: New InterTopK margin.
             num_subcenters: New number of subcenters.
             head_type: Desired head type.
+            bias_weight_decay: New weight decay for bias and one-dimensional
+                parameters. If ``None``, the current value is preserved.
         """
         logging.info("changing x-vector config")
+        if bias_weight_decay is not None:
+            self.bias_weight_decay = bias_weight_decay
+
         if override_output:
             self.rebuild_output_layer(
                 num_classes=num_classes,

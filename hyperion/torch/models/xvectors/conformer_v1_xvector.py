@@ -193,6 +193,7 @@ class ConformerV1XVector(XVector):
         intertop_k: int = 5,
         intertop_margin: float = 0,
         num_subcenters: int = 2,
+        bias_weight_decay: Optional[float] = None,
     ) -> None:
         """Update the model configuration in place.
 
@@ -209,6 +210,7 @@ class ConformerV1XVector(XVector):
             intertop_k: New InterTopK parameter.
             intertop_margin: New InterTopK margin.
             num_subcenters: New number of subcenters.
+            bias_weight_decay: New weight decay for bias parameters.
         """
         super().change_config(
             override_output,
@@ -222,6 +224,7 @@ class ConformerV1XVector(XVector):
             intertop_k,
             intertop_margin,
             num_subcenters,
+            bias_weight_decay=bias_weight_decay,
         )
         if override_dropouts:
             logging.info("chaning x-vector head dropouts")

@@ -33,6 +33,7 @@ class HFWav2XVector(HyperTorchModel):
         feat_fuser: Dict[str, Any],
         xvector: nn.Module,
         feat_fusion_start: int = 0,
+        bias_weight_decay: Optional[float] = None,
     ) -> None:
         """Initializes the HF-based x-vector wrapper.
 
@@ -41,11 +42,12 @@ class HFWav2XVector(HyperTorchModel):
           feat_fuser: Configuration dictionary for ``FeatFuserMVN``.
           xvector: Backend x-vector model that consumes fused features.
           feat_fusion_start: First HF layer index used by the feature fuser.
+          bias_weight_decay: Optional weight decay for bias parameters.
 
         Returns:
           None.
         """
-        super().__init__()
+        super().__init__(bias_weight_decay=bias_weight_decay)
         self.hf_feats = hf_feats
         self.xvector = xvector
         self.feat_fusion_start = feat_fusion_start
@@ -444,7 +446,11 @@ class HFWav2XVector(HyperTorchModel):
         Returns:
           ``True`` when either HF extractor or x-vector defines parameter groups.
         """
-        return self.hf_feats.has_param_groups() or self.xvector.has_param_groups()
+        return (
+            super().has_param_groups()
+            or self.hf_feats.has_param_groups()
+            or self.xvector.has_param_groups()
+        )
 
     def trainable_param_groups(self) -> List[Dict[str, Any]]:
         """Builds trainable optimizer parameter groups for this composite model.
@@ -458,6 +464,24 @@ class HFWav2XVector(HyperTorchModel):
         param_groups = self.hf_feats.trainable_param_groups()
         param_groups.append({"params": self.feat_fuser.trainable_parameters()})
         param_groups.extend(self.xvector.trainable_param_groups())
+        if self.bias_weight_decay is not None:
+            # Keep component-specific groups intact and apply the wrapper-level
+            # setting to parameters not already covered by those groups.
+            grouped_params = {
+                id(param)
+                for group in param_groups
+                for param in group["params"]
+            }
+            remaining = [
+                param
+                for name, param in self.trainable_named_parameters()
+                if id(param) not in grouped_params
+                and (name.endswith(".bias") or len(param.shape) == 1)
+            ]
+            if remaining:
+                param_groups.append(
+                    {"params": remaining, "weight_decay": self.bias_weight_decay}
+                )
         return param_groups
 
     def set_train_mode(self, mode: str) -> None:
@@ -593,6 +617,7 @@ class HFWav2XVector(HyperTorchModel):
             "feat_fuser",
             "xvector",
             "feat_fusion_start",
+            "bias_weight_decay",
             # "feat_fusion_method",
         )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
@@ -615,25 +640,37 @@ class HFWav2XVector(HyperTorchModel):
             "feat_fuser": fuser_cfg,
             "xvector": xvec_cfg,
             "feat_fusion_start": self.feat_fusion_start,
+            "bias_weight_decay": self.bias_weight_decay,
             # "feat_fusion_method": self.feat_fusion_method,
         }
 
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def change_config(self, hf_feats: Dict[str, Any], xvector: Dict[str, Any]) -> None:
+    def change_config(
+        self,
+        hf_feats: Optional[Dict[str, Any]] = None,
+        xvector: Optional[Dict[str, Any]] = None,
+        bias_weight_decay: Optional[float] = None,
+    ) -> None:
         """Applies runtime configuration updates to child modules.
 
         Args:
           hf_feats: Configuration updates for the HF feature extractor.
           xvector: Configuration updates for the x-vector backend.
+          bias_weight_decay: New weight decay for bias parameters. If ``None``,
+            the current value is preserved.
 
         Returns:
           None.
         """
         logging.info("changing hf wav2xvector config")
-        self.hf_feats.change_config(**hf_feats)
-        self.xvector.change_config(**xvector)
+        if bias_weight_decay is not None:
+            self.bias_weight_decay = bias_weight_decay
+        if hf_feats is not None:
+            self.hf_feats.change_config(**hf_feats)
+        if xvector is not None:
+            self.xvector.change_config(**xvector)
 
     @staticmethod
     def add_class_args(
@@ -668,6 +705,12 @@ class HFWav2XVector(HyperTorchModel):
                 "the input to x-vector model will fuse the wav2vec layers from feat_fusion_start to"
                 "the wav2vec num_layers"
             ),
+        )
+        parser.add_argument(
+            "--bias-weight-decay",
+            default=None,
+            type=float,
+            help="optional weight decay for bias parameters",
         )
 
         if prefix is not None:

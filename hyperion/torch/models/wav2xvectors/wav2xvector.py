@@ -28,14 +28,16 @@ class Wav2XVector(HyperTorchModel):
         self,
         feats: Union[Dict[str, Any], AudioFeatsMVN],
         xvector: Union[Dict[str, Any], HyperTorchModel],
+        bias_weight_decay: Optional[float] = None,
     ) -> None:
         """Initializes the wrapper.
 
         Args:
           feats: Acoustic feature extractor instance or configuration dictionary.
           xvector: Backend x-vector model instance or configuration dictionary.
+          bias_weight_decay: Optional weight decay for bias parameters.
         """
-        super().__init__()
+        super().__init__(bias_weight_decay=bias_weight_decay)
 
         if isinstance(feats, dict):
             feats = AudioFeatsMVN.filter_args(**feats)
@@ -114,14 +116,23 @@ class Wav2XVector(HyperTorchModel):
             num_subcenters=num_subcenters,
         )
 
-    def change_config(self, xvector: Dict[str, Any]) -> None:
+    def change_config(
+        self,
+        xvector: Optional[Dict[str, Any]] = None,
+        bias_weight_decay: Optional[float] = None,
+    ) -> None:
         """Applies runtime configuration updates to the backend x-vector model.
 
         Args:
           xvector: Configuration updates for the x-vector backend.
+          bias_weight_decay: New weight decay for bias parameters. If ``None``,
+            the current value is preserved.
         """
         logging.info("changing wav2xvector config")
-        self.xvector.change_config(**xvector)
+        if bias_weight_decay is not None:
+            self.bias_weight_decay = bias_weight_decay
+        if xvector is not None:
+            self.xvector.change_config(**xvector)
 
     def cancel_output_layer_grads(self) -> None:
         """Clears gradients on the backend output layer."""
@@ -404,6 +415,7 @@ class Wav2XVector(HyperTorchModel):
         config = {
             "feats": feat_cfg,
             "xvector": xvector_cfg,
+            "bias_weight_decay": self.bias_weight_decay,
         }
 
         base_config = super().get_config()
@@ -422,6 +434,7 @@ class Wav2XVector(HyperTorchModel):
         valid_args = (
             "feats",
             "xvector",
+            "bias_weight_decay",
         )
 
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
@@ -442,6 +455,12 @@ class Wav2XVector(HyperTorchModel):
             parser = ArgumentParser(prog="")
 
         AudioFeatsMVN.add_class_args(parser, prefix="feats")
+        parser.add_argument(
+            "--bias-weight-decay",
+            default=None,
+            type=float,
+            help="optional weight decay for bias parameters",
+        )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

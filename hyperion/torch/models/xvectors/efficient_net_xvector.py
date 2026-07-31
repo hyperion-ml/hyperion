@@ -392,6 +392,7 @@ class EfficientNetXVector(XVector):
         override_dropouts: bool = False,
         dropout_rate: float = 0,
         drop_connect_rate: float = 0,
+        bias_weight_decay: Optional[float] = None,
         **kwargs: Any,
     ) -> None:
         """Update the model configuration in place.
@@ -401,10 +402,12 @@ class EfficientNetXVector(XVector):
             override_dropouts: Whether to override dropout settings.
             dropout_rate: New dropout rate.
             drop_connect_rate: New drop connect probability.
+            bias_weight_decay: New weight decay for bias parameters.
             kwargs: Remaining encoder/head configuration values.
         """
         xvec_args = XVector.filter_finetune_args(**kwargs)
         xvec_args["override_dropouts"] = False
+        xvec_args["bias_weight_decay"] = bias_weight_decay
         super().change_config(**xvec_args)
 
         if override_dropouts:
