@@ -31,6 +31,10 @@ def capture_help(
     """Capture help for one command invocation."""
     env = os.environ.copy()
     env.setdefault("MPLCONFIGDIR", str(REPO_DIR / "docs" / "_build" / ".matplotlib"))
+    # argparse uses the terminal width when wrapping help text. The subprocess
+    # has no TTY, so fix the fallback width to make generated output portable.
+    env["COLUMNS"] = "80"
+    env["LINES"] = "24"
     # Some CLI imports load librosa/numba. JIT compilation is unnecessary for
     # help capture and can fail while importing packages from non-standard
     # filesystem paths.
