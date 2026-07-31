@@ -94,6 +94,34 @@ def add_help_block(lines: list[str], output: str) -> None:
     lines.append("")
 
 
+def normalize_for_comparison(content: str) -> str:
+    """Ignore terminal wrapping differences inside captured help blocks."""
+
+    normalized: list[str] = []
+    help_lines: list[str] = []
+
+    def flush_help() -> None:
+        if help_lines:
+            normalized.append(" ".join(line.strip() for line in help_lines))
+            help_lines.clear()
+
+    in_help = False
+    for line in content.splitlines():
+        if line == ".. code-block:: text":
+            flush_help()
+            in_help = True
+            normalized.append(line)
+        elif in_help and (line.startswith("   ") or not line):
+            if line:
+                help_lines.append(line[3:])
+        else:
+            flush_help()
+            in_help = False
+            normalized.append(line.rstrip())
+    flush_help()
+    return "\n".join(normalized)
+
+
 def render(
     python: str,
     timeout: int,
@@ -246,7 +274,7 @@ def main() -> int:
             if OUTPUT_PATH.is_file()
             else ""
         )
-        if existing != content:
+        if normalize_for_comparison(existing) != normalize_for_comparison(content):
             print("CLI reference is stale; rerun docs/generate_cli_reference.py", file=sys.stderr)
             diff = difflib.unified_diff(
                 existing.splitlines(),
