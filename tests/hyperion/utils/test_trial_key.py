@@ -1,11 +1,12 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
+
 import numpy as np
+import pytest
 
 from hyperion.utils.trial_key import TrialKey
 from hyperion.utils.trial_ndx import TrialNdx
@@ -39,8 +40,11 @@ def test_merge():
     key2 = TrialKey(
         key1.model_set[:10], key1.seg_set, key1.tar[:10, :], key1.non[:10, :]
     )
-    key3 = TrialKey(key1.model_set[5:], key1.seg_set, key1.tar[5:, :], key1.non[5:, :])
+    key3 = TrialKey(
+        key1.model_set[10:], key1.seg_set, key1.tar[10:, :], key1.non[10:, :]
+    )
     key4 = TrialKey.merge([key2, key3])
+    print("aaaa", key1.spoof, key4.spoof)
     assert key1 == key4
 
     key2 = TrialKey(
@@ -85,12 +89,12 @@ def test_to_ndx():
 def test_load_save():
 
     key1 = create_key()
-    file_h5 = output_dir + "/test.h5"
+    file_h5 = output_dir + "/test_key.h5"
     key1.save(file_h5)
     key3 = TrialKey.load(file_h5)
     assert key1 == key3
 
-    file_txt = output_dir + "/test.txt"
+    file_txt = output_dir + "/test_key.txt"
     key3.tar[0, :] = True
     key3.non[:, 0] = True
     key3.save(file_txt)

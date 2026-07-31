@@ -1,26 +1,59 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 #
+
+from typing import Any, Callable, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
-
-# from torch.nn import Conv2d, BatchNorm2d
 
 from ..layers import ActivationFactory as AF
 from ..layers import DropConnect2d
 from .se_blocks import SEBlock2D, TSEBlock2D
 
+# from torch.nn import Conv2d, BatchNorm2d
 
-def _conv1x1(in_channels, out_channels, stride=1, bias=False):
-    """1x1 convolution"""
+
+def _conv1x1(
+    in_channels: int,
+    out_channels: int,
+    stride: int = 1,
+    bias: bool = False,
+) -> nn.Conv2d:
+    """Create a 1x1 convolution.
+
+    Args:
+      in_channels: Number of input channels.
+      out_channels: Number of output channels.
+      stride: Convolution stride.
+      bias: If True, includes a bias term.
+
+    Returns:
+      A 2D convolution layer with kernel size 1.
+    """
     return nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=bias)
 
 
-def _dwconvkxk(channels, kernel_size=3, stride=1, bias=False):
-    """kxk depth-wise convolution with padding"""
+def _dwconvkxk(
+    channels: int,
+    kernel_size: int = 3,
+    stride: int = 1,
+    bias: bool = False,
+) -> nn.Conv2d:
+    """Create a kxk depth-wise convolution with padding.
+
+    Args:
+      channels: Number of input and output channels.
+      kernel_size: Convolution kernel size.
+      stride: Convolution stride.
+      bias: If True, includes a bias term.
+
+    Returns:
+      A depth-wise 2D convolution layer.
+    """
     return nn.Conv2d(
         channels,
         channels,
@@ -33,8 +66,23 @@ def _dwconvkxk(channels, kernel_size=3, stride=1, bias=False):
     )
 
 
-def _make_downsample(in_channels, out_channels, stride, norm_layer):
+def _make_downsample(
+    in_channels: int,
+    out_channels: int,
+    stride: int,
+    norm_layer: Any,
+) -> nn.Sequential:
+    """Create the residual downsampling path.
 
+    Args:
+      in_channels: Number of input channels.
+      out_channels: Number of output channels.
+      stride: Convolution stride used to downsample the residual branch.
+      norm_layer: Normalization layer constructor.
+
+    Returns:
+      A sequential module containing 1x1 projection and normalization.
+    """
     return nn.Sequential(
         _conv1x1(in_channels, out_channels, stride, bias=False),
         norm_layer(out_channels, momentum=0.01, eps=1e-3),
@@ -42,19 +90,40 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer):
 
 
 class MBConvBlock(nn.Module):
+    """MobileNet/EfficientNet inverted bottleneck block.
+
+    Attributes:
+      in_channels: Input channels.
+      out_channels: Output channels.
+      expansion: Expansion ratio for the inverted bottleneck.
+      inner_channels: Number of channels in the expanded hidden representation.
+      kernel_size: Kernel size used by the depth-wise convolution.
+      stride: Stride used by the depth-wise convolution and residual projection.
+      activation: Activation specification used to build the non-linearity.
+      se_r: Squeeze-excitation reduction ratio, or None to disable SE.
+      has_se: True when squeeze-excitation is enabled.
+      time_se: True when squeeze-excitation pools only along time.
+      num_feats: Number of features in dimension 2, needed if time_se is True.
+      drop_connect_rate: Drop-connect rate used on the projection output.
+      drop_connect: Drop-connect module, created only when the rate is positive.
+      downsample: Residual projection used when input and output shapes differ.
+      context: Effective temporal/spatial context contributed by the block.
+      downsample_factor: Total stride contribution of the block.
+    """
+
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        expansion=6,
-        kernel_size=3,
-        stride=1,
-        activation="swish",
-        drop_connect_rate=0,
-        norm_layer=None,
-        se_r=None,
-        time_se=False,
-        num_feats=None,
+        in_channels: int,
+        out_channels: int,
+        expansion: int = 6,
+        kernel_size: int = 3,
+        stride: int = 1,
+        activation: Union[str, Dict[str, Any], Callable[..., nn.Module]] = "swish",
+        drop_connect_rate: float = 0,
+        norm_layer: Optional[Any] = None,
+        se_r: Optional[int] = None,
+        time_se: bool = False,
+        num_feats: Optional[int] = None,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -113,8 +182,19 @@ class MBConvBlock(nn.Module):
         self.context = stride * (kernel_size - 1) // 2
         self.downsample_factor = stride
 
-    def forward(self, x):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Forward function.
 
+        Args:
+          x: Input tensor with shape = (batch, in_channels, in_height, in_width).
+          x_mask: Optional binary mask for valid spatial positions. This block
+            does not use the mask directly.
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_height, out_width).
+        """
         residual = x
         if self.expansion > 1:
             x = self.act(self.bn_exp(self.conv_exp(x)))
@@ -137,14 +217,27 @@ class MBConvBlock(nn.Module):
 
 
 class MBConvInOutBlock(nn.Module):
+    """Convolutional block used as input or output in MobileNet/EfficientNet.
+
+    Attributes:
+      in_channels: Input channels.
+      out_channels: Output channels.
+      kernel_size: Kernel size of the convolution.
+      stride: Stride of the convolution.
+      activation: Activation specification used to build the non-linearity.
+      norm_layer: Normalization layer constructor, if None BatchNorm2d is used.
+      context: Padding applied by the convolution, which determines context.
+      downsample_factor: Stride contribution of the block.
+    """
+
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        kernel_size=3,
-        stride=2,
-        activation="swish",
-        norm_layer=None,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 3,
+        stride: int = 2,
+        activation: Union[str, Dict[str, Any], Callable[..., nn.Module]] = "swish",
+        norm_layer: Optional[Any] = None,
     ):
         super().__init__()
 
@@ -168,5 +261,13 @@ class MBConvInOutBlock(nn.Module):
         self.context = padding
         self.downsample_factor = stride
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward function.
+
+        Args:
+          x: Input tensor with shape = (batch, in_channels, in_height, in_width).
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_height, out_width).
+        """
         return self.act(self.bn(self.conv(x)))

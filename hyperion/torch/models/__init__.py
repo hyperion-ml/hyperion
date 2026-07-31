@@ -1,16 +1,58 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 """
 
-from .xvectors.xvector import XVector
-from .xvectors.tdnn_xvector import TDNNXVector
-from .xvectors.resnet_xvector import ResNetXVector
-from .xvectors.efficient_net_xvector import EfficientNetXVector
-from .xvectors.transformer_xvector_v1 import TransformerXVectorV1
-from .xvectors.spinenet_xvector import SpineNetXVector
-from .xvectors.resnet1d_xvector import ResNet1dXVector
-
+from .audio_discriminator import (
+    AudioDiscriminatorTrainMode,
+    AudioMultiDiscriminator,
+    AudioMultiDiscriminatorOutput,
+    AudioPeriodDiscriminator,
+    AudioScaleDiscriminator,
+    AudioSpectrogramDiscriminator,
+)
+from .dac import DAC, DACOutput, DACTrainMode, StreamingDAC, StreamingDACState
+from .freevc import HFWavLMFreeVC
+from .qvectors import HFWav2Vec2QVector, QVectorOutput, QVectorTrainMode, ResNetQVector
+from .transducer import RNNRNNTransducer, RNNTransducer
 from .vae.vae import VAE
 from .vae.vq_vae import VQVAE
+from .wav2transducer import (  # HFWav2Vec2Transducer,
+    HFWav2Vec2ConformerV1RNNTransducer,
+    HFWav2Vec2RNNRNNTransducer,
+    HFWav2Vec2RNNTransducer,
+    Wav2ConformerV1RNNTransducer,
+    Wav2RNNRNNTransducer,
+)
+from .wav2xvectors import (
+    HFHubert2ConformerV1XVector,
+    HFHubert2ResNet1dXVector,
+    HFWav2Vec2Bert2ConformerV1XVector,
+    HFWav2Vec2Bert2ResNet1dXVector,
+    HFWav2Vec2ConformerV1XVector,
+    HFWav2Vec2ResNet1dXVector,
+    HFWavLM2ConformerV1XVector,
+    HFWavLM2ResNet1dXVector,
+    HFWhisper2ConformerV1XVector,
+    HFWhisper2ResNet1dXVector,
+    Wav2ConformerV1XVector,
+    Wav2ConvNext1dXVector,
+    Wav2ConvNext2dXVector,
+    Wav2ResNet1dXVector,
+    Wav2ResNetXVector,
+    Wav2TransformerV2XVector,
+)
+from .xvectors import (
+    ConformerV1XVector,
+    ConvNext1dXVector,
+    ConvNext2dXVector,
+    EfficientNetXVector,
+    ResNet1dXVector,
+    ResNetXVector,
+    SpineNetXVector,
+    TDNNXVector,
+    TransformerV1XVector,
+    TransformerV2XVector,
+    XVector,
+)

@@ -17,8 +17,8 @@ from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import TrialScores
 from hyperion.helpers import MultiTestTrialDataReaderV2 as TDR
 from hyperion.helpers import PLDAFactory as F
-from hyperion.transforms import TransformList
-from hyperion.score_norm import AdaptSNorm as SNorm
+from hyperion.np.transforms import TransformList
+from hyperion.np.score_norm import AdaptSNorm as SNorm
 from hyperion.helpers import VectorReader as VR
 
 

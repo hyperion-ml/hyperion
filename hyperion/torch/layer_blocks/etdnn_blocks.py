@@ -1,30 +1,59 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import numpy as np
+from typing import Optional, Type
 
+import torch
 import torch.nn as nn
-from torch.nn import Conv1d, Linear, BatchNorm1d
+from torch.nn import BatchNorm1d, Conv1d
 
 from ..layers import ActivationFactory as AF
-from ..layers import Dropout1d
+from ..layers import ActivationSpec, Dropout1d
 
 
 class ETDNNBlock(nn.Module):
+    """Building block for Extended-TDNN.
+
+    Args:
+      in_channels:   input channels.
+      out_channels:  output channels.
+      kernel_size:   kernel size for the convolution.
+      dilation:      kernel dilation.
+      activation:    non-linear activation function object, string or config dict.
+      dropout_rate:  dropout rate.
+      use_norm:      if True, applies normalization.
+      norm_layer:    Normalization layer constructor; if None, uses BatchNorm1d.
+      norm_before:   if True, layer normalization is before the non-linearity, else
+                     after the non-linearity.
+    """
+
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        kernel_size,
-        dilation=1,
-        activation={"name": "relu", "inplace": True},
-        dropout_rate=0,
-        norm_layer=None,
-        use_norm=True,
-        norm_before=False,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        dilation: int = 1,
+        activation: ActivationSpec = {"name": "relu", "inplace": True},
+        dropout_rate: float = 0,
+        norm_layer: Optional[Type[nn.Module]] = None,
+        use_norm: bool = True,
+        norm_before: bool = False,
     ):
+        """Initializes the Extended-TDNN block.
+
+        Args:
+          in_channels: Input channels.
+          out_channels: Output channels.
+          kernel_size: Convolution kernel size.
+          dilation: Convolution dilation factor.
+          activation: Non-linear activation specification.
+          dropout_rate: Dropout probability.
+          norm_layer: Normalization layer constructor; if ``None``, uses ``BatchNorm1d``.
+          use_norm: If ``True``, applies normalization.
+          norm_before: If ``True``, normalization is applied before the activation.
+        """
 
         super().__init__()
 
@@ -62,15 +91,23 @@ class ETDNNBlock(nn.Module):
         )
         self.conv2 = Conv1d(out_channels, out_channels, bias=bias, kernel_size=1)
 
-    def forward(self, x):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Forward function.
 
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_time).
+          x_mask: Optional input mask, unused.
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_time).
+        """
         x = self.conv1(x)
-
         if self.norm_before:
             x = self.bn1(x)
 
         x = self.activation1(x)
-
         if self.norm_after:
             x = self.bn1(x)
 
@@ -78,12 +115,10 @@ class ETDNNBlock(nn.Module):
             x = self.dropout1(x)
 
         x = self.conv2(x)
-
         if self.norm_before:
             x = self.bn2(x)
 
         x = self.activation2(x)
-
         if self.norm_after:
             x = self.bn2(x)
 

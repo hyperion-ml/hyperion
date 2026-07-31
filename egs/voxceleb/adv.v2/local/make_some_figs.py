@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from hyperion.hyp_defs import float_cpu, config_logger
-from hyperion.metrics.verification_evaluator import (
+from hyperion.np.metrics.verification_evaluator import (
     VerificationAdvAttackEvaluator as Eval,
 )
 

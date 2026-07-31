@@ -1,18 +1,19 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
-import numpy as np
+
 import matplotlib
+import numpy as np
+import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
-from hyperion.pdfs import GMMTiedDiagCov
 from numpy.testing import assert_allclose
+
+from hyperion.np.pdfs import GMMTiedDiagCov
 
 output_dir = "./tests/data_out/pdfs/core/mixtures/gmm_tied_diag_cov"
 if not os.path.exists(output_dir):
@@ -266,30 +267,24 @@ def test_log_cdf():
 
     model1 = create_pdf()
 
-    assert (
-        model1.log_cdf(
-            1e20
-            * np.ones(
-                (
-                    1,
-                    x_dim,
-                )
+    assert model1.log_cdf(
+        1e20
+        * np.ones(
+            (
+                1,
+                x_dim,
             )
         )
-        > np.log(0.99)
-    )
-    assert (
-        model1.log_cdf(
-            -1e20
-            * np.ones(
-                (
-                    1,
-                    x_dim,
-                )
+    ) > np.log(0.99)
+    assert model1.log_cdf(
+        -1e20
+        * np.ones(
+            (
+                1,
+                x_dim,
             )
         )
-        < np.log(0.01)
-    )
+    ) < np.log(0.01)
 
 
 def test_fit_kmeans():

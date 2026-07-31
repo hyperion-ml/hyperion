@@ -31,7 +31,7 @@ my $meta_url = "https://www.openslr.org/resources/49/vox1_meta.csv";
 my $meta_path = "$data_base/vox1_meta.csv";
 if (! -e "$meta_path") {
     $meta_path = "$out_dir/vox1_meta.csv";
-    system("wget -O $meta_path $meta_url");
+    system("wget --no-check-certificate -O $meta_path $meta_url");
 }
 
 open(META_IN, "<", "$meta_path") or die "Could not open the meta data file $meta_path";
@@ -53,7 +53,7 @@ my $lid_url = "https://www.robots.ox.ac.uk/~vgg/data/voxceleb/data_workshop_2021
 my $lid_path = "$data_base/lang_vox1_final.csv";
 if (! -e "$lid_path") {
     $lid_path = "$out_dir/lang_vox1_final.csv";
-    system("wget -O $lid_path $lid_url");
+    system("wget --no-check-certificate -O $lid_path $lid_url");
 }
 open(LID_IN, "<", "$lid_path") or die "Could not open the output file $lid_path";
 my %utt2lang = ();

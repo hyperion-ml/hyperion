@@ -1,35 +1,69 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ArgumentParser, ActionParser
+from typing import Any, Dict, Optional
 
-from .tdnn import TDNNV1
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 from .etdnn import ETDNNV1
+from .net_arch import NetArch
 from .resetdnn import ResETDNNV1
+from .tdnn import TDNNV1
 
 
 class TDNNFactory(object):
+    """Factory for TDNN family network architectures.
+
+    Attributes:
+        None: This is a utility class with only static helpers.
+    """
+
     @staticmethod
     def create(
-        tdnn_type,
-        num_enc_blocks,
-        in_feats,
-        enc_hid_units,
-        enc_expand_units=None,
-        kernel_size=3,
-        dilation=1,
-        dilation_factor=1,
-        hid_act={"name": "relu6", "inplace": True},
-        out_units=0,
-        out_act=None,
-        dropout_rate=0,
-        norm_layer=None,
-        use_norm=True,
-        norm_before=True,
-        in_norm=True,
-    ):
+        tdnn_type: str,
+        num_enc_blocks: int,
+        in_feats: int,
+        enc_hid_units: Any,
+        enc_expand_units: Optional[Any] = None,
+        kernel_size: Any = 3,
+        dilation: Any = 1,
+        dilation_factor: int = 1,
+        hid_act: Any = {"name": "relu", "inplace": True},
+        out_units: int = 0,
+        out_act: Any = None,
+        dropout_rate: float = 0,
+        norm_layer: Optional[str] = None,
+        use_norm: bool = True,
+        norm_before: bool = True,
+        in_norm: bool = True,
+    ) -> NetArch:
+        """Create a TDNN family network.
+
+        Args:
+            tdnn_type: Network type, one of ``"tdnn"``, ``"etdnn"``, or
+                ``"resetdnn"``.
+            num_enc_blocks: Number of encoder blocks.
+            in_feats: Input feature dimension.
+            enc_hid_units: Hidden layer width specification.
+            enc_expand_units: Final expansion width for ``"resetdnn"``.
+            kernel_size: Kernel size or per-block kernel sizes.
+            dilation: Dilation or per-block dilations.
+            dilation_factor: Dilation increment used when ``dilation`` is a
+                scalar.
+            hid_act: Hidden activation specification.
+            out_units: Output dimension for the final linear layer.
+            out_act: Output activation specification.
+            dropout_rate: Dropout probability used in the network blocks.
+            norm_layer: Normalization layer name.
+            use_norm: Whether to enable normalization layers.
+            norm_before: Whether normalization happens before activation.
+            in_norm: Whether input normalization is enabled.
+
+        Returns:
+            NetArch: Instantiated TDNN family module.
+        """
 
         if enc_expand_units is not None and isinstance(enc_hid_units, int):
             if tdnn_type != "resetdnn":
@@ -73,7 +107,10 @@ class TDNNFactory(object):
             )
         elif tdnn_type == "resetdnn":
             if enc_expand_units is None:
-                enc_expand_units = enc_hid_units
+                if isinstance(enc_hid_units, list):
+                    enc_expand_units = enc_hid_units[-1]
+                else:
+                    enc_expand_units = enc_hid_units
 
             nnet = ResETDNNV1(
                 num_enc_blocks,
@@ -97,7 +134,19 @@ class TDNNFactory(object):
 
         return nnet
 
-    def filter_args(**kwargs):
+    @staticmethod
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments for TDNN construction.
+
+        This also normalizes legacy aliases such as ``wo_norm`` and
+        ``norm_after``.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by :meth:`create`.
+        """
 
         if "wo_norm" in kwargs:
             kwargs["use_norm"] = not kwargs["wo_norm"]
@@ -135,7 +184,13 @@ class TDNNFactory(object):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register TDNN constructor arguments on a parser.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional nested prefix for grouped arguments.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -194,7 +249,7 @@ class TDNNFactory(object):
         )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 
@@ -264,3 +319,55 @@ class TDNNFactory(object):
             # help='TDNN options')
 
     add_argparse_args = add_class_args
+
+    @staticmethod
+    def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments used during fine-tuning.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by
+            :meth:`add_finetune_args`.
+        """
+
+        valid_args = (
+            "override_dropouts",
+            "dropout_rate",
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        return args
+
+    @staticmethod
+    def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register fine-tuning arguments on a parser.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional nested prefix for grouped arguments.
+        """
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        try:
+            parser.add_argument(
+                "--override-dropouts",
+                default=False,
+                action=ActionYesNo,
+                help=(
+                    "whether to use the dropout probabilities passed in the "
+                    "arguments instead of the defaults in the pretrained model."
+                ),
+            )
+        except:
+            pass
+
+        try:
+            parser.add_argument("--dropout-rate", default=0, type=float, help="dropout")
+        except:
+            pass
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

@@ -1,52 +1,106 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser
 
-from .fgsm_attack import FGSMAttack
-from .snr_fgsm_attack import SNRFGSMAttack
-from .rand_fgsm_attack import RandFGSMAttack
-from .iter_fgsm_attack import IterFGSMAttack
-from .carlini_wagner_l2 import CarliniWagnerL2
+from typing import Any, Dict, Optional, Sequence, Union
+
+import torch
+import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
+
+from ...utils.misc import filter_func_args
+from .adv_attack import AdvAttack
 from .carlini_wagner_l0 import CarliniWagnerL0
+from .carlini_wagner_l2 import CarliniWagnerL2
 from .carlini_wagner_linf import CarliniWagnerLInf
+from .fgsm_attack import FGSMAttack
+from .iter_fgsm_attack import IterFGSMAttack
 from .pgd_attack import PGDAttack
+from .rand_fgsm_attack import RandFGSMAttack
+from .snr_fgsm_attack import SNRFGSMAttack
 
 
-class AttackFactory(object):
+class AttackFactory:
+    """Factory for project-native adversarial attacks."""
+
     @staticmethod
     def create(
-        model,
-        attack_type,
-        eps=0,
-        snr=100,
-        alpha=0,
-        norm=float("inf"),
-        random_eps=False,
-        num_random_init=0,
-        confidence=0.0,
-        lr=1e-2,
-        binary_search_steps=9,
-        max_iter=10,
-        abort_early=True,
-        c=1e-3,
-        reduce_c=False,
-        c_incr_factor=2,
-        tau_decr_factor=0.9,
-        indep_channels=False,
-        norm_time=False,
-        time_dim=None,
-        use_snr=False,
-        loss=None,
-        targeted=False,
-        range_min=None,
-        range_max=None,
-        eps_scale=1,
-    ):
+        model: nn.Module,
+        attack_type: str,
+        eps: float = 0.1,
+        snr: float = 100,
+        alpha: float = 0.01,
+        norm: float = float("inf"),
+        random_eps: bool = False,
+        num_random_init: int = 0,
+        confidence: float = 0.0,
+        lr: float = 1e-2,
+        binary_search_steps: int = 9,
+        max_iter: int = 10,
+        abort_early: bool = True,
+        initial_c: float = 1e-3,
+        reduce_c: bool = False,
+        c_incr_factor: float = 2,
+        tau_decr_factor: float = 0.9,
+        indep_channels: bool = False,
+        norm_time: bool = False,
+        time_dim: Optional[int] = None,
+        use_snr: bool = False,
+        loss: Optional[nn.Module] = None,
+        targeted: bool = False,
+        range_min: Optional[float] = None,
+        range_max: Optional[float] = None,
+        eps_scale: float = 1,
+    ) -> AdvAttack:
+        """Create an adversarial attack instance.
+
+        Args:
+          model: Model under attack.
+          attack_type: Attack identifier.
+          eps: Perturbation budget.
+          snr: Target SNR for SNR-based FGSM.
+          alpha: Step size for iterative/randomized attacks.
+          norm: Threat-model norm.
+          random_eps: Whether to randomize epsilon (PGD).
+          num_random_init: Number of random initializations.
+          confidence: Confidence parameter for Carlini-Wagner attacks.
+          lr: Optimizer learning rate for iterative attacks.
+          binary_search_steps: Binary search steps for CW-L2.
+          max_iter: Maximum iterations for iterative attacks.
+          abort_early: Whether to abort optimization early.
+          initial_c: Initial ``c`` for Carlini-Wagner variants.
+          reduce_c: Whether to reduce ``c`` in CW-L0/Linf.
+          c_incr_factor: Multiplicative increase for ``c``.
+          tau_decr_factor: Multiplicative decrease for ``tau`` in CW-Linf.
+          indep_channels: Use independent channels in CW-L0.
+          norm_time: Whether to normalize norms by time length.
+          time_dim: Time axis used by ``norm_time``.
+          use_snr: Whether to use SNR objective in CW-L2.
+          loss: Optional custom loss module.
+          targeted: Whether the attack is targeted.
+          range_min: Optional minimum clamp value.
+          range_max: Optional maximum clamp value.
+          eps_scale: Global scale factor applied to ``eps``/``alpha``.
+
+        Returns:
+          Configured attack instance.
+        """
 
         eps = eps * eps_scale
         alpha = alpha * eps_scale
+        norm = float(norm)
+
+        if attack_type in ("fgsm", "iter-fgsm", "rand-fgsm", "pgd") and eps <= 0:
+            raise ValueError(f"{attack_type} requires eps > 0, got eps={eps}")
+
+        if attack_type in ("iter-fgsm", "rand-fgsm", "pgd"):
+            if alpha <= 0:
+                raise ValueError(f"{attack_type} requires alpha > 0, got alpha={alpha}")
+            if alpha >= eps:
+                raise ValueError(
+                    f"{attack_type} requires alpha < eps, got alpha={alpha}, eps={eps}"
+                )
 
         if attack_type == "fgsm":
             return FGSMAttack(
@@ -98,7 +152,7 @@ class AttackFactory(object):
                 binary_search_steps,
                 max_iter,
                 abort_early,
-                c,
+                initial_c,
                 norm_time=norm_time,
                 time_dim=time_dim,
                 use_snr=use_snr,
@@ -114,7 +168,7 @@ class AttackFactory(object):
                 lr,
                 max_iter,
                 abort_early,
-                c,
+                initial_c,
                 reduce_c,
                 c_incr_factor,
                 indep_channels,
@@ -130,7 +184,7 @@ class AttackFactory(object):
                 lr,
                 max_iter,
                 abort_early,
-                c,
+                initial_c,
                 reduce_c,
                 c_incr_factor,
                 tau_decr_factor,
@@ -159,7 +213,15 @@ class AttackFactory(object):
         raise Exception("%s is not a valid attack type" % (attack_type))
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter and normalize keyword arguments for :meth:`create`.
+
+        Args:
+          **kwargs: Unstructured attack options.
+
+        Returns:
+          Filtered dictionary accepted by :meth:`create`.
+        """
         if "no_abort" in kwargs:
             kwargs["abort_early"] = not kwargs["no_abort"]
 
@@ -167,35 +229,19 @@ class AttackFactory(object):
             if isinstance(kwargs["norm"], str):
                 kwargs["norm"] = float(kwargs["norm"])
 
-        valid_args = (
-            "attack_type",
-            "eps",
-            "snr",
-            "norm",
-            "random_eps",
-            "num_random_init",
-            "alpha",
-            "confidence",
-            "lr",
-            "binary_search_steps",
-            "max_iter",
-            "abort_early",
-            "c",
-            "reduce_c",
-            "c_incr_factor",
-            "tau_decr_factor",
-            "indep_channels",
-            "use_snr",
-            "norm_time",
-            "targeted",
-        )
-
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
-        return args
+        return filter_func_args(AttackFactory.create, kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register CLI arguments for attack creation.
+
+        Args:
+          parser: Argument parser where options are registered.
+          prefix: Optional nested prefix for grouped arguments.
+
+        Returns:
+          None.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -219,15 +265,14 @@ class AttackFactory(object):
 
         parser.add_argument(
             "--norm",
-            type=float,
-            default=float("inf"),
-            choices=[float("inf"), 1, 2],
+            default="inf",
+            choices=["inf", "1", "2"],
             help=("Attack perturbation norm"),
         )
 
         parser.add_argument(
             "--eps",
-            default=0,
+            default=0.1,
             type=float,
             help=("attack epsilon, upper bound for the perturbation norm"),
         )
@@ -243,7 +288,7 @@ class AttackFactory(object):
 
         parser.add_argument(
             "--alpha",
-            default=0,
+            default=0.01,
             type=float,
             help=("alpha for iter and rand fgsm attack"),
         )
@@ -284,7 +329,7 @@ class AttackFactory(object):
         )
 
         parser.add_argument(
-            "--c",
+            "--initial-c",
             default=1e-2,
             type=float,
             help=(

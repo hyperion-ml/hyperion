@@ -6,8 +6,8 @@
 spknet_command=resnet
 spknet_data=voxceleb2cat_train
 spknet_config=conf/lresnet34_spknet.yaml
-spknet_batch_size_1gpu=128
-spknet_eff_batch_size=512 # effective batch size
+#spknet_batch_size_1gpu=128
+#spknet_eff_batch_size=512 # effective batch size
 spknet_name=lresnet34
 spknet_dir=exp/xvector_nnets/$spknet_name
 spknet=$spknet_dir/model_ep0070.pth
@@ -26,8 +26,8 @@ spkv_attacks_common_opts="--save-failed" #save failed attacks also
 # Attack model LResNet34 configuration
 sign_nnet_command=resnet
 sign_nnet_config=conf/lresnet34_atnet.yaml
-sign_nnet_batch_size_1gpu=128
-sign_nnet_eff_batch_size=512 # effective batch size
+#sign_nnet_batch_size_1gpu=128
+#sign_nnet_eff_batch_size=512 # effective batch size
 sign_nnet_name=lresnet34
 
 # SNRs in -100, 100

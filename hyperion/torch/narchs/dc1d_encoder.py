@@ -1,39 +1,89 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser
+
 import math
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
+from ..layer_blocks.dc1d_blocks import DC1dEncBlock
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer1dFactory as NLF
-from ..layer_blocks.dc1d_blocks import DC1dEncBlock
 from .net_arch import NetArch
 
 
 class DC1dEncoder(NetArch):
+    """1D convolutional encoder for temporal feature sequences.
+
+    The encoder applies a stem convolution followed by a stack of
+    strided or repeated 1D convolutional blocks. It preserves the
+    batch dimension, maps the input channel dimension from
+    ``in_feats`` to either ``head_channels`` or the final superblock
+    width, and reduces the temporal dimension according to the configured
+    strides.
+
+    Attributes:
+        in_feats: Input feature dimension.
+        in_conv_channels: Stem convolution output channels.
+        in_kernel_size: Stem convolution kernel size.
+        in_stride: Stem convolution stride.
+        conv_repeats: Number of blocks per superblock.
+        conv_channels: Output channels per superblock.
+        conv_kernel_sizes: Kernel sizes per superblock.
+        conv_strides: Strides per superblock.
+        conv_dilations: Dilations for repeated blocks per superblock.
+        head_channels: Output channels in the optional head block.
+        hid_act: Hidden activation specification.
+        head_act: Head activation specification.
+        dropout_rate: Dropout probability used in convolution blocks.
+        use_norm: Whether normalization is enabled.
+        norm_layer: Normalization layer name.
+        norm_before: Whether normalization is applied before activation.
+    """
+
     def __init__(
         self,
-        in_feats,
-        in_conv_channels=128,
-        in_kernel_size=3,
-        in_stride=1,
-        conv_repeats=[1, 1, 1],
-        conv_channels=[128, 64, 32],
-        conv_kernel_sizes=3,
-        conv_strides=2,
-        conv_dilations=1,
-        head_channels=0,
-        hid_act="relu6",
-        head_act=None,
-        dropout_rate=0,
-        use_norm=True,
-        norm_layer=None,
-        norm_before=True,
+        in_feats: int,
+        in_conv_channels: int = 128,
+        in_kernel_size: int = 3,
+        in_stride: int = 1,
+        conv_repeats: Sequence[int] = [1, 1, 1],
+        conv_channels: Sequence[int] = [128, 64, 32],
+        conv_kernel_sizes: Union[int, Sequence[int]] = 3,
+        conv_strides: Union[int, Sequence[int]] = 2,
+        conv_dilations: Union[int, Sequence[int]] = 1,
+        head_channels: int = 0,
+        hid_act: Any = "relu",
+        head_act: Optional[str] = None,
+        dropout_rate: float = 0,
+        use_norm: bool = True,
+        norm_layer: Optional[str] = None,
+        norm_before: bool = True,
     ):
+        """Initialize a 1D convolutional encoder.
+
+        Args:
+            in_feats: Number of input feature channels.
+            in_conv_channels: Number of channels in the stem convolution.
+            in_kernel_size: Kernel size of the stem convolution.
+            in_stride: Stride of the stem convolution.
+            conv_repeats: Number of blocks in each superblock.
+            conv_channels: Output channels for each superblock.
+            conv_kernel_sizes: Kernel size for each superblock.
+            conv_strides: Stride for each superblock.
+            conv_dilations: Dilation for repeated blocks in each superblock.
+            head_channels: Number of output channels in the head block.
+            hid_act: Hidden activation specification.
+            head_act: Activation specification for the head block.
+            dropout_rate: Dropout probability used in the convolution blocks.
+            use_norm: Whether to enable normalization layers.
+            norm_layer: Normalization layer type.
+            norm_before: If True, apply normalization before activation.
+        """
 
         super().__init__()
         self.in_feats = in_feats
@@ -64,7 +114,7 @@ class DC1dEncoder(NetArch):
         self.norm_layer = norm_layer
         norm_groups = None
         if norm_layer == "group-norm":
-            norm_groups = min(np.min(self.conv_channels) // 2, 32)
+            norm_groups = min(min(self.conv_channels) // 2, 32)
         self._norm_layer = NLF.create(norm_layer, norm_groups)
 
         # stem block
@@ -97,7 +147,7 @@ class DC1dEncoder(NetArch):
                 channels_i,
                 kernel_size_i,
                 stride=stride_i,
-                dilation=1,
+                dilation=dilation_i,
                 activation=hid_act,
                 dropout_rate=dropout_rate,
                 use_norm=use_norm,
@@ -142,7 +192,14 @@ class DC1dEncoder(NetArch):
 
         self._init_weights(hid_act)
 
-    def _init_weights(self, hid_act):
+    def _init_weights(self, hid_act: Any) -> None:
+        """Initialize convolution and batch-norm parameters.
+
+        Args:
+            hid_act: Hidden activation specification used to choose the
+                Kaiming initialization nonlinearity.
+        """
+        act_name = "relu"
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
                 if isinstance(hid_act, str):
@@ -164,7 +221,19 @@ class DC1dEncoder(NetArch):
                 nn.init.constant_(m.bias, 0)
 
     @staticmethod
-    def _standarize_convblocks_param(p, num_blocks, p_name):
+    def _standarize_convblocks_param(
+        p: Union[int, List[int]], num_blocks: int, p_name: str
+    ) -> List[int]:
+        """Normalize a per-block argument to one value per superblock.
+
+        Args:
+            p: Scalar or sequence parameter to normalize.
+            num_blocks: Number of superblocks expected.
+            p_name: Parameter name used in error messages.
+
+        Returns:
+            Sequence[int]: Parameter values expanded to `num_blocks`.
+        """
         if isinstance(p, int):
             p = [p] * num_blocks
         elif isinstance(p, list):
@@ -181,7 +250,15 @@ class DC1dEncoder(NetArch):
 
         return p
 
-    def _compute_out_size(self, in_size):
+    def _compute_out_size(self, in_size: int) -> int:
+        """Compute the output temporal length after all strided stages.
+
+        Args:
+            in_size: Input temporal length.
+
+        Returns:
+            int: Output temporal length.
+        """
         out_size = int((in_size - 1) // self.in_stride + 1)
 
         for stride in self.conv_strides:
@@ -189,13 +266,34 @@ class DC1dEncoder(NetArch):
 
         return out_size
 
-    def in_context(self):
+    def in_context(self) -> Tuple[int, int]:
+        """Return the left and right temporal context.
+
+        Returns:
+            Tuple[int, int]: Symmetric temporal context in frames.
+        """
         return (self._context, self._context)
 
-    def in_shape(self):
+    def in_shape(self) -> Tuple[Optional[int], int, Optional[int]]:
+        """Return the expected input shape.
+
+        Returns:
+            Tuple[Optional[int], int, Optional[int]]: Batch, channel, and
+            temporal dimensions.
+        """
         return (None, self.in_feats, None)
 
-    def out_shape(self, in_shape=None):
+    def out_shape(
+        self, in_shape: Optional[Sequence[Optional[int]]] = None
+    ) -> Tuple[Optional[int], int, Optional[int]]:
+        """Return the output shape for an optional input shape.
+
+        Args:
+            in_shape: Optional input shape used to infer the output length.
+
+        Returns:
+            Tuple[Optional[int], int, Optional[int]]: Output shape.
+        """
 
         out_channels = (
             self.head_channels if self.head_channels > 0 else self.conv_channels[-1]
@@ -209,9 +307,17 @@ class DC1dEncoder(NetArch):
         else:
             T = self._compute_out_size(in_shape[2])
 
-        return (in_shape[0], out_chanels, T)
+        return (in_shape[0], out_channels, T)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Run the encoder on an input tensor.
+
+        Args:
+            x: Input tensor of shape ``(B, C, T)``.
+
+        Returns:
+            torch.Tensor: Encoded tensor.
+        """
 
         x = self.in_block(x)
         for idx, block in enumerate(self.blocks):
@@ -222,7 +328,15 @@ class DC1dEncoder(NetArch):
 
         return x
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Return the configuration needed to recreate the module.
+
+        Args:
+            no_class_name: If True, omit the class name from the base config.
+
+        Returns:
+            Dict[str, Any]: Serializable configuration dictionary.
+        """
 
         head_act = self.head_act
         hid_act = self.hid_act
@@ -246,19 +360,27 @@ class DC1dEncoder(NetArch):
             "norm_before": self.norm_before,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter a kwargs dictionary down to encoder constructor arguments.
 
-        if "wo_norm" in kwargs:
-            kwargs["use_norm"] = not kwargs["wo_norm"]
-            del kwargs["wo_norm"]
+        Args:
+            **kwargs: Arbitrary keyword arguments.
 
-        if "norm_after" in kwargs:
-            kwargs["norm_before"] = not kwargs["norm_after"]
-            del kwargs["norm_after"]
+        Returns:
+            Dict[str, Any]: Keyword arguments accepted by the constructor.
+        """
+
+        # if "wo_norm" in kwargs:
+        #     kwargs["use_norm"] = not kwargs["wo_norm"]
+        #     del kwargs["wo_norm"]
+
+        # if "norm_after" in kwargs:
+        #     kwargs["norm_before"] = not kwargs["norm_after"]
+        #     del kwargs["norm_after"]
 
         valid_args = (
             "in_feats",
@@ -272,7 +394,7 @@ class DC1dEncoder(NetArch):
             "conv_dilations",
             "head_channels",
             "hid_act",
-            "had_act",
+            "head_act",
             "dropout_rate",
             "use_norm",
             "norm_layer",
@@ -284,7 +406,20 @@ class DC1dEncoder(NetArch):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, head_channels=False, in_feats=False):
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        head_channels: bool = False,
+        in_feats: bool = False,
+    ) -> None:
+        """Add encoder arguments to an argument parser.
+
+        Args:
+            parser: Parser to extend.
+            prefix: Optional prefix used to create a nested parser entry.
+            head_channels: If True, expose the ``head_channels`` argument.
+            in_feats: If True, expose the required ``in_feats`` argument.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -361,7 +496,7 @@ class DC1dEncoder(NetArch):
             )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 
@@ -392,18 +527,32 @@ class DC1dEncoder(NetArch):
         except:
             pass
 
+        # parser.add_argument(
+        #     "--wo-norm",
+        #     default=False,
+        #     action="store_true",
+        #     help="without batch normalization",
+        # )
+
+        # parser.add_argument(
+        #     "--norm-after",
+        #     default=False,
+        #     action="store_true",
+        #     help="batch normalizaton after activation",
+        # )
+
         parser.add_argument(
-            "--wo-norm",
-            default=False,
-            action="store_true",
+            "--use-norm",
+            default=True,
+            action=ActionYesNo,
             help="without batch normalization",
         )
 
         parser.add_argument(
-            "--norm-after",
-            default=False,
-            action="store_true",
-            help="batch normalizaton after activation",
+            "--norm-before",
+            default=True,
+            action=ActionYesNo,
+            help="batch normalizaton before activation",
         )
 
         if prefix is not None:

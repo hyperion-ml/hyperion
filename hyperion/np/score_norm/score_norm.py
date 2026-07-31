@@ -1,0 +1,39 @@
+"""
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+"""
+
+from typing import Any, Dict
+
+import numpy as np
+
+from ..hyper_np_model import HyperNPModel
+
+
+class ScoreNorm(HyperNPModel):
+    """Base class for score normalization
+
+    Attributes:
+      std_floor: floor for standard deviations.
+    """
+
+    def __init__(
+        self, norm_var: bool = True, std_floor: float = 1e-5, **kwargs: Any
+    ) -> None:
+        super().__init__(**kwargs)
+        self.norm_var = norm_var
+        self.std_floor = std_floor
+
+    def forward(self, **kwargs: Any) -> Any:
+        """Overloads predict function."""
+        return self.predict(**kwargs)
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Overloads predict function."""
+        return self.predict(*args, **kwargs)
+
+    def get_config(self) -> Dict[str, Any]:
+        """Returns the model configuration dict."""
+        config = {"norm_var": self.norm_var, "std_floor": self.std_floor}
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))

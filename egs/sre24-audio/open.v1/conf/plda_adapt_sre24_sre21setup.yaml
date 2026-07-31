@@ -1,0 +1,24 @@
+source_types:
+- cts
+- afv
+target_langs:
+- ENG
+- ARA
+- FRA
+ood_speaker_langs:
+- ARA
+- FRA
+pca:
+  whiten: True
+  pca_var_r: 0.90
+  pca_min_dim: 25
+pca_adapt:
+  r_mu: 100
+  r_s: 1000
+plda:
+  plda_type: splda
+  y_dim: 120
+plda_adapt:
+  w_mu: 0.75
+  w_B: 0.50
+  w_W: 0.25

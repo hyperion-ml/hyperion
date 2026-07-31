@@ -1,15 +1,16 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
-import numpy as np
 
+import numpy as np
+import pytest
+
+from hyperion.utils.sparse_trial_key import SparseTrialKey
 from hyperion.utils.trial_key import TrialKey
 from hyperion.utils.trial_ndx import TrialNdx
-from hyperion.utils.sparse_trial_key import SparseTrialKey
 
 output_dir = "./tests/data_out/utils/trial"
 if not os.path.exists(output_dir):
@@ -19,6 +20,7 @@ if not os.path.exists(output_dir):
 def create_key(key_file="./tests/data_in/core-core_det5_key.h5"):
 
     key = TrialKey.load(key_file)
+    key.non = np.logical_not(key.tar)
     key.sort()
     key = SparseTrialKey.from_trial_key(key)
     return key
@@ -92,7 +94,7 @@ def test_load_save():
     # key3 = SparseTrialKey.load(file_h5)
     # assert key1 == key3
 
-    file_txt = output_dir + "/test.txt"
+    file_txt = output_dir + "/test_sparse_trial.txt"
     key1.save(file_txt)
     key2 = SparseTrialKey.load(file_txt)
     assert key1 == key2

@@ -1,0 +1,119 @@
+[build-system]
+requires = [ "setuptools>=68", "wheel",]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hyperion-ml"
+version = "0.4.0a"
+description = "Toolkit for speaker recognition"
+readme = "README.md"
+keywords = [ "speaker recognition", "adversarial attacks", "NIST SRE", "x-vectors",]
+requires-python = ">=3.10"
+dependencies = [ "torch>=2.4.1,<=2.9.1", "torchaudio>=2.4.1,<=2.9.1", "torchvision>=0.19.1,<=0.24.1", "numpy>=1.26,<2.0", "pandas>=2.1,<2.3", "scipy>=1.11,<1.13", "scikit-learn>=1.4,<1.6", "matplotlib>=3.7.0,<3.11", "h5py>=3.11.0,<4.0", "soundfile>=0.13.1,<0.14", "transformers>=4.40,<5", "datasets>=3.0.0,<4.0", "tensorboard>=2.12,<2.21", "librosa>=0.10.1,<0.11", "lhotse>=1.30,<2.0", "sentencepiece>=0.2.0,<0.3", "kaldialign>=0.9.1,<1.0", "sphinx_rtd_theme>=0.4.3", "pympler", "memory_profiler", "gdown", "jsonargparse>=3.5.0", "wandb>=0.10.30", "isort", "black", "twine", "wheel", "loralib", "pytest", "toml", "utmosv2 @ git+https://github.com/jesus-villalba/UTMOSv2.git", "pycountry>=24.0,<25.0", "langcodes>=3.3,<4.0", "nvidia-ml-py>=11.0.0,<14.0.0", "onnxruntime>=1.16.3,<1.19", "intervaltree>=3.1.0", "sortedcontainers>=2.4,<3.0", "pesq>=0.0.4,<0.1", "pystoi>=0.4.1,<0.5",]
+[[project.authors]]
+name = "Jesus Villalba"
+email = "jesus.antonio.villalba@gmail.com"
+
+[project.license]
+text = "Apache-2.0"
+
+[project.optional-dependencies]
+torch24 = [ "torch==2.4.1", "torchaudio==2.4.1", "torchvision==0.19.1",]
+torch25 = [ "torch>=2.5.1,<2.6", "torchaudio>=2.5.1,<2.6", "torchvision>=0.20.1,<0.21",]
+torch26 = [ "torch>=2.6,<2.7", "torchaudio>=2.6,<2.7", "torchvision>=0.21,<0.22",]
+torch27 = [ "torch>=2.7.1,<2.8", "torchaudio>=2.7.1,<2.8", "torchvision>=0.22.1,<0.23",]
+torch28 = [ "torch>=2.8,<2.9", "torchaudio>=2.8,<2.9", "torchvision>=0.23,<0.24",]
+torch29 = [ "torch==2.9.1", "torchaudio==2.9.1", "torchvision==0.24.1",]
+gcc217 = [ "h5py==3.11.0", "onnxruntime==1.16.3", "numpy>=1.26,<2.0",]
+onnx-cpu-modern = [ "onnxruntime>=1.18,<1.19",]
+voxprofile = [ "voxprofile @ git+https://github.com/hyperion-ml/vox-profile-release",]
+art = [ "adversarial-robustness-toolbox>=1.17",]
+
+[project.urls]
+Homepage = "https://github.com/hyperion-ml/hyperion"
+
+[project.scripts]
+hyperion-eval-speech-quality-metrics = "hyperion.bin.eval_speech_quality_metrics:main"
+hyperion-train-qmf = "hyperion.bin.train_qmf:main"
+hyperion-extract-xvectors-from-wav = "hyperion.bin.extract_xvectors_from_wav:main"
+hyperion-make-wav2xvector = "hyperion.bin.make_wav2xvector:main"
+hyperion-generate-adv-attacks-xvector-verif = "hyperion.bin.generate_adv_attacks_xvector_verif:main"
+hyperion-train-wav2xvector = "hyperion.bin.train_wav2xvector:main"
+hyperion-compute-mfcc-feats = "hyperion.bin.compute_mfcc_feats:main"
+hyperion-eval-verification-metrics = "hyperion.bin.eval_verification_metrics:main"
+hyperion-accum-voxprofile-metrics = "hyperion.bin.accum_voxprofile_metrics:main"
+hyperion-copy-feats = "hyperion.bin.copy_feats:main"
+hyperion-eval-xvec-cosine-scoring-from-adv-test-wav = "hyperion.bin.eval_xvec_cosine_scoring_from_adv_test_wav:main"
+hyperion-extract-xvectors-slidwin-from-wav = "hyperion.bin.extract_xvectors_slidwin_from_wav:main"
+hyperion-train-vi-emo-normalizer = "hyperion.bin.train_vi_emo_normalizer:main"
+hyperion-submit = "hyperion.bin.hyperion_submit:main"
+hyperion-train-verification-greedy-fusion = "hyperion.bin.train_verification_greedy_fusion:main"
+hyperion-plot-embedding-tsne-per-class = "hyperion.bin.plot_embedding_tsne_per_class:main"
+hyperion-split-dataset-into-trials-and-cohort = "hyperion.bin.split_dataset_into_trials_and_cohort:main"
+hyperion-eval-xvec-cosine-scoring-from-transfer-adv-test-wav = "hyperion.bin.eval_xvec_cosine_scoring_from_transfer_adv_test_wav:main"
+hyperion-train-wav2vec2rnn-transducer = "hyperion.bin.train_wav2vec2rnn_transducer:main"
+hyperion-dataset = "hyperion.bin.hyperion_dataset:main"
+hyperion-finetune-vi-anonymizer = "hyperion.bin.finetune_vi_anonymizer:main"
+hyperion-train-dino-wav2xvector = "hyperion.bin.train_dino_wav2xvector:main"
+hyperion-train-wav2rnn-transducer = "hyperion.bin.train_wav2rnn_transducer:main"
+hyperion-prepare-data = "hyperion.bin.prepare_data:main"
+hyperion-train-xvector-from-wav = "hyperion.bin.train_xvector_from_wav:main"
+hyperion-train-lgbe = "hyperion.bin.train_lgbe:main"
+hyperion-eval-xvec-cosine-scoring-from-transfer-art-test-wav = "hyperion.bin.eval_xvec_cosine_scoring_from_transfer_art_test_wav:main"
+hyperion-merge-scores = "hyperion.bin.merge_scores:main"
+hyperion-eval-wav2xvector-logits = "hyperion.bin.eval_wav2xvector_logits:main"
+hyperion-adv-finetune-xvector-from-wav = "hyperion.bin.adv_finetune_xvector_from_wav:main"
+hyperion-plot-embedding-tsne = "hyperion.bin.plot_embedding_tsne:main"
+hyperion-compute-energy-vad = "hyperion.bin.compute_energy_vad:main"
+hyperion-finetune-wav2xvector = "hyperion.bin.finetune_wav2xvector:main"
+hyperion-train-qvector = "hyperion.bin.train_qvector:main"
+hyperion-eval-verification-calibration = "hyperion.bin.eval_verification_calibration:main"
+hyperion-eval-wav2vec2xvector-logits = "hyperion.bin.eval_wav2vec2xvector_logits:main"
+hyperion-eval-verification-greedy-fusion = "hyperion.bin.eval_verification_greedy_fusion:main"
+hyperion-train-plda = "hyperion.bin.train_plda:main"
+hyperion-infer-qvectors = "hyperion.bin.infer_qvectors:main"
+hyperion-eval-xvec-cosine-scoring-from-art-test-wav = "hyperion.bin.eval_xvec_cosine_scoring_from_art_test_wav:main"
+hyperion-eval-cosine-scoring-backend = "hyperion.bin.eval_cosine_scoring_backend:main"
+hyperion-train-wav2vec2transducer = "hyperion.bin.train_wav2vec2transducer:main"
+hyperion-tables = "hyperion.bin.hyperion_tables:main"
+hyperion-cluster-embeddings = "hyperion.bin.cluster_embeddings:main"
+hyperion-accum-speech-quality-metrics = "hyperion.bin.accum_speech_quality_metrics:main"
+hyperion-merge-trials = "hyperion.bin.merge_trials:main"
+hyperion-eval-xvec-cosine-scoring-from-test-wav = "hyperion.bin.eval_xvec_cosine_scoring_from_test_wav:main"
+hyperion-finetune-qvector = "hyperion.bin.finetune_qvector:main"
+hyperion-train-verification-calibration = "hyperion.bin.train_verification_calibration:main"
+hyperion-convert-vad-format = "hyperion.bin.convert_vad_format:main"
+hyperion-eval-xvec-logits-from-wav = "hyperion.bin.eval_xvec_logits_from_wav:main"
+hyperion-train-tokenizer = "hyperion.bin.train_tokenizer:main"
+hyperion-eval-lgbe = "hyperion.bin.eval_lgbe:main"
+hyperion-eval-verification-anonymization-metrics = "hyperion.bin.eval_verification_anonymization_metrics:main"
+hyperion-make-babble-noise-audio-files = "hyperion.bin.make_babble_noise_audio_files:main"
+hyperion-preprocess-audio-files = "hyperion.bin.preprocess_audio_files:main"
+hyperion-extract-wav2vec2xvectors = "hyperion.bin.extract_wav2vec2xvectors:main"
+hyperion-eval-xvec-cosine-scoring-from-adv-test-wav-wavegan = "hyperion.bin.eval_xvec_cosine_scoring_from_adv_test_wav_wavegan:main"
+hyperion-finetune-xvector-from-wav = "hyperion.bin.finetune_xvector_from_wav:main"
+hyperion-eval-plda-backend = "hyperion.bin.eval_plda_backend:main"
+hyperion-extract-wav2xvectors = "hyperion.bin.extract_wav2xvectors:main"
+hyperion-finetune-xvector-dfr-from-wav = "hyperion.bin.finetune_xvector_dfr_from_wav:main"
+hyperion-apply-mvn-select-frames = "hyperion.bin.apply_mvn_select_frames:main"
+hyperion-train-dac = "hyperion.bin.train_dac:main"
+hyperion-train-freevc = "hyperion.bin.train_freevc:main"
+hyperion-finetune-wav2vec2transducer = "hyperion.bin.finetune_wav2vec2transducer:main"
+hyperion-train-wav2vec2xvector = "hyperion.bin.train_wav2vec2xvector:main"
+hyperion-eval-voxprofile-metrics = "hyperion.bin.eval_voxprofile_metrics:main"
+hyperion-generate-adv-attacks-xvector-classif = "hyperion.bin.generate_adv_attacks_xvector_classif:main"
+hyperion-audio-to-duration = "hyperion.bin.audio_to_duration:main"
+hyperion-pack-wav-rirs = "hyperion.bin.pack_wav_rirs:main"
+hyperion-finetune-dac = "hyperion.bin.finetune_dac:main"
+hyperion-train-vi-anonymizer = "hyperion.bin.train_vi_anonymizer:main"
+hyperion-finetune-wav2vec2xvector = "hyperion.bin.finetune_wav2vec2xvector:main"
+hyperion-eval-cosine-scoring-backend-with-qmf = "hyperion.bin.eval_cosine_scoring_backend_with_qmf:main"
+
+[tool.setuptools.packages.find]
+exclude = [ "tests",]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+skip_gitignore = true
+extend_skip_glob = [ "hyp_utils/kaldi/**",]

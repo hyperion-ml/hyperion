@@ -1,21 +1,23 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
- Class to make/read/write k-fold x-validation lists
+Class to make/read/write k-fold x-validation lists
 """
 
-import os.path as path
 import logging
+import os.path as path
 from collections import OrderedDict
 from copy import deepcopy
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
 from .list_utils import *
+from .misc import PathLike
 
 
-class FoldList(object):
+class FoldList:
     """Class to contain folds for cross-validation.
 
     Attributes:
@@ -24,13 +26,18 @@ class FoldList(object):
       mask: Boolean numpy array to mask elements in the key
     """
 
-    def __init__(self, fold, key, mask=None):
+    def __init__(
+        self,
+        fold: Union[List[int], np.ndarray],
+        key: Union[List[str], np.ndarray],
+        mask: Optional[np.ndarray] = None,
+    ) -> None:
         self.fold = fold
         self.key = key
         self.mask = mask
         self.validate()
 
-    def validate(self):
+    def validate(self) -> None:
         """Validates the class attributes attributes"""
         self.key = list2ndarray(self.key)
         self.fold = list2ndarray(self.fold)
@@ -41,20 +48,22 @@ class FoldList(object):
         if self.mask is not None:
             assert len(self.mask) == len(self.fold)
 
-    def copy(self):
+    def copy(self) -> "FoldList":
         """Returns a copy of the object."""
         return deepcopy(self)
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Returns number of folds."""
-        return self.num_folds()
+        return self.num_folds
 
     @property
-    def num_folds(self):
+    def num_folds(self) -> int:
         """Returns number of folds."""
         return np.max(self.fold) + 1
 
-    def align_with_key(self, key, raise_missing=True):
+    def align_with_key(
+        self, key: Union[List[str], np.ndarray], raise_missing: bool = True
+    ) -> None:
         """Aligns the fold list with a given key
 
         Args:
@@ -74,7 +83,7 @@ class FoldList(object):
             if raise_missing:
                 raise Exception("some scores were not computed")
 
-    def get_fold_idx(self, fold):
+    def get_fold_idx(self, fold: int) -> Tuple[np.ndarray, np.ndarray]:
         """Returns a fold boolean indices
 
         Args:
@@ -91,7 +100,7 @@ class FoldList(object):
             test_idx = np.logical_and(test_idx, self.mask)
         return train_idx, test_idx
 
-    def get_fold(self, fold):
+    def get_fold(self, fold: int) -> Tuple[np.ndarray, np.ndarray]:
         """Returns a fold keys
 
         Args:
@@ -105,7 +114,7 @@ class FoldList(object):
         train_idx, test_idx = self.get_fold_idx(fold)
         return self.key[train_idx], self.key[test_idx]
 
-    def __getitem__(self, fold):
+    def __getitem__(self, fold: int) -> Tuple[np.ndarray, np.ndarray]:
         """Returns a fold keys
 
         Args:
@@ -118,7 +127,7 @@ class FoldList(object):
 
         return self.get_fold(fold)
 
-    def save(self, file_path, sep=" "):
+    def save(self, file_path: PathLike, sep: str = " ") -> None:
         """Saves object to txt file
 
         Args:
@@ -126,11 +135,11 @@ class FoldList(object):
           sep: Separator between fold field and key field
         """
         with open(file_path, "w") as f:
-            for f, k in zip(self.fold, self.key):
-                f.write("%s%s%s\n" % (f, sep, k))
+            for fold, key in zip(self.fold, self.key):
+                f.write("%s%s%s\n" % (fold, sep, key))
 
     @classmethod
-    def load(cls, file_path, sep=" "):
+    def load(cls, file_path: PathLike, sep: str = " ") -> "FoldList":
         """Loads object from txt file
 
         Args:
@@ -150,14 +159,14 @@ class FoldList(object):
     @classmethod
     def create(
         cls,
-        segment_key,
-        num_folds,
-        balance_by_key=None,
-        group_by_key=None,
-        mask=None,
-        shuffle=False,
-        seed=1024,
-    ):
+        segment_key: Union[List[str], np.ndarray],
+        num_folds: int,
+        balance_by_key: Optional[Union[List[str], np.ndarray]] = None,
+        group_by_key: Optional[Union[List[str], np.ndarray]] = None,
+        mask: Optional[np.ndarray] = None,
+        shuffle: bool = False,
+        seed: int = 1024,
+    ) -> "FoldList":
         """Creates a FoldList object.
 
         Args:
@@ -176,7 +185,7 @@ class FoldList(object):
           FoldList object.
         """
         if shuffle:
-            rng = np.random.RandomState(seed=seed)
+            rng = np.random.default_rng(seed=seed)
 
         if group_by_key is None:
             group_by_key = segment_key

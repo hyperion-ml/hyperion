@@ -1,30 +1,72 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Any, Dict, Optional
+
 import torch
+import torch.nn as nn
 
 from .adv_attack import AdvAttack
 
 
 class IterFGSMAttack(AdvAttack):
+    """Iterative FGSM (basic iterative method).
+
+    Attributes:
+      eps: Total L-infinity perturbation budget.
+      alpha: Per-step update magnitude.
+      max_iter: Number of attack iterations.
+    """
+
     def __init__(
         self,
-        model,
-        eps,
-        alpha,
-        loss=None,
-        targeted=False,
-        range_min=None,
-        range_max=None,
-    ):
+        model: nn.Module,
+        eps: float,
+        alpha: float,
+        loss: Optional[nn.Module] = None,
+        targeted: bool = False,
+        range_min: Optional[float] = None,
+        range_max: Optional[float] = None,
+    ) -> None:
+        """Initialize iterative FGSM attack.
+
+        Args:
+          model: Model under attack.
+          eps: Total L-infinity perturbation budget.
+          alpha: Per-step update magnitude.
+          loss: Loss module used to compute gradients.
+          targeted: Whether the attack is targeted.
+          range_min: Optional minimum clamp value.
+          range_max: Optional maximum clamp value.
+
+        Returns:
+          None.
+        """
         super().__init__(model, loss, targeted, range_min, range_max)
+        if eps <= 0:
+            raise ValueError(f"iter-fgsm requires eps > 0, got eps={eps}")
+        if alpha <= 0:
+            raise ValueError(f"iter-fgsm requires alpha > 0, got alpha={alpha}")
+        if alpha >= eps:
+            raise ValueError(
+                f"iter-fgsm requires alpha < eps, got alpha={alpha}, eps={eps}"
+            )
         self.eps = eps
         self.alpha = alpha
         self.max_iter = int(1.25 * eps / alpha)
 
     @property
-    def attack_info(self):
+    def attack_info(self) -> Dict[str, Any]:
+        """Return attack metadata.
+
+        Args:
+          None.
+
+        Returns:
+          Dictionary describing iterative-FGSM configuration.
+        """
         info = super().attack_info
         new_info = {
             "eps": self.eps,
@@ -36,7 +78,16 @@ class IterFGSMAttack(AdvAttack):
         info.update(new_info)
         return info
 
-    def generate(self, input, target):
+    def generate(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Generate iterative-FGSM adversarial examples.
+
+        Args:
+          input: Clean input batch.
+          target: Labels or attack targets.
+
+        Returns:
+          Adversarial batch.
+        """
 
         f = 1
         if self.targeted:

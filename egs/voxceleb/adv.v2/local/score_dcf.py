@@ -14,7 +14,7 @@ import numpy as np
 
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import SparseTrialScores, SparseTrialKey
-from hyperion.metrics import fast_eval_dcf_eer as fast_eval
+from hyperion.np.metrics import fast_eval_dcf_eer as fast_eval
 
 
 def score_dcf(key_file, score_file, output_path):

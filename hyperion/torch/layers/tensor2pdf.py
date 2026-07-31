@@ -1,21 +1,35 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#
+
+from __future__ import annotations
+
+from typing import Optional
 
 import torch
+import torch.distributions as pdf
 import torch.nn as nn
 import torch.nn.functional as nnf
-import torch.distributions as pdf
 
 
 class Tensor2PDF(nn.Module):
-    """Base class for layers that create a prob distribution
-    from an input tensor
+    """Base class for layers that map tensors to probability distributions.
+
+    Args:
+        pdf_feats: Feature dimension of the output distribution parameters.
+        project: If ``True``, create a learnable projection from input features.
+        in_feats: Input feature dimension used when ``project=True``.
+        in_dim: Number of input tensor dimensions used when ``project=True``.
     """
 
-    def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
+    def __init__(
+        self,
+        pdf_feats: int,
+        project: bool = True,
+        in_feats: Optional[int] = None,
+        in_dim: Optional[int] = None,
+    ) -> None:
         super().__init__()
         self.pdf_feats = pdf_feats
         self.project = project
@@ -30,29 +44,50 @@ class Tensor2PDF(nn.Module):
         self.in_feats = in_feats
         self.in_dim = in_dim
 
-    def _make_proj(self, in_feats, out_feats, ndims):
+    def _make_proj(self, in_feats: int, out_feats: int, ndims: int) -> nn.Module:
+        """Create a 1x1 projection matching the input tensor rank."""
         if ndims == 2:
             return nn.Linear(in_feats, out_feats)
-        elif ndims == 3:
+        if ndims == 3:
             return nn.Conv1d(in_feats, out_feats, kernel_size=1)
-        elif ndims == 4:
+        if ndims == 4:
             return nn.Conv2d(in_feats, out_feats, kernel_size=1)
-        elif ndims == 5:
+        if ndims == 5:
             return nn.Conv3d(in_feats, out_feats, kernel_size=1)
-        else:
-            raise ValueError("ndim=%d is not supported" % ndims)
+        raise ValueError("ndim=%d is not supported" % ndims)
 
 
 class Tensor2NormalICov(Tensor2PDF):
-    """Transforms a Tensor into Normal distribution with identitiy variance"""
+    """Map a tensor to a Normal distribution with identity covariance."""
 
-    def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
+    def __init__(
+        self,
+        pdf_feats: int,
+        project: bool = True,
+        in_feats: Optional[int] = None,
+        in_dim: Optional[int] = None,
+    ) -> None:
         super().__init__(pdf_feats, project=project, in_feats=in_feats, in_dim=in_dim)
 
         if self.project:
             self._proj = self._make_proj(self.in_feats, self.pdf_feats, self.in_dim)
 
-    def forward(self, inputs, prior=None, squeeze_dim=None):
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        prior: Optional[pdf.normal.Normal] = None,
+        squeeze_dim: Optional[int] = None,
+    ) -> pdf.normal.Normal:
+        """Create a Normal posterior from ``inputs``.
+
+        Args:
+            inputs: Input tensor containing posterior means.
+            prior: Unused, present for interface compatibility.
+            squeeze_dim: Optional dimension to squeeze on output parameters.
+
+        Returns:
+            Normal distribution with mean ``inputs`` and unit scale.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
@@ -66,13 +101,15 @@ class Tensor2NormalICov(Tensor2PDF):
 
 
 class Tensor2NormalGlobDiagCov(Tensor2PDF):
-    """Transforms a Tensor into Normal distribution
+    """Map a tensor to a Normal distribution with global trainable diagonal covariance."""
 
-    Input tensor will be the mean of the distribution and
-    the standard deviation is a global trainable parameter.
-    """
-
-    def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
+    def __init__(
+        self,
+        pdf_feats: int,
+        project: bool = True,
+        in_feats: Optional[int] = None,
+        in_dim: Optional[int] = None,
+    ) -> None:
         super().__init__(pdf_feats, project=project, in_feats=in_feats, in_dim=in_dim)
 
         if self.project:
@@ -84,16 +121,29 @@ class Tensor2NormalGlobDiagCov(Tensor2PDF):
 
         self.logvar = nn.Parameter(torch.zeros(pdf_shape))
 
-    def forward(self, inputs, prior=None, squeeze_dim=None):
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        prior: Optional[pdf.normal.Normal] = None,
+        squeeze_dim: Optional[int] = None,
+    ) -> pdf.normal.Normal:
+        """Create a Normal posterior from ``inputs``.
+
+        Args:
+            inputs: Input tensor containing posterior means.
+            prior: Optional prior used to upper-bound posterior scale.
+            squeeze_dim: Optional dimension to squeeze on output parameters.
+
+        Returns:
+            Normal distribution with inferred mean and global trainable scale.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
-        # stddev
         loc = inputs
         scale = torch.exp(0.5 * self.logvar)
         if prior is not None:
-            # we force the variance of the posterior smaller than
-            # the variance of the prior
+            # Force posterior variance not to exceed prior variance.
             scale = torch.min(scale, prior.scale)
 
         if squeeze_dim is not None:
@@ -104,19 +154,36 @@ class Tensor2NormalGlobDiagCov(Tensor2PDF):
 
 
 class Tensor2NormalDiagCov(Tensor2PDF):
-    """Transforms a Tensor into Normal distribution
+    """Map a tensor to a Normal distribution with per-sample diagonal covariance."""
 
-    Applies two linear transformation to the tensors to
-    obtain the mean and the log-variance.
-    """
-
-    def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
+    def __init__(
+        self,
+        pdf_feats: int,
+        project: bool = True,
+        in_feats: Optional[int] = None,
+        in_dim: Optional[int] = None,
+    ) -> None:
         super().__init__(pdf_feats, project=project, in_feats=in_feats, in_dim=in_dim)
 
         if self.project:
             self._proj = self._make_proj(self.in_feats, self.pdf_feats * 2, self.in_dim)
 
-    def forward(self, inputs, prior=None, squeeze_dim=None):
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        prior: Optional[pdf.normal.Normal] = None,
+        squeeze_dim: Optional[int] = None,
+    ) -> pdf.normal.Normal:
+        """Create a Normal posterior from ``inputs``.
+
+        Args:
+            inputs: Input tensor containing concatenated mean/log-variance.
+            prior: Optional prior used to upper-bound posterior scale.
+            squeeze_dim: Optional dimension to squeeze on output parameters.
+
+        Returns:
+            Normal distribution with learned mean and diagonal scale.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
@@ -124,8 +191,7 @@ class Tensor2NormalDiagCov(Tensor2PDF):
         scale = torch.exp(0.5 * logvar)
 
         if prior is not None:
-            # we force the variance of the posterior smaller than
-            # the variance of the prior
+            # Force posterior variance not to exceed prior variance.
             scale = torch.min(scale, prior.scale)
 
         if squeeze_dim is not None:
@@ -136,21 +202,38 @@ class Tensor2NormalDiagCov(Tensor2PDF):
 
 
 class Tensor2BayNormalICovGivenNormalPrior(Tensor2PDF):
-    """Transforms a Tensor into Normal distribution with identitiy variance
+    """Bayesian interpolation between ML mean and Normal prior with identity covariance."""
 
-    Uses Bayesian interpolation between Gaussian prior and Maximum Likelihood estimation
-    """
-
-    def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
+    def __init__(
+        self,
+        pdf_feats: int,
+        project: bool = True,
+        in_feats: Optional[int] = None,
+        in_dim: Optional[int] = None,
+    ) -> None:
         super().__init__(pdf_feats, project=project, in_feats=in_feats, in_dim=in_dim)
 
         if self.project:
             self._proj = self._make_proj(self.in_feats, self.pdf_feats, self.in_dim)
 
-        # interpolation factors between prior and ML estimation
         self._alpha = nn.Parameter(torch.zeros(1))
 
-    def forward(self, inputs, prior=None, squeeze_dim=None):
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        prior: Optional[pdf.normal.Normal] = None,
+        squeeze_dim: Optional[int] = None,
+    ) -> pdf.normal.Normal:
+        """Create a Normal posterior from ``inputs`` and optional prior.
+
+        Args:
+            inputs: Input tensor containing ML means.
+            prior: Optional Normal prior for Bayesian mean interpolation.
+            squeeze_dim: Optional dimension to squeeze on output parameters.
+
+        Returns:
+            Normal distribution with interpolated mean and unit scale.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
@@ -168,15 +251,15 @@ class Tensor2BayNormalICovGivenNormalPrior(Tensor2PDF):
 
 
 class Tensor2BayNormalGlobDiagCovGivenNormalPrior(Tensor2PDF):
-    """Transforms a Tensor into Normal distribution
+    """Bayesian interpolation with global trainable diagonal covariance and Normal prior."""
 
-    Input tensor will be the ML mean of the distribution and
-    the ML standard deviation is a global trainable parameter.
-
-    Uses Bayesian interpolation between Gaussian prior and Maximum Likelihood estimation
-    """
-
-    def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
+    def __init__(
+        self,
+        pdf_feats: int,
+        project: bool = True,
+        in_feats: Optional[int] = None,
+        in_dim: Optional[int] = None,
+    ) -> None:
         super().__init__(pdf_feats, project=project, in_feats=in_feats, in_dim=in_dim)
 
         if self.project:
@@ -188,33 +271,41 @@ class Tensor2BayNormalGlobDiagCovGivenNormalPrior(Tensor2PDF):
 
         self.logvar = nn.Parameter(torch.zeros(pdf_shape))
 
-        # interpolation factors between prior and ML estimation
         self._alpha = nn.Parameter(torch.zeros(1))
         self._beta = nn.Parameter(torch.zeros(1))
 
-    def forward(self, inputs, prior=None, squeeze_dim=None):
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        prior: Optional[pdf.normal.Normal] = None,
+        squeeze_dim: Optional[int] = None,
+    ) -> pdf.normal.Normal:
+        """Create a Normal posterior from ``inputs`` and optional prior.
+
+        Args:
+            inputs: Input tensor containing ML means.
+            prior: Optional Normal prior used for MAP interpolation.
+            squeeze_dim: Optional dimension to squeeze on output parameters.
+
+        Returns:
+            Normal distribution with MAP-updated parameters.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
-        # stddev
         loc = inputs
         scale = torch.exp(0.5 * self.logvar)
 
         if prior is not None:
-            # MAP estimation of Gaussian mean and var
-            # Eq. from Bishop2006 (10.60-10.63)
-            # were we renamed
-            # alpha <- N/(beta_0+N)
-            # beta <- N/(nu_0+N)
-            # where beta_0 and nu_0 are MAP relevance factor for mean and var
+            # MAP estimation for Gaussian mean and variance.
             alpha = nnf.sigmoid(self._alpha)
             beta = nnf.sigmoid(self._beta)
             delta_loc = loc - prior.loc
             loc = alpha * loc + (1 - alpha) * prior.loc
             var = (
-                beta * scale ** 2
-                + (1 - beta) * prior.scale ** 2
-                + beta * (1 - alpha) * delta_loc ** 2
+                beta * scale**2
+                + (1 - beta) * prior.scale**2
+                + beta * (1 - alpha) * delta_loc**2
             )
             scale = torch.sqrt(var)
 
@@ -226,45 +317,54 @@ class Tensor2BayNormalGlobDiagCovGivenNormalPrior(Tensor2PDF):
 
 
 class Tensor2BayNormalDiagCovGivenNormalPrior(Tensor2PDF):
-    """Transforms a Tensor into Normal distribution
+    """Bayesian interpolation with per-sample diagonal covariance and Normal prior."""
 
-    Applies two linear transformation to the tensors to
-    obtain the maximum likelihood mean and the log-variance.
-
-    Uses Bayesian interpolation between Gaussian prior and Maximum Likelihood estimation
-    """
-
-    def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
+    def __init__(
+        self,
+        pdf_feats: int,
+        project: bool = True,
+        in_feats: Optional[int] = None,
+        in_dim: Optional[int] = None,
+    ) -> None:
         super().__init__(pdf_feats, project=project, in_feats=in_feats, in_dim=in_dim)
 
         if self.project:
             self._proj = self._make_proj(self.in_feats, self.pdf_feats * 2, self.in_dim)
 
-        # interpolation factors between prior and ML estimation
         self._alpha = nn.Parameter(torch.zeros(1))
         self._beta = nn.Parameter(torch.zeros(1))
 
-    def forward(self, inputs, prior=None, squeeze_dim=None):
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        prior: Optional[pdf.normal.Normal] = None,
+        squeeze_dim: Optional[int] = None,
+    ) -> pdf.normal.Normal:
+        """Create a Normal posterior from ``inputs`` and optional prior.
+
+        Args:
+            inputs: Input tensor containing concatenated ML mean/log-variance.
+            prior: Optional Normal prior used for MAP interpolation.
+            squeeze_dim: Optional dimension to squeeze on output parameters.
+
+        Returns:
+            Normal distribution with MAP-updated parameters.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
         loc, logvar = inputs.chunk(2, dim=1)
         scale = torch.exp(0.5 * logvar)
         if prior is not None:
-            # MAP estimation of Gaussian mean and var
-            # Eq. from Bishop2006 (10.60-10.63)
-            # were we renamed
-            # alpha <- N/(beta_0+N)
-            # beta <- N/(nu_0+N)
-            # where beta_0 and nu_0 are MAP relevance factor for mean and var
+            # MAP estimation for Gaussian mean and variance.
             alpha = nnf.sigmoid(self._alpha)
             beta = nnf.sigmoid(self._beta)
             delta_loc = loc - prior.loc
             loc = alpha * loc + (1 - alpha) * prior.loc
             var = (
-                beta * scale ** 2
-                + (1 - beta) * prior.scale ** 2
-                + beta * (1 - alpha) * delta_loc ** 2
+                beta * scale**2
+                + (1 - beta) * prior.scale**2
+                + beta * (1 - alpha) * delta_loc**2
             )
             scale = torch.sqrt(var)
 

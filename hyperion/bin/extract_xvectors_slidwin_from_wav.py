@@ -1,0 +1,458 @@
+#!/usr/bin/env python
+"""
+Copyright 2019 Jesus Villalba (Johns Hopkins University)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+"""
+
+import logging
+import os
+import sys
+import time
+from typing import Any, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+import torch
+import yaml
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
+from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
+from hyperion.io import DataWriterFactory as DWF
+from hyperion.io import SequentialAudioReader as AR
+from hyperion.io import VADReaderFactory as VRF
+from hyperion.np.augment import SpeechAugment
+from hyperion.torch import HyperTorchModel
+from hyperion.torch.narchs import AudioFeatsMVN as AF
+from hyperion.torch.utils import open_device
+from hyperion.utils import Utt2Info
+from hyperion.utils.misc import PathLike
+
+
+def init_device(use_gpu: bool) -> torch.device:
+    """Initialize runtime device for extraction.
+
+    Args:
+        use_gpu: If ``True``, request one GPU device.
+    """
+    set_float_cpu("float32")
+    num_gpus = 1 if use_gpu else 0
+    logging.info("initializing devices num_gpus={}".format(num_gpus))
+    device = open_device(num_gpus=num_gpus)
+    return device
+
+
+def init_feats(device: torch.device, **kwargs: Any) -> AF:
+    """Initialize waveform feature extractor from parsed configuration.
+
+    Args:
+        device: Torch device where feature extraction runs.
+        **kwargs: Parsed argument dictionary containing ``feats`` config.
+    """
+    feat_args = AF.filter_args(**kwargs["feats"])
+    logging.info("feat args={}".format(feat_args))
+    logging.info("initializing feature extractor")
+    feat_extractor = AF(trans=False, **feat_args)
+    logging.info("feat-extractor={}".format(feat_extractor))
+    feat_extractor.eval()
+    feat_extractor.to(device)
+    return feat_extractor
+
+
+def load_model(model_path: PathLike, device: torch.device) -> torch.nn.Module:
+    """Load x-vector model checkpoint.
+
+    Args:
+        model_path: Path to serialized model checkpoint.
+        device: Torch device where inference runs.
+    """
+    logging.info("loading model {}".format(model_path))
+    model = HyperTorchModel.auto_load(model_path)
+    logging.info("xvector-model={}".format(model))
+    model.to(device)
+    model.eval()
+    return model
+
+
+def augment(
+    key0: str,
+    x0: np.ndarray,
+    augmenter: Optional[SpeechAugment],
+    aug_df: Optional[List[pd.DataFrame]],
+    aug_id: int,
+) -> Tuple[str, np.ndarray]:
+    """Apply optional augmentation and collect augmentation metadata.
+
+    Args:
+        key0: Original utterance key.
+        x0: Original waveform samples.
+        augmenter: Optional speech augmenter instance.
+        aug_df: Optional list accumulating augmentation metadata rows.
+        aug_id: Augmentation index appended to key suffix.
+    """
+    if augmenter is None:
+        x = x0
+        key = key0
+    else:
+        x, aug_info = augmenter(x0)
+        key = "%s-aug-%02d" % (key0, aug_id)
+        aug_df_row = {
+            "key_aug": key,
+            "key_orig": key0,
+            "noise_type": aug_info["noise"]["noise_type"],
+            "snr": aug_info["noise"]["snr"],
+            "rir_type": aug_info["reverb"]["rir_type"],
+            "srr": aug_info["reverb"]["srr"],
+            "sdr": aug_info["sdr"],
+        }
+
+        if aug_df is not None:
+            aug_df.append(pd.DataFrame(aug_df_row, index=[0]))
+
+    return key, x
+
+
+def extract_xvectors(
+    input_spec: PathLike,
+    output_spec: PathLike,
+    vad_spec: Optional[PathLike],
+    write_timestamps_spec: Optional[PathLike],
+    slidwin_params_path: Optional[PathLike],
+    vad_path_prefix: Optional[PathLike],
+    model_path: PathLike,
+    chunk_length: int,
+    embed_layer: Optional[int],
+    win_length: float,
+    win_shift: float,
+    snip_edges: bool,
+    aug_cfg: Optional[PathLike],
+    num_augs: int,
+    aug_info_path: Optional[PathLike],
+    use_gpu: bool,
+    **kwargs: Any,
+) -> None:
+    """Extract sliding-window x-vectors from waveforms.
+
+    Args:
+        input_spec: Input recordings specifier.
+        output_spec: Output writer specifier for x-vectors.
+        vad_spec: Optional VAD specifier for frame selection.
+        write_timestamps_spec: Optional output specifier for per-window timestamps.
+        slidwin_params_path: Optional YAML path for sliding-window parameters.
+        vad_path_prefix: Optional path prefix applied to VAD entries.
+        model_path: Model checkpoint path.
+        chunk_length: Frames per encoder forward pass (0 means full utterance).
+        embed_layer: Optional classifier layer index for embedding extraction.
+        win_length: Sliding-window length in seconds.
+        win_shift: Sliding-window shift in seconds.
+        snip_edges: Whether to keep only full windows.
+        aug_cfg: Optional augmentation configuration file.
+        num_augs: Number of augmentations per utterance.
+        aug_info_path: Optional CSV output path for augmentation metadata.
+        use_gpu: Whether to run extraction on GPU.
+        **kwargs: Additional parsed args for readers/features/partitioning.
+    """
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
+    device = init_device(use_gpu)
+    feat_extractor = init_feats(device, **kwargs)
+    model = load_model(model_path, device)
+
+    feat_args = kwargs["feats"]["audio_feats"]
+    feat_frame_length = feat_args["frame_length"]
+    feat_frame_shift = feat_args["frame_shift"]
+    feat_snip_edges = feat_args["snip_edges"]
+
+    if write_timestamps_spec is not None:
+        time_writer = DWF.create(write_timestamps_spec)
+
+    if aug_cfg is not None:
+        augmenter = SpeechAugment.create(aug_cfg, rng=rng)
+        aug_df = []
+    else:
+        augmenter = None
+        aug_df = None
+        num_augs = 1
+
+    ar_args = AR.filter_args(**kwargs)
+    logging.info("opening output stream: %s", output_spec)
+    with DWF.create(output_spec) as writer:
+        logging.info(
+            "opening input stream: {} with args={}".format(input_spec, ar_args)
+        )
+        with AR(recordings=input_spec, **ar_args) as reader:
+            if vad_spec is not None:
+                logging.info("opening VAD stream: %s", vad_spec)
+                v_reader = VRF.create(
+                    vad_spec,
+                    path_prefix=vad_path_prefix,
+                )
+
+            while not reader.eof():
+                t1 = time.time()
+                key, x0, fs = reader.read(1)
+                if len(key) == 0:
+                    break
+
+                x0 = x0[0]
+                key0 = key[0]
+                t2 = time.time()
+
+                logging.info("processing utt %s", key0)
+                for aug_id in range(num_augs):
+                    t3 = time.time()
+                    key, x = augment(key0, x0, augmenter, aug_df, aug_id)
+                    t4 = time.time()
+                    with torch.no_grad():
+                        x = torch.tensor(
+                            x[None, :], dtype=torch.get_default_dtype()
+                        ).to(device)
+
+                        x, _ = feat_extractor(x)
+                        t5 = time.time()
+                        tot_frames = x.shape[1]
+                        if vad_spec is not None:
+                            vad = v_reader.read(key0, num_frames=tot_frames)[0]
+                            vad = torch.tensor(vad, dtype=torch.bool).to(device)
+                            x = x[:, vad]
+
+                        logging.info(
+                            "utt %s detected %d/%d (%.2f %%) speech frames",
+                            key,
+                            x.shape[1],
+                            tot_frames,
+                            x.shape[1] / tot_frames * 100,
+                        )
+
+                        t6 = time.time()
+                        if x.shape[1] == 0:
+                            y = np.zeros(
+                                (
+                                    1,
+                                    model.embed_dim,
+                                ),
+                                dtype=float_cpu(),
+                            )
+                        else:
+                            x = x.transpose(1, 2).contiguous()
+                            y = (
+                                model.extract_embed_slidwin(
+                                    x,
+                                    win_length,
+                                    win_shift,
+                                    snip_edges=snip_edges,
+                                    feat_frame_length=feat_frame_length,
+                                    feat_frame_shift=feat_frame_shift,
+                                    chunk_length=chunk_length,
+                                    embed_layer=embed_layer,
+                                    detach_chunks=True,
+                                )
+                                .detach()
+                                .cpu()
+                                .numpy()[0]
+                            )
+
+                    t7 = time.time()
+                    y = y.T
+                    writer.write([key], [y])
+
+                    if write_timestamps_spec is not None:
+                        num_wins = y.shape[0]
+                        timestamps = model.compute_slidwin_timestamps(
+                            num_wins,
+                            win_length,
+                            win_shift,
+                            snip_edges,
+                            feat_frame_length,
+                            feat_frame_length,
+                            feat_snip_edges,
+                        ).numpy()
+                        logging.info("{}".format(timestamps))
+                        time_writer.write([key], [timestamps])
+
+                    t8 = time.time()
+                    read_time = t2 - t1
+                    tot_time = read_time + t8 - t3
+                    logging.info(
+                        (
+                            "utt %s total-time=%.3f read-time=%.3f "
+                            "aug-time=%.3f feat-time=%.3f "
+                            "vad-time=%.3f embed-time=%.3f write-time=%.3f "
+                            "rt-factor=%.2f"
+                        ),
+                        key,
+                        tot_time,
+                        read_time,
+                        t4 - t3,
+                        t5 - t4,
+                        t6 - t5,
+                        t7 - t6,
+                        t8 - t7,
+                        x0.shape[0] / fs[0] / tot_time,
+                    )
+
+    if write_timestamps_spec is not None:
+        time_writer.close()
+
+    if aug_info_path is not None:
+        aug_df = pd.concat(aug_df, ignore_index=True)
+        aug_df.to_csv(aug_info_path, index=False, na_rep="n/a")
+
+    if slidwin_params_path is not None:
+        params = {
+            "padding": model.compute_slidwin_left_padding(
+                win_length,
+                win_shift,
+                snip_edges,
+                feat_frame_length,
+                feat_frame_length,
+                feat_snip_edges,
+            ),
+            "win_length": win_length,
+            "win_shift": win_shift,
+        }
+        with open(slidwin_params_path, "w") as f:
+            yaml.dump(params, f)
+
+
+def main() -> None:
+    """Parse CLI arguments and run sliding-window x-vector extraction from waveforms.
+
+    Args:
+        None.
+    """
+    parser = ArgumentParser(
+        description=(
+            "Extract x-vectors over a sliding window"
+            "from waveform computing "
+            "acoustic features on the fly"
+        )
+    )
+
+    parser.add_argument("--cfg", action=ActionConfigFile, help="configuration file")
+    parser.add_argument(
+        "--input",
+        dest="input_spec",
+        required=True,
+        help="input waveform recordings specifier",
+    )
+    parser.add_argument(
+        "--vad",
+        dest="vad_spec",
+        default=None,
+        help="optional VAD specifier for frame selection",
+    )
+    parser.add_argument(
+        "--write-timestamps",
+        dest="write_timestamps_spec",
+        default=None,
+        help="optional output specifier for per-window timestamps",
+    )
+    parser.add_argument(
+        "--slidwin-params-path",
+        default=None,
+        help="optional YAML path to save sliding-window parameters",
+    )
+
+    parser.add_argument(
+        "--vad-path-prefix",
+        default=None,
+        help="optional prefix for VAD scp file paths",
+    )
+
+    AR.add_argparse_args(parser)
+
+    parser.add_argument(
+        "--aug-cfg",
+        default=None,
+        help="optional speech-augmentation configuration file",
+    )
+    parser.add_argument(
+        "--aug-info-path",
+        default=None,
+        help="optional CSV output path for augmentation metadata",
+    )
+    parser.add_argument(
+        "--num-augs", default=1, type=int, help="number of augmentations per utterance"
+    )
+
+    AF.add_class_args(parser, prefix="feats")
+
+    parser.add_argument("--model-path", required=True, help="model checkpoint path")
+    parser.add_argument(
+        "--win-length",
+        type=float,
+        default=1.5,
+        help=("window length for x-vector extraction in seconds"),
+    )
+    parser.add_argument(
+        "--win-shift",
+        type=float,
+        default=0.25,
+        help=("window shift for x-vector extraction in seconds"),
+    )
+    parser.add_argument(
+        "--snip-edges",
+        default=False,
+        action="store_true",
+        help=(
+            "If true, end effects will be handled by outputting "
+            "only windows that completely fit in the file, "
+            "and the number of windows depends on the window-length. "
+            "If false, the number of windows depends only on "
+            "the window-shift, and we reflect the data at the ends."
+        ),
+    )
+
+    parser.add_argument(
+        "--chunk-length",
+        type=int,
+        default=0,
+        help=(
+            "number of frames used in each forward pass "
+            "of the x-vector encoder,"
+            "if 0 the full utterance is used"
+        ),
+    )
+    parser.add_argument(
+        "--embed-layer",
+        type=int,
+        default=None,
+        help=(
+            "classifier layer used to extract embeddings; if omitted, "
+            "the training-time default layer is used"
+        ),
+    )
+
+    parser.add_argument(
+        "--output",
+        dest="output_spec",
+        required=True,
+        help="output writer specifier for sliding-window x-vectors",
+    )
+    parser.add_argument(
+        "--use-gpu", default=False, action="store_true", help="run extraction on GPU"
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="verbosity level (0=warning, 1=info, 2=debug, 3=trace)",
+    )
+
+    args = parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+
+    extract_xvectors(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

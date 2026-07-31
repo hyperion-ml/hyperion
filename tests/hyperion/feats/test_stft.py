@@ -1,15 +1,15 @@
 """
- Copyright 2019 Jesus Villalba (Johns Hopkins University)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Jesus Villalba (Johns Hopkins University)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
 from hyperion.hyp_defs import float_cpu
-from hyperion.feats.stft import *
-from hyperion.feats.feature_windows import FeatureWindowFactory as FWF
+from hyperion.np.feats.feature_windows import FeatureWindowFactory as FWF
+from hyperion.np.feats.stft import *
 
 margin = 10
 
@@ -17,8 +17,8 @@ margin = 10
 def generate_signal():
 
     fs = 16000
-    rng = np.random.RandomState(seed=1024)
-    s = (2 ** 10) * rng.randn(fs * 10).astype(float_cpu(), copy=False)
+    rng = np.random.default_rng(seed=1024)
+    s = (2**10) * rng.standard_normal((fs * 10,)).astype(float_cpu(), copy=False)
     return s
 
 

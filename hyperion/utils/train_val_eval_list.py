@@ -1,71 +1,86 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os.path as path
 import logging
-from collections import OrderedDict
 from copy import deepcopy
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 
 from .list_utils import *
+from .misc import PathLike
 
 
-class TrainValEvalList(object):
-    """Class to split dataset into train, validation and test.
+class TrainValEvalList:
+    """Split a dataset into train/validation/eval (or arbitrary) parts.
 
     Attributes:
-      key: String List with the names of the dataset/recording/i-vector
-      folds: Int numpy array with the number of the fold of each key.
-      mask: Boolean numpy array to mask elements in the key
+      key: Item identifiers.
+      part: Integer part id assigned to each item.
+      part_names: Optional names for parts indexed by part id.
+      mask: Optional boolean mask selecting valid items.
     """
 
-    def __init__(self, key, part, part_names=None, mask=None):
+    def __init__(
+        self,
+        key: Union[List[str], np.ndarray],
+        part: Union[List[int], np.ndarray],
+        part_names: Optional[Union[List[str], np.ndarray]] = None,
+        mask: Optional[np.ndarray] = None,
+    ) -> None:
         self.part = part
         self.key = key
         self.part_names = part_names
         self.mask = mask
-        self._part2num = None
+        self._part2num: Optional[Dict[str, int]] = None
         self.validate()
 
-    def validate(self):
-        """Validates the class attributes attributes"""
+    def validate(self) -> None:
+        """Validate and normalize internal arrays."""
         self.key = list2ndarray(self.key)
         self.part = list2ndarray(self.part)
         if self.part.dtype != int:
             self.part = self.part.astype(int)
         assert len(self.key) == len(self.part)
-        assert len(np.unique(self.part[self.part >= 0])) == np.max(self.part) + 1
+        if len(self.part) > 0:
+            assert len(np.unique(self.part[self.part >= 0])) == np.max(self.part) + 1
         if self.mask is not None:
+            self.mask = list2ndarray(self.mask).astype(bool)
             assert len(self.mask) == len(self.part)
+        if self.part_names is not None:
+            self.part_names = list2ndarray(self.part_names)
+            assert len(self.part_names) == self.num_parts()
 
-    def _make_part2num(self):
+    def _make_part2num(self) -> None:
         if self._part2num is not None:
             return
         assert self.part_names is not None
         self._part2num = {p: k for k, p in enumerate(self.part_names)}
 
-    def copy(self):
+    def copy(self) -> "TrainValEvalList":
         """Returns a copy of the object."""
         return deepcopy(self)
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Returns number of parts."""
         return self.num_parts()
 
-    def num_parts(self):
+    def num_parts(self) -> int:
         """Returns number of parts."""
-        return np.max(self.part) + 1
+        if len(self.part) == 0:
+            return 0
+        return int(np.max(self.part) + 1)
 
-    def align_with_key(self, key, raise_missing=True):
-        """Aligns the part list with a given key
+    def align_with_key(
+        self, key: Union[List[str], np.ndarray], raise_missing: bool = True
+    ) -> None:
+        """Align this list to the order of an external key list.
 
         Args:
-          key: Key to align the part and key variables of the object.
-          raise_missing: if True, raises exception when an element of key is
-                          not found in the object.
+          key: Target key order.
+          raise_missing: If True, raise when any key is not found.
         """
         f, idx = ismember(key, self.key)
         if np.all(f):
@@ -79,15 +94,14 @@ class TrainValEvalList(object):
             if raise_missing:
                 raise Exception("some scores were not computed")
 
-    def get_part_idx(self, part):
-        """Returns a part boolean indices
+    def get_part_idx(self, part: Union[int, str]) -> np.ndarray:
+        """Return boolean indices selecting items for a given part.
 
         Args:
-          part: Part number or name to return
+          part: Part number or part name.
 
         Returns:
-          train_idx: Indices of the elements used for training
-          test_idx: Indices of the elements used for test
+          Boolean mask with selected items.
         """
         if isinstance(part, str):
             self._make_part2num()
@@ -98,39 +112,35 @@ class TrainValEvalList(object):
             idx = np.logical_and(idx, self.mask)
         return idx
 
-    def get_part(self, part):
-        """Returns a part keys
+    def get_part(self, part: Union[int, str]) -> np.ndarray:
+        """Return item keys for a given part.
 
         Args:
-          part: Part number to return
+          part: Part number or part name.
 
         Returns:
-          train_key: Keys of the elements used for training
-          test_key: Keys of the elements used for test
+          Keys belonging to the selected part.
         """
+        idx = self.get_part_idx(part)
+        return self.key[idx]
 
-        train_idx, test_idx = self.get_part_idx(part)
-        return self.key[train_idx], self.key[test_idx]
-
-    def __getitem__(self, part):
-        """Returns a part keys
+    def __getitem__(self, part: Union[int, str]) -> np.ndarray:
+        """Return item keys for a given part.
 
         Args:
-          part: Part number to return
+          part: Part number or part name.
 
         Returns:
-          train_key: Keys of the elements used for training
-          test_key: Keys of the elements used for test
+          Keys belonging to the selected part.
         """
-
         return self.get_part(part)
 
-    def save(self, file_path, sep=" "):
-        """Saves object to txt file
+    def save(self, file_path: PathLike, sep: str = " ") -> None:
+        """Save list to a text file.
 
         Args:
-          file_path: File path
-          sep: Separator between part field and key field
+          file_path: Output text file.
+          sep: Separator between fields.
         """
         with open(file_path, "w") as f:
             for p, k in zip(self.part, self.key):
@@ -140,15 +150,15 @@ class TrainValEvalList(object):
                     f.write("%s%s%d%s\n" % (k, sep, p, self.part_names[p]))
 
     @classmethod
-    def load(cls, file_path, sep=" "):
-        """Loads object from txt file
+    def load(cls, file_path: PathLike, sep: str = " ") -> "TrainValEvalList":
+        """Load list from a text file.
 
         Args:
-          file_path: File path
-          sep: Separator between part field and key field
+          file_path: Input text file.
+          sep: Separator between fields.
 
         Returns:
-          PartList object
+          Loaded TrainValEvalList object.
         """
 
         with open(file_path, "r") as f:
@@ -158,7 +168,7 @@ class TrainValEvalList(object):
         if len(fields[0]) == 2:
             part_names = None
         else:
-            part_names = np.asarray([f[2] for f in fields], dtype=int)
+            part_names = np.asarray([f[2] for f in fields], dtype=object)
             _, part_idx = np.unique(part, return_index=True)
             part_names = part_names[part_idx]
 
@@ -167,34 +177,34 @@ class TrainValEvalList(object):
     @classmethod
     def create(
         cls,
-        segment_key,
-        part_proportions,
-        part_names=None,
-        balance_by_key=None,
-        group_by_key=None,
-        mask=None,
-        shuffle=True,
-        seed=1024,
-    ):
-        """Creates a PartList object.
+        segment_key: Union[List[str], np.ndarray],
+        part_proportions: Union[List[float], np.ndarray],
+        part_names: Optional[Union[List[str], np.ndarray]] = None,
+        balance_by_key: Optional[Union[List[str], np.ndarray]] = None,
+        group_by_key: Optional[Union[List[str], np.ndarray]] = None,
+        mask: Optional[np.ndarray] = None,
+        shuffle: bool = True,
+        seed: int = 1024,
+    ) -> "TrainValEvalList":
+        """Create a new partition assignment.
 
         Args:
-          segment_key: String List of recordings/speech segments
-          part_proportions: % of data assigned to each part.
-                            We can do as many parts as we want, not only 3.
-                            Vector of dimension num_parts - 1, the last part is assumed to be the rest of the data.
-          part_names: Names of the parts, by default ['train', 'val', 'eval'].
-          balance_by_key: String List of keys indicating a property of the segment to make all parts to
-             have the same number of elements of each class. E.g. for language ID this would be the language
-             of the recording.
-          group_by_key: String List of keys indicating a property of the segment to make all the elements
-             of the same class to be in the same part. E.g. for language ID this would be the speaker ID
-             of the recording.
-          mask: Boolean numpy array to mask elements of segment_key out.
-          shuffle: Shuffles the segment list so that parts are not grouped in alphabetical order.
-          seed : Seed for shuffling
+          segment_key: Item identifiers to partition.
+          part_proportions: Fractions for the first ``num_parts - 1`` parts.
+            The last part receives the remaining samples.
+          part_names: Optional part names. Defaults to
+            ``['train', 'val', 'eval']`` for 3 parts or ``['train', 'eval']``
+            for 2 parts.
+          balance_by_key: Optional class key used to balance class counts across
+            parts.
+          group_by_key: Optional grouping key forcing all items in the same
+            group to stay in one part.
+          mask: Optional boolean mask to exclude items from assignment.
+          shuffle: If True, shuffle groups before assignment.
+          seed: Random seed used when ``shuffle=True``.
+
         Returns:
-          PartList object.
+          TrainValEvalList object.
         """
 
         num_parts = len(part_proportions) + 1
@@ -207,7 +217,7 @@ class TrainValEvalList(object):
                 part_names = ["train", "eval"]
 
         if shuffle:
-            rng = np.random.RandomState(seed=seed)
+            rng = np.random.default_rng(seed=seed)
 
         if group_by_key is None:
             group_by_key = segment_key
@@ -249,4 +259,4 @@ class TrainValEvalList(object):
             assert np.all(parts >= 0)
         else:
             assert np.all(parts[mask] >= 0)
-        return cls(segment_key, parts, part_names, mask)
+        return cls(segment_key, parts, part_names=part_names, mask=mask)

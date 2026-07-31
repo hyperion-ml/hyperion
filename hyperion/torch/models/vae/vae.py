@@ -1,53 +1,69 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
+from typing import Any, Dict, Optional
 
 import torch
-import torch.nn as nn
 import torch.distributions as pdf
+import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
-from ...torch_model import TorchModel
-from ...narchs import TorchNALoader
-from ...layers import tensor2pdf as t2pdf
+from ...hyper_torch_model import HyperTorchModel
 from ...layers import pdf_storage
+from ...layers import tensor2pdf as t2pdf
+from ...narchs import TorchNALoader
 
 
-class VAE(TorchModel):
+class VAE(HyperTorchModel):
     """Variational Autoencoder class
          From: https://arxiv.org/abs/1312.6114
 
     Attributes:
-      encoder_net: NArch encoder network object
-      decoder_net: NArch decoder network object
-      z_dim: latent variable dimension
-      kldiv_weight: weight KL divergene when computing ELBO
-      qz_pdf: type of prob distribution of the approx. latent posterior
-      pz_pdf: type of prob distribution of the latent prior
-      px_pdf: type of prob distribution for the data likelihood
-      flatten_spatial: if True all time/spatial dimensions are generated from a single latent vector,
-                       if False, we have multiple latents depending on the data size.
-      spatial_shape: shape of the data, only needed if flatten_spatial=True
-      scale_invariant: for future use
-      data_scale = for future use
+      encoder_net: Encoder network.
+      decoder_net: Decoder network.
+      z_dim: Latent variable dimension.
+      kldiv_weight: Weight of the KL divergence term in the ELBO.
+      qz_pdf: Approximate posterior distribution type.
+      pz_pdf: Latent prior distribution type.
+      px_pdf: Data likelihood distribution type.
+      flatten_spatial: If True, use one latent vector per sample.
+      spatial_shape: Input spatial shape required when ``flatten_spatial=True``.
+      scale_invariant: Reserved for future use.
+      data_scale: Reserved for future use.
     """
 
     def __init__(
         self,
-        encoder_net,
-        decoder_net,
-        z_dim,
-        kldiv_weight=1,
-        qz_pdf="normal-glob-diag-cov",
-        pz_pdf="std-normal",
-        px_pdf="normal-glob-diag-cov",
-        flatten_spatial=False,
-        spatial_shape=None,
-        scale_invariant=False,
-        data_scale=None,
-    ):
+        encoder_net: Any,
+        decoder_net: Any,
+        z_dim: int,
+        kldiv_weight: float = 1,
+        qz_pdf: str = "normal-glob-diag-cov",
+        pz_pdf: str = "std-normal",
+        px_pdf: str = "normal-glob-diag-cov",
+        flatten_spatial: bool = False,
+        spatial_shape: Optional[tuple[int, ...]] = None,
+        scale_invariant: bool = False,
+        data_scale: Optional[float] = None,
+    ) -> None:
+        """Build a variational autoencoder.
+
+        Args:
+          encoder_net: Encoder network.
+          decoder_net: Decoder network.
+          z_dim: Latent dimensionality.
+          kldiv_weight: Weight applied to the KL divergence term.
+          qz_pdf: Distribution used for the approximate posterior.
+          pz_pdf: Distribution used for the prior.
+          px_pdf: Distribution used for the likelihood.
+          flatten_spatial: Whether to flatten spatial dimensions into one latent.
+          spatial_shape: Input spatial shape when ``flatten_spatial=True``.
+          scale_invariant: Reserved for future use.
+          data_scale: Reserved for future use.
+        """
         super().__init__()
         self.encoder_net = encoder_net
         self.decoder_net = decoder_net
@@ -97,19 +113,26 @@ class VAE(TorchModel):
         self._make_prior()
 
     @property
-    def pz(self):
+    def pz(self) -> pdf.Distribution:
+        """Latent prior distribution.
+
+        Returns:
+          Prior distribution over z.
+        """
         return self._pz()
 
-    def _compute_flatten_unflatten_shapes(self):
+    def _compute_flatten_unflatten_shapes(self) -> None:
+        """Infer flattening shapes for the spatial-latent mode."""
         # if we flatten the spatial dimension to have a single
         # latent representation for all time/spatial positions
         # we have to infer the spatial dimension at the encoder
         # output
         assert (
-            spatial_shape is not None
+            self.spatial_shape is not None
         ), "you need to specify spatial shape at the input"
 
         enc_in_shape = None, self.in_channels, *self.spatial_shape
+        self._enc_in_shape = enc_in_shape
         enc_out_shape = self.encoder_net.out_shape(enc_in_shape)
         self._enc_out_shape = enc_out_shape[1:]
 
@@ -126,18 +149,35 @@ class VAE(TorchModel):
         self._dec_in_shape = dec_in_shape[1], *enc_out_shape[2:]
         # this is the total number of flattened features at the decoder input
         dec_in_tot_feats = 1
-        for d in self._enc_in_shape:
+        for d in self._dec_in_shape:
             dec_in_tot_feats *= d
 
         self._dec_in_tot_feats = dec_in_tot_feats
 
-    def _flatten(self, x):
+    def _flatten(self, x: torch.Tensor) -> torch.Tensor:
+        """Flatten encoder output features.
+
+        Args:
+          x: Tensor to flatten.
+
+        Returns:
+          Flattened tensor.
+        """
         return x.view(-1, self._enc_out_tot_feats)
 
-    def _unflatten(sef, x):
+    def _unflatten(self, x: torch.Tensor) -> torch.Tensor:
+        """Restore the decoder input shape.
+
+        Args:
+          x: Flattened tensor.
+
+        Returns:
+          Tensor reshaped for the decoder input.
+        """
         return x.view(-1, *self._dec_in_shape)
 
-    def _make_prior(self):
+    def _make_prior(self) -> None:
+        """Instantiate the latent prior distribution."""
 
         if self.flatten_spatial:
             shape = (self.z_dim,)
@@ -149,7 +189,20 @@ class VAE(TorchModel):
         else:
             raise ValueError("pz=%s not supported" % self.pz_pdf)
 
-    def _make_t2pdf_layer(self, pdf_name, in_channels, channels, ndims):
+    def _make_t2pdf_layer(
+        self, pdf_name: str, in_channels: int, channels: int, ndims: int
+    ) -> nn.Module:
+        """Build a tensor-to-distribution layer.
+
+        Args:
+          pdf_name: Distribution layer name.
+          in_channels: Input feature dimension to project from.
+          channels: Distribution parameter dimension.
+          ndims: Input tensor rank.
+
+        Returns:
+          Instantiated tensor-to-distribution layer.
+        """
 
         pdf_dict = {
             "normal-i-cov": t2pdf.Tensor2NormalICov,
@@ -163,31 +216,56 @@ class VAE(TorchModel):
         t2pdf_layer = pdf_dict[pdf_name](channels, in_feats=in_channels, in_dim=ndims)
         return t2pdf_layer
 
-    def _make_post_enc_layer(self):
-        pass
+    def _make_post_enc_layer(self) -> None:
+        """Hook for building post-encoder layers."""
 
-    def _make_pre_dec_layer(self):
+    def _make_pre_dec_layer(self) -> None:
+        """Build the optional latent-to-decoder projection."""
         if self.flatten_spatial:
-            self._pre_dec_linear = Linear(self.z_dim, self._dec_in_tot_dim)
+            self._pre_dec_linear = nn.Linear(self.z_dim, self._dec_in_tot_feats)
 
-    def _make_post_dec_layer(self):
-        pass
+    def _make_post_dec_layer(self) -> None:
+        """Hook for building post-decoder layers."""
 
-    def _pre_enc(self, x):
+    def _pre_enc(self, x: torch.Tensor) -> torch.Tensor:
+        """Adjust input rank before encoding.
+
+        Args:
+          x: Input tensor.
+
+        Returns:
+          Tensor ready for the encoder.
+        """
         if x.dim() == 3 and self._enc_in_dim == 4:
             return x.unsqueeze(1)
 
         return x
 
-    def _post_enc(self, x):
+    def _post_enc(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply any post-encoder transformation.
+
+        Args:
+          x: Encoder output tensor.
+
+        Returns:
+          Tensor used by the posterior parameter layer.
+        """
         if self.flatten_spatial:
             x = self._flatten(x)
 
         return x
 
-    def _pre_dec(self, x):
+    def _pre_dec(self, x: torch.Tensor) -> torch.Tensor:
+        """Adjust latent rank before decoding.
+
+        Args:
+          x: Latent tensor.
+
+        Returns:
+          Tensor ready for the decoder.
+        """
         if self.flatten_spatial:
-            x = self._prec_dec_linear(x)  # linear projection
+            x = self._pre_dec_linear(x)
             x = self._unflatten(x)
             return x
 
@@ -199,64 +277,43 @@ class VAE(TorchModel):
 
         return x
 
-    def _post_px(self, px, x_shape):
-        px_shape = px.batch_shape
+    # def _post_px(self, px, x_shape):
+    #     px_shape = px.batch_shape
 
-        if len(px_shape) == 4 and len(x_shape) == 3:
-            if px_shape[1] == 1:
-                px = squeeze_pdf(px, dim=1)
-            else:
-                raise ValueError("P(x|z)-shape != x-shape")
+    #     if len(px_shape) == 4 and len(x_shape) == 3:
+    #         if px_shape[1] == 1:
+    #             px = squeeze_pdf(px, dim=1)
+    #         else:
+    #             raise ValueError("P(x|z)-shape != x-shape")
 
-        return px
+    #     return px
 
     def forward(
         self,
-        x,
-        x_target=None,
-        return_x_mean=False,
-        return_x_sample=False,
-        return_z_sample=False,
-        return_px=False,
-        return_qz=False,
-        serialize_pdfs=True,
-        use_amp=False,
-    ):
-        if use_amp:
-            with torch.cuda.amp.autocast():
-                return self._forward(
-                    x,
-                    x_target,
-                    return_x_mean,
-                    return_x_sample,
-                    return_z_sample,
-                    return_px,
-                    return_qz,
-                    serialize_pdfs,
-                )
+        x: torch.Tensor,
+        x_target: Optional[torch.Tensor] = None,
+        return_x_mean: bool = False,
+        return_x_sample: bool = False,
+        return_z_sample: bool = False,
+        return_px: bool = False,
+        return_qz: bool = False,
+        serialize_pdfs: bool = True,
+    ) -> Dict[str, Any]:
+        """Run the VAE forward pass.
 
-        return self._forward(
-            x,
-            x_target,
-            return_x_mean,
-            return_x_sample,
-            return_z_sample,
-            return_px,
-            return_qz,
-            serialize_pdfs,
-        )
+        Args:
+          x: Input tensor.
+          x_target: Optional target tensor used to infer decoder output shape.
+          return_x_mean: If True, include the likelihood mean in the output.
+          return_x_sample: If True, include a sampled reconstruction in the output.
+          return_z_sample: If True, include the sampled latent vector in the output.
+          return_px: If True, include the likelihood distribution in the output.
+          return_qz: If True, include the posterior distribution in the output.
+          serialize_pdfs: Reserved for API compatibility.
 
-    def _forward(
-        self,
-        x,
-        x_target=None,
-        return_x_mean=False,
-        return_x_sample=False,
-        return_z_sample=False,
-        return_px=False,
-        return_qz=False,
-        serialize_pdfs=True,
-    ):
+        Returns:
+          Dictionary with ELBO-related tensors and optional extras.
+        """
 
         if x_target is None:
             x_target = x
@@ -265,12 +322,6 @@ class VAE(TorchModel):
         xx = self.encoder_net(x)
         xx = self._post_enc(xx)
         qz = self.t2qz(xx, prior=self._pz())
-        # print(qz)
-        # print(self.pz)
-        # print(qz.loc)
-        # print(qz.scale)
-        # print(self.pz.loc)
-        # print(self.pz.scale)
 
         kldiv_qzpz = (
             pdf.kl.kl_divergence(qz, self._pz()).view(x.size(0), -1).sum(dim=-1)
@@ -310,28 +361,59 @@ class VAE(TorchModel):
         if return_z_sample:
             r["z"] = z
 
+        if return_px:
+            r["px"] = px
+
+        if return_qz:
+            r["qz"] = qz
+
         return r
 
-    def compute_qz(self, x):
+    def compute_qz(self, x: torch.Tensor) -> pdf.Distribution:
+        """Compute the approximate posterior distribution.
+
+        Args:
+          x: Input tensor.
+
+        Returns:
+          Approximate posterior distribution q(z|x).
+        """
         xx = self._pre_enc(x)
         xx = self.encoder_net(xx)
         xx = self._post_enc(xx)
-        qz = self.t2qz(xx, self.pz)
+        qz = self.t2qz(xx, prior=self.pz)
         return qz
 
-    def compute_px_given_z(self, z, x_shape=None):
+    def compute_px_given_z(
+        self, z: torch.Tensor, x_shape: Optional[torch.Size] = None
+    ) -> pdf.Distribution:
+        """Compute the data likelihood conditioned on a latent sample.
+
+        Args:
+          z: Latent tensor.
+          x_shape: Optional target shape used by the decoder.
+
+        Returns:
+          Likelihood distribution p(x|z).
+        """
         zz = self._pre_dec(z)
 
         zz = self.decoder_net(zz, target_shape=x_shape)
-        zz = self.pre_px(zz)
 
+        if x_shape is None:
+            x_shape = zz.shape
         squeeze_dim = None
-        if x_target.dim() == 3 and zz.dim() == 4:
+        if len(x_shape) == 3 and zz.dim() == 4:
             squeeze_dim = 1
         px = self.t2px(zz, squeeze_dim=squeeze_dim)
         return px
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Return the serializable model configuration.
+
+        Returns:
+          Configuration dictionary.
+        """
         enc_cfg = self.encoder_net.get_config()
         dec_cfg = self.decoder_net.get_config()
         config = {
@@ -352,7 +434,22 @@ class VAE(TorchModel):
         return dict(list(base_config.items()) + list(config.items()))
 
     @classmethod
-    def load(cls, file_path=None, cfg=None, state_dict=None):
+    def load(
+        cls,
+        file_path: Optional[str] = None,
+        cfg: Optional[Dict[str, Any]] = None,
+        state_dict: Optional[Dict[str, torch.Tensor]] = None,
+    ) -> "VAE":
+        """Load a VAE from configuration and state.
+
+        Args:
+          file_path: Optional checkpoint file path.
+          cfg: Optional configuration dictionary.
+          state_dict: Optional model state dictionary.
+
+        Returns:
+          Loaded VAE instance.
+        """
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
 
         encoder_net = TorchNALoader.load_from_cfg(cfg=cfg["encoder_cfg"])
@@ -367,14 +464,28 @@ class VAE(TorchModel):
         return model
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments relevant to the VAE.
+
+        Args:
+          **kwargs: Candidate keyword arguments.
+
+        Returns:
+          Filtered configuration dictionary.
+        """
         valid_args = ("z_dim", "kldiv_weight", "qz_pdf", "px_pdf")
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Add VAE arguments to a parser.
+
+        Args:
+          parser: Argument parser to extend.
+          prefix: Optional prefix for nested argument groups.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

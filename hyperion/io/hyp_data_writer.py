@@ -1,17 +1,18 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import sys
-import numpy as np
+
 import h5py
+import numpy as np
 
 from ..hyp_defs import float_save
-from ..utils.list_utils import list2ndarray, ismember
+from ..utils.list_utils import ismember, list2ndarray
 
 
-class HypDataWriter(object):
+class HypDataWriter:
     """
     Class to write data to hdf5 files (deprecated).
     """

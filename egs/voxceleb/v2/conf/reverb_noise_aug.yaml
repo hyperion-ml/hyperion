@@ -1,0 +1,35 @@
+reverb_aug:
+  reverb_prob: 0.45
+  max_reverb_context: 0.5
+  rir_types: 
+    smallroom:
+      weight: 1
+      rir_path: scp:data/rirs_smallroom/rirs.scp
+      rir_norm: max
+    mediumroom:
+      weight: 1
+      rir_path: scp:data/rirs_mediumroom/rirs.scp
+      rir_norm: max
+    realroom:
+      weight: 1
+      rir_path: scp:data/rirs_real/rirs.scp
+      rir_norm: max
+noise_aug:
+  noise_prob: 0.7
+  noise_types: 
+    noise:
+      weight: 1
+      noise_path: data/musan_noise_proc_audio/wav.scp
+      min_snr: 0
+      max_snr: 18
+    music:
+      weight: 1
+      noise_path: data/musan_music_proc_audio/wav.scp
+      min_snr: 3
+      max_snr: 18
+    babble:
+      weight: 1
+      noise_path: data/musan_speech_babble/wav.scp
+      min_snr: 3
+      max_snr: 18
+

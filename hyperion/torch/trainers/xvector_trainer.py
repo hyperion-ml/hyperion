@@ -1,20 +1,26 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import os
-from collections import OrderedDict as ODict
 
 import logging
+import os
+from collections import OrderedDict as ODict
+from typing import Any, Dict, List, Optional, Union
 
 import torch
+import torch.amp as amp
 import torch.nn as nn
+from torch.distributed.elastic.multiprocessing.errors import record
 
-from ..utils import MetricAcc
-from .torch_trainer import TorchTrainer
+from ...utils.misc import filter_func_args
+from ..hyper_torch_model import HyperTorchModel
+from ..loggers import Logger, LoggerList
+from ..utils import MetricAcc, tensors_subset
+from .legacy_torch_trainer import AMPDType, LegacyTorchTrainer
 
 
-class XVectorTrainer(TorchTrainer):
+class XVectorTrainer(LegacyTorchTrainer):
     """Trainer to train x-vector style models.
 
     Attributes:
@@ -27,13 +33,15 @@ class XVectorTrainer(TorchTrainer):
       device: cpu/gpu device
       metrics: extra metrics to compute besides cxe.
       lrsched: learning rate scheduler object or options dict
+      wdsched: weight decay scheduler object or options dict
       loggers: LoggerList object, loggers write training progress to std. output and file.
                If None, it uses default loggers.
       ddp: if True use distributed data parallel training
-      ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
+      ddp_type: distributed data parallel backend (only standard PyTorch DDP)
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -43,113 +51,196 @@ class XVectorTrainer(TorchTrainer):
       swa_start: epoch to start doing swa
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
-      cpu_offload: CPU offload of gradients when using fully sharded ddp
+      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
+      input_key: dict. key for nnet input.
+      target_key: dict. key for nnet targets.
     """
 
     def __init__(
         self,
-        model,
-        optim={},
-        epochs=100,
-        exp_path="./train",
-        cur_epoch=0,
-        grad_acc_steps=1,
-        device=None,
-        metrics=None,
-        lrsched=None,
-        loggers=None,
-        ddp=False,
-        ddp_type="ddp",
-        loss=None,
-        train_mode="train",
-        use_amp=False,
-        log_interval=10,
-        use_tensorboard=False,
-        use_wandb=False,
-        wandb={},
-        grad_clip=0,
-        grad_clip_norm=2,
-        swa_start=0,
-        swa_lr=1e-3,
-        swa_anneal_epochs=10,
-        cpu_offload=False,
-    ):
+        model: HyperTorchModel,
+        optim: Dict[str, Any] = {},
+        epochs: int = 100,
+        exp_path: str = "./train",
+        cur_epoch: int = 0,
+        grad_acc_steps: int = 1,
+        eff_batch_size: Optional[int] = None,
+        device: Optional[torch.device] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        lrsched: Optional[Dict[str, Any]] = None,
+        wdsched: Optional[Dict[str, Any]] = None,
+        loggers: Optional[Union[List[Logger], LoggerList]] = None,
+        ddp: bool = False,
+        ddp_type: str = "ddp",
+        loss: Optional[nn.Module] = None,
+        train_mode: str = "full",
+        use_amp: bool = False,
+        amp_dtype: AMPDType = AMPDType.FLOAT16,
+        log_interval: int = 1000,
+        use_tensorboard: bool = False,
+        use_wandb: bool = False,
+        wandb: Dict[str, Any] = {},
+        grad_clip: float = 0,
+        grad_clip_norm: float = 2,
+        swa_start: int = 0,
+        swa_lr: float = 1e-3,
+        swa_anneal_epochs: int = 10,
+        save_interval_steps: Optional[int] = None,
+        input_key: str = "x",
+        target_key: str = "class_id",
+    ) -> None:
+        """Initializes an x-vector trainer.
 
+        Args:
+          model: Model to train.
+          optim: Optimizer instance or configuration dictionary.
+          epochs: Number of epochs.
+          exp_path: Output directory.
+          cur_epoch: Starting epoch.
+          grad_acc_steps: Gradient accumulation factor.
+          eff_batch_size: Desired effective batch size.
+          device: Training device.
+          metrics: Additional metric callables.
+          lrsched: Learning-rate scheduler or configuration.
+          wdsched: Weight-decay scheduler or configuration.
+          loggers: None, a list of loggers, or a LoggerList instance.
+          ddp: Enables distributed training.
+          ddp_type: Distributed backend selector.
+          loss: Loss module, defaults to cross-entropy.
+          train_mode: Model train mode.
+          use_amp: Enables automatic mixed precision.
+          amp_dtype: AMP dtype name.
+          log_interval: Batch interval between log writes.
+          use_tensorboard: Enables TensorBoard logging.
+          use_wandb: Enables Weights & Biases logging.
+          wandb: Weights & Biases options.
+          grad_clip: Gradient clip value.
+          grad_clip_norm: Gradient clip norm type.
+          swa_start: Epoch at which SWA starts.
+          swa_lr: SWA learning rate.
+          swa_anneal_epochs: SWA annealing epochs.
+          save_interval_steps: Partial checkpoint interval.
+          input_key: Input key for dict batches.
+          target_key: Target key for dict batches.
+        """
         if loss is None:
             loss = nn.CrossEntropyLoss()
-        super().__init__(
-            model,
-            loss,
-            optim,
-            epochs,
-            exp_path,
-            cur_epoch=cur_epoch,
-            grad_acc_steps=grad_acc_steps,
-            device=device,
-            metrics=metrics,
-            lrsched=lrsched,
-            loggers=loggers,
-            ddp=ddp,
-            ddp_type=ddp_type,
-            train_mode=train_mode,
-            use_amp=use_amp,
-            log_interval=log_interval,
-            use_tensorboard=use_tensorboard,
-            use_wandb=use_wandb,
-            wandb=wandb,
-            grad_clip=grad_clip,
-            grad_clip_norm=grad_clip_norm,
-            swa_start=swa_start,
-            swa_lr=swa_lr,
-            swa_anneal_epochs=swa_anneal_epochs,
-            cpu_offload=cpu_offload,
-        )
 
-    def train_epoch(self, data_loader):
+        super_args = filter_func_args(super().__init__, locals())
+        super().__init__(**super_args)
+
+    @record
+    def train_epoch(self, data_loader: Any) -> Dict[str, Any]:
         """Training epoch loop
 
         Args:
           data_loader: pytorch data loader returning features and class labels.
-        """
 
+        Returns:
+          Dictionary with training metrics.
+        """
+        # batch_keys = [self.input_key, self.target_key]
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
-        self.set_train_mode()
-        for batch, (data, target) in enumerate(data_loader):
+        self.model.train()
+
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
+            input_keys = self.get_augs_keys(data, self.input_key)
+            loss_scale = self.grad_acc_steps * len(input_keys)
+            loss_acc = 0.0
+            for aug_key in input_keys:
+                batch_keys = [aug_key, f"{aug_key}_lengths", self.target_key]
+                x, x_lengths, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = x.size(0)
+                with amp.autocast(
+                    enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+                ):
+                    output = self.model(x, x_lengths=x_lengths, y=target)
+                    loss = self.loss(output.logits, target) / loss_scale
+                    loss_acc += loss.item()
 
-            with self.amp_autocast():
-                output = self.model(data, target, **self.amp_args)
-                loss = self.loss(output, target).mean() / self.grad_acc_steps
-
-            if self.use_amp:
-                self.grad_scaler.scale(loss).backward()
-            else:
-                loss.backward()
+                if self.use_amp:
+                    self.grad_scaler.scale(loss).backward()
+                else:
+                    loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None and not self.in_swa:
-                    self.lr_scheduler.on_opt_step()
+                self.cur_batch = batch + 1
                 self.update_model()
+                self.save_checkpoint(partial=True)
 
-            batch_metrics["loss"] = loss.item() * self.grad_acc_steps
+            batch_metrics["loss"] = loss_acc * self.grad_acc_steps
             for k, metric in self.metrics.items():
-                batch_metrics[k] = metric(output, target)
+                batch_metrics[k] = metric(output.logits, target)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs["lr"] = self._get_lr()
+            lrs = self._get_lrs()
+            logs.update(lrs)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
         logs = ODict(("train_" + k, v) for k, v in logs.items())
-        logs["lr"] = self._get_lr()
+        lrs = self._get_lrs()
+        logs.update(lrs)
+        logs.update(self._get_wds())
+        if self.grad_scaler is not None:
+            logs["grad_scale"] = self.grad_scaler._scale.item()
+        return logs
+
+    def validation_epoch(
+        self, data_loader: Any, swa_update_bn: bool = False
+    ) -> Dict[str, Any]:
+        """Validation epoch loop
+
+        Args:
+          data_loader: PyTorch data loader return input/output pairs.
+          swa_update_bn: Whether to update batch-norm layers for SWA.
+
+        Returns:
+          Dictionary with validation metrics.
+        """
+        # batch_keys = [self.input_key, self.target_key]
+        metric_acc = MetricAcc(self.device)
+        batch_metrics = ODict()
+        with torch.no_grad():
+            if swa_update_bn:
+                log_tag = "train_"
+                self.model.train()
+            else:
+                log_tag = "val_"
+                self.model.eval()
+
+            for batch, data in enumerate(data_loader):
+                input_keys = self.get_augs_keys(data, self.input_key)
+                loss_scale = len(input_keys)
+                loss_acc = 0.0
+                for aug_key in input_keys:
+                    batch_keys = [aug_key, f"{aug_key}_lengths", self.target_key]
+                    x, x_lengths, target = tensors_subset(data, batch_keys, self.device)
+                    batch_size = x.size(0)
+                    with amp.autocast(
+                        enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+                    ):
+                        output = self.model(x, x_lengths=x_lengths)
+                        loss = self.loss(output.logits, target) / loss_scale
+                        # if not torch.isfinite(loss):
+                        #     logging.warning("non-finite loss=%f %f", loss.item(), torch.mean(output.logits))
+                        loss_acc += loss.item()
+
+                batch_metrics["loss"] = loss_acc
+                for k, metric in self.metrics.items():
+                    batch_metrics[k] = metric(output.logits, target)
+
+                metric_acc.update(batch_metrics, batch_size)
+
+        logs = metric_acc.metrics
+        logs = ODict((log_tag + k, v) for k, v in logs.items())
         return logs

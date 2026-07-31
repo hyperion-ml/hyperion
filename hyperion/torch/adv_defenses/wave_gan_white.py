@@ -1,14 +1,11 @@
 # Author : Piotr Zelasko
 # Added wave_gan_model_ckpt to test using different model ckpts [Sonal 24Aug20]
 
-import logging
 from pathlib import Path
-from typing import Tuple
+from typing import Any, Mapping, Optional, Union
 
-import math
 import librosa
 import numpy as np
-
 import torch
 import yaml
 
@@ -17,7 +14,7 @@ try:
     from parallel_wavegan.layers import PQMF
     from parallel_wavegan.models import ParallelWaveGANGenerator
     from parallel_wavegan.utils import read_hdf5
-except:
+except Exception:
     pass
 
 from sklearn.preprocessing import StandardScaler
@@ -25,9 +22,27 @@ from torch import nn
 
 
 class WaveGANReconstruction(nn.Module):
+    """Reconstruct waveforms from mel features using a Parallel WaveGAN vocoder."""
+
     def __init__(
-        self, feature_extractor, wave_gan, pqmf, use_noise_input, config, pad_fn
-    ):
+        self,
+        feature_extractor: "WaveGANFeatureExtractor",
+        wave_gan: nn.Module,
+        pqmf: Optional[nn.Module],
+        use_noise_input: bool,
+        config: Mapping[str, Any],
+        pad_fn: nn.Module,
+    ) -> None:
+        """Initialize waveform reconstructor.
+
+        Args:
+            feature_extractor: Mel feature extractor module.
+            wave_gan: Parallel WaveGAN generator.
+            pqmf: Optional PQMF synthesis module for multiband output.
+            use_noise_input: Whether to prepend random noise input to the generator.
+            config: WaveGAN configuration dictionary.
+            pad_fn: Padding module for generator context.
+        """
         super().__init__()
         self.feature_extractor = feature_extractor
         self.wave_gan = wave_gan
@@ -36,9 +51,14 @@ class WaveGANReconstruction(nn.Module):
         self.config = config
         self.pad_fn = pad_fn
 
-    def forward(self, audio):
-        """
-        WaveGAN Vocoder signal reconstruction from spectrum.
+    def forward(self, audio: torch.Tensor) -> torch.Tensor:
+        """Reconstruct one or more waveforms from input audio.
+
+        Args:
+            audio: Audio tensor shaped ``(T,)`` or ``(B, T)``.
+
+        Returns:
+            Reconstructed audio tensor with matching sample length.
         """
         feature_extractor = self.feature_extractor
         wave_gan = self.wave_gan
@@ -97,13 +117,22 @@ class WaveGANReconstruction(nn.Module):
                     reconstructed_audio = reconstructed_audio[:num_samples]
                 else:
                     reconstructed_audio = pqmf.synthesis(wave_gan(*inputs)).view(-1)
-                    reconstructed_audio = reconstructed_audio[:, :num_samples]
+                    reconstructed_audio = reconstructed_audio[:num_samples]
                 reconstructions.append(reconstructed_audio)
             return torch.stack(reconstructions)
 
 
 class WaveGANDefender(nn.Module):
-    def __init__(self, wave_gan_model_dir: Path, wave_gan_model_ckpt: Path):
+    """Defense module that denoises audio via WaveGAN reconstruction."""
+
+    def __init__(self, wave_gan_model_dir: Path, wave_gan_model_ckpt: Path) -> None:
+        """Load WaveGAN assets and build the reconstruction pipeline.
+
+        Args:
+            wave_gan_model_dir: Directory containing config and feature stats.
+            wave_gan_model_ckpt: Generator checkpoint path relative to
+                ``wave_gan_model_dir`` (or absolute path).
+        """
         super().__init__()
         with open(wave_gan_model_dir / "config.yml") as f:
             self.config = yaml.load(f, Loader=yaml.Loader)
@@ -138,6 +167,7 @@ class WaveGANDefender(nn.Module):
         )
 
     def forward(self, audio: torch.Tensor) -> torch.Tensor:
+        """Apply reconstruction defense to input audio."""
         return self.reconstructor(audio)
         # max_len = 8 * 16000
         # audio_len = audio.shape[0]
@@ -165,34 +195,34 @@ class WaveGANDefender(nn.Module):
 
 
 def logmelfilterbank(
-    audio,
-    sampling_rate,
-    fft_size=1024,
-    hop_size=256,
-    win_length=None,
-    window="hann",
-    num_mels=80,
-    fmin=None,
-    fmax=None,
-    eps=1e-10,
-):
-    """Compute log-Mel filterbank feature.
+    audio: torch.Tensor,
+    sampling_rate: int,
+    fft_size: int = 1024,
+    hop_size: int = 256,
+    win_length: Optional[int] = None,
+    window: Optional[Union[str, torch.Tensor]] = "hann",
+    num_mels: int = 80,
+    fmin: Optional[float] = None,
+    fmax: Optional[float] = None,
+    eps: float = 1e-10,
+) -> torch.Tensor:
+    """Compute log-Mel filterbank features from a waveform tensor.
 
     Args:
-        audio (ndarray): Audio signal (T,).
-        sampling_rate (int): Sampling rate.
-        fft_size (int): FFT size.
-        hop_size (int): Hop size.
-        win_length (int): Window length. If set to None, it will be the same as fft_size.
-        window (str): Window function type.
-        num_mels (int): Number of mel basis.
-        fmin (int): Minimum frequency in mel basis calculation.
-        fmax (int): Maximum frequency in mel basis calculation.
-        eps (float): Epsilon value to avoid inf in log calculation.
+        audio: Audio signal shaped ``(T,)``.
+        sampling_rate: Sampling rate in Hz.
+        fft_size: FFT size.
+        hop_size: Hop size.
+        win_length: Window length. If ``None``, uses ``fft_size``.
+        window: Window function name (for example ``"hann"``), window
+            tensor, or ``None``.
+        num_mels: Number of mel filterbank channels.
+        fmin: Minimum mel frequency in Hz.
+        fmax: Maximum mel frequency in Hz.
+        eps: Lower clamp before logarithm for numerical stability.
 
     Returns:
-        ndarray: Log Mel filterbank feature (#frames, num_mels).
-
+        Log-Mel tensor shaped ``(num_frames, num_mels)``.
     """
     # # get amplitude spectrogram
     # x_stft = librosa.stft(audio, n_fft=fft_size, hop_length=hop_size,
@@ -206,6 +236,16 @@ def logmelfilterbank(
 
     # return np.log10(np.maximum(eps, np.dot(spc, mel_basis.T)))
     # logger.info('{} {}'.format(audio.shape, audio.device))
+    if isinstance(window, str):
+        window_name = f"{window}_window"
+        if not hasattr(torch, window_name):
+            raise ValueError(f"unsupported window type '{window}'")
+        win_fn = getattr(torch, window_name)
+        cur_win_length = fft_size if win_length is None else win_length
+        window = win_fn(cur_win_length, device=audio.device, dtype=audio.dtype)
+    elif window is not None:
+        window = window.to(device=audio.device, dtype=audio.dtype)
+
     x_stft2 = (
         torch.stft(
             audio,
@@ -231,7 +271,15 @@ def logmelfilterbank(
 
 
 class WaveGANFeatureExtractor(nn.Module):
-    def __init__(self, wave_gan_model_dir):
+    """Extract normalized log-Mel features for WaveGAN reconstruction."""
+
+    def __init__(self, wave_gan_model_dir: Path) -> None:
+        """Load feature-extraction config and normalization statistics.
+
+        Args:
+            wave_gan_model_dir: Directory containing ``config.yml`` and
+                ``stats.h5``/``stats.npy``.
+        """
         super().__init__()
         with open(wave_gan_model_dir / "config.yml") as f:
             self.config = yaml.load(f, Loader=yaml.Loader)
@@ -244,11 +292,12 @@ class WaveGANFeatureExtractor(nn.Module):
         self.register_buffer("window", torch.hann_window(win_len))
 
         # Restore scaler
-        stats_path = str(wave_gan_model_dir / "stats.h5")
         if self.config["format"] == "hdf5":
+            stats_path = str(wave_gan_model_dir / "stats.h5")
             scaler_mean = read_hdf5(stats_path, "mean")
             scaler_scale = read_hdf5(stats_path, "scale")
         elif self.config["format"] == "npy":
+            stats_path = str(wave_gan_model_dir / "stats.npy")
             scaler_mean = np.load(stats_path)[0]
             scaler_scale = np.load(stats_path)[1]
         else:
@@ -257,7 +306,15 @@ class WaveGANFeatureExtractor(nn.Module):
         self.register_buffer("scaler_mean", torch.tensor(scaler_mean))
         self.register_buffer("scaler_scale", torch.tensor(scaler_scale))
 
-    def transform(self, audio):
+    def transform(self, audio: torch.Tensor) -> torch.Tensor:
+        """Compute normalized log-Mel features from audio.
+
+        Args:
+            audio: Audio signal shaped ``(T,)``.
+
+        Returns:
+            Normalized log-Mel tensor shaped ``(num_frames, num_mels)``.
+        """
 
         mel = logmelfilterbank(
             audio,

@@ -1,32 +1,79 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import math
+
 import logging
+import math
+from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
+import torch.nn as nn
+
 from .adv_attack import AdvAttack
+
+NormType = Union[float, int, str]
 
 
 class PGDAttack(AdvAttack):
+    """Projected Gradient Descent attack.
+
+    Attributes:
+      eps: Perturbation budget.
+      alpha: Per-step update magnitude.
+      norm: Threat-model norm (``inf``, ``1``, or ``2``).
+      max_iter: Number of optimization steps.
+      random_eps: Whether to randomize epsilon per attack call.
+      num_random_init: Number of random restarts.
+      norm_time: Whether to scale norms by time dimension length.
+      time_dim: Axis used when ``norm_time`` is enabled.
+    """
+
     def __init__(
         self,
-        model,
-        eps,
-        alpha,
-        norm,
-        max_iter=10,
-        random_eps=False,
-        num_random_init=0,
-        loss=None,
-        norm_time=False,
-        time_dim=None,
-        targeted=False,
-        range_min=None,
-        range_max=None,
-    ):
+        model: nn.Module,
+        eps: float,
+        alpha: float,
+        norm: NormType,
+        max_iter: int = 10,
+        random_eps: bool = False,
+        num_random_init: int = 0,
+        loss: Optional[nn.Module] = None,
+        norm_time: bool = False,
+        time_dim: Optional[int] = None,
+        targeted: bool = False,
+        range_min: Optional[float] = None,
+        range_max: Optional[float] = None,
+    ) -> None:
+        """Initialize PGD attack.
+
+        Args:
+          model: Model under attack.
+          eps: Perturbation budget.
+          alpha: Per-step update magnitude.
+          norm: Threat-model norm (``inf``, ``1``, or ``2``).
+          max_iter: Number of optimization steps.
+          random_eps: Whether to randomize epsilon per call.
+          num_random_init: Number of random restarts.
+          loss: Loss module used to compute gradients.
+          norm_time: Whether to scale norms by the time-axis length.
+          time_dim: Time axis used when ``norm_time`` is enabled.
+          targeted: Whether the attack is targeted.
+          range_min: Optional minimum clamp value.
+          range_max: Optional maximum clamp value.
+
+        Returns:
+          None.
+        """
         super().__init__(model, loss, targeted, range_min, range_max)
+        if eps <= 0:
+            raise ValueError(f"pgd requires eps > 0, got eps={eps}")
+        if alpha <= 0:
+            raise ValueError(f"pgd requires alpha > 0, got alpha={alpha}")
+        if alpha >= eps:
+            raise ValueError(f"pgd requires alpha < eps, got alpha={alpha}, eps={eps}")
+        if norm_time and time_dim is None:
+            raise ValueError("pgd requires time_dim when norm_time=True")
         self.eps = eps
         self.alpha = alpha
         self.max_iter = max_iter
@@ -37,7 +84,15 @@ class PGDAttack(AdvAttack):
         self.time_dim = time_dim
 
     @property
-    def attack_info(self):
+    def attack_info(self) -> Dict[str, Any]:
+        """Return attack metadata.
+
+        Args:
+          None.
+
+        Returns:
+          Dictionary describing PGD configuration.
+        """
         info = super().attack_info
         if self.norm == 1:
             threat = "l1"
@@ -61,7 +116,17 @@ class PGDAttack(AdvAttack):
         return info
 
     @staticmethod
-    def _project(delta, eps, norm):
+    def _project(delta: torch.Tensor, eps: float, norm: NormType) -> torch.Tensor:
+        """Project perturbation to a norm ball.
+
+        Args:
+          delta: Perturbation tensor.
+          eps: Radius of the norm ball.
+          norm: Threat-model norm.
+
+        Returns:
+          Projected perturbation tensor.
+        """
 
         if norm == "inf" or norm == float("inf"):
             return torch.clamp(delta, -eps, eps)
@@ -82,9 +147,25 @@ class PGDAttack(AdvAttack):
         return torch.reshape(delta_tmp, delta.shape)
 
     @staticmethod
-    def _random_sphere(shape, eps, norm, dtype, device):
+    def _random_sphere(
+        shape: torch.Size,
+        eps: float,
+        norm: NormType,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> torch.Tensor:
         """We use Theorem 1 in https://arxiv.org/pdf/math/0503650.pdf
         to sample uniformly from l_p balls in R^n
+
+        Args:
+          shape: Output tensor shape.
+          eps: Radius of the norm ball.
+          norm: Threat-model norm.
+          dtype: Tensor dtype.
+          device: Tensor device.
+
+        Returns:
+          Random perturbation tensor sampled from the specified norm ball.
         """
 
         if norm == "inf" or norm == float("inf"):
@@ -100,7 +181,7 @@ class PGDAttack(AdvAttack):
             # compute norm
             l2 = torch.norm(u, dim=1, keepdim=True)
             # apply theorem and rescale norm
-            x = eps * u / (l2 ** 2 + z).sqrt()
+            x = eps * u / (l2**2 + z).sqrt()
         elif norm == 1:
             # sample from \propto exp(-|t|^p)
             u = torch.rand(shape, dtype=dtype, device=device).reshape(shape[0], -1)
@@ -114,7 +195,16 @@ class PGDAttack(AdvAttack):
 
         return x.reshape(shape)
 
-    def generate(self, input, target):
+    def generate(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Generate PGD adversarial examples.
+
+        Args:
+          input: Clean input batch.
+          target: Labels or attack targets.
+
+        Returns:
+          Adversarial batch.
+        """
 
         f = 1
         if self.targeted:
@@ -128,6 +218,10 @@ class PGDAttack(AdvAttack):
             alpha = self.alpha
 
         if self.norm_time:
+            if not (-input.dim() <= self.time_dim < input.dim()):
+                raise ValueError(
+                    f"pgd time_dim={self.time_dim} out of range for input.dim={input.dim()}"
+                )
             num_samples = input.shape[self.time_dim]
             if self.norm == 2:
                 eps *= math.sqrt(num_samples)

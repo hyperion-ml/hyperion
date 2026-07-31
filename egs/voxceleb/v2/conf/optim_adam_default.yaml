@@ -1,0 +1,6 @@
+opt_type: adam
+lr: 0.05
+amsgrad: true
+beta1: 0.9
+beta2: 0.95
+weight_decay: 1.0e-05

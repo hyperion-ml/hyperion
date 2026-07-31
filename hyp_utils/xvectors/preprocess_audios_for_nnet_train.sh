@@ -45,7 +45,7 @@ mkdir -p $data_out
 output_dir=$(utils/make_absolute.sh $dir)
 
 if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $output_dir/storage ]; then
-    dir_name=$USER/hyp-data/xvectors/$storage_name/xvector_audio/storage
+    dir_name=$USER/hyp-data/$storage_name/xvector_audio/storage
     if [ "$nodes" == "b0" ];then
 	utils/create_split_dir.pl \
 	    utils/create_split_dir.pl \
@@ -56,9 +56,13 @@ if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $output_dir/storage ]; then
     elif [ "$nodes" == "s01" ];then
 	utils/create_split_dir.pl \
 	    /export/s01/$dir_name $output_dir/storage
-    else
+    elif [ "$nodes" == "c0" ];then
 	utils/create_split_dir.pl \
 	    /export/c{01,06,07,08,09}/$dir_name $output_dir/storage
+    elif [ "$nodes" == "fs05" ];then
+	utils/create_split_dir.pl \
+	    utils/create_split_dir.pl \
+	    /export/fs05/$dir_name $output_dir/storage
     fi
 
     for f in $(awk '{ print $1}' $data_in/wav.scp); do
@@ -88,12 +92,13 @@ fi
 
 $cmd JOB=1:$nj $dir/log/preproc_audios_${name}.JOB.log \
     hyp_utils/conda_env.sh \
-    preprocess-audio-files.py ${args} --output-audio-format $file_format $args $proc_opts \
+    preprocess_audio_files.py ${args} --audio-format $file_format $args $proc_opts \
     --write-time-durs $output_dir/utt2dur.${name}.JOB \
     --part-idx JOB --num-parts $nj \
-    --input $data_in/wav.scp \
+    --recordings-file $data_in/wav.scp \
     --output-path $output_dir \
-    --output-script $output_dir/wav.${name}.JOB.scp
+    --output-recordings-file $output_dir/wav.${name}.JOB.scp
+
 
 for n in $(seq $nj); do
   cat $output_dir/wav.${name}.$n.scp || exit 1;

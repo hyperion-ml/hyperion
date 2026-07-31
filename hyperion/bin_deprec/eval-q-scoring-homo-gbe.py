@@ -1,27 +1,28 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Evals Q-scoring back-end
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 
+from hyperion.classifiers import QScoringHomoGBE as GBE
+from hyperion.helpers import ClassifTrialDataReader as TDR
 from hyperion.hyp_defs import config_logger
+from hyperion.io import HypDataWriter as HDW
+from hyperion.transforms import TransformList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
-from hyperion.io import HypDataWriter as HDW
-from hyperion.helpers import ClassifTrialDataReader as TDR
-from hyperion.transforms import TransformList
-from hyperion.classifiers import QScoringHomoGBE as GBE
 
 
 def eval_qscoring_gbe(
@@ -33,7 +34,7 @@ def eval_qscoring_gbe(
     score_file,
     vector_score_file,
     normalize,
-    **kwargs
+    **kwargs,
 ):
 
     if preproc_file is not None:

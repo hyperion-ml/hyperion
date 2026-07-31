@@ -84,7 +84,7 @@ fi
 if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/eval_logits.JOB.log \
 	hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	torch-eval-xvec-logits-from-wav.py \
+	eval_xvec_logits_from_wav.py \
 	--feats $feat_config ${args} $write_num_frames_opt \
 	--part-idx JOB --num-parts $nj \
 	--input $data_dir/wav.scp \

@@ -1,0 +1,75 @@
+data:
+  train:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 12
+      max_chunk_length: 6.0
+      min_chunk_length: 6.0
+      num_chunks_per_seg_epoch: 1
+      class_name: class_id
+      seg_weight_mode: data-prior
+      num_hard_prototypes: 6
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 16
+      max_chunk_length: 6.0
+      min_chunk_length: 6.0
+      num_chunks_per_seg_epoch: 3
+      class_name: class_id
+      seg_weight_mode: data-prior
+    data_loader:
+      num_workers: 8
+feats: fbank64_stmn_8k.yaml
+model:
+  loss_type: subcenter-arc-softmax
+  num_subcenters: 2
+  cos_scale: 30.0
+  margin: 0.4
+  margin_warmup_epochs: 2
+  intertop_margin: 0.1
+trainer:
+  optim:
+    opt_type: sgd
+    lr: 0.001
+    momentum: 0.9
+    # opt_type: adam
+    # lr: 0.001
+    # amsgrad: true
+    # beta1: 0.9
+    # beta2: 0.95
+    weight_decay: 2.0e-05
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    #decay_steps: 8000
+    #hold_steps: 10000
+    decay_steps: 12000
+    hold_steps: 12000
+    min_lr: 1.0e-05
+    update_lr_on_opt_step: true
+    warmup_steps: 4000
+  use_amp: true
+  swa_start: 9
+  swa_lr: 1e-4
+  swa_anneal_epochs: 2
+  log_interval: 1000
+  epochs: 11
+  eff_batch_size: 512
+

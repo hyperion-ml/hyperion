@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Converts from Ark format to h5 format (deprecated, use copy-feats.py)
 """
 
-import sys
-import os
 import argparse
+import os
+import sys
 import time
 
 import numpy as np

@@ -1,22 +1,33 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import numpy as np
-import scipy.linalg as la
+from typing import Any, Optional
 
 import matplotlib
 
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import numpy as np
+import scipy.linalg as la
 import scipy.stats as stats
-from mpl_toolkits.mplot3d import Axes3D as plt3d
 
-from .math import invert_pdmat
+# from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.axes import Axes
+from mpl_toolkits.mplot3d.axes3d import Axes3D  # For 3D plotting
+
+from .math_funcs import invert_pdmat
 
 
-def plot_gaussian_1D(mu, C, num_sigmas=3, num_pts=100, weight=1, **kwargs):
+def plot_gaussian_1D(
+    mu: float,
+    C: float,
+    num_sigmas: float = 3,
+    num_pts: int = 100,
+    weight: float = 1,
+    **kwargs: Any,
+) -> None:
     """Plots a 1D Gaussian.
 
     Args:
@@ -34,7 +45,14 @@ def plot_gaussian_1D(mu, C, num_sigmas=3, num_pts=100, weight=1, **kwargs):
     plt.plot(x, weight * stats.norm.pdf(x, mu, sigma), **kwargs)
 
 
-def plot_gaussian_3D(mu, C, num_sigmas=3, num_pts=100, ax=None, **kwargs):
+def plot_gaussian_3D(
+    mu: np.ndarray,
+    C: np.ndarray,
+    num_sigmas: float = 3.0,
+    num_pts: int = 100,
+    ax: Optional[Axes3D] = None,
+    **kwargs: Any,
+) -> None:
     """Plots a 2D Gaussian in a 3D space
 
     Args:
@@ -48,13 +66,17 @@ def plot_gaussian_3D(mu, C, num_sigmas=3, num_pts=100, ax=None, **kwargs):
       kwargs: extra arguments for matplotlib
     """
 
-    assert mu.shape[0] == 2
-    assert C.shape[0] == 2 and C.shape[1] == 2
+    if mu.shape[0] != 2:
+        raise ValueError(f"mu must have shape (2,), got {mu.shape}")
+    if C.shape != (2, 2):
+        raise ValueError(f"C must have shape (2, 2), got {C.shape}")
     num_pts *= 1j
     invC, _, logC = invert_pdmat(C, return_logdet=True)
     dim = mu.shape[0]
     d, v = la.eigh(C)
-    delta = num_sigmas * np.sum(v * np.sqrt(d), axis=1)
+    # Bounding box half-widths: sum of axis-aligned contributions from
+    # principal directions scaled by standard deviations.
+    delta = num_sigmas * np.sum(np.abs(v) * np.sqrt(d), axis=1)
     low_lim = mu - delta
     high_lim = mu + delta
     X, Y = np.mgrid[
@@ -75,7 +97,13 @@ def plot_gaussian_3D(mu, C, num_sigmas=3, num_pts=100, ax=None, **kwargs):
     ax.plot_surface(X, Y, Z, **kwargs)
 
 
-def plot_gaussian_ellipsoid_2D(mu, C, num_sigmas=1, num_pts=100, **kwargs):
+def plot_gaussian_ellipsoid_2D(
+    mu: np.ndarray,
+    C: np.ndarray,
+    num_sigmas: float = 1.0,
+    num_pts: int = 100,
+    **kwargs: Any,
+) -> None:
     """Plots a 2D Gaussian in a 2D space
 
     Args:
@@ -88,20 +116,29 @@ def plot_gaussian_ellipsoid_2D(mu, C, num_sigmas=1, num_pts=100, **kwargs):
       kwargs: extra arguments for matplotlib
     """
 
-    assert mu.shape[0] == 2
-    assert C.shape[0] == 2 and C.shape[1] == 2
+    if mu.shape[0] != 2:
+        raise ValueError(f"mu must have shape (2,), got {mu.shape}")
+    if C.shape != (2, 2):
+        raise ValueError(f"C must have shape (2, 2), got {C.shape}")
 
     t = np.linspace(0, 2 * np.pi, num_pts)
     x = np.cos(t)
     y = np.sin(t)
     xy = np.vstack((x, y))
     d, v = la.eigh(C)
-    d *= num_sigmas
-    r = np.dot(v * d, xy) + mu[:, None]
+    radii = num_sigmas * np.sqrt(d)
+    r = np.dot(v * radii, xy) + mu[:, None]
     plt.plot(r[0, :], r[1, :], **kwargs)
 
 
-def plot_gaussian_ellipsoid_3D(mu, C, num_sigmas=1, num_pts=100, ax=None, **kwargs):
+def plot_gaussian_ellipsoid_3D(
+    mu: np.ndarray,
+    C: np.ndarray,
+    num_sigmas: float = 1.0,
+    num_pts: int = 100,
+    ax: Optional[Axes3D] = None,
+    **kwargs: Any,
+) -> None:
     """Plots a 3D Gaussian in a 3D space
 
     Args:
@@ -115,17 +152,20 @@ def plot_gaussian_ellipsoid_3D(mu, C, num_sigmas=1, num_pts=100, ax=None, **kwar
       kwargs: extra arguments for matplotlib
     """
 
-    assert mu.shape[0] == 3
-    assert C.shape[0] == 3 and C.shape[1] == 3
+    if mu.shape[0] != 3:
+        raise ValueError(f"mu must have shape (3,), got {mu.shape}")
+    if C.shape != (3, 3):
+        raise ValueError(f"C must have shape (3, 3), got {C.shape}")
 
     num_pts *= 1j
-    u, v = np.mgrid[0 : 2 * np.pi : num_pts, 0 : np.pi : num_pts / 2]
-    x = np.cos(u) * np.sin(v)
-    y = np.sin(u) * np.sin(v)
-    z = np.cos(v)
-    d, v = la.eigh(C)
+    u, v_grid = np.mgrid[0 : 2 * np.pi : num_pts, 0 : np.pi : num_pts / 2]
+    x = np.cos(u) * np.sin(v_grid)
+    y = np.sin(u) * np.sin(v_grid)
+    z = np.cos(v_grid)
+    d, eigvecs = la.eigh(C)
     xyz = np.vstack((x.ravel(), y.ravel(), z.ravel()))
-    r = np.dot(v * d, xyz) + mu[:, None]
+    radii = num_sigmas * np.sqrt(d)
+    r = np.dot(eigvecs * radii, xyz) + mu[:, None]
 
     X = np.reshape(r[0, :], u.shape)
     Y = np.reshape(r[1, :], u.shape)
@@ -135,36 +175,3 @@ def plot_gaussian_ellipsoid_3D(mu, C, num_sigmas=1, num_pts=100, ax=None, **kwar
         ax = fig.add_subplot(111, projection="3d")
 
     ax.plot_wireframe(X, Y, Z, **kwargs)
-
-
-# def test_plotting():
-
-#     mu=np.array([1, 2, 3])
-#     C=np.array([[2, 0.5, 0.2], [0.5, 1., 0.1], [0.2, 0.1, 0.8]])
-#     la.cholesky(C)
-
-#     mu1 = mu[0]
-#     C1 = C[0,0]
-#     plt.figure(figsize=(6, 6))
-#     plot_gaussian_1D(mu1, C1)
-#     plt.show()
-#     plt.savefig('plot_gaussian_1D.pdf')
-
-#     mu2 = mu[:2]
-#     C2 = C[:2,:2]
-#     fig = plt.figure(figsize=(6, 6))
-#     ax = fig.add_subplot(111, projection='3d')
-#     plot_gaussian_3D(mu2, C2, ax=ax)
-#     plt.show()
-#     plt.savefig('plot_gaussian_3D.pdf')
-
-#     plt.figure(figsize=(6, 6))
-#     plot_gaussian_ellipsoid_2D(mu2, C2)
-#     plt.show()
-#     plt.savefig('plot_gaussian_ellipsoid_2D.pdf')
-
-#     fig = plt.figure(figsize=(6, 6))
-#     ax = fig.add_subplot(111, projection='3d')
-#     plot_gaussian_ellipsoid_3D(mu, C, ax=ax)
-#     plt.show()
-#     plt.savefig('plot_gaussian_ellipsoid_3D.pdf')

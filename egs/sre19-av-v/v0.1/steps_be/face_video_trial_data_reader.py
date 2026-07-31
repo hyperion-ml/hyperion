@@ -18,7 +18,7 @@ import numpy as np
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.utils.utt2info import Utt2Info
 from hyperion.utils import TrialNdx, TrialKey
-from hyperion.transforms import TransformList
+from hyperion.np.transforms import TransformList
 
 
 class FaceVideoTrialDataReaderV1(object):

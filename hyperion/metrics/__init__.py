@@ -1,10 +1,10 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .utils import effective_prior
-from .acc import compute_accuracy
-from .confusion_matrix import *
-from .eer import compute_eer, compute_prbep
-from .dcf import compute_dcf, compute_min_dcf, compute_act_dcf, fast_eval_dcf_eer
+from .speech_quality_evaluator import SpeechQualityEvaluator
+from .verification_adv_attack_evaluator import VerificationAdvAttackEvaluator
+from .verification_anonymization_evaluator import VerificationAnonymizationEvaluator
+from .verification_evaluator import VerificationEvaluator
+from .voxprofile_evaluator import VoxProfileEvaluator

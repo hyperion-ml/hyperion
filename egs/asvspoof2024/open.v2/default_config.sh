@@ -1,0 +1,1 @@
+global_conf/config_wavlmbase_ecapatdnn512x3_v1.0.sh

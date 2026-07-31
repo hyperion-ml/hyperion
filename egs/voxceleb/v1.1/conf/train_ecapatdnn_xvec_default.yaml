@@ -1,0 +1,7 @@
+data:
+  train: train_data_default.yaml
+  val: val_data_default.yaml
+feats: fbank80_stmn_16k.yaml
+model: ecapatdnn_small.yaml
+trainer: trainer_default.yaml
+ 

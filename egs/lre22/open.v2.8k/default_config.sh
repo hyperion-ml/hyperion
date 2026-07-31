@@ -1,0 +1,1 @@
+global_conf/config_wav2vec2xlr300m_ecapatdnn1024x3_v1.0.sh

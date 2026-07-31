@@ -17,7 +17,7 @@ from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import TrialScores
 from hyperion.helpers import MultiTestTrialDataReaderV2 as TDR
 from hyperion.helpers import PLDAFactory as F
-from hyperion.transforms import TransformList
+from hyperion.np.transforms import TransformList
 
 
 def combine_diar_scores(ndx, orig_seg, subseg_scores):

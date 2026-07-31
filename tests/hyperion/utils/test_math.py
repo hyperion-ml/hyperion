@@ -1,13 +1,13 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import numpy as np
+import pytest
 import scipy.linalg as la
 
-from hyperion.utils.math import *
+from hyperion.utils.math_funcs import *
 
 
 def create_matrices(dim):

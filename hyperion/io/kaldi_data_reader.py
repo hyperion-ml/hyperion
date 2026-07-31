@@ -1,19 +1,29 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+
+Deprecated:
+    This module is deprecated and will be removed in a future release.
 """
 
+import gzip
+import re
+import struct
 import sys
-import gzip, struct, re
 from collections import OrderedDict
+
 import numpy as np
 
 from ..hyp_defs import float_cpu
 from ..utils.scp_list import SCPList
 
 
-class KaldiDataReader(object):
-    """Class to read features from .ark files."""
+class KaldiDataReader:
+    """Read features from ``.ark`` files.
+
+    Deprecated:
+        This class is deprecated and will be removed in a future release.
+    """
 
     def __init__(self, file_path, input_dir=None, sep=" "):
         self.file_path = file_path
@@ -64,7 +74,7 @@ class KaldiDataReader(object):
             # separate offset from filename (optional),
             offset = None
             if re.search(":[0-9]+$", file_path):
-                (file_path, offset) = file_path.rsplit(":", 1)
+                file_path, offset = file_path.rsplit(":", 1)
 
             if file_path.split(".")[-1] == "gz":
                 f = gzip.open(file_path, mode)
@@ -133,7 +143,7 @@ class KaldiDataReader(object):
         while 1:
             line = f.readline()
             if len(line) == 0:
-                raise BadInputFormat  # eof, should not happen!
+                raise ValueError()  # eof, should not happen!
             if len(line.strip()) == 0:
                 continue  # skip empty line
             arr = line.strip().split()

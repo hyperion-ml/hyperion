@@ -1,1 +1,0 @@
-global_conf/config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x4_c569.opt.lr0.01.v1.sh

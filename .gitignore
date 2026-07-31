@@ -18,8 +18,7 @@ dist/*
 build/*
 #keras/datasets/data/*
 #keras/datasets/temp/*
-#docs/site/*
-#docs/theme/*
+docs/_build/
 #tags
 #Keras.egg-info
 

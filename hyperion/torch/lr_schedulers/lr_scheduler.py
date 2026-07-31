@@ -1,25 +1,52 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
-import torch
 import torch.optim as optim
 
+MinLR = Union[float, Sequence[float]]
 
-class LRScheduler(object):
-    """Base class for learning rate schedulers"""
+
+class LRScheduler:
+    """Base class for project learning-rate schedulers.
+
+    This scheduler supports optional linear warmup from a near-zero value to
+    each parameter group's base learning rate.
+
+    Attributes:
+      optimizer: Wrapped optimizer.
+      min_lrs: Per-parameter-group minimum learning rates.
+      base_lrs: Per-parameter-group base (initial) learning rates.
+      warmup_steps: Number of optimization steps used for linear warmup.
+      epoch: Current epoch index.
+      step: Current optimization-step index.
+      update_lr_on_opt_step: If ``True``, update LR on each optimizer step;
+        otherwise update LR on epoch boundaries.
+    """
 
     def __init__(
         self,
-        optimizer,
-        min_lr=0,
-        warmup_steps=0,
-        epoch=0,
-        step=0,
-        update_lr_on_opt_step=False,
-    ):
+        optimizer: optim.Optimizer,
+        min_lr: MinLR = 0,
+        warmup_steps: int = 0,
+        epoch: int = 0,
+        step: int = 0,
+        update_lr_on_opt_step: bool = True,
+    ) -> None:
+        """Initialize scheduler state.
+
+        Args:
+            optimizer: Wrapped optimizer.
+            min_lr: Scalar or per-parameter-group lower bound.
+            warmup_steps: Number of optimization steps used for linear warmup.
+            epoch: Initial epoch index (for checkpoint resume).
+            step: Initial optimization-step index (for checkpoint resume).
+            update_lr_on_opt_step: If ``True``, update LR on each optimizer step;
+                otherwise update LR on epoch boundaries.
+        """
         if not isinstance(optimizer, optim.Optimizer):
             raise TypeError("%s is not an Optimizer" % (type(optimizer).__name__))
         self.optimizer = optimizer
@@ -55,43 +82,59 @@ class LRScheduler(object):
         self.update_lr_on_opt_step = update_lr_on_opt_step
 
     @property
-    def in_warmup(self):
-        return self.step <= self.warmup_steps
+    def in_warmup(self) -> bool:
+        """Whether the scheduler is currently in the warmup phase."""
+        return self.step < self.warmup_steps
 
-    def state_dict(self):
-        """Returns the state of the scheduler as a :class:`dict`.
+    def state_dict(self) -> Dict[str, Any]:
+        """Return scheduler state for checkpointing.
 
-        It contains an entry for every variable in self.__dict__ which
-        is not the optimizer.
+        The optimizer object itself is excluded.
         """
         return {
             key: value for key, value in self.__dict__.items() if key != "optimizer"
         }
 
-    def load_state_dict(self, state_dict):
-        """Loads the schedulers state.
+    def load_state_dict(self, state_dict: Mapping[str, Any]) -> None:
+        """Load scheduler state from :meth:`state_dict`.
 
-        Arguments:
-            state_dict (dict): scheduler state. Should be an object returned
-                from a call to :meth:`state_dict`.
+        Args:
+            state_dict: Serialized scheduler state.
         """
+        if "min_lrs" in state_dict:
+            # we use the current min_lrs instead of the checkpointed ones to be able to change
+            # the min_lrs when resuming from a checkpoint
+            state_dict.pop("min_lrs")
         self.__dict__.update(state_dict)
 
-    def get_warmup_lr(self):
+    def get_warmup_lr(self) -> List[float]:
+        """Compute warmup learning rates for each parameter group."""
         x = self.step
         return [
-            (base_lr - min_lr) / self.warmup_steps * x + min_lr
+            (base_lr - min(min_lr, 1e-8)) / self.warmup_steps * x + min(min_lr, 1e-8)
             for base_lr, min_lr in zip(self.base_lrs, self.min_lrs)
         ]
 
-    def get_lr(self):
+    def get_lr(self, step: int) -> List[float]:
+        """Compute learning rates for a given step/epoch index.
+
+        Args:
+            step: Current scheduler index (step or epoch depending on usage).
+        """
         raise NotImplementedError
 
-    def on_epoch_begin(self, epoch=None, **kwargs):
+    def on_epoch_begin(self, epoch: Optional[int] = None, **kwargs: Any) -> None:
+        """Update learning rates at epoch start when configured for epoch updates."""
         if epoch is not None:
             self.epoch = epoch
 
         if self.update_lr_on_opt_step:
+            if self.in_warmup:
+                for param_group, lr in zip(
+                    self.optimizer.param_groups, self.get_warmup_lr()
+                ):
+                    param_group["lr"] = lr
+
             return
 
         for param_group, lr in zip(
@@ -99,14 +142,12 @@ class LRScheduler(object):
         ):
             param_group["lr"] = lr
 
-    def on_epoch_end(self, metrics=None):
+    def on_epoch_end(self, metrics: Optional[Mapping[str, Any]] = None) -> None:
+        """Advance epoch counter at epoch end."""
         self.epoch += 1
 
-    def on_opt_step(self):
-
-        # self.update_lr_on_opt_step=True
-        # print('exp-lr', self.last_step, self.hold_steps, self.decay_rate, self.decay_steps)
-
+    def on_opt_step(self) -> None:
+        """Update learning rates after an optimization step."""
         if self.in_warmup:
             for param_group, lr in zip(
                 self.optimizer.param_groups, self.get_warmup_lr()

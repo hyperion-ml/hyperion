@@ -10,9 +10,7 @@ set -e
 stage=1
 ngpu=1
 config_file=default_config.sh
-resume=false
 interactive=false
-num_workers=8
 xvec_use_gpu=false
 xvec_chunk_length=12800
 
@@ -27,15 +25,9 @@ else
     xvec_cmd="$train_cmd"
 fi
 
-batch_size=$(($sign_nnet_batch_size_1gpu*$ngpu))
-grad_acc_steps=$(echo $batch_size $sign_nnet_eff_batch_size | awk '{ print int($2/$1+0.5)}')
-log_interval=$(echo 100*$grad_acc_steps | bc)
 list_dir=data/$snr_split_tag
 
 args=""
-if [ "$resume" == "true" ];then
-    args="--resume"
-fi
 
 if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
@@ -53,19 +45,16 @@ if [ $stage -le 1 ]; then
     mkdir -p $sign_nnet_dir/log
     $cuda_cmd --gpu $ngpu $sign_nnet_dir/log/train.log \
 	hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-	torch-train-xvec-from-wav.py  $sign_nnet_command --cfg $sign_nnet_config \
-	--audio-path $list_dir/trainval_wav.scp \
-	--time-durs-file $list_dir/trainval_utt2dur \
-	--train-list $list_dir/train_utt2attack \
-	--val-list $list_dir/val_utt2attack \
-	--class-file $list_dir/class_file \
-	--batch-size $batch_size \
-	--num-workers $num_workers \
-	--grad-acc-steps $grad_acc_steps \
-	--num-gpus $ngpu \
-	--log-interval $log_interval \
-	--exp-path $sign_nnet_dir $args
-    
+	train_xvector_from_wav.py  $sign_nnet_command --cfg $sign_nnet_config \
+	--data.train.dataset.recordings-file $list_dir/trainval_wav.scp \
+	--data.train.dataset.time-durs-file $list_dir/trainval_utt2dur \
+	--data.train.dataset.segments-file $list_dir/train_utt2attack \
+	--data.train.dataset.class-file $list_dir/class_file \
+	--data.val.dataset.recordings-file $list_dir/trainval_wav.scp \
+	--data.val.dataset.time-durs-file $list_dir/trainval_utt2dur \
+	--data.val.dataset.segments-file $list_dir/val_utt2attack \
+	--trainer.exp-path $sign_nnet_dir $args \
+	--num-gpus $ngpu 
 fi
 
 if [ $stage -le 2 ]; then
@@ -83,7 +72,7 @@ fi
 proj_dir=$sign_dir/test/tsne
 if [ $stage -le 3 ];then
     echo "Make TSNE plots on all test attacks"
-    echo "Result will be left in $proj_idr"
+    echo "Result will be left in $proj_dir"
     for p in 30 100 250
     do
 	for e in 12 64
@@ -101,7 +90,6 @@ if [ $stage -le 3 ];then
     wait
 fi
 
-
 if [ $stage -le 4 ]; then
     echo "Eval signature network logits on test attacks"
     mkdir -p $list_dir/test
@@ -114,7 +102,7 @@ if [ $stage -le 4 ]; then
 fi
 
 if [ $stage -le 5 ];then
-    echo "Compute cofusion matrices"
+    echo "Compute confusion matrices"
     echo "Result is left in $logits_dir/test/eval_acc.log"
     $train_cmd $logits_dir/test/eval_acc.log \
         hyp_utils/conda_env.sh steps_backend/eval-classif-perf.py \

@@ -1,16 +1,28 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Any, Callable, Dict, Optional, Union
+
+import torch
 import torch.nn as nn
-from torch.nn import Conv2d, BatchNorm2d, Dropout2d
 import torch.nn.functional as nnf
+from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
 
+ActivationType = Union[nn.Module, Dict[str, Any]]
 
-def _conv3x3(in_channels, out_channels, stride=1, groups=1, dilation=1, bias=False):
+
+def _conv3x3(
+    in_channels: int,
+    out_channels: int,
+    stride: int = 1,
+    groups: int = 1,
+    dilation: int = 1,
+    bias: bool = False,
+) -> nn.Conv2d:
     """3x3 convolution with padding"""
     return nn.Conv2d(
         in_channels,
@@ -24,13 +36,23 @@ def _conv3x3(in_channels, out_channels, stride=1, groups=1, dilation=1, bias=Fal
     )
 
 
-def _conv1x1(in_channels, out_channels, stride=1, bias=False):
+def _conv1x1(
+    in_channels: int,
+    out_channels: int,
+    stride: int = 1,
+    bias: bool = False,
+) -> nn.Conv2d:
     """1x1 convolution"""
     return nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=bias)
 
 
-def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before):
-
+def _make_downsample(
+    in_channels: int,
+    out_channels: int,
+    stride: int,
+    norm_layer: Callable[[int], nn.Module],
+    norm_before: bool,
+) -> nn.Module:
     if norm_before:
         return nn.Sequential(
             _conv1x1(in_channels, out_channels, stride, bias=False),
@@ -40,34 +62,77 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
     return _conv1x1(in_channels, out_channels, stride, bias=True)
 
 
+def _require_num_feats(num_feats: Optional[int], what: str) -> int:
+    if num_feats is None:
+        raise ValueError(f"num_feats must be provided when {what}")
+    return num_feats
+
+
+class FreqPosEnc(nn.Module):
+    """Frequency-wise positional encoding.
+
+    Attributes:
+      pos_enc: learnable positional offsets with shape=(num_feats, 1).
+    """
+
+    def __init__(self, num_feats: int) -> None:
+        """Create a frequency positional encoder.
+
+        Args:
+          num_feats: number of feature bins.
+        """
+        super().__init__()
+        self.pos_enc = nn.Parameter(torch.zeros((num_feats, 1)))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Add the positional encoding to the input.
+
+        Args:
+          x: input tensor.
+
+        Returns:
+          Tensor with the positional encoding added.
+        """
+        return x + self.pos_enc
+
+
 class ResNetInputBlock(nn.Module):
-    """Input block for ResNet architecture
+    """Input block for ResNet architecture.
 
-    Args:
-      in_channels: input channels
-      out_channels: output channels
-      kernel_size: kernel size for conv
-      stride: stride for conv
-      activation: str/dict indicationg activation type and arguments
-      norm_layer: norm_layer object constructor, if None it uses BatchNorm2d
-      norm_before: if True it applies the norm_layer before the activation,
-                   if False, after the activation
-      do_maxpool: apply maxpooling 2x2 at the output
-
+    Attributes:
+      conv: input convolution.
+      bn: normalization layer.
+      act: activation function.
+      norm_before: whether normalization is applied before activation.
+      do_maxpool: whether to apply max pooling.
+      context: receptive field radius.
+      downsample_factor: spatial downsampling factor.
+      maxpool: max pooling layer, created when ``do_maxpool`` is True.
     """
 
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        kernel_size=7,
-        stride=2,
-        activation={"name": "relu", "inplace": True},
-        norm_layer=None,
-        norm_before=True,
-        do_maxpool=True,
-    ):
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 7,
+        stride: int = 2,
+        activation: ActivationType = {"name": "relu", "inplace": True},
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+        do_maxpool: bool = True,
+    ) -> None:
+        """Create a ResNet input block.
 
+        Args:
+          in_channels: input channels.
+          out_channels: output channels.
+          kernel_size: convolution kernel size.
+          stride: convolution stride.
+          activation: activation specification.
+          norm_layer: normalization layer constructor, if None BatchNorm2d is used.
+          norm_before: if True normalization is before activation, otherwise after.
+          do_maxpool: if True, apply max pooling at the output.
+        """
         super().__init__()
 
         padding = int((kernel_size - 1) / 2)
@@ -95,8 +160,33 @@ class ResNetInputBlock(nn.Module):
             self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
             self.downsample_factor *= 2
 
-    def forward(self, x):
+    @property
+    def out_channels(self):
+        """Return the output channel count.
 
+        Returns:
+          Number of output channels.
+        """
+        return self.conv.out_channels
+
+    @property
+    def in_channels(self):
+        """Return the input channel count.
+
+        Returns:
+          Number of input channels.
+        """
+        return self.conv.in_channels
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the input block.
+
+        Args:
+          x: input tensor with shape=(batch, channels, height, width).
+
+        Returns:
+          Tensor after convolution, normalization, activation, and optional pooling.
+        """
         x = self.conv(x)
         if self.norm_before:
             x = self.bn(x)
@@ -112,23 +202,55 @@ class ResNetInputBlock(nn.Module):
 
 
 class ResNetBasicBlock(nn.Module):
-    expansion = 1
+    """ResNet basic block.
 
-    # __constants__ = ['downsample']
+    Attributes:
+      in_channels:       input channels.
+      channels:          output channels.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+
+      dropout_rate:      dropout rate.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+      freq_pos_enc: use frequency wise positional encoder
+      num_feats:         Number of features in dimension 2, needed if freq_pos_enc=True.
+
+    """
+
+    expansion = 1
 
     def __init__(
         self,
-        in_channels,
-        channels,
-        activation={"name": "relu", "inplace": True},
-        stride=1,
-        dropout_rate=0,
-        groups=1,
-        dilation=1,
-        norm_layer=None,
-        norm_before=True,
-    ):
+        in_channels: int,
+        channels: int,
+        activation: ActivationType = {"name": "relu", "inplace": True},
+        stride: int = 1,
+        dropout_rate: float = 0,
+        groups: int = 1,
+        dilation: int = 1,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+        freq_pos_enc: bool = False,
+        num_feats: Optional[int] = None,
+    ) -> None:
+        """Create a ResNet basic block.
 
+        Args:
+          in_channels: input channels.
+          channels: output channels.
+          activation: activation specification.
+          stride: downsampling stride.
+          dropout_rate: dropout probability.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          norm_layer: normalization layer constructor, if None BatchNorm2d is used.
+          norm_before: if True normalization is before activation, otherwise after.
+          freq_pos_enc: if True, add frequency positional encoding.
+          num_feats: number of feature bins required by positional encoding.
+        """
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -161,13 +283,40 @@ class ResNetBasicBlock(nn.Module):
 
         self.context = dilation + stride
         self.downsample_factor = stride
+        self.pos_enc = None
+        if freq_pos_enc:
+            num_feats = _require_num_feats(
+                num_feats, "freq_pos_enc=True in ResNetBasicBlock"
+            )
+            self.pos_enc = FreqPosEnc(num_feats * stride)
 
     @property
     def out_channels(self):
+        """Return the output channel count.
+
+        Returns:
+          Number of output channels.
+        """
         return self.channels
 
-    def forward(self, x):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the residual block.
+
+        Args:
+          x: input tensor with shape=(batch, in_channels, height, width).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape=(batch, out_channels, height, width).
+        """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
+        if self.pos_enc is not None:
+            x = self.pos_enc(x)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -182,15 +331,12 @@ class ResNetBasicBlock(nn.Module):
 
         if self.norm_before:
             x = self.bn2(x)
-
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        x += residual
-        x = self.act2(x)
-
-        if not self.norm_before:
+            x += residual
+            x = self.act2(x)
+        else:
+            x = self.act2(x)
             x = self.bn2(x)
+            x += residual
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -199,22 +345,54 @@ class ResNetBasicBlock(nn.Module):
 
 
 class ResNetBNBlock(nn.Module):
+    """ResNet bottleneck block.
+
+    Attributes:
+      in_channels:       input channels.
+      channels:          channels in bottleneck layer when width_factor=1.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+      dropout_rate:      dropout rate.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+      freq_pos_enc: use frequency wise positional encoder
+      num_feats:         Number of features in dimension 2, needed if freq_pos_enc=True.
+    """
+
     expansion = 4
     # __constants__ = ['downsample']
 
     def __init__(
         self,
-        in_channels,
-        channels,
-        activation={"name": "relu", "inplace": True},
-        stride=1,
-        dropout_rate=0,
-        groups=1,
-        dilation=1,
-        norm_layer=None,
-        norm_before=True,
-    ):
+        in_channels: int,
+        channels: int,
+        activation: ActivationType = {"name": "relu", "inplace": True},
+        stride: int = 1,
+        dropout_rate: float = 0,
+        groups: int = 1,
+        dilation: int = 1,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+        freq_pos_enc: bool = False,
+        num_feats: Optional[int] = None,
+    ) -> None:
+        """Create a ResNet bottleneck block.
 
+        Args:
+          in_channels: input channels.
+          channels: bottleneck channels.
+          activation: activation specification.
+          stride: downsampling stride.
+          dropout_rate: dropout probability.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          norm_layer: normalization layer constructor, if None BatchNorm2d is used.
+          norm_before: if True normalization is before activation, otherwise after.
+          freq_pos_enc: if True, add frequency positional encoding.
+          num_feats: number of feature bins required by positional encoding.
+        """
         super().__init__()
 
         self.in_channels = in_channels
@@ -251,13 +429,40 @@ class ResNetBNBlock(nn.Module):
 
         self.context = dilation
         self.downsample_factor = stride
+        self.pos_enc = None
+        if freq_pos_enc:
+            num_feats = _require_num_feats(
+                num_feats, "freq_pos_enc=True in ResNetBNBlock"
+            )
+            self.pos_enc = FreqPosEnc(num_feats)
 
     @property
     def out_channels(self):
+        """Return the output channel count.
+
+        Returns:
+          Number of output channels.
+        """
         return self.channels * self.expansion
 
-    def forward(self, x):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the bottleneck residual block.
+
+        Args:
+          x: input tensor with shape=(batch, in_channels, height, width).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape=(batch, out_channels, height, width).
+        """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
+        if self.pos_enc is not None:
+            x = self.pos_enc(x)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -276,15 +481,12 @@ class ResNetBNBlock(nn.Module):
         x = self.conv3(x)
         if self.norm_before:
             x = self.bn3(x)
-
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        x += residual
-        x = self.act3(x)
-
-        if not self.norm_before:
+            x += residual
+            x = self.act3(x)
+        else:
+            x = self.act3(x)
             x = self.bn3(x)
+            x += residual
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -293,28 +495,71 @@ class ResNetBNBlock(nn.Module):
 
 
 class Interpolate(nn.Module):
-    def __init__(self, scale_factor, mode="nearest"):
+    """Interpolation wrapper.
+
+    Attributes:
+      interp: interpolation function.
+      scale_factor: interpolation scale factor.
+      mode: interpolation mode.
+    """
+
+    def __init__(self, scale_factor: float, mode: str = "nearest") -> None:
+        """Create an interpolation wrapper.
+
+        Args:
+          scale_factor: interpolation scale factor.
+          mode: interpolation mode.
+        """
         super().__init__()
         self.interp = nnf.interpolate
         self.scale_factor = scale_factor
         self.mode = mode
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Upsample the input tensor.
+
+        Args:
+          x: input tensor.
+
+        Returns:
+          Upsampled tensor.
+        """
         x = self.interp(x, scale_factor=self.scale_factor, mode=self.mode)
         return x
 
 
 class ResNetEndpointBlock(nn.Module):
+    """ResNet endpoint basic block. This is used as output block when
+    the output combines feature maps from different resolution levels.
+
+    Attributes:
+      in_channels:       input channels.
+      out_channels:      output channels.
+      scale:             interpolation factor.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+    """
+
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        scale,
-        activation={"name": "relu", "inplace": True},
-        norm_layer=None,
-        norm_before=True,
-    ):
+        in_channels: int,
+        out_channels: int,
+        scale: int,
+        activation: ActivationType = {"name": "relu", "inplace": True},
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+    ) -> None:
+        """Create a ResNet endpoint block.
 
+        Args:
+          in_channels: input channels.
+          out_channels: output channels.
+          scale: interpolation factor.
+          activation: activation specification.
+          norm_layer: normalization layer constructor, if None BatchNorm2d is used.
+          norm_before: if True normalization is before activation, otherwise after.
+        """
         super().__init__()
 
         if norm_layer is None:
@@ -334,7 +579,18 @@ class ResNetEndpointBlock(nn.Module):
         if self.scale > 1:
             self.upsample = Interpolate(scale_factor=scale, mode="nearest")
 
-    def forward(self, x):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the endpoint block.
+
+        Args:
+          x: input tensor with shape=(batch, in_channels, height, width).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape=(batch, out_channels, height, width).
+        """
 
         if self.in_channels != self.out_channels:
             x = self.conv(x)

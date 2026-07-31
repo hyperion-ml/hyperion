@@ -1,14 +1,15 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
+
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
-from hyperion.metrics.acc import compute_accuracy
+from hyperion.np.metrics.acc import compute_accuracy
 
 
 def test_compute_accuracy():

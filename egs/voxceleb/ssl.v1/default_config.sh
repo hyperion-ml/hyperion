@@ -1,0 +1,1 @@
+global_conf/config_fbank80_stmn_fwseresnet34.v1.2.1.sh

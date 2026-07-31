@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
-import os
 import argparse
-import time
-import re
 import logging
+import os
+import re
+import sys
+import time
 
 import numpy as np
 

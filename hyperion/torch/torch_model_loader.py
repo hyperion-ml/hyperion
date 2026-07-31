@@ -1,15 +1,15 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from collections import OrderedDict as ODict
 import re
+from collections import OrderedDict as ODict
 
 import torch
 
-from .narchs import *
 from .models import *
+from .narchs import *
 
 
 class TorchModelLoader(object):
@@ -19,7 +19,7 @@ class TorchModelLoader(object):
 
         Args:
           class_obj: class type of the model.
-          cfg: configuration dictiory that inits the model.
+          cfg: configuration dictionary that initializes the model.
 
         Returns:
           Fixed configuration dictionary.
@@ -57,7 +57,7 @@ class TorchModelLoader(object):
 
         cfg = TorchModelLoader._fix_compatibility(class_obj, cfg)
 
-        p = re.compile("^module\.")
+        p = re.compile(r"^module\.")
         num_tries = 3
         for tries in range(num_tries):
             try:

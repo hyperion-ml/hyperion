@@ -1,0 +1,77 @@
+data:
+  train:
+    dataset:
+      class_names:
+      - speaker
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - speaker
+      num_augs: 4
+    sampler:
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 2.0
+      min_chunk_length: 2.0
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      class_names:
+      - speaker
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - speaker
+    sampler:
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 2.0
+      min_chunk_length: 2.0
+    data_loader:
+      num_workers: 8
+model:
+  feats: fbank80_specaug1_stmn_16k.yaml
+  xvector:
+    resnet_type: fwseidrndresnet100
+    in_channels: 1
+    in_feats: 80
+    conv_channels: 128
+    in_kernel_size: 3
+    in_stride: 1
+    no_maxpool: true
+    pool_net:
+      pool_type: ch-wise-att-mean+stddev
+      inner_feats: 128
+    embed_dim: 192
+    cos_scale: 30.0
+    loss_type: subcenter-arc-softmax
+    num_subcenters: 2
+    margin: 0.2
+    margin_warmup_epochs: 5.0
+    dropout_rate: 0.05
+    se_r: 4
+    norm_before: false
+    hid_act: swish
+trainer:
+  optim: 
+    opt_type: adam
+    lr: 0.01
+    amsgrad: true
+    beta1: 0.9
+    beta2: 0.99
+    weight_decay: 2.0e-05
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 40000
+    hold_steps: 65000
+    min_lr: 1.0e-05
+    warmup_steps: 15000
+    update_lr_on_opt_step: true
+  grad_clip: 250
+  use_amp: true
+  log_interval: 1000
+  epochs: 30
+  eff_batch_size: 256
+  target_key: speaker

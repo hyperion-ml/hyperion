@@ -1,59 +1,82 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
-import math
 import logging
+import math
+from typing import Any, List, Optional
 
-import torch
+import torch.optim as optim
 
-from .lr_scheduler import LRScheduler
+from .lr_scheduler import LRScheduler, MinLR
 
 
 class CosineLR(LRScheduler):
-    r"""Set the learning rate of each parameter group using a cosine annealing
-    schedule, where :math:`\eta_{max}` is set to the initial lr and
-    :math:`T_{cur}` is the number of epochs since the last restart in SGDR:
+    r"""Cosine annealing scheduler with optional warm restarts.
+
+    The per-group learning rate follows:
 
     .. math::
-
         \eta_t = \eta_{min} + \frac{1}{2}(\eta_{max} - \eta_{min})(1 +
         \cos(\frac{T_{cur}}{T_{max}}\pi))
 
-    When epoch=-1, sets initial lr as lr.
+    where ``T_cur`` is the index since the last restart and ``T_max`` is the
+    current cycle length.
 
-    It has been proposed in
-    `SGDR: Stochastic Gradient Descent with Warm Restarts`_.
-
-    Args:
-        optimizer (Optimizer): Wrapped optimizer.
-        T_max (int): Maximum number of iterations.
-        eta_min (float): Minimum learning rate. Default: 0.
-        epoch (int): The index of last epoch. Default: -1.
-
-    .. _SGDR\: Stochastic Gradient Descent with Warm Restarts:
-        https://arxiv.org/abs/1608.03983
+    Attributes:
+      optimizer: Wrapped optimizer.
+      T: Current cycle length.
+      T_mul: Cycle-length multiplier after each restart.
+      min_lrs: Per-parameter-group minimum learning rates.
+      base_lrs: Per-parameter-group base learning rates.
+      warmup_steps: Number of optimization steps used for linear warmup.
+      warm_restarts: Whether warm restarts are enabled.
+      gamma: Multiplicative factor applied to max LR after each restart.
+      last_restart: Step index of the last restart.
+      num_restarts: Number of completed restarts.
+      epoch: Current epoch index.
+      step: Current optimization-step index.
+      update_lr_on_opt_step: Whether LR updates happen per optimizer step.
     """
 
     def __init__(
         self,
-        optimizer,
-        T,
-        T_mul=1,
-        min_lr=0,
-        warmup_steps=0,
-        warm_restarts=False,
-        gamma=1,
-        last_restart=0,
-        num_restarts=0,
-        epoch=0,
-        step=0,
-        update_lr_on_opt_step=False,
-    ):
+        optimizer: optim.Optimizer,
+        T: int,
+        T_mul: int = 1,
+        min_lr: MinLR = 0,
+        warmup_steps: int = 0,
+        warm_restarts: bool = False,
+        gamma: float = 1,
+        last_restart: int = 0,
+        num_restarts: int = 0,
+        epoch: int = 0,
+        step: int = 0,
+        update_lr_on_opt_step: bool = True,
+    ) -> None:
+        """Initialize cosine scheduler.
 
-        super(CosineLR, self).__init__(
+        Args:
+            optimizer: Wrapped optimizer.
+            T: Initial cycle length.
+            T_mul: Cycle-length multiplier after each restart.
+            min_lr: Scalar or per-group lower LR bound.
+            warmup_steps: Linear warmup duration in optimizer steps.
+            warm_restarts: Whether to restart cycles after ``T``.
+            gamma: Multiplicative factor applied to max LR after each restart.
+            last_restart: Resume state for last restart step.
+            num_restarts: Resume state for number of completed restarts.
+            epoch: Initial epoch index.
+            step: Initial optimization-step index.
+            update_lr_on_opt_step: Whether to update LR every optimizer step.
+        """
+        if T <= 0:
+            raise ValueError(f"T must be > 0, got {T}")
+        if T_mul <= 0:
+            raise ValueError(f"T_mul must be > 0, got {T_mul}")
+
+        super().__init__(
             optimizer, min_lr, warmup_steps, epoch, step, update_lr_on_opt_step
         )
         self.T = T
@@ -63,23 +86,26 @@ class CosineLR(LRScheduler):
         self.num_restarts = num_restarts
         self.gamma = gamma
 
-    def on_epoch_begin(self, epoch=None, epoch_updates=1, **kwargs):
-        super(CosineLR, self).on_epoch_begin(epoch)
-        if self.update_lr_on_opt_step:
+    def on_epoch_begin(
+        self,
+        epoch: Optional[int] = None,
+        save_steps: Optional[int] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Adjust cycle length to align to epoch boundaries when requested."""
+        super().on_epoch_begin(epoch)
+        if self.update_lr_on_opt_step and save_steps is not None:
+            if save_steps <= 0:
+                raise ValueError(f"save_steps must be > 0, got {save_steps}")
             # T has to correspond to an integer number of epochs
-            T = int(math.ceil(self.T / epoch_updates) * epoch_updates)
+            T = int(math.ceil(self.T / save_steps) * save_steps)
             if self.T != T:
                 logging.info("readjusting cos_lr T %d -> %d" % (self.T, T))
                 self.T = T
 
-    def get_lr(self, step):
+    def get_lr(self, step: int) -> List[float]:
+        """Return per-group cosine-annealed learning rates."""
         x = step - self.last_restart
-        # if x >= self.T and self.update_lr_on_opt_step and self.warm_restarts:
-        #     #T has to be at least 1 epoch
-        #     if self.epoch == 0:
-        #         self.T = x + 1
-        #         logging.info('readjusting cos_lr T to %d' % (self.T))
-        # logging.info('cos-get-lr step=%d last=%d T=%d' % (step, self.last_restart, self.T))
         if x >= self.T:
             if self.warm_restarts:
                 self.last_restart = step
@@ -92,7 +118,7 @@ class CosineLR(LRScheduler):
             else:
                 return self.min_lrs
 
-        alpha = self.gamma ** self.num_restarts
+        alpha = self.gamma**self.num_restarts
         r = math.pi / self.T
 
         return [
@@ -108,47 +134,67 @@ class CosineLR(LRScheduler):
 
 
 class AdamCosineLR(CosineLR):
+    """Cosine scheduler variant used with Adam-family optimizers.
+
+    Attributes:
+      optimizer: Wrapped optimizer.
+      T: Current cycle length.
+      T_mul: Cycle-length multiplier after each restart.
+      min_lrs: Per-parameter-group minimum learning rates.
+      base_lrs: Per-parameter-group base learning rates.
+      warmup_steps: Number of optimization steps used for linear warmup.
+      warm_restarts: Whether warm restarts are enabled.
+      gamma: Multiplicative factor applied to max LR after each restart.
+      last_restart: Step index of the last restart.
+      num_restarts: Number of completed restarts.
+      epoch: Current epoch index.
+      step: Current optimization-step index.
+      update_lr_on_opt_step: Whether LR updates happen per optimizer step.
+    """
+
     def __init__(
         self,
-        optimizer,
-        T=1,
-        T_mul=2,
-        warmup_steps=0,
-        warm_restarts=False,
-        gamma=1,
-        last_restart=0,
-        num_restarts=0,
-        epoch=-1,
-        step=-1,
-        update_lr_on_opt_step=False,
-    ):
-        super(AdamCosineLR, super).__init__(
-            optimizer,
-            T,
-            T_mul,
-            0,
-            warmup_steps,
-            warm_restarts,
-            last_restart,
-            num_restarts,
-            gamma,
-            epoch,
-            step,
-            update_lr_on_opt_step,
+        optimizer: optim.Optimizer,
+        T: int = 1,
+        T_mul: int = 2,
+        warmup_steps: int = 0,
+        warm_restarts: bool = False,
+        gamma: float = 1,
+        last_restart: int = 0,
+        num_restarts: int = 0,
+        epoch: int = 0,
+        step: int = 0,
+        update_lr_on_opt_step: bool = False,
+    ) -> None:
+        """Initialize Adam cosine scheduler."""
+        super().__init__(
+            optimizer=optimizer,
+            T=T,
+            T_mul=T_mul,
+            min_lr=0,
+            warmup_steps=warmup_steps,
+            warm_restarts=warm_restarts,
+            gamma=gamma,
+            last_restart=last_restart,
+            num_restarts=num_restarts,
+            epoch=epoch,
+            step=step,
+            update_lr_on_opt_step=update_lr_on_opt_step,
         )
 
-    def get_lr(self, step):
+    def get_lr(self, step: int) -> List[float]:
+        """Return per-group cosine-annealed learning rates."""
         x = step - self.last_restart
         if x > self.T:
             if self.warm_restarts:
                 self.last_restart = step
                 x = 0
-                self.T *= T_mul
+                self.T *= self.T_mul
                 self.num_restarts += 1
             else:
                 return self.min_lrs
 
-        alpha = gamma ** self.num_restarts
+        alpha = self.gamma**self.num_restarts
         r = math.pi / self.T
 
         return [

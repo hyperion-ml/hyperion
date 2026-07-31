@@ -1,21 +1,21 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
-import numpy as np
-from scipy import linalg as la
+
 import matplotlib
+import numpy as np
+import pytest
+from scipy import linalg as la
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
 from numpy.testing import assert_allclose
 
-from hyperion.utils.math import symmat2vec
-from hyperion.pdfs import NormalDiagCov, Normal
+from hyperion.np.pdfs import Normal, NormalDiagCov
+from hyperion.utils.math_funcs import symmat2vec
 
 output_dir = "./tests/data_out/pdfs/core/normal"
 if not os.path.exists(output_dir):

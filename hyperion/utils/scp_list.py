@@ -1,20 +1,22 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import logging
 import os
 import os.path as path
 from collections import OrderedDict
 from copy import deepcopy
-import logging
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
 from .list_utils import *
+from .misc import PathLike
 
 
-class SCPList(object):
+class SCPList:
     """Class to manipulate script lists.
 
     Attributes:
@@ -25,7 +27,13 @@ class SCPList(object):
       key_to_index: Dictionary that returns the position of a key in the list.
     """
 
-    def __init__(self, key, file_path, offset=None, range_spec=None):
+    def __init__(
+        self,
+        key: Union[List[str], np.ndarray],
+        file_path: Union[List[str], np.ndarray],
+        offset: Optional[Union[Sequence[int], np.ndarray]] = None,
+        range_spec: Optional[Union[Sequence[Sequence[int]], np.ndarray]] = None,
+    ) -> None:
         self.key = key
         self.file_path = file_path
         self.offset = offset
@@ -33,10 +41,10 @@ class SCPList(object):
         self.key_to_index = None
         self.validate()
 
-    def validate(self):
+    def validate(self) -> None:
         """Validates the attributes of the SCPList object."""
         self.key = list2ndarray(self.key)
-        self.file_path = list2ndarray(self.file_path, dtype=np.object)
+        self.file_path = list2ndarray(self.file_path, dtype=object)
         assert len(self.key) == len(self.file_path)
         if self.offset is not None:
             if isinstance(self.offset, list):
@@ -51,52 +59,50 @@ class SCPList(object):
                 assert len(self.key) == self.range_spec.shape[0]
                 assert self.range_spec.shape[1] == 2
 
-    def copy(self):
+    def copy(self) -> "SCPList":
         """Makes a copy of the object."""
         return deepcopy(self)
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Returns the number of elements in the list."""
         return len(self.key)
 
-    def len(self):
+    def len(self) -> int:
         """Returns the number of elements in the list."""
         return len(self.key)
 
-    def _create_dict(self):
+    def _create_dict(self) -> None:
         """Creates dictionary that returns the position of
         a segment in the list.
         """
         self.key_to_index = OrderedDict((k, i) for i, k in enumerate(self.key))
 
-    def get_index(self, key):
+    def get_index(self, key: Any) -> int:
         """Returns the position of key in the list."""
         if self.key_to_index is None:
             self._create_dict()
         return self.key_to_index[key]
 
-    def __contains__(self, key):
+    def __contains__(self, key: Any) -> bool:
         """Returns True if the list contains the key"""
         if self.key_to_index is None:
             self._create_dict()
         return key in self.key_to_index
 
-    def __getitem__(self, key):
-        """It allows to acces the data in the list by key or index like in
-           a ditionary, e.g.:
-           If input is a string key:
-               scp = SCPList(keys, file_paths, offsets, ranges)
-               file_path, offset, range = scp['data1']
-           If input is an index:
-               key, file_path, offset, range = scp[0]
+    def __getitem__(self, key: Union[str, int, np.integer]) -> Union[
+        Tuple[Any, Any, Optional[Any], Optional[np.ndarray]],
+        Tuple[Any, Optional[Any], Optional[np.ndarray]],
+    ]:
+        """Access list data by key or integer index.
+
+        For a string key, returns ``(file_path, offset, range_spec)``. For an
+        integer index, returns ``(key, file_path, offset, range_spec)``.
 
         Args:
           key: String key or integer index.
+
         Returns:
-          If key is a string:
-              file_path, offset and range_spec given the key.
-          If key is the index in the key list:
-              key, file_path, offset and range_spec given the index.
+          Data associated with ``key`` as described above.
         """
         return_key = True
         if isinstance(key, str):
@@ -111,11 +117,11 @@ class SCPList(object):
         else:
             return self.file_path[index], offset, range_spec
 
-    def add_prefix_to_filepath(self, prefix):
+    def add_prefix_to_filepath(self, prefix: str) -> None:
         """Adds a prefix to the file path"""
         self.file_path = np.array([prefix + p for p in self.file_path])
 
-    def sort(self):
+    def sort(self) -> None:
         """Sorts the list by key"""
         self.key, idx = sort(self.key, return_index=True)
         self.file_path = self.file_path[idx]
@@ -125,7 +131,7 @@ class SCPList(object):
             self.range_spec = self.range_spec[idx]
         self.key_to_index = None
 
-    def save(self, file_path, sep=" ", offset_sep=":"):
+    def save(self, file_path: PathLike, sep: str = " ", offset_sep: str = ":") -> None:
         """Saves script list to text file.
 
         Args:
@@ -156,12 +162,14 @@ class SCPList(object):
                     f.write("%s%s%s%s%d%s\n" % (k, sep, p, offset_sep, o, r))
 
     @staticmethod
-    def parse_script(script, offset_sep):
+    def parse_script(
+        script: Sequence[str], offset_sep: str
+    ) -> Tuple[List[str], Optional[List[int]], Optional[np.ndarray]]:
         """Parses the parts of the second field of the scp text file.
 
         Args:
           script: Second column of scp file.
-          offset_sep: Separtor between file_path and offset.
+          offset_sep: Separator between file_path and offset.
 
         Returns:
           file_path, offset and range_spec.
@@ -206,7 +214,13 @@ class SCPList(object):
         return file_path, offset, range_spec
 
     @classmethod
-    def load(cls, file_path, sep=" ", offset_sep=":", is_wav=False):
+    def load(
+        cls,
+        file_path: PathLike,
+        sep: str = " ",
+        offset_sep: str = ":",
+        is_wav: bool = False,
+    ) -> "SCPList":
         """Loads script list from text file.
 
         Args:
@@ -231,7 +245,7 @@ class SCPList(object):
             file_path, offset, range_spec = SCPList.parse_script(script, offset_sep)
         return cls(key, file_path, offset, range_spec)
 
-    def split(self, idx, num_parts, group_by_key=True):
+    def split(self, idx: int, num_parts: int, group_by_key: bool = True) -> "SCPList":
         """Splits SCPList into num_parts and return part idx.
 
         Args:
@@ -259,7 +273,7 @@ class SCPList(object):
         return SCPList(key, file_path, offset, range_spec)
 
     @classmethod
-    def merge(cls, scp_lists):
+    def merge(cls, scp_lists: Sequence["SCPList"]) -> "SCPList":
         """Merges several SCPList.
 
         Args:
@@ -288,8 +302,10 @@ class SCPList(object):
 
         return cls(key, file_path, offset, range_spec)
 
-    def filter(self, filter_key, keep=True):
-        """Removes elements from SCPList ojbect by key
+    def filter(
+        self, filter_key: Union[List[str], np.ndarray], keep: bool = True
+    ) -> "SCPList":
+        """Removes elements from SCPList object by key
 
         Args:
           filter_key: List with the keys of the elements to keep or remove.
@@ -317,7 +333,9 @@ class SCPList(object):
 
         return SCPList(key, file_path, offset, range_spec)
 
-    def filter_paths(self, filter_key, keep=True):
+    def filter_paths(
+        self, filter_key: Union[List[str], np.ndarray], keep: bool = True
+    ) -> "SCPList":
         """Removes elements of SCPList by file_path
 
         Args:
@@ -347,7 +365,9 @@ class SCPList(object):
 
         return SCPList(key, file_path, offset, range_spec)
 
-    def filter_index(self, index, keep=True):
+    def filter_index(
+        self, index: Union[Sequence[int], np.ndarray], keep: bool = True
+    ) -> "SCPList":
         """Removes elements of SCPList by index
 
         Args:
@@ -373,7 +393,9 @@ class SCPList(object):
 
         return SCPList(key, file_path, offset, range_spec)
 
-    def shuffle(self, seed=1024, rng=None):
+    def shuffle(
+        self, seed: int = 1024, rng: Optional[np.random.Generator] = None
+    ) -> np.ndarray:
         """Shuffles the elements of the list.
 
         Args:
@@ -384,7 +406,7 @@ class SCPList(object):
           Index used to shuffle the list.
         """
         if rng is None:
-            rng = np.random.RandomState(seed=seed)
+            rng = np.random.default_rng(seed=seed)
         index = np.arange(len(self.key))
         rng.shuffle(index)
 
@@ -398,8 +420,10 @@ class SCPList(object):
         self.key_to_index = None
         return index
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Equal operator"""
+        if not isinstance(other, SCPList):
+            return False
         if self.key.size == 0 and other.key.size == 0:
             return True
         eq = self.key.shape == other.key.shape
@@ -429,11 +453,11 @@ class SCPList(object):
 
         return eq
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         """Non-equal operator"""
         return not self.__eq__(other)
 
-    def __cmp__(self, other):
+    def __cmp__(self, other: object) -> int:
         """Comparison operator"""
         if self.__eq__(other):
             return 0

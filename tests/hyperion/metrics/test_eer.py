@@ -1,14 +1,15 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
+
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
-from hyperion.metrics.eer import *
+from hyperion.np.metrics.eer import *
 
 
 def test_eer():

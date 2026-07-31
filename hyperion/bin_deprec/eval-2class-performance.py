@@ -1,24 +1,25 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Evals EER, DCF, DET
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 
 from hyperion.hyp_defs import config_logger
-from hyperion.utils.trial_scores import TrialScores
-from hyperion.utils.trial_key import TrialKey
 from hyperion.metrics import compute_eer
+from hyperion.utils.trial_key import TrialKey
+from hyperion.utils.trial_scores import TrialScores
 
 
 def eval_2class_performance(score_file, key_file, output_path):

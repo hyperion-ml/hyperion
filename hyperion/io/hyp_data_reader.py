@@ -1,19 +1,26 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+
+Deprecated:
+    This module is deprecated and will be removed in a future release.
 """
 
 import sys
-import numpy as np
+
 import h5py
+import numpy as np
 
 from ..hyp_defs import float_cpu
-from ..utils.list_utils import list2ndarray, ismember
+from ..utils.list_utils import ismember, list2ndarray
 
 
-class HypDataReader(object):
+class HypDataReader:
     """
-    Class to read data from hdf5 files (deprecated).
+    Class to read data from hdf5 files.
+
+    Deprecated:
+        This class is deprecated and will be removed in a future release.
     """
 
     def __init__(self, file_path):
@@ -75,9 +82,8 @@ class HypDataReader(object):
         dataset = key + field
         assert dataset in self.f, "Dataset %s not found" % dataset
         num_rows = self.f[dataset].shape[0]
-        # print('hola',num_rows,num_samples,num_rows-num_samples)
-        # index = rng.random_integers(low=0, high=num_rows-num_samples, size=1)[0]
-        index = rng.randint(low=0, high=num_rows - num_samples + 1)
+
+        index = rng.integers(low=0, high=num_rows - num_samples + 1)
         X = self.f[dataset][index : index + num_samples]
         return X, index
 

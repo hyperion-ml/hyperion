@@ -1,11 +1,12 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
+
 import numpy as np
+import pytest
 
 from hyperion.utils.trial_key import TrialKey
 from hyperion.utils.trial_ndx import TrialNdx
@@ -160,12 +161,12 @@ def test_load_save():
     scr1 = create_scores()[0]
     scr1.sort()
 
-    file_h5 = output_dir + "/test.h5"
+    file_h5 = output_dir + "/test_scores.h5"
     scr1.save(file_h5)
     scr2 = TrialScores.load(file_h5)
     assert scr1 == scr2
 
-    file_txt = output_dir + "/test.txt"
+    file_txt = output_dir + "/test_scores.txt"
     scr1.score_mask[:, :] = False
     scr1.score_mask[0, :] = True
     scr1.score_mask[:, 0] = True

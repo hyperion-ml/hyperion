@@ -21,7 +21,7 @@ from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.helpers import TrialDataReader as TDR
 from hyperion.helpers import PLDAFactory as F
-from hyperion.transforms import TransformList
+from hyperion.np.transforms import TransformList
 
 
 def combine_diar_scores(ndx, diar_ndx, diar2orig, diar_scores):

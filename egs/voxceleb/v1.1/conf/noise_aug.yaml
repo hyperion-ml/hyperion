@@ -1,0 +1,19 @@
+noise_aug:
+  noise_prob: 0.7
+  noise_types: 
+    noise:
+      weight: 1
+      noise_path: data/musan_noise_proc_audio/wav.scp
+      min_snr: 0
+      max_snr: 18
+    music:
+      weight: 1
+      noise_path: data/musan_music_proc_audio/wav.scp
+      min_snr: 3
+      max_snr: 18
+    babble:
+      weight: 1
+      noise_path: data/musan_speech_babble/wav.scp
+      min_snr: 3
+      max_snr: 18
+

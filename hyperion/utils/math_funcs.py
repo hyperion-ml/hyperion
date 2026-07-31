@@ -1,0 +1,448 @@
+"""
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+
+Some math functions.
+"""
+
+from typing import Callable, Optional, Tuple, Union
+
+import numpy as np
+import scipy.linalg as la
+
+from ..hyp_defs import float_cpu
+
+
+def logdet_pdmat(A: np.ndarray) -> float:
+    """Log determinant of positive definite matrix."""
+    assert A.shape[0] == A.shape[1]
+    R = la.cholesky(A)
+    return 2 * np.sum(np.log(np.diag(R)))
+
+
+def invert_pdmat(
+    A: np.ndarray,
+    right_inv: bool = False,
+    return_logdet: bool = False,
+    return_inv: bool = False,
+) -> Union[
+    Tuple[Callable[[np.ndarray], np.ndarray], np.ndarray],
+    Tuple[Callable[[np.ndarray], np.ndarray], np.ndarray, float],
+    Tuple[Callable[[np.ndarray], np.ndarray], np.ndarray, float, np.ndarray],
+]:
+    """Inversion of positive definite matrices.
+       Returns lambda function f that multiplies the inverse of A times a vector.
+
+    Args:
+      A: Positive definite matrix
+      right_inv: If False, f(v)=A^{-1}v; if True f(v)=v' A^{-1}
+      return_logdet: If True, it also returns the log determinant of A.
+      return_inv: If True, it also returns A^{-1}
+
+    Returns:
+      Lambda function that multiplies A^{-1} times vector.
+      Cholesky transform of A upper triangular
+      Log determinant of A
+      A^{-1}
+    """
+    assert A.shape[0] == A.shape[1]
+    R = la.cholesky(A, lower=False)
+
+    if right_inv:
+        fh = lambda x: la.cho_solve((R, False), x.T).T
+    else:
+        fh = lambda x: la.cho_solve((R, False), x)
+        # fh=lambda x: la.solve_triangular(R, la.solve_triangular(R.T, x, lower=True), lower=False)
+
+    r = [fh, R]
+
+    logdet = None
+    invA = None
+
+    if return_logdet:
+        logdet = 2 * np.sum(np.log(np.diag(R)))
+        r.append(logdet)
+
+    if return_inv:
+        invA = fh(np.eye(A.shape[0]))
+        r.append(invA)
+
+    return tuple(r)
+
+
+def invert_trimat(
+    A: np.ndarray,
+    lower: bool = False,
+    right_inv: bool = False,
+    return_logdet: bool = False,
+    return_inv: bool = False,
+) -> Union[
+    Callable[[np.ndarray], np.ndarray],
+    Tuple[Callable[[np.ndarray], np.ndarray], float],
+    Tuple[Callable[[np.ndarray], np.ndarray], float, np.ndarray],
+]:
+    """Inversion of triangular matrices.
+       Returns lambda function f that multiplies the inverse of A times a vector.
+
+    Args:
+      A: Triangular matrix.
+      lower: if True A is lower triangular, else A is upper triangular.
+      right_inv: If False, f(v)=A^{-1}v; if True f(v)=v' A^{-1}
+      return_logdet: If True, it also returns the log determinant of A.
+      return_inv: If True, it also returns A^{-1}
+
+    Returns:
+      Lambda function that multiplies A^{-1} times vector.
+      Log determinant of A
+      A^{-1}
+    """
+
+    if right_inv:
+        fh = lambda x: la.solve_triangular(A.T, x.T, lower=not (lower)).T
+    else:
+        fh = lambda x: la.solve_triangular(A, x, lower=lower)
+
+    if not (return_logdet or return_inv):
+        return fh
+
+    r = [fh]
+
+    if return_logdet:
+        logdet = np.sum(np.log(np.diag(A)))
+        r.append(logdet)
+
+    if return_inv:
+        invA = fh(np.eye(A.shape[0]))
+        r.append(invA)
+
+    return tuple(r)
+
+
+def softmax(r: np.ndarray, axis: int = -1) -> np.ndarray:
+    """
+    Returns:
+      y = \exp(r)/\sum(\exp(r))
+    """
+    max_r = np.max(r, axis=axis, keepdims=True)
+    r = np.exp(r - max_r)
+    r /= np.sum(r, axis=axis, keepdims=True)
+    return r
+
+
+def logsumexp(r: np.ndarray, axis: int = -1) -> np.ndarray:
+    """
+    Returns:
+      y = \log \sum(\exp(r))
+    """
+    max_r = np.max(r, axis=axis, keepdims=True)
+    r = np.exp(r - max_r)
+    return np.log(np.sum(r, axis=axis) + 1e-20) + np.squeeze(max_r, axis=axis)
+
+
+def logsigmoid(x: np.ndarray) -> np.ndarray:
+    """
+    Returns:
+      y = \log(sigmoid(x))
+    """
+    x = np.asarray(x)
+    log_p = np.empty_like(x, dtype=float_cpu())
+    pos = x >= 0
+    log_p[pos] = -np.log1p(np.exp(-x[pos]))
+    log_p[~pos] = x[~pos] - np.log1p(np.exp(x[~pos]))
+    return log_p
+
+
+def neglogsigmoid(x: np.ndarray) -> np.ndarray:
+    """
+    Returns:
+      y = -\log(sigmoid(x))
+    """
+    x = np.asarray(x)
+    log_p = np.empty_like(x, dtype=float_cpu())
+    pos = x >= 0
+    log_p[pos] = np.log1p(np.exp(-x[pos]))
+    log_p[~pos] = -x[~pos] + np.log1p(np.exp(x[~pos]))
+    return log_p
+
+
+def sigmoid(x: np.ndarray) -> np.ndarray:
+    """
+    Returns:
+      y = sigmoid(x)
+    """
+    x = np.asarray(x)
+    p = np.empty_like(x, dtype=float_cpu())
+    pos = x >= 0
+    p[pos] = 1.0 / (1.0 + np.exp(-x[pos]))
+    ex = np.exp(x[~pos])
+    p[~pos] = ex / (1.0 + ex)
+    return p
+
+
+def fisher_ratio(
+    mu1: np.ndarray, Sigma1: np.ndarray, mu2: np.ndarray, Sigma2: np.ndarray
+) -> float:
+    """Computes the Fisher ratio between two classes
+    from the class means and covariances.
+    """
+    S = Sigma1 + Sigma2
+    L = invert_pdmat(S)[0]
+    delta = mu1 - mu2
+    return np.inner(delta, L(delta))
+
+
+def fisher_ratio_with_precs(
+    mu1: np.ndarray, Lambda1: np.ndarray, mu2: np.ndarray, Lambda2: np.ndarray
+) -> float:
+    """Computes the Fisher ratio between two classes
+    from the class means precisions.
+    """
+
+    Sigma1 = invert_pdmat(Lambda1, return_inv=True)[-1]
+    Sigma2 = invert_pdmat(Lambda2, return_inv=True)[-1]
+    return fisher_ratio(mu1, Sigma1, mu2, Sigma2)
+
+
+def symmat2vec(
+    A: np.ndarray, lower: bool = False, diag_factor: Optional[float] = None
+) -> np.ndarray:
+    """Puts a symmetric matrix into a vector.
+
+    Args:
+      A: Symmetric matrix.
+      lower: If True, it uses the lower triangular part of the matrix.
+             If False, it uses the upper triangular part of the matrix.
+      diag_factor: It multiplies the diagonal of A by diag_factor.
+
+    Returns:
+      Vector with the upper or lower triangular part of A.
+    """
+    if diag_factor is not None:
+        A = np.copy(A)
+        A[np.diag_indices(A.shape[0])] *= diag_factor
+    if lower:
+        return A[np.tril_indices(A.shape[0])]
+    return A[np.triu_indices(A.shape[0])]
+
+
+def vec2symmat(
+    v: np.ndarray, lower: bool = False, diag_factor: Optional[float] = None
+) -> np.ndarray:
+    """Puts a vector back into a symmetric matrix.
+
+    Args:
+      v: Vector with the upper or lower triangular part of A.
+      lower: If True, v contains the lower triangular part of the matrix.
+             If False, v contains the upper triangular part of the matrix.
+      diag_factor: It multiplies the diagonal of A by diag_factor.
+
+    Returns:
+      Symmetric matrix.
+    """
+
+    dim = int((-1 + np.sqrt(1 + 8 * v.shape[0])) / 2)
+    idx_u = np.triu_indices(dim)
+    idx_l = np.tril_indices(dim)
+    A = np.zeros((dim, dim), dtype=float_cpu())
+    if lower:
+        A[idx_l] = v
+        A[idx_u] = A.T[idx_u]
+    else:
+        A[idx_u] = v
+        A[idx_l] = A.T[idx_l]
+    if diag_factor is not None:
+        A[np.diag_indices(A.shape[0])] *= diag_factor
+    return A
+
+
+def trimat2vec(A: np.ndarray, lower: bool = False) -> np.ndarray:
+    """Puts a triangular matrix into a vector.
+
+    Args:
+      A: Triangular matrix.
+      lower: If True, it uses the lower triangular part of the matrix.
+             If False, it uses the upper triangular part of the matrix.
+
+    Returns:
+      Vector with the upper or lower triangular part of A.
+    """
+
+    return symmat2vec(A, lower)
+
+
+def vec2trimat(v: np.ndarray, lower: bool = False) -> np.ndarray:
+    """Puts a vector back into a triangular matrix.
+
+    Args:
+      v: Vector with the upper or lower triangular part of A.
+      lower: If True, v contains the lower triangular part of the matrix.
+             If False, v contains the upper triangular part of the matrix.
+
+    Returns:
+      Triangular matrix.
+    """
+    dim = int((-1 + np.sqrt(1 + 8 * v.shape[0])) / 2)
+    A = np.zeros((dim, dim), dtype=float_cpu())
+    if lower:
+        A[np.tril_indices(dim)] = v
+        return A
+    A[np.triu_indices(dim)] = v
+    return A
+
+
+def fullcov_varfloor(
+    S: np.ndarray,
+    F: Union[np.ndarray, float],
+    F_is_chol: bool = False,
+    lower: bool = False,
+) -> np.ndarray:
+    """Variance flooring for full covariance matrices.
+
+    Args:
+      S: Covariance.
+      F: Minimum cov or Cholesqy decomposisition of it
+      F_is_chol: If True F is Cholesqy decomposition
+      lower: True if cholF is lower triangular, False otherwise
+
+    Returns:
+      Floored covariance
+    """
+    if isinstance(F, np.ndarray):
+        if not F_is_chol:
+            cholF = la.cholesky(F, lower=False, overwrite_a=False)
+        else:
+            cholF = F
+            if lower:
+                cholF = cholF.T
+        icholF = invert_trimat(cholF, return_inv=True)[-1]
+        T = np.dot(np.dot(icholF.T, S), icholF)
+    else:
+        T = S / F
+
+    u, d, _ = la.svd(T, full_matrices=False, overwrite_a=True)
+    d[d < 1.0] = 1
+    T = np.dot(u * d, u.T)
+
+    if isinstance(F, np.ndarray):
+        S = np.dot(cholF.T, np.dot(T, cholF))
+    else:
+        S = F * T
+    return S
+
+
+def fullcov_varfloor_from_cholS(
+    cholS: np.ndarray, cholF: Union[np.ndarray, float], lower: bool = False
+) -> np.ndarray:
+    """Variance flooring for full covariance matrices
+       using Cholesky decomposition as input/output
+
+    Args:
+      cholS: Cholesqy decomposisition of the covariance.
+      cholF: Cholesqy decomposisition of the minimum covariance.
+      lower: True if matrices are lower triangular, False otherwise
+
+    Returns:
+      Cholesky decomposition of the floored covariance
+    """
+
+    if isinstance(cholF, np.ndarray):
+        if lower:
+            cholS = cholS.T
+            cholF = cholF.T
+        T = np.dot(cholS, invert_trimat(cholF, return_inv=True)[-1])
+    else:
+        if lower:
+            cholS = cholS.T
+        T = cholS / cholF
+    T = np.dot(T.T, T)
+    u, d, _ = la.svd(T, full_matrices=False, overwrite_a=True)
+    d[d < 1.0] = 1
+    T = np.dot(u * d, u.T)
+    if isinstance(cholF, np.ndarray):
+        S = np.dot(cholF.T, np.dot(T, cholF))
+    else:
+        S = (cholF**2) * T
+    return la.cholesky(S, lower)
+
+
+def int2onehot(class_ids: np.ndarray, num_classes: Optional[int] = None) -> np.ndarray:
+    """Integer to 1-hot vector.
+
+    Args:
+      class_ids: Numpy array of integers.
+      num_classes: Maximum number of classes.
+
+    Returns:
+      1-hot Numpy array.
+    """
+    class_ids = np.asarray(class_ids)
+    if class_ids.ndim != 1:
+        raise ValueError(f"class_ids must be 1D, got shape {class_ids.shape}")
+    if not np.issubdtype(class_ids.dtype, np.integer):
+        raise ValueError(f"class_ids must be integer dtype, got {class_ids.dtype}")
+    if np.any(class_ids < 0):
+        raise ValueError("class_ids must be >= 0")
+
+    if num_classes is None:
+        num_classes = int(np.max(class_ids) + 1) if class_ids.size > 0 else 0
+    if num_classes < 0:
+        raise ValueError(f"num_classes must be >= 0, got {num_classes}")
+    if class_ids.size > 0 and np.any(class_ids >= num_classes):
+        raise ValueError(
+            "class_ids contain values >= num_classes "
+            f"(max class id {int(np.max(class_ids))}, num_classes {num_classes})"
+        )
+
+    p = np.zeros((len(class_ids), num_classes), dtype=float_cpu())
+    if class_ids.size > 0:
+        p[np.arange(len(class_ids)), class_ids] = 1
+    return p
+
+
+def average_vectors(x: np.ndarray, ids: np.ndarray) -> np.ndarray:
+    ids = np.asarray(ids)
+    if ids.ndim != 1:
+        raise ValueError(f"ids must be 1D, got shape {ids.shape}")
+    if x.shape[0] != len(ids):
+        raise ValueError(f"x.shape[0]={x.shape[0]} must equal len(ids)={len(ids)}")
+    if not np.issubdtype(ids.dtype, np.integer):
+        raise ValueError(f"ids must be integer dtype, got {ids.dtype}")
+    if np.any(ids < 0):
+        raise ValueError("ids must be >= 0")
+    if ids.size == 0:
+        return np.zeros((0, x.shape[1]), dtype=x.dtype)
+
+    num_ids = int(np.max(ids) + 1)
+    counts = np.bincount(ids, minlength=num_ids)
+    if np.any(counts == 0):
+        raise ValueError(
+            "ids must contain all classes in [0, max(ids)] with no gaps "
+            "(found empty class ids)"
+        )
+
+    x_avg = np.zeros((num_ids, x.shape[1]), dtype=x.dtype)
+    for i in range(num_ids):
+        mask = ids == i
+        x_avg[i] = np.mean(x[mask], axis=0)
+
+    return x_avg
+
+
+def cosine_scoring(
+    x1: np.ndarray,
+    x2: np.ndarray,
+    ids1: Optional[np.ndarray] = None,
+    ids2: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    if ids1 is not None:
+        x1 = average_vectors(x1, ids1)
+
+    if ids2 is not None:
+        x2 = average_vectors(x2, ids2)
+
+    l2_1 = np.sqrt(np.sum(x1**2, axis=-1, keepdims=True) + 1e-10)
+    l2_2 = np.sqrt(np.sum(x2**2, axis=-1, keepdims=True) + 1e-10)
+    x1 = x1 / l2_1
+    x2 = x2 / l2_2
+
+    return np.dot(x1, x2.T)

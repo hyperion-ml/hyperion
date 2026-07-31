@@ -1,45 +1,99 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import math
-from jsonargparse import ArgumentParser, ActionParser
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
+from ..layer_blocks import (
+    DC2dDecBlock,
+    ResNet2dBasicDecBlock,
+    ResNet2dBNDecBlock,
+    SEResNet2dBasicDecBlock,
+    SEResNet2dBNDecBlock,
+)
 from ..layers import ActivationFactory as AF
+from ..layers import ICNR2d
 from ..layers import NormLayer2dFactory as NLF
-from ..layer_blocks import ResNet2dBasicDecBlock, ResNet2dBNDecBlock, DC2dDecBlock
-from ..layer_blocks import SEResNet2dBasicDecBlock, SEResNet2dBNDecBlock
-from ..layers import SubPixelConv2d, ICNR2d
+from ..layers import SubPixelConv2d
 from .net_arch import NetArch
 
 
 class ResNet2dDecoder(NetArch):
+    """2D ResNet decoder.
+
+    Attributes:
+        in_channels (int): Number of channels in the decoder input.
+        in_conv_channels (int): Channels in the stem convolution block.
+        in_kernel_size (int): Kernel size of the stem convolution.
+        in_stride (int): Stride of the stem convolution.
+        resb_type (str): Residual block family.
+        resb_repeats (List[int]): Number of residual blocks per stage.
+        resb_channels (List[int]): Output channels per stage.
+        resb_kernel_sizes (List[int]): Kernel sizes per stage.
+        resb_strides (List[int]): Strides per stage.
+        resb_dilations (List[int]): Dilations per stage.
+        resb_groups (int): Number of convolution groups in residual blocks.
+        head_channels (int): Optional output channels in the head block.
+        hid_act (Any): Hidden activation specification.
+        head_act (Any): Head activation specification.
+        dropout_rate (float): Dropout probability.
+        use_norm (bool): Whether normalization layers are enabled.
+        norm_layer (Optional[str]): Normalization layer factory name.
+        norm_before (bool): Whether normalization precedes activation.
+        se_r (int): Squeeze-excitation reduction ratio.
+    """
+
     def __init__(
         self,
-        in_channels=512,
-        in_conv_channels=512,
-        in_kernel_size=3,
-        in_stride=1,
-        resb_type="basic",
-        resb_repeats=[2, 2, 2, 2],
-        resb_channels=[512, 256, 128, 64],
-        resb_kernel_sizes=3,
-        resb_strides=2,
-        resb_dilations=1,
-        resb_groups=1,
-        head_channels=0,
-        hid_act="relu6",
-        head_act=None,
-        dropout_rate=0,
-        se_r=16,
-        use_norm=True,
-        norm_layer=None,
-        norm_before=True,
-    ):
+        in_channels: int = 512,
+        in_conv_channels: int = 512,
+        in_kernel_size: int = 3,
+        in_stride: int = 1,
+        resb_type: str = "basic",
+        resb_repeats: List[int] = [2, 2, 2, 2],
+        resb_channels: Union[int, Sequence[int]] = [512, 256, 128, 64],
+        resb_kernel_sizes: Union[int, Sequence[int]] = 3,
+        resb_strides: Union[int, Sequence[int]] = 2,
+        resb_dilations: Union[int, Sequence[int]] = 1,
+        resb_groups: int = 1,
+        head_channels: int = 0,
+        hid_act: Union[str, Dict[str, Any]] = "relu",
+        head_act: Optional[Union[str, Dict[str, Any]]] = None,
+        dropout_rate: float = 0,
+        se_r: int = 16,
+        use_norm: bool = True,
+        norm_layer: Optional[str] = None,
+        norm_before: bool = True,
+    ) -> None:
+        """Build the decoder.
+
+        Args:
+            in_channels: Input channel dimension.
+            in_conv_channels: Channels in the stem block.
+            in_kernel_size: Kernel size of the stem block.
+            in_stride: Stride of the stem block.
+            resb_type: Residual block variant.
+            resb_repeats: Number of blocks in each stage.
+            resb_channels: Output channels for each stage.
+            resb_kernel_sizes: Kernel sizes for each stage.
+            resb_strides: Strides for each stage.
+            resb_dilations: Dilations for each stage.
+            resb_groups: Number of convolution groups in residual blocks.
+            head_channels: Channels in the optional head block.
+            hid_act: Hidden activation specification.
+            head_act: Head activation specification.
+            dropout_rate: Dropout probability.
+            se_r: Squeeze-excitation reduction ratio.
+            use_norm: Whether to use normalization layers.
+            norm_layer: Normalization layer factory name.
+            norm_before: Whether normalization precedes activation.
+        """
 
         super().__init__()
 
@@ -55,6 +109,8 @@ class ResNet2dDecoder(NetArch):
         elif resb_type == "sebn":
             self._block = SEResNet2dBNDecBlock
             bargs["se_r"] = se_r
+        else:
+            raise ValueError(f"unsupported resb_type={resb_type}")
 
         self.in_channels = in_channels
         self.in_conv_channels = in_conv_channels
@@ -86,7 +142,7 @@ class ResNet2dDecoder(NetArch):
         self.norm_layer = norm_layer
         norm_groups = None
         if norm_layer == "group-norm":
-            norm_groups = min(np.min(resb_channels) // 2, 32)
+            norm_groups = min(min(self.resb_channels) // 2, 32)
             norm_groups = max(norm_groups, resb_groups)
         self._norm_layer = NLF.create(norm_layer, norm_groups)
 
@@ -127,7 +183,7 @@ class ResNet2dDecoder(NetArch):
                 use_norm=use_norm,
                 norm_layer=self._norm_layer,
                 norm_before=norm_before,
-                **bargs
+                **bargs,
             )
 
             self.blocks.append(block_i)
@@ -147,7 +203,7 @@ class ResNet2dDecoder(NetArch):
                     use_norm=use_norm,
                     norm_layer=self._norm_layer,
                     norm_before=norm_before,
-                    **bargs
+                    **bargs,
                 )
 
                 self.blocks.append(block_i)
@@ -169,7 +225,14 @@ class ResNet2dDecoder(NetArch):
 
         self._init_weights(hid_act)
 
-    def _init_weights(self, hid_act):
+    def _init_weights(self, hid_act: Union[str, Dict[str, Any]]) -> None:
+        """Initialize convolution and normalization weights.
+
+        Args:
+            hid_act: Hidden activation specification used to select the
+                Kaiming initializer nonlinearity.
+        """
+        act_name = "relu"
         if isinstance(hid_act, str):
             act_name = hid_act
         if isinstance(hid_act, dict):
@@ -219,7 +282,19 @@ class ResNet2dDecoder(NetArch):
         #         nn.init.constant_(m.bias, 0)
 
     @staticmethod
-    def _standarize_resblocks_param(p, num_blocks, p_name):
+    def _standarize_resblocks_param(
+        p: Union[int, List[int]], num_blocks: int, p_name: str
+    ) -> List[int]:
+        """Normalize a residual-stage parameter to a list.
+
+        Args:
+            p: Scalar or sequence value to normalize.
+            num_blocks: Number of residual stages.
+            p_name: Parameter name used in error messages.
+
+        Returns:
+            A list with one entry per residual stage.
+        """
         if isinstance(p, int):
             p = [p] * num_blocks
         elif isinstance(p, list):
@@ -236,22 +311,50 @@ class ResNet2dDecoder(NetArch):
 
         return p
 
-    def _compute_out_size(self, in_size):
-        out_size = in_size * in_stride
+    def _compute_out_size(self, in_size: int) -> int:
+        """Compute the output spatial size for a given input size.
 
-        for stride in self.conv_strides:
+        Args:
+            in_size: Input spatial size.
+
+        Returns:
+            Output spatial size after all decoder stages.
+        """
+        out_size = in_size * self.in_stride
+
+        for stride in self.resb_strides:
             out_size *= stride
 
         return out_size
 
-    def in_context(self):
+    def in_context(self) -> Tuple[int, int]:
+        """Return the receptive-field context required by the decoder.
+
+        Returns:
+            A symmetric `(left, right)` context tuple.
+        """
         in_context = int(math.ceil(self._context / self._upsample_factor))
         return (in_context, in_context)
 
-    def in_shape(self):
+    def in_shape(self) -> Tuple[Optional[int], int, Optional[int], Optional[int]]:
+        """Return the expected input shape.
+
+        Returns:
+            The expected `(batch, channels, height, width)` shape.
+        """
         return (None, self.in_channels, None, None)
 
-    def out_shape(self, in_shape=None):
+    def out_shape(
+        self, in_shape: Optional[Sequence[Optional[int]]] = None
+    ) -> Tuple[Optional[int], int, Optional[int], Optional[int]]:
+        """Return the output shape for a given input shape.
+
+        Args:
+            in_shape: Optional `(batch, channels, height, width)` input shape.
+
+        Returns:
+            The output `(batch, channels, height, width)` shape.
+        """
 
         out_channels = (
             self.head_channels if self.head_channels > 0 else self.resb_channels[-1]
@@ -270,9 +373,20 @@ class ResNet2dDecoder(NetArch):
         else:
             W = self._compute_out_size(in_shape[3])
 
-        return (in_shape[0], out_chanels, H, W)
+        return (in_shape[0], out_channels, H, W)
 
-    def _match_shape(self, x, target_shape):
+    def _match_shape(
+        self, x: torch.Tensor, target_shape: Sequence[Optional[int]]
+    ) -> torch.Tensor:
+        """Center-crop the decoder output to match a target shape.
+
+        Args:
+            x: Decoder output tensor.
+            target_shape: Target tensor shape.
+
+        Returns:
+            The cropped tensor.
+        """
         x_dim = x.dim()
         ddim = x_dim - len(target_shape)
         for i in range(2, x_dim):
@@ -283,7 +397,20 @@ class ResNet2dDecoder(NetArch):
 
         return x.contiguous()
 
-    def forward(self, x, target_shape=None):
+    def forward(
+        self,
+        x: torch.Tensor,
+        target_shape: Optional[Sequence[Optional[int]]] = None,
+    ) -> torch.Tensor:
+        """Run the decoder forward pass.
+
+        Args:
+            x: Input tensor.
+            target_shape: Optional target shape for center cropping.
+
+        Returns:
+            The decoded tensor.
+        """
 
         x = self.in_block(x)
         for idx, block in enumerate(self.blocks):
@@ -297,7 +424,16 @@ class ResNet2dDecoder(NetArch):
 
         return x
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Return the serializable configuration.
+
+        Args:
+            no_class_name: If `True`, omit the class metadata from the base
+                configuration.
+
+        Returns:
+            A dictionary with the decoder configuration.
+        """
 
         head_act = self.head_act
         hid_act = self.hid_act
@@ -324,19 +460,27 @@ class ResNet2dDecoder(NetArch):
             "norm_before": self.norm_before,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filter keyword arguments accepted by the decoder constructor.
 
-        if "wo_norm" in kwargs:
-            kwargs["use_norm"] = not kwargs["wo_norm"]
-            del kwargs["wo_norm"]
+        Args:
+            **kwargs: Candidate keyword arguments.
 
-        if "norm_after" in kwargs:
-            kwargs["norm_before"] = not kwargs["norm_after"]
-            del kwargs["norm_after"]
+        Returns:
+            The subset accepted by :meth:`__init__`.
+        """
+
+        # if "wo_norm" in kwargs:
+        #     kwargs["use_norm"] = not kwargs["wo_norm"]
+        #     del kwargs["wo_norm"]
+
+        # if "norm_after" in kwargs:
+        #     kwargs["norm_before"] = not kwargs["norm_after"]
+        #     del kwargs["norm_after"]
 
         valid_args = (
             "in_channels",
@@ -353,7 +497,7 @@ class ResNet2dDecoder(NetArch):
             "head_channels",
             "se_r",
             "hid_act",
-            "had_act",
+            "head_act",
             "dropout_rate",
             "use_norm",
             "norm_layer",
@@ -365,7 +509,13 @@ class ResNet2dDecoder(NetArch):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Add command-line arguments for this decoder.
+
+        Args:
+            parser: Argument parser to extend.
+            prefix: Optional argument namespace prefix.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -454,7 +604,7 @@ class ResNet2dDecoder(NetArch):
         )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 
@@ -485,18 +635,31 @@ class ResNet2dDecoder(NetArch):
         except:
             pass
 
+        # parser.add_argument(
+        #     "--wo-norm",
+        #     default=False,
+        #     action="store_true",
+        #     help="without batch normalization",
+        # )
+
+        # parser.add_argument(
+        #     "--norm-after",
+        #     default=False,
+        #     action="store_true",
+        #     help="batch normalizaton after activation",
+        # )
         parser.add_argument(
-            "--wo-norm",
-            default=False,
-            action="store_true",
+            "--use-norm",
+            default=True,
+            action=ActionYesNo,
             help="without batch normalization",
         )
 
         parser.add_argument(
-            "--norm-after",
-            default=False,
-            action="store_true",
-            help="batch normalizaton after activation",
+            "--norm-before",
+            default=True,
+            action=ActionYesNo,
+            help="batch normalizaton before activation",
         )
 
         parser.add_argument(

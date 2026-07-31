@@ -14,6 +14,7 @@ if [ -n "$HYP_ENV" ];then
 else
     conda_env=base
 fi
+max_split_size_mb=""
 
 while true
 do
@@ -24,6 +25,10 @@ do
     elif [ "$1" == "--conda-env" ];then
 	shift;
 	conda_env=$1
+	shift;
+    elif [ "$1" == "--max-split-size-mb" ];then
+	shift;
+	max_split_size_mb=$1
 	shift;
     else
 	break
@@ -47,30 +52,31 @@ fi
 # echo "LRU_CACHE_CAPACITY=$LRU_CACHE_CAPACITY"
 
 conda activate $conda_env
-command="python"
+command=""
 if [ $num_gpus -gt 0 ];then
+  if [ -z "$CUDA_VISIBLE_DEVICES" ];then
     # set CUDA_VISIBLE_DEVICES
-    echo "SGE_HGR_gpu=$SGE_HGR_gpu"
-    if [ ! -z "$SGE_HGR_gpu" ]; then
-	export CUDA_VISIBLE_DEVICES=$(echo $SGE_HGR_gpu | sed 's@ @,@g')
-    else
-	# seach location of free-gpu program in the PATH or hyp_utils directory
-	free_gpu=$(which free-gpu)
-	if [ -z "$free_gpu" ];then
-	    free_gpu=$(which hyp_utils/free-gpu)
-	fi
-    
-	if [ ! -z "$free_gpu" ];then
-	    # if free-gpu found set env var, otherwise we assume that you can use any gpu
-	    export CUDA_VISIBLE_DEVICES=$($free_gpu -n $num_gpus)
-	fi
+    # seach location of free-gpu program in the PATH or hyp_utils directory
+    free_gpu=$(which free-gpu)
+    if [ -z "$free_gpu" ];then
+      free_gpu=$(which hyp_utils/free-gpu)
     fi
-    echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
-    if [ $num_gpus -gt 1 ];then
-      [[ $(type -P "$torchrun") ]] && command="torchrun" \
-	  || command="python -m torch.distributed.run"
-       command="$command --nproc_per_node=$num_gpus --standalone --nnodes=1"
+      
+    if [ ! -z "$free_gpu" ];then
+      # if free-gpu found set env var, otherwise we assume that you can use any gpu
+      export CUDA_VISIBLE_DEVICES=$($free_gpu -n $num_gpus)
     fi
+  fi
+  echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+  if [ -n "$max_split_size_mb" ];then
+      export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:${max_split_size_mb}"
+      echo "PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF}
+  fi
+  # export CUDA_LAUNCH_BLOCKING=1
+  export TORCH_DISTRIBUTED_DEBUG=DETAIL #variable to find unused parameters
+  if [ $num_gpus -gt 1 ];then
+    command="torchrun --nproc_per_node=$num_gpus --standalone --nnodes=1"
+  fi
 fi
 
 py_exec=$(which $1)

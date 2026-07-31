@@ -16,10 +16,10 @@ import numpy as np
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import TrialNdx, TrialScores
 from hyperion.helpers import TrialDataReader as TDR
-from hyperion.utils.math import cosine_scoring
-from hyperion.pdfs import PLDA
-from hyperion.transforms import TransformList
-from hyperion.score_norm import AdaptSNorm as SNorm
+from hyperion.utils.math_funcs import cosine_scoring
+from hyperion.np.pdfs import PLDA
+from hyperion.np.transforms import TransformList
+from hyperion.np.score_norm import AdaptSNorm as SNorm
 from hyperion.helpers import VectorReader as VR
 
 

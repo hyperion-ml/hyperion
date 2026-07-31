@@ -1,20 +1,61 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import math
+
+from typing import Any, Callable, Dict, Optional, Union
+
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, BatchNorm2d, Dropout2d
+from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
 from .se_blocks import SEBlock2d, TSEBlock2d
 
+ActivationType = Union[nn.Module, Dict[str, Any]]
+
+
+def _require_num_feats(num_feats: Optional[int], what: str) -> int:
+    """Require a feature-bin count for time-only squeeze excitation.
+
+    Args:
+      num_feats: Number of feature bins, if provided.
+      what: Description of the condition requiring ``num_feats``.
+
+    Returns:
+      The validated feature-bin count.
+
+    Raises:
+      ValueError: If ``num_feats`` is None.
+    """
+    if num_feats is None:
+        raise ValueError(f"num_feats must be provided when {what}")
+    return num_feats
+
 
 def _convkxk(
-    in_channels, out_channels, kernel_size=3, stride=1, groups=1, dilation=1, bias=False
-):
-    """kernel k convolution with padding"""
+    in_channels: int,
+    out_channels: int,
+    kernel_size: int = 3,
+    stride: int = 1,
+    groups: int = 1,
+    dilation: int = 1,
+    bias: bool = False,
+) -> nn.Conv2d:
+    """Build a padded 2D kxk convolution.
+
+    Args:
+      in_channels: Number of input channels.
+      out_channels: Number of output channels.
+      kernel_size: Convolution kernel size.
+      stride: Convolution stride.
+      groups: Number of convolution groups.
+      dilation: Convolution dilation.
+      bias: Whether to include a bias term.
+
+    Returns:
+      A 2D convolution module with symmetric padding.
+    """
     padding = dilation * (kernel_size - 1) // 2
     return Conv2d(
         in_channels,
@@ -28,12 +69,42 @@ def _convkxk(
     )
 
 
-def _conv1x1(in_channels, out_channels, stride=1, bias=False):
-    """1x1 convolution"""
+def _conv1x1(
+    in_channels: int, out_channels: int, stride: int = 1, bias: bool = False
+) -> nn.Conv2d:
+    """Build a 2D point-wise convolution.
+
+    Args:
+      in_channels: Number of input channels.
+      out_channels: Number of output channels.
+      stride: Convolution stride.
+      bias: Whether to include a bias term.
+
+    Returns:
+      A 1x1 convolution module.
+    """
     return nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=bias)
 
 
-def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before):
+def _make_downsample(
+    in_channels: int,
+    out_channels: int,
+    stride: int,
+    norm_layer: Callable[[int], nn.Module],
+    norm_before: bool,
+) -> nn.Module:
+    """Build the residual downsample path.
+
+    Args:
+      in_channels: Number of input channels.
+      out_channels: Number of output channels.
+      stride: Downsampling stride.
+      norm_layer: Normalization-layer constructor.
+      norm_before: If True, apply the convolution before normalization.
+
+    Returns:
+      A downsampling module.
+    """
 
     if norm_before:
         return nn.Sequential(
@@ -45,27 +116,70 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
 
 
 class Res2Net2dBasicBlock(nn.Module):
+    """Res2Net basic Block. This is a modified Res2Net block with
+    two kxk convolutions, instead of the standard bottleneck block.
+
+    Attributes:
+      in_channels:       input channels.
+      channels:          output channels.
+      kernel_size:       kernel size.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+      dropout_rate:      dropout rate.
+      width_factor:      multiplication factor for the number of channels in the first layer
+                         or the block.
+      scale:             scale parameter of the Res2Net.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      use_norm:          if True, it uses normalization layers, otherwise it does not.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+      se_r:              squeeze-excitation compression ratio.
+      time_se:           If true, squeeze is done only in time dimension.
+      num_feats:         Number of features in dimension 2, needed if time_se=True.
+    """
+
     expansion = 1
 
     def __init__(
         self,
-        in_channels,
-        channels,
-        kernel_size=3,
-        activation={"name": "relu6", "inplace": True},
-        stride=1,
-        dropout_rate=0,
-        width_factor=1,
-        scale=4,
-        groups=1,
-        dilation=1,
-        use_norm=True,
-        norm_layer=None,
-        norm_before=True,
-        se_r=None,
-        time_se=False,
-        num_feats=None,
-    ):
+        in_channels: int,
+        channels: int,
+        kernel_size: int = 3,
+        activation: ActivationType = {"name": "relu6", "inplace": True},
+        stride: int = 1,
+        dropout_rate: float = 0,
+        width_factor: float = 1,
+        scale: int = 4,
+        groups: int = 1,
+        dilation: int = 1,
+        use_norm: bool = True,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+        se_r: Optional[int] = None,
+        time_se: bool = False,
+        num_feats: Optional[int] = None,
+    ) -> None:
+        """Create a Res2Net 2D basic block.
+
+        Args:
+          in_channels: Input channel count.
+          channels: Output channel count.
+          kernel_size: Convolution kernel size.
+          activation: Activation specification.
+          stride: Convolution stride.
+          dropout_rate: Dropout probability.
+          width_factor: Width multiplier for the internal split channels.
+          scale: Res2Net scale factor.
+          groups: Number of convolution groups.
+          dilation: Convolution dilation.
+          use_norm: If True, use normalization layers.
+          norm_layer: Normalization-layer constructor, or None to use BatchNorm2d.
+          norm_before: If True, apply normalization before activation.
+          se_r: Squeeze-excitation reduction ratio, or None to disable SE.
+          time_se: If True, use the time-only squeeze-excitation variant.
+          num_feats: Number of feature bins required when time_se is enabled.
+        """
 
         super().__init__()
 
@@ -149,6 +263,9 @@ class Res2Net2dBasicBlock(nn.Module):
 
         if se_r is not None:
             if time_se:
+                num_feats = _require_num_feats(
+                    num_feats, "time_se=True in Res2Net2dBasicBlock"
+                )
                 self.se_layer = TSEBlock2d(channels, num_feats, se_r, activation)
             else:
                 self.se_layer = SEBlock2d(channels, se_r, activation)
@@ -156,11 +273,31 @@ class Res2Net2dBasicBlock(nn.Module):
             self.se_layer = None
 
     @property
-    def out_channels(self):
+    def out_channels(self) -> int:
+        """Return the number of output channels.
+
+        Returns:
+          Output channel count.
+        """
         return self.channels
 
-    def forward(self, x):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the Res2Net 2D basic block.
+
+        Args:
+          x: Input tensor with shape=(batch, in_channels, height, width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape=(batch, out_channels, height, width).
+        """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
         split_size = [self.width_in for i in range(self.scale - 1)]
         split_size.append(self.in_channels % self.width_in + self.width_in)
         split_x = torch.split(x, split_size, 1)
@@ -179,8 +316,8 @@ class Res2Net2dBasicBlock(nn.Module):
             if self.norm_before:
                 x_i = self.bn1s[i](x_i)
             x_i = self.act1(x_i)
-            if not self.norm_before:
-                x_i = self.bn1(x_i)
+            if self.norm_after:
+                x_i = self.bn1s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:
@@ -189,20 +326,22 @@ class Res2Net2dBasicBlock(nn.Module):
         x = torch.cat(x, dim=1)
 
         x = self.conv2(x)
-        if self.norm_before:
+        if self.norm_after:
+            x = self.act2(x)
             x = self.bn2(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn2(x)
 
-        if self.se_layer:
-            x = self.se_layer(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        x += residual
-        x = self.act2(x)
-
-        if not self.norm_before:
-            x = self.bn2(x)
+            x += residual
+            x = self.act2(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -211,25 +350,66 @@ class Res2Net2dBasicBlock(nn.Module):
 
 
 class Res2Net2dBNBlock(nn.Module):
+    """Res2Net bottleneck Block.
+
+    Attributes:
+      in_channels:       input channels.
+      channels:          channels in bottleneck layer when width_factor=1.
+      kernel_size:       kernel size in bottleneck layers.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+      dropout_rate:      dropout rate.
+      width_factor:      multiplication factor for the number of channels in the bottleneck.
+      scale:             scale parameter of the Res2Net.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      use_norm:          if True, it uses normalization layers, otherwise it does not.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+      se_r:              squeeze-excitation compression ratio.
+      time_se:           If true, squeeze is done only in time dimension.
+      num_feats:         Number of features in dimension 2, needed if time_se=True.
+    """
+
     def __init__(
         self,
-        in_channels,
-        channels,
-        kernel_size=3,
-        activation={"name": "relu6", "inplace": True},
-        stride=1,
-        dropout_rate=0,
-        width_factor=1,
-        scale=4,
-        groups=1,
-        dilation=1,
-        use_norm=True,
-        norm_layer=None,
-        norm_before=True,
-        se_r=None,
-        time_se=False,
-        num_feats=None,
-    ):
+        in_channels: int,
+        channels: int,
+        kernel_size: int = 3,
+        activation: ActivationType = {"name": "relu6", "inplace": True},
+        stride: int = 1,
+        dropout_rate: float = 0,
+        width_factor: float = 1,
+        scale: int = 4,
+        groups: int = 1,
+        dilation: int = 1,
+        use_norm: bool = True,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+        se_r: Optional[int] = None,
+        time_se: bool = False,
+        num_feats: Optional[int] = None,
+    ) -> None:
+        """Create a Res2Net 2D bottleneck block.
+
+        Args:
+          in_channels: Input channel count.
+          channels: Output channel count.
+          kernel_size: Convolution kernel size in the bottleneck layers.
+          activation: Activation specification.
+          stride: Convolution stride.
+          dropout_rate: Dropout probability.
+          width_factor: Width multiplier for the bottleneck channels.
+          scale: Res2Net scale factor.
+          groups: Number of convolution groups.
+          dilation: Convolution dilation.
+          use_norm: If True, use normalization layers.
+          norm_layer: Normalization-layer constructor, or None to use BatchNorm2d.
+          norm_before: If True, apply normalization before activation.
+          se_r: Squeeze-excitation reduction ratio, or None to disable SE.
+          time_se: If True, use the time-only squeeze-excitation variant.
+          num_feats: Number of feature bins required when time_se is enabled.
+        """
 
         super().__init__()
 
@@ -302,6 +482,9 @@ class Res2Net2dBNBlock(nn.Module):
 
         if se_r is not None:
             if time_se:
+                num_feats = _require_num_feats(
+                    num_feats, "time_se=True in Res2Net2dBNBlock"
+                )
                 self.se_layer = TSEBlock2d(channels, num_feats, se_r, activation)
             else:
                 self.se_layer = SEBlock2d(channels, se_r, activation)
@@ -309,21 +492,45 @@ class Res2Net2dBNBlock(nn.Module):
             self.se_layer = None
 
     @property
-    def out_channels(self):
+    def out_channels(self) -> int:
+        """Return the number of output channels.
+
+        Returns:
+          Output channel count.
+        """
         return self.channels
 
     @property
-    def expansion(self):
+    def expansion(self) -> float:
+        """Return the bottleneck expansion factor.
+
+        Returns:
+          Expansion ratio between output and internal width.
+        """
         return self.channels / self.width / self.scale
 
-    def forward(self, x):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the Res2Net 2D bottleneck block.
+
+        Args:
+          x: Input tensor with shape=(batch, in_channels, height, width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape=(batch, out_channels, height, width).
+        """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
             x = self.bn1(x)
         x = self.act1(x)
-        if not self.norm_before:
+        if self.norm_after:
             x = self.bn1(x)
 
         split_x = torch.split(x, self.width, 1)
@@ -337,8 +544,8 @@ class Res2Net2dBNBlock(nn.Module):
             if self.norm_before:
                 x_i = self.bn2s[i](x_i)
             x_i = self.act2(x_i)
-            if not self.norm_before:
-                x_i = self.bn2(x_i)
+            if self.norm_after:
+                x_i = self.bn2s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:
@@ -350,20 +557,22 @@ class Res2Net2dBNBlock(nn.Module):
         x = torch.cat(x, dim=1)
 
         x = self.conv3(x)
-        if self.norm_before:
+        if self.norm_after:
+            x = self.act3(x)
             x = self.bn3(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn3(x)
 
-        if self.se_layer:
-            x = self.se_layer(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        x += residual
-        x = self.act3(x)
-
-        if not self.norm_before:
-            x = self.bn3(x)
+            x += residual
+            x = self.act3(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)

@@ -1,15 +1,16 @@
 """
- Copyright 2019 Jesus Villalba (Johns Hopkins University)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Jesus Villalba (Johns Hopkins University)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import time
-import pytest
+
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
 from hyperion.hyp_defs import float_cpu
-from hyperion.feats.feature_normalization import *
+from hyperion.np.feats.feature_normalization import *
 
 
 def generate_features():

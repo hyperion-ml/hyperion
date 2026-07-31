@@ -1,0 +1,227 @@
+#!/usr/bin/env python
+"""
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+
+Trains calibration for SRE18 tel condition
+"""
+
+import logging
+import os
+import sys
+import time
+from typing import List, Optional
+
+import numpy as np
+from jsonargparse import ActionYesNo, ArgumentParser, namespace_to_dict
+
+from hyperion.hyp_defs import config_logger, float_cpu
+from hyperion.np.classifiers import GreedyFusionBinaryLR as GF
+from hyperion.np.metrics import compute_act_dcf, compute_min_dcf
+from hyperion.utils.trial_key import TrialKey
+from hyperion.utils.trial_scores import TrialScores
+
+
+def train_verification_greedy_fusion(
+    score_files: List[str],
+    system_names: List[str],
+    key_files: List[str],
+    model_file: str,
+    prior: float,
+    prior_eval: Optional[List[float]],
+    lambda_reg: float,
+    solver: str,
+    max_systems: int,
+    force_weighted_avg: bool,
+    verbose: int,
+) -> None:
+    """Train greedy logistic-regression fusion for verification systems.
+
+    Args:
+        score_files: Score files from all systems/conditions.
+        system_names: System names corresponding to fused systems.
+        key_files: Trial key files.
+        model_file: Output path for trained fusion model.
+        prior: Target prior probability for training.
+        prior_eval: Optional list of priors used for evaluation reporting.
+        lambda_reg: L2 regularization coefficient.
+        solver: Optimization solver name.
+        max_systems: Maximum number of systems selected by greedy fusion.
+        force_weighted_avg: If ``True``, constrain to weighted-average fusion.
+        verbose: Verbosity level forwarded to fusion optimizer.
+    """
+    num_keys = len(key_files)
+    num_scores = len(score_files)
+    num_systems = num_scores // num_keys
+    assert num_scores % num_keys == 0
+    assert num_systems == len(
+        system_names
+    ), "len(score_files)/len(key_files(%d) != len(system_names)(%d)" % (
+        num_systems,
+        len(system_names),
+    )
+    if prior_eval is None:
+        prior_eval = [prior]
+
+    tar = []
+    non = []
+    for key_idx, key_file in enumerate(key_files):
+        logging.info("load key: %s" % key_file)
+        key = TrialKey.load(key_file)
+
+        tar_key = []
+        non_key = []
+        for sys_idx in range(num_systems):
+            score_idx = sys_idx * num_keys + key_idx
+            logging.info("load scores: %s" % score_files[score_idx])
+            scr = TrialScores.load(score_files[score_idx])
+            tar_sys, non_sys = scr.get_tar_non(key)
+            tar_key.append(tar_sys[:, None])
+            non_key.append(non_sys[:, None])
+
+        tar_key = np.concatenate(tuple(tar_key), axis=1)
+        non_key = np.concatenate(tuple(non_key), axis=1)
+        tar.append(tar_key)
+        non.append(non_key)
+
+    tar = np.concatenate(tuple(tar), axis=0)
+    non = np.concatenate(tuple(non), axis=0)
+    ntar = tar.shape[0]
+    nnon = non.shape[0]
+
+    logging.info("train fusion")
+    x = np.concatenate((tar, non), axis=0)
+    y = np.concatenate(
+        (np.ones((ntar,), dtype="int32"), np.zeros((nnon,), dtype="int32"))
+    )
+    gf = GF(
+        system_names=system_names,
+        prior=prior,
+        prior_eval=prior_eval,
+        lambda_reg=lambda_reg,
+        solver=solver,
+        max_systems=max_systems,
+        force_weighted_avg=force_weighted_avg,
+        verbose=verbose,
+    )
+    gf.fit(x, y)
+    logging.info("save calibration at %s" % model_file)
+    gf.save(model_file)
+
+    logging.info("fuse scores")
+    tar_fus = gf.predict(tar)
+    non_fus = gf.predict(non)
+    for i in range(len(tar_fus)):
+        min_dcf, _, _ = compute_min_dcf(tar_fus[i], non_fus[i], gf.prior_eval)
+        act_dcf, p_miss, p_fa = compute_act_dcf(tar_fus[i], non_fus[i], gf.prior_eval)
+        if len(gf.prior_eval) == 1:
+            min_dcf = min_dcf[None]
+            act_dcf = act_dcf[None]
+            p_miss = p_miss[None]
+            p_fa = p_fa[None]
+
+        info_str = ""
+        for j in range(len(gf.prior_eval)):
+            n_miss = p_miss[j] * ntar
+            n_fa = p_fa[j] * nnon
+            info_str = (
+                "%s (p=%.3f) min_dcf: %.3f act_dcf: %.3f p_miss: %.2f p_fa: %.2f n_miss: %.1f n_fa: %.1f"
+                % (
+                    info_str,
+                    gf.prior_eval[j],
+                    min_dcf[j],
+                    act_dcf[j],
+                    p_miss[j] * 100,
+                    p_fa[j] * 100,
+                    n_miss,
+                    n_fa,
+                )
+            )
+
+        logging.info("Best-%d %s" % (i + 1, info_str))
+
+
+def main() -> None:
+    """Parse CLI arguments and train greedy verification fusion."""
+    parser = ArgumentParser(
+        description="Trains greedy binary logistic regression fusion"
+    )
+
+    parser.add_argument(
+        "--score-files",
+        nargs="+",
+        required=True,
+        help="Input score files from all systems.",
+    )
+    parser.add_argument(
+        "--system-names",
+        nargs="+",
+        required=True,
+        help="System names corresponding to fused systems.",
+    )
+    parser.add_argument(
+        "--key-files",
+        nargs="+",
+        required=True,
+        help="Trial key files aligned with evaluation conditions.",
+    )
+    parser.add_argument(
+        "--model-file",
+        required=True,
+        help="Output path for trained fusion model.",
+    )
+    parser.add_argument(
+        "--prior",
+        type=float,
+        default=0.01,
+        help="Target prior probability for fusion training.",
+    )
+    parser.add_argument(
+        "--prior-eval",
+        type=float,
+        nargs="+",
+        default=None,
+        help="Optional priors used to report fusion performance.",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
+        help="Verbosity level: 0=error, 1=warning, 2=info, 3=debug.",
+    )
+    parser.add_argument(
+        "--lambda-reg",
+        type=float,
+        default=1e-5,
+        help="L2 regularization coefficient.",
+    )
+    parser.add_argument(
+        "--solver",
+        choices=["liblinear", "newton-cg", "lbfgs", "sag", "saga"],
+        default="liblinear",
+        help="Optimization solver for logistic-regression fusion.",
+    )
+    parser.add_argument(
+        "--max-systems",
+        type=int,
+        default=10,
+        help="Maximum number of systems selected by greedy search.",
+    )
+    parser.add_argument(
+        "--force-weighted-avg",
+        default=False,
+        action=ActionYesNo,
+        help="Disable calibration and train only a weighted-average fusion.",
+    )
+
+    args = parser.parse_args()
+    config_logger(args.verbose)
+    logging.debug(args)
+
+    train_verification_greedy_fusion(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

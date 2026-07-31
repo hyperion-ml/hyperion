@@ -17,7 +17,7 @@ import pandas as pd
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.utils.trial_key import TrialKey
-from hyperion.metrics import fast_eval_dcf_eer as fast_eval
+from hyperion.np.metrics import fast_eval_dcf_eer as fast_eval
 
 
 def score(key_file, score_file, sre21_subset, output_file):

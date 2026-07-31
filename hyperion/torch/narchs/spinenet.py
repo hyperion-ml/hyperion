@@ -1,19 +1,29 @@
 """
- Copyright 2020 Magdalena Rybicka
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Magdalena Rybicka
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import numpy as np
 import logging
+from typing import Any, Dict, Optional, Sequence, Tuple
+
+import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d, Linear, BatchNorm1d
+from torch.nn import BatchNorm1d, Conv1d, Linear
 
+from ..layer_blocks import (
+    BlockSpec,
+    Res2NetBasicBlock,
+    Res2NetBNBlock,
+    ResNetBasicBlock,
+    ResNetBNBlock,
+    ResNetInputBlock,
+    SpineConv,
+    SpineEndpoints,
+    SpineResample,
+)
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer2dFactory as NLF
-from ..layer_blocks import ResNetInputBlock, ResNetBasicBlock, ResNetBNBlock
-from ..layer_blocks import Res2NetBNBlock, Res2NetBasicBlock
-from ..layer_blocks import BlockSpec, SpineResample, SpineEndpoints, SpineConv
 from .net_arch import NetArch
 
 SPINENET_BLOCK_SPECS = [
@@ -92,62 +102,93 @@ FILTER_SIZE_MAP = {
 
 
 class SpineNet(NetArch):
+    """SpineNet backbone for 2D feature tensors.
+
+    Attributes:
+        in_channels: Number of input channels.
+        output_levels: Output pyramid levels returned by the network.
+        endpoints_num_filters: Channel width used by endpoint projections.
+        feature_output_level: Spatial level used to align endpoint features.
+        with_output: Whether the network includes a final classification head.
+    """
+
     def __init__(
         self,
-        in_channels,
-        block_specs=None,
-        output_levels=[3, 4, 5, 6, 7],
-        endpoints_num_filters=256,
-        resample_alpha=0.5,
-        feature_output_level=None,
-        block_repeats=1,
-        filter_size_scale=1.0,
-        conv_channels=64,
-        base_channels=64,
-        out_units=0,
-        concat=False,
-        do_endpoint_conv=True,
-        concat_ax=3,
-        upsampling_type="nearest",
-        hid_act={"name": "relu6", "inplace": True},
-        out_act=None,
-        in_kernel_size=7,
-        in_stride=2,
-        zero_init_residual=False,
-        groups=1,
-        dropout_rate=0,
-        norm_layer=None,
-        norm_before=True,
-        do_maxpool=True,
-        in_norm=True,
-        in_feats=None,
-        se_r=16,
-        time_se=False,
-        has_se=False,
-        is_res2net=False,
-        res2net_scale=4,
-        res2net_width_factor=1,
-    ):
+        in_channels: int,
+        block_specs: Optional[Sequence[Any]] = None,
+        output_levels: Sequence[int] = [3, 4, 5, 6, 7],
+        endpoints_num_filters: int = 256,
+        resample_alpha: float = 0.5,
+        feature_output_level: Optional[int] = None,
+        block_repeats: int = 1,
+        filter_size_scale: float = 1.0,
+        conv_channels: int = 64,
+        base_channels: int = 64,
+        out_units: int = 0,
+        concat: bool = False,
+        do_endpoint_conv: bool = True,
+        concat_ax: int = 3,
+        upsampling_type: str = "nearest",
+        hid_act: Any = {"name": "relu", "inplace": True},
+        out_act: Any = None,
+        in_kernel_size: int = 7,
+        in_stride: int = 2,
+        zero_init_residual: bool = False,
+        groups: int = 1,
+        dropout_rate: float = 0,
+        norm_layer: Optional[str] = None,
+        norm_before: bool = True,
+        do_maxpool: bool = True,
+        in_norm: bool = True,
+        in_feats: Optional[int] = None,
+        se_r: int = 16,
+        time_se: bool = False,
+        has_se: bool = False,
+        is_res2net: bool = False,
+        res2net_scale: int = 4,
+        res2net_width_factor: int = 1,
+    ) -> None:
         """
-        Base class for the SpineNet structure. Based on the paper
-        SpineNet: Learning Scale-Permuted Backbone for Recognition and Localization
-        Xianzhi Du, Tsung-Yi Lin, Pengchong Jin, Golnaz Ghiasi, Mingxing Tan, Yin Cui, Quoc V. Le, Xiaodan Song
-        https://arxiv.org/abs/1912.05027
+        Base class for SpineNet structures.
 
-        :param in_channels: nbr of channels of the input
-        :param block_specs: specification of the building blocks: their type, input connections and information if block
-        is an output
-        :param output_levels: the output levels of the blocks that are taken as an output of the SpineNet
-        :param endpoints_num_filters: the base number of channels out the SpineNet output
-        :param resample_alpha: parameter for resampling connections
-        :param concat: bool that decides wheter the outputs are concatenated or averaged
-        :param do_endpoint_conv: bool that decides whether to do the projection of the output blocks to the common
-        number of channels (the value of the number is the endpoints_num_filters)
-        :param concat_ax: the axis along which perform the concatenation (if the concatenation is chosen)
-        :param feature_output_level: the level that the output feature map sizes are resampled to (by default the target
-        size is the biggest feature map)
-        :param filter_size_scale: SpineNet parameter, that additionally rescales the number of channels of the SpineNet
-        blocks(needed for bigger structures like SpineNet96 and higher or for SpineNet49S)
+        This implementation follows the paper "SpineNet: Learning
+        Scale-Permuted Backbone for Recognition and Localization".
+
+        Args:
+            in_channels: Number of input channels.
+            block_specs: Building-block specification. Each entry defines the
+                block level, block type, input offsets, and output flag.
+            output_levels: Levels whose outputs are exposed by the backbone.
+            endpoints_num_filters: Channel width used in the endpoint blocks.
+            resample_alpha: Resampling interpolation factor.
+            feature_output_level: Level used to align endpoint feature sizes.
+            block_repeats: Number of times each block is repeated.
+            filter_size_scale: Multiplier applied to the base channel counts.
+            conv_channels: Number of channels in the stem convolution.
+            base_channels: Base width for the permuted blocks.
+            out_units: Output head size; ``0`` disables the head.
+            concat: If ``True``, concatenate endpoint tensors; otherwise mean.
+            do_endpoint_conv: If ``True``, project endpoints to a common width.
+            concat_ax: Concatenation axis when ``concat`` is enabled.
+            upsampling_type: Upsampling mode for cross-scale resampling.
+            hid_act: Hidden activation specification.
+            out_act: Optional output activation specification.
+            in_kernel_size: Kernel size of the first convolution.
+            in_stride: Stride of the first convolution.
+            zero_init_residual: If ``True``, zero-initialize residual branches.
+            groups: Number of grouped-convolution groups in residual blocks.
+            dropout_rate: Dropout probability used in residual blocks.
+            norm_layer: Normalization layer name or alias.
+            norm_before: If ``True``, apply normalization before activation.
+            do_maxpool: If ``True``, keep the stem max-pooling layer.
+            in_norm: If ``True``, normalize the input tensor before the stem.
+            in_feats: Input feature size used by time-SE variants.
+            se_r: Squeeze-excitation reduction ratio.
+            time_se: If ``True``, use time-aware squeeze-excitation.
+            has_se: If ``True``, enable squeeze-excitation blocks.
+            is_res2net: If ``True``, build Res2Net-style residual blocks.
+            res2net_scale: Res2Net scale factor.
+            res2net_width_factor: Res2Net internal width multiplier.
         """
         super().__init__()
         self.in_channels = in_channels
@@ -199,8 +240,9 @@ class SpineNet(NetArch):
             norm_groups = max(norm_groups, groups)
         self._norm_layer = NLF.create(norm_layer, norm_groups)
 
+        self.in_bn: Optional[nn.Module] = None
         if in_norm:
-            self.in_bn = norm_layer(in_channels)
+            self.in_bn = self._norm_layer(in_channels)
 
         self.in_block = ResNetInputBlock(
             in_channels,
@@ -278,9 +320,15 @@ class SpineNet(NetArch):
                 elif isinstance(m, ResNetBasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
-    def _make_permuted_blocks(self, block_specs):
+    def _make_permuted_blocks(self, block_specs: Sequence[Any]) -> nn.ModuleList:
         """
-        Builds the blocks of the SpineNet structure.
+        Build the residual block stack for the permuted backbone.
+
+        Args:
+            block_specs: Block specifications after the stem stages.
+
+        Returns:
+            nn.ModuleList: Sequential block modules in execution order.
         """
         blocks = nn.ModuleList([])
         for block in block_specs:
@@ -297,9 +345,15 @@ class SpineNet(NetArch):
             blocks.append(layer_i)
         return blocks
 
-    def _make_permuted_connections(self, block_specs):
+    def _make_permuted_connections(self, block_specs: Sequence[Any]) -> nn.ModuleList:
         """
-        Builds the cross-scale connections between the blocks.
+        Build the cross-scale resampling paths between blocks.
+
+        Args:
+            block_specs: Block specifications after the stem stages.
+
+        Returns:
+            nn.ModuleList: Connection modules aligned with the block list.
         """
         connections = nn.ModuleList([])
         for block in block_specs:
@@ -339,11 +393,12 @@ class SpineNet(NetArch):
             connections.append(connections_i)
         return connections
 
-    def _make_endpoints(self):
+    def _make_endpoints(self) -> nn.ModuleDict:
         """
-        Builds the output endpoint blocks. In this part, the block outputs are forwarded through the 1x1 convs
-        to the common number of channels (endpoints_num_filters) and feature maps are resized to the size of the
-        feature_output_level.
+        Build the endpoint projection modules.
+
+        Returns:
+            nn.ModuleDict: Endpoint blocks keyed by output level.
         """
         endpoints = nn.ModuleDict()
         for block_spec in self._block_specs:
@@ -375,8 +430,27 @@ class SpineNet(NetArch):
         return endpoints
 
     def _make_layer(
-        self, block, block_level, num_blocks, in_channels=None, stride=1, dilate=False
-    ):
+        self,
+        block: type,
+        block_level: int,
+        num_blocks: int,
+        in_channels: Optional[int] = None,
+        stride: int = 1,
+        dilate: bool = False,
+    ) -> nn.Sequential:
+        """Build a residual layer for one SpineNet level.
+
+        Args:
+            block: Residual block class to instantiate.
+            block_level: Target pyramid level for the layer.
+            num_blocks: Number of repeated blocks to stack.
+            in_channels: Optional input channel override for the first block.
+            stride: Spatial stride used by the first block when not dilated.
+            dilate: If ``True``, replace the stride with dilation.
+
+        Returns:
+            nn.Sequential: The constructed residual layer.
+        """
 
         previous_dilation = self.dilation
         if dilate:
@@ -418,7 +492,7 @@ class SpineNet(NetArch):
                 dilation=previous_dilation,
                 norm_layer=self._norm_layer,
                 norm_before=self.norm_before,
-                **kwargs
+                **kwargs,
             )
         )
 
@@ -434,16 +508,21 @@ class SpineNet(NetArch):
                     dilation=self.dilation,
                     norm_layer=self._norm_layer,
                     norm_before=self.norm_before,
-                    **kwargs
+                    **kwargs,
                 )
             )
 
         return nn.Sequential(*layers)
 
-    def _compute_max_context(self, in_context):
+    def _compute_max_context(self, in_context: int) -> int:
         """
-        Computes maximum possible context in the structure. The method may need a deeper revision.
-        :param in_context: context from the input residual block.
+        Compute the maximum context consumed by the network.
+
+        Args:
+            in_context: Context contributed by the input stem block.
+
+        Returns:
+            int: Maximum receptive-field context.
         """
         block_context = {  # we can define specific values as inside the network the dilation or stride is not applied
             ResNetBNBlock: 1,
@@ -510,16 +589,14 @@ class SpineNet(NetArch):
         # logging.info('block\'s contexts: {}'.format(contexts))
         return max(contexts)
 
-    def _compute_out_size(self, in_size):
-        """Computes output size given input size.
-           Output size is not the same as input size because of
-           downsampling steps.
+    def _compute_out_size(self, in_size: int) -> int:
+        """Compute the output spatial size for one axis.
 
         Args:
-           in_size: input size of the H or W dimensions
+            in_size: Input size of the height or width dimension.
 
         Returns:
-           output_size
+            int: Output size after all downsampling stages.
         """
         out_size = int((in_size - 1) // self.in_stride + 1)
         if self.do_maxpool:
@@ -533,11 +610,12 @@ class SpineNet(NetArch):
 
         return out_size
 
-    def _compute_channel_size(self):
+    def _compute_channel_size(self) -> int:
         """
+        Compute the number of channels produced by the endpoint stack.
+
         Returns:
-          If the 1x1 conv is not conducted in the endpoint blocks, the number of channels is equal to the sum of the
-          nbr of channels of the output blocks.
+            int: Output channel count.
         """
 
         if not self.do_endpoint_conv:
@@ -558,21 +636,30 @@ class SpineNet(NetArch):
     #     """
     #     return (self._context, self._context)
 
-    def in_shape(self):
+    def in_shape(self) -> Tuple[Optional[int], int, Optional[int], Optional[int]]:
         """
+        Return the expected input shape.
+
         Returns:
-          Tuple describing input shape for the network
+            Tuple[Optional[int], int, Optional[int], Optional[int]]: Input
+            tensor shape specification.
         """
         return (None, self.in_channels, None, None)
 
-    def out_shape(self, in_shape=None):
-        """Computes the output shape given the input shape
-        #
-        #     Args:
-        #       in_shape: input shape
-        #     Returns:
-        #       Tuple describing output shape for the network
-        #"""
+    def out_shape(
+        self, in_shape: Optional[Sequence[Optional[int]]] = None
+    ) -> Tuple[Any, ...]:
+        """Compute the output shape given an input shape.
+
+        Args:
+            in_shape: Optional input shape. When omitted, only the channel
+                dimension is reported.
+
+        Returns:
+            Tuple[Any, ...]: Output tensor shape specification. This is a
+            2-tuple when a classification head is present and a 4-tuple
+            otherwise.
+        """
 
         if self.with_output:
             return (None, self.out_units)
@@ -599,7 +686,18 @@ class SpineNet(NetArch):
 
         return (in_shape[0], C, H, W)
 
-    def _match_shape(self, x, target_shape):
+    def _match_shape(
+        self, x: torch.Tensor, target_shape: Sequence[int]
+    ) -> torch.Tensor:
+        """Crop a tensor so its spatial dimensions match a target shape.
+
+        Args:
+            x: Input tensor to crop.
+            target_shape: Desired trailing dimensions.
+
+        Returns:
+            torch.Tensor: Cropped tensor with contiguous memory layout.
+        """
         x_dim = x.dim()
         ddim = x_dim - len(target_shape)
         for i in range(2, x_dim):
@@ -611,9 +709,19 @@ class SpineNet(NetArch):
 
         return x.contiguous()
 
-    def _match_feat_shape(self, feat0, feat1):
+    def _match_feat_shape(
+        self, feat0: torch.Tensor, feat1: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Match shape between feats of the input connections.
+        Match the spatial shape of two feature maps.
+
+        Args:
+            feat0: First feature tensor.
+            feat1: Second feature tensor.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Feature tensors with matched
+            spatial sizes.
         """
         surplus = feat1.size(3) - feat0.size(3)
         if surplus >= 0:
@@ -622,27 +730,18 @@ class SpineNet(NetArch):
             feat0 = self._match_shape(feat0, list(feat1.size())[2:])
         return feat0, feat1
 
-    def forward(self, x, use_amp=False):
-        if use_amp:
-            with torch.cuda.amp.autocast():
-                return self._forward(x)
-
-        return self._forward(x)
-
-    def _forward(self, x):
-        """forward function
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Run a forward pass.
 
         Args:
-           x: input tensor of size=(batch, Cin, Hin, Win) for image or
-              size=(batch, C, freq, time) for audio
+            x: Input tensor of shape ``(batch, channels, height, width)``.
 
         Returns:
-           Tensor with output logits of size=(batch, out_units) if out_units>0,
-           otherwise, it returns tensor of represeantions of size=(batch, Cout, Hout, Wout)
-
+            torch.Tensor: Output logits when ``out_units > 0``; otherwise the
+            final feature tensor.
         """
 
-        if self.in_norm:
+        if self.in_norm and self.in_bn is not None:
             x = self.in_bn(x)
 
         x = self.in_block(x)
@@ -715,10 +814,15 @@ class SpineNet(NetArch):
                 x = self.out_act(x)
         return x
 
-    def get_config(self):
-        """Gets network config
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        """Get a serializable configuration dictionary.
+
+        Args:
+            no_class_name: If ``True``, omit the class name from the base
+                configuration returned by :class:`NetArch`.
+
         Returns:
-           dictionary with config params
+            Dict[str, Any]: Configuration dictionary for reconstruction.
         """
 
         out_act = AF.get_config(self.out_act)
@@ -756,13 +860,25 @@ class SpineNet(NetArch):
             "res2net_width_factor": self.res2net_width_factor,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
 
 # SpineNet structures from the original paper
 class SpineNet49(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """SpineNet-49 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the SpineNet-49 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 256
         kwargs["filter_size_scale"] = 1.0
         kwargs["resample_alpha"] = 0.5
@@ -771,7 +887,19 @@ class SpineNet49(SpineNet):
 
 
 class SpineNet49S(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Smaller SpineNet-49 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the smaller SpineNet-49 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 128
         kwargs["filter_size_scale"] = 0.66
         kwargs["resample_alpha"] = 0.5
@@ -780,7 +908,19 @@ class SpineNet49S(SpineNet):
 
 
 class SpineNet96(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """SpineNet-96 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the SpineNet-96 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 256
         kwargs["filter_size_scale"] = 1.0
         kwargs["resample_alpha"] = 0.5
@@ -789,7 +929,19 @@ class SpineNet96(SpineNet):
 
 
 class SpineNet143(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """SpineNet-143 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the SpineNet-143 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 256
         kwargs["filter_size_scale"] = 1.0
         kwargs["resample_alpha"] = 1.0
@@ -798,7 +950,19 @@ class SpineNet143(SpineNet):
 
 
 class SpineNet190(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """SpineNet-190 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the SpineNet-190 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 512
         kwargs["filter_size_scale"] = 1.3
         kwargs["resample_alpha"] = 1.0
@@ -809,7 +973,19 @@ class SpineNet190(SpineNet):
 # SpineNet modifications
 # Light SpineNets
 class LSpineNet49(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Light-weight SpineNet-49 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the light-weight SpineNet-49 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 64
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
@@ -817,7 +993,19 @@ class LSpineNet49(SpineNet):
 
 
 class LSpineNet49_subpixel(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Light-weight SpineNet-49 variant with subpixel upsampling.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the subpixel-upsampled SpineNet-49 variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 64
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
@@ -826,7 +1014,19 @@ class LSpineNet49_subpixel(SpineNet):
 
 
 class LSpineNet49_bilinear(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Light-weight SpineNet-49 variant with bilinear upsampling.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the bilinear-upsampled SpineNet-49 variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 64
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
@@ -835,7 +1035,19 @@ class LSpineNet49_bilinear(SpineNet):
 
 
 class LSpineNet49_5(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Light-weight SpineNet variant exposing only level 5.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the single-output SpineNet variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 64
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
@@ -846,7 +1058,19 @@ class LSpineNet49_5(SpineNet):
 
 
 class LSpine2Net49(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Light-weight Res2Net-style SpineNet-49 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the light-weight Res2Net SpineNet-49 variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 64
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
@@ -856,7 +1080,19 @@ class LSpine2Net49(SpineNet):
 
 # Spine2Nets ans(Time-)Squeeze-and-Excitation
 class SELSpine2Net49(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Light-weight Res2Net + SE SpineNet-49 variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the light-weight Res2Net + SE variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 64
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
@@ -866,7 +1102,19 @@ class SELSpine2Net49(SpineNet):
 
 
 class TSELSpine2Net49(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Light-weight Res2Net + time-SE SpineNet-49 variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the light-weight Res2Net + time-SE variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 64
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
@@ -877,20 +1125,56 @@ class TSELSpine2Net49(SpineNet):
 
 
 class Spine2Net49(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Res2Net-style SpineNet-49 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the Res2Net SpineNet-49 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["is_res2net"] = True
         super(Spine2Net49, self).__init__(in_channels, **kwargs)
 
 
 class SESpine2Net49(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Res2Net + SE SpineNet-49 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the Res2Net + SE SpineNet-49 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["is_res2net"] = True
         kwargs["has_se"] = True
         super(SESpine2Net49, self).__init__(in_channels, **kwargs)
 
 
 class TSESpine2Net49(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Res2Net + time-SE SpineNet-49 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the Res2Net + time-SE SpineNet-49 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["is_res2net"] = True
         kwargs["has_se"] = True
         kwargs["time_se"] = True
@@ -898,7 +1182,19 @@ class TSESpine2Net49(SpineNet):
 
 
 class Spine2Net49S(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Smaller Res2Net-style SpineNet-49 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the smaller Res2Net SpineNet-49 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 128
         kwargs["filter_size_scale"] = 0.66
         kwargs["is_res2net"] = True
@@ -906,7 +1202,19 @@ class Spine2Net49S(SpineNet):
 
 
 class SESpine2Net49S(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Smaller Res2Net + SE SpineNet-49 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the smaller Res2Net + SE SpineNet-49 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 128
         kwargs["filter_size_scale"] = 0.66
         kwargs["is_res2net"] = True
@@ -915,7 +1223,19 @@ class SESpine2Net49S(SpineNet):
 
 
 class TSESpine2Net49S(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Smaller Res2Net + time-SE SpineNet-49 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the smaller Res2Net + time-SE SpineNet-49 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 128
         kwargs["filter_size_scale"] = 0.66
         kwargs["is_res2net"] = True
@@ -926,7 +1246,19 @@ class TSESpine2Net49S(SpineNet):
 
 # R0-SP53 (structure from the paper)
 class LR0_SP53(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """Light-weight R0-SP53 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the light-weight R0-SP53 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["endpoints_num_filters"] = 64
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
@@ -935,13 +1267,37 @@ class LR0_SP53(SpineNet):
 
 
 class R0_SP53(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """R0-SP53 configuration variant.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the R0-SP53 configuration.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["block_specs"] = R0_SP53_BLOCK_SPECS
         super(R0_SP53, self).__init__(in_channels, **kwargs)
 
 
 # concatenation
 class SpineNet49_concat_time(SpineNet):
-    def __init__(self, in_channels, **kwargs):
+    """SpineNet-49 variant that concatenates endpoint outputs.
+
+    Attributes:
+        None: This class only overrides the base SpineNet configuration.
+    """
+
+    def __init__(self, in_channels: int, **kwargs: Any) -> None:
+        """Initialize the concatenating SpineNet-49 variant.
+
+        Args:
+            in_channels: Number of input channels.
+            **kwargs: Additional SpineNet keyword arguments.
+        """
         kwargs["concat"] = True
         super(SpineNet49_concat_time, self).__init__(in_channels, **kwargs)

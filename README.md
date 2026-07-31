@@ -21,16 +21,29 @@ Hyperion is a Speaker Recognition Toolkit based on PyTorch and numpy. It provide
 
 The full API is described in the documentation page [https://hyperion-ml.readthedocs.io](https://hyperion-ml.readthedocs.io)
 
+## Building the documentation
+
+Install the documentation dependencies and run the repository build script:
+
+```bash
+python3 -m pip install -r docs/requirements.txt
+./docs/build.sh
+```
+
+The generated site is at `docs/_build/html/index.html`. The script treats
+documentation warnings as errors. See the
+[documentation build guide](docs/building-documentation.rst) for link checking,
+doctests, and cleanup commands.
+
 ## Installation Instructions
 
 ### Prerequisites
 
     We use anaconda or miniconda, though you should be able to make it work in other python distributions
-    To start, you should create a new enviroment and install PyTorch>=1.9, (older versions are not supported any longer) e.g.:
+    To start, you should create a new enviroment:
 ```
-conda create --name ${your_env} python=3.8
+conda create --name ${your_env} python=3.11
 conda activate ${your_env}
-conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=10.2 -c pytorch
 ```
 
 ### Installing Hyperion
@@ -40,25 +53,38 @@ conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit
 git clone https://github.com/hyperion-ml/hyperion.git
 ```
 
-- You can choose to install hyperion in the environment
+- Then install hyperion in the environment, these are some valid commands depending pytorch and cuda versions:
 ```bash
 cd hyperion
-pip install -e .
+pip install --extra-index-url https://download.pytorch.org/whl/cu130 -e .[torch29]
+pip install --extra-index-url https://download.pytorch.org/whl/cu128 -e .[torch29]
+pip install --extra-index-url https://download.pytorch.org/whl/cu126 -e .[torch29]
+pip install --extra-index-url https://download.pytorch.org/whl/cu129 -e .[torch28]
+pip install --extra-index-url https://download.pytorch.org/whl/cu128 -e .[torch28]
+pip install --extra-index-url https://download.pytorch.org/whl/cu126 -e .[torch28]
+pip install --extra-index-url https://download.pytorch.org/whl/cu128 -e .[torch27]
+pip install --extra-index-url https://download.pytorch.org/whl/cu126 -e .[torch27]
+pip install --extra-index-url https://download.pytorch.org/whl/cu124 -e .[torch26]
+pip install --extra-index-url https://download.pytorch.org/whl/cu121 -e .[torch25]
+pip install --extra-index-url https://download.pytorch.org/whl/cu121 -e .[torch24]
 ```
 
-- Or add the hyperion toolkit to the PYTHONPATH envirnoment variable
-  This option will allow you to share the same environment if you are working with several hyperion branches
-  at the same time, while installing it requires to have an enviroment per branch.
-  For this, you need to install the requirements
-```bash
-cd hyperion
-pip install -r requirements.txt
+Known issues:
+
+For older linux systems with GLIB <=2.17, try something like
 ```
-Then add these lines to your `~/.bashrc` or to each script that uses hyperion
-```bash
-HYP_ROOT= #substitute this by your hyperion location
-export PYTHONPATH=${HYP_ROOT}:$PYTHONPATH
-export PATH=${HYP_ROOT}/bin:$PATH
+pip install --extra-index-url https://download.pytorch.org/whl/cu121 -e .[torch25,gcc217] --only-binary=:all: --no-binary=intervaltree,fairscale
+```
+
+If you get this error when training:
+```
+Error: mkl-service + Intel(R) MKL: MKL_THREADING_LAYER=INTEL is incompatible with libgomp.so.1 library.
+        Try to import numpy first or set the threading layer accordingly. Set MKL_SERVICE_FORCE_INTEL to force it.
+```
+Unistall and reinstall numpy:
+```
+pip unistall numpy
+pip install numpy=={same-version-you-uninstalled}
 ```
 
 ## Recipes
@@ -99,16 +125,23 @@ modify this file manually to adapt it to your grid.
 
 ## Recipes structure
 
-The structure of the recipes is very similar to Kaldi, so if should be
-familiar for most people.
-Data preparation is also similar to Kaldi. Each dataset has
-a directory with files like
+The recipe layout is inspired by Kaldi: each dataset is prepared in a
+directory under `data/`, and the numbered `run_*.sh` scripts operate on those
+prepared datasets. However, the maintained recipes generally use Hyperion's
+`HyperDataset` format rather than a collection of Kaldi mapping files. A
+typical prepared dataset contains a manifest describing the available tables:
 ```
-wav.scp
-utt2spk
-spk2utt
-...
+dataset.yaml
+segments.csv       # segment IDs, recordings, speakers, timing, and metadata
+recordings.csv     # recording IDs and audio storage paths
+speaker.csv        # optional class/speaker information
+trials.csv         # optional enrollment/test trial definitions
 ```
+
+Some older recipes still use Kaldi-style data directories, with files such as
+`wav.scp`, `utt2spk`, and `spk2utt`. Those layouts remain supported where the
+recipe expects them, but they are not the standard output of the current
+dataset-preparation classes.
 
 ### Running the recipes
 
@@ -172,5 +205,3 @@ hyperion/tools
     - tools: contains external repos and tools like kaldi, python, cudnn, etc.
     - tests: unit tests for the classes in hyperion
     - resources: data files required by unittest or recipes
-
-

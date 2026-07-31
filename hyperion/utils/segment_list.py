@@ -1,19 +1,19 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os.path as path
-import logging
 from copy import deepcopy
+from typing import Any, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
 
 from .list_utils import *
+from .misc import PathLike
 
 
-class SegmentList(object):
+class SegmentList:
     """Class to manipulate segment files
 
     Attributes:
@@ -23,7 +23,7 @@ class SegmentList(object):
       uniq_file_id: unique file names.
     """
 
-    def __init__(self, segments, index_by_file=True):
+    def __init__(self, segments: pd.DataFrame, index_by_file: bool = True) -> None:
         self.segments = segments
         self._index_by_file = index_by_file
         if index_by_file:
@@ -35,30 +35,29 @@ class SegmentList(object):
         self.iter_idx = 0
 
     @classmethod
-    def create(cls, segment_id, file_id, tbeg, tend, index_by_file=True):
+    def create(
+        cls,
+        segment_id: Union[Sequence[str], np.ndarray],
+        file_id: Union[Sequence[str], np.ndarray],
+        tbeg: Union[Sequence[float], np.ndarray],
+        tend: Union[Sequence[float], np.ndarray],
+        index_by_file: bool = True,
+    ) -> "SegmentList":
         segments = pd.Dataframe(
             {"segment_id": segment_id, "file_id": file_id, "tbeg": tbeg, "tend": tend}
         )
         return cls(segments, index_by_file)
 
-    def validate(self):
+    def validate(self) -> None:
         """Validates the attributes of the SegmentList object."""
-        # logging.debug(len(self.segments['tend']-self.segments['tbeg']>=0))
-        # logging.debug(len(self.segments['tbeg'][1:]))
-        # logging.debug(len(self.segments['tbeg'][:-1]))
-        # logging.debug(self.segments['tbeg'][1:]-self.segments['tbeg'][:-1])
-        # logging.debug(len(self.segments['tbeg'][1:]-self.segments['tbeg'][:-1]>=0))
-        # logging.debug(len(self.file_id[1:] != self.file_id[:-1]))
         assert np.all(self.segments["tend"] - self.segments["tbeg"] >= 0)
-        # assert np.all(np.logical_or(self.tbeg[1:]-self.tbeg[:-1]>=0,
-        #                            self.file_id[1:] != self.file_id[:-1]))
 
     @property
-    def index_by_file(self):
+    def index_by_file(self) -> bool:
         return self._index_by_file
 
     @index_by_file.setter
-    def index_by_file(self, value):
+    def index_by_file(self, value: bool) -> None:
         self._index_by_file = value
         if self._index_by_file:
             self.segments.index = self.segments.file_id
@@ -66,37 +65,37 @@ class SegmentList(object):
             self.segments.index = self.segments.segment_id
 
     @property
-    def file_id(self):
+    def file_id(self) -> np.ndarray:
         return np.asarray(self.segments["file_id"])
 
     @property
-    def segment_id(self):
+    def segment_id(self) -> np.ndarray:
         return np.asarray(self.segments["segment_id"])
 
     @property
-    def tbeg(self):
+    def tbeg(self) -> np.ndarray:
         return np.asarray(self.segments["tbeg"])
 
     @property
-    def tend(self):
+    def tend(self) -> np.ndarray:
         return np.asarray(self.segments["tend"])
 
-    def copy(self):
+    def copy(self) -> "SegmentList":
         """Makes a copy of the object."""
         return deepcopy(self)
 
-    def segments_ids_from_file(self, file_id):
+    def segments_ids_from_file(self, file_id: Any) -> np.ndarray:
         """Returns segments_ids corresponding to a given file_id"""
         if self.index_by_file:
             return np.asarray(self.segments.loc[file_id]["segment_id"])
         index = self.segments["file_id"] == file_id
         return np.asarray(self.segments.loc[index]["segment_id"])
 
-    def __iter__(self):
+    def __iter__(self) -> "SegmentList":
         self.iter_idx = 0
         return self
 
-    def __next__(self):
+    def __next__(self) -> Union["SegmentList", pd.Series]:
         if self.index_by_file:
             if self.iter_idx < len(self.uniq_file_id):
                 r = self.getitem_by_key(self.uniq_file_id[self.iter_idx])
@@ -112,25 +111,22 @@ class SegmentList(object):
         self.iter_idx += 1
         return r
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Returns the number of segments in the list."""
         return len(self.segments)
 
-    def __contains__(self, key):
+    def __contains__(self, key: Any) -> bool:
         """Returns True if the segments contains the key"""
         return key in self.segments.segment_id
 
-    def getitem_by_key(self, key):
-        """It acceses the segments by file_id or segment_id
-           like in a ditionary, e.g.:
-           If input is a string key:
-               segmetns = SegmentList(...)
-               segment, tbeg, tend = segments.getiem_by_key('file')
+    def getitem_by_key(self, key: str) -> Union["SegmentList", pd.Series]:
+        """Access segments by file or segment identifier.
+
         Args:
-          key: Segment or file key
+          key: Segment or file key.
+
         Returns:
-          if index_by_file is True if returns segments of a given file_id
-          in SegmentsList format, else it returns DataFrame
+          A ``SegmentList`` for a file or a row from the segment table.
         """
         if self.index_by_file:
             df = self.segments.loc[key]
@@ -138,17 +134,14 @@ class SegmentList(object):
         else:
             return self.segments.loc[key]
 
-    def getitem_by_index(self, index):
-        """It accesses the segments by index
-           like in a ditionary, e.g.:
-           If input is a string key:
-               segmetns = SegmentList(...)
-               segment, tbeg, tend = segments.getitem_by_index(0)
+    def getitem_by_index(self, index: int) -> Union["SegmentList", pd.Series]:
+        """Access segments by integer position.
+
         Args:
-          key: Segment or file key
+          index: Segment or file position.
+
         Returns:
-          if index_by_file is True if returns segments of a given file_id
-          in SegmentsList format, else it returns DataFrame
+          A ``SegmentList`` for a file or a row from the segment table.
         """
         if self.index_by_file:
             if index < len(self.uniq_file_id):
@@ -166,24 +159,23 @@ class SegmentList(object):
                     "SegmentList error index>=num_segments (%d,%d)" % (index, len(self))
                 )
 
-    def __getitem__(self, key):
-        """It accesses the de segments by file_id or segment_id
-           like in a ditionary, e.g.:
-           If input is a string key:
-               segmetns = SegmentList(...)
-               segment, tbeg, tend = segments['file']
+    def __getitem__(
+        self, key: Union[str, int, np.integer]
+    ) -> Union["SegmentList", pd.Series]:
+        """Access segments by file/segment key or integer position.
+
         Args:
-          key: Segment or file key
+          key: Segment or file key, or integer position.
+
         Returns:
-          if index_by_file is True if returns segments of a given file_id
-          in SegmentsList format, else it returns DataFrame
+          A ``SegmentList`` for a file or a row from the segment table.
         """
         if isinstance(key, str):
             return self.getitem_by_key(key)
         else:
             return self.getitem_by_index(key)
 
-    def save(self, file_path, sep=" "):
+    def save(self, file_path: PathLike, sep: str = " ") -> None:
         """Saves segments to text file.
 
         Args:
@@ -195,7 +187,9 @@ class SegmentList(object):
         )
 
     @classmethod
-    def load(cls, file_path, sep=" ", index_by_file=True):
+    def load(
+        cls, file_path: PathLike, sep: str = " ", index_by_file: bool = True
+    ) -> "SegmentList":
         """Loads script list from text file.
 
         Args:
@@ -213,13 +207,15 @@ class SegmentList(object):
         )
         return cls(df, index_by_file=index_by_file)
 
-    def filter(self, filter_key, keep=True):
+    def filter(
+        self, filter_key: Union[Sequence[Any], np.ndarray], keep: bool = True
+    ) -> "SegmentList":
         if not keep:
             filter_key = np.setdiff1d(np.asarray(self.segments.index), filter_key)
         df = self.segments.loc[filter_key]
         return SegmentList(df, index_by_file=self.index_by_file)
 
-    def split(self, idx, num_parts):
+    def split(self, idx: int, num_parts: int) -> "SegmentList":
         if self.index_by_file:
             key, _ = split_list(self.uniq_file_id, idx, num_parts)
         else:
@@ -228,14 +224,18 @@ class SegmentList(object):
         return SegmentList(df, index_by_file=self.index_by_file)
 
     @classmethod
-    def merge(cls, segment_lists, index_by_file=True):
+    def merge(
+        cls, segment_lists: Sequence["SegmentList"], index_by_file: bool = True
+    ) -> "SegmentList":
         dfs = []
         for sl in segment_lists:
             dfs.append(sl.segments)
         df = pd.concat(dfs)
         return cls(df, index_by_file=index_by_file)
 
-    def to_bin_vad(self, key, frame_shift=10, num_frames=None):
+    def to_bin_vad(
+        self, key: Any, frame_shift: float = 10, num_frames: Optional[int] = None
+    ) -> np.ndarray:
         """Converts segments to binary VAD
 
         Args:
@@ -278,18 +278,20 @@ class SegmentList(object):
 
         return vad
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Equal operator"""
+        if not isinstance(other, SegmentList):
+            return False
         eq = self.segments.equals(other.segments)
         eq = eq and self.index_by_file == other.index_by_file
 
         return eq
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         """Non-equal operator"""
         return not self.__eq__(other)
 
-    def __cmp__(self, other):
+    def __cmp__(self, other: object) -> int:
         """Comparison operator"""
         if self.__eq__(other):
             return 0

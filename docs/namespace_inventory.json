@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "description": "Curated documentation scope for public Hyperion namespaces.",
+  "namespaces": [
+    {"namespace": "hyperion.io", "status": "stable", "landing": "io.rst", "owner": "foundation-api-contracts.rst", "description": "File, archive, audio, and VAD input/output contracts."},
+    {"namespace": "hyperion.utils", "status": "stable", "landing": "utils.rst", "owner": "foundation-api-contracts.rst", "description": "Dataset manifests, metadata tables, and trial containers."},
+    {"namespace": "hyperion.metrics", "status": "stable", "landing": "metrics.rst", "owner": "statistical-api-contracts.rst", "description": "High-level verification, anonymization, quality, and VoxProfile evaluators."},
+    {"namespace": "hyperion.np.metrics", "status": "stable", "landing": "metrics.rst", "owner": "statistical-api-contracts.rst", "description": "Array-level verification and score metrics."},
+    {"namespace": "hyperion.data_prep", "status": "stable", "landing": "data_prep.rst", "owner": "data-preparation-and-cli-extensions.rst", "description": "Corpus preparation and HyperDataset manifest creation."},
+    {"namespace": "hyperion.np", "status": "stable", "landing": "numpy.rst", "owner": "numpy-extension-points.rst", "description": "Statistical models, transforms, PDFs, calibration, and scoring."},
+    {"namespace": "hyperion.torch", "status": "stable", "landing": "torch-api.rst", "owner": "torch-extension-workflows.rst", "description": "Core PyTorch models, architectures, data, trainers, and training support."},
+    {"namespace": "hyperion.torch.tpm", "status": "stable", "landing": "torch-integrations-and-robustness.rst", "owner": "optional-dependencies.rst", "description": "Third-party model and evaluator wrappers."},
+    {"namespace": "hyperion.torch.adv_attacks", "status": "stable", "landing": "torch-integrations-and-robustness.rst", "owner": "torch-integrations-and-robustness.rst", "description": "Adversarial attack interfaces and factories."},
+    {"namespace": "hyperion.torch.adv_defenses", "status": "stable", "landing": "torch-integrations-and-robustness.rst", "owner": "torch-integrations-and-robustness.rst", "description": "Adversarial defense interfaces."},
+    {"namespace": "hyperion.text_norm", "status": "stable", "landing": "text_norm.rst", "owner": "statistical-api-contracts.rst", "description": "Text normalization classes and language-specific behavior."},
+    {"namespace": "hyperion.bin", "status": "stable", "landing": "cli.rst", "owner": "data-preparation-and-cli-extensions.rst", "description": "Installed maintained command-line entry points."},
+    {"namespace": "hyperion.torch.models.dac", "status": "experimental", "landing": "experimental-components.rst", "owner": "experimental-components.rst", "description": "Neural codec models and commands."},
+    {"namespace": "hyperion.torch.models.freevc", "status": "experimental", "landing": "experimental-components.rst", "owner": "experimental-components.rst", "description": "VITS-based anonymization and voice conversion."},
+    {"namespace": "hyperion.torch.models.transducer", "status": "experimental", "landing": "experimental-components.rst", "owner": "experimental-components.rst", "description": "Transducer architectures and task models."},
+    {"namespace": "hyperion.torch.models.wav2transducer", "status": "experimental", "landing": "experimental-components.rst", "owner": "experimental-components.rst", "description": "Waveform-to-transducer model wrappers."},
+    {"namespace": "hyperion.torch.models.qvectors", "status": "experimental", "landing": "experimental-components.rst", "owner": "experimental-components.rst", "description": "Q-vector models, trainers, and commands."},
+    {"namespace": "hyperion.helpers", "status": "excluded", "landing": "public-surface.rst", "owner": "public-surface.rst", "description": "Compatibility-oriented helpers not committed as a public extension surface.", "exclusion_reason": "Internal composition helpers without a supported import-path guarantee."},
+    {"namespace": "hyperion.bin_deprec", "status": "excluded", "landing": "public-surface.rst", "owner": "deprecation-and-compatibility.rst", "description": "Legacy command tree retained only for migration context.", "exclusion_reason": "Deprecated command tree; maintained replacements live in hyperion.bin."},
+    {"namespace": "hyperion.bin_deprec2", "status": "excluded", "landing": "public-surface.rst", "owner": "deprecation-and-compatibility.rst", "description": "Second legacy command tree retained only for migration context.", "exclusion_reason": "Deprecated command tree; maintained replacements live in hyperion.bin."}
+  ]
+}

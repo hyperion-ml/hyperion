@@ -1,0 +1,82 @@
+data:
+  train:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 16
+      max_chunk_length: 4.0
+      min_chunk_length: 4.0
+      num_chunks_per_seg_epoch: 1
+      class_name: class_id
+      seg_weight_mode: uniform
+      num_hard_prototypes: 0
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 16
+      max_chunk_length: 4.0
+      min_chunk_length: 4.0
+      num_chunks_per_seg_epoch: 1
+      class_name: class_id
+      seg_weight_mode: uniform
+      num_hard_prototypes: 0
+    data_loader:
+      num_workers: 8
+feats: fbank64_stmn_8k.yaml
+model:
+  resnet_type: res2net50
+  in_channels: 1
+  in_feats: 64
+  in_kernel_size: 3
+  in_stride: 1
+  no_maxpool: true
+  res2net_width_factor: 3.25
+  res2net_scale: 8
+  pool_net:
+    pool_type: ch-wise-att-mean+stddev
+    inner_feats: 128
+  embed_dim: 256
+  cos_scale: 30.0
+  margin: 0.3
+  margin_warmup_epochs: 20.0
+  dropout_rate: 0.0
+  hid_act: relu6
+trainer:
+  optim: 
+    opt_type: adam
+    lr: 0.02
+    amsgrad: true
+    beta1: 0.9
+    beta2: 0.95
+    weight_decay: 1.0e-05
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 10000
+    hold_steps: 35000
+    min_lr: 1.0e-05
+    warmup_steps: 1000
+    update_lr_on_opt_step: true
+  grad_clip: 250
+  swa_start: 65
+  swa_anneal_epochs: 5
+  swa_lr: 1e-3
+  use_amp: true
+  log_interval: 1000
+  epochs: 75
+  eff_batch_size: 512

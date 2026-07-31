@@ -10,6 +10,20 @@ copy the utt2est_lang files from the 16k data dirs to the VoxCeleb and SRE21 dat
 
    This recipe is based on these works
 ```
+@inproceedings{Villalba2022,
+author = {Jes\'us Villalba and Bengt J Borgstrom and Saurabh Kataria and Magdalena Rybicka and Carlos D Castillo and Jaejin Cho and L. Paola García-Perera and Pedro A. Torres-Carrasquillo and Najim Dehak},
+city = {ISCA},
+doi = {10.21437/Odyssey.2022-30},
+issue = {July},
+journal = {The Speaker and Language Recognition Workshop (Odyssey 2022)},
+month = {6},
+pages = {213-220},
+publisher = {ISCA},
+title = {Advances in Cross-Lingual and Cross-Source Audio-Visual Speaker Recognition: The JHU-MIT System for NIST SRE21},
+url = {https://www.isca-speech.org/archive/odyssey_2022/villalba22b_odyssey.html},
+year = {2022},
+}
+
 @inproceedings{Villalba2020,
 address = {Tokyo, Japan},
 author = {Villalba, Jes{\'{u}}s and Garcia-Romero, Daniel and Chen, Nanxin and Sell, Gregory and Borgstrom, Jonas and McCree, Alan and {Garcia Perera}, Leibny Paola and Kataria, Saurabh and Nidadavolu, Phani Sankar and Torres-Carrasquiilo, Pedro and Dehak, Najim},
@@ -91,8 +105,6 @@ run_0xx_....sh --config-file global_conf/config_fbank80_stmn_res2net50w26s8_arcs
 
    - `run_011_train_xvector.sh`
       - Trains the x-vector network on 4sec chunks
-
-   - `run_012_finetune_xvector.sh`
       - Fine-tune x-vector network on 10-15 secs utts
 
    - `run_030_extract_xvectors.sh`
@@ -111,4 +123,39 @@ run_0xx_....sh --config-file global_conf/config_fbank80_stmn_res2net50w26s8_arcs
 
 ## Results
 
-TODO
+The back-end used for these results is:
+- back-end V2 (run_041_eval_be_v2.sh)
+- Without S-Norm
+- Scores are calibrated as indicated in the paper.
+
+## SRE16 Eval40% YUE
+
+| Config | Model Type | Model Details | EER(%) | Min. Cprimary | Act. Cprimary |
+| ------ | ---------- | ------------- | ------ | ------------- | ------------- |
+| config_fbank80_stmn_ecapatdnn2048x4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | ECAPA-TDNN 2048x4 | fine-tuned 10-15secs <br> AAM-Softmax margin=0.5 | 1.922   | 0.154 | 0.200 |
+| config_fbank80_stmn_res2net50w26s8_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | Res2Net50 w26xs8 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 1.168 | 0.127 | 0.134 | 
+
+
+## SRE-CTS Superset dev set
+
+| Config | Model Type | Model Details | EER(%) | Min. Cprimary | Act. Cprimary |
+| ------ | ---------- | ------------- | ------ | ------------- | ------------- |
+| config_fbank80_stmn_ecapatdnn2048x4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | ECAPA-TDNN 2048x4 | fine-tuned 10-15secs <br> AAM-Softmax margin=0.5 | 1.39 | 0.072 | 0.095 |
+| config_fbank80_stmn_res2net50w26s8_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | Res2Net50 w26xs8 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 1.175 | 0.057 | 0.069 |
+
+
+## SRE21 Audio Dev (official scoring tool)
+
+| Config | Model Type | Model Details | EER(%) | Min. Cprimary | Act. Cprimary |
+| ------ | ---------- | ------------- | ------ | ------------- | ------------- |
+| config_fbank80_stmn_ecapatdnn2048x4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | ECAPA-TDNN 2048x4 | fine-tuned 10-15secs <br> AAM-Softmax margin=0.5 | 6.65 | 0.418 | 0.436 | 
+| config_fbank80_stmn_res2net50w26s8_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | Res2Net50 w26xs8 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 3.73 | 0.319 | 0.325 |
+
+
+## SRE21 Audio Eval (official scoring tool)
+
+| Config | Model Type | Model Details | EER(%) | Min. Cprimary | Act. Cprimary |
+| ------ | ---------- | ------------- | ------ | ------------- | ------------- |
+| config_fbank80_stmn_ecapatdnn2048x4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | ECAPA-TDNN 2048x4 | fine-tuned 10-15secs <br> AAM-Softmax margin=0.5 |  5.44  |  0.388 | 0.390 |
+| config_fbank80_stmn_res2net50w26s8_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | Res2Net50 w26xs8 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 4.21 | 0.356 | 0.377 |
+

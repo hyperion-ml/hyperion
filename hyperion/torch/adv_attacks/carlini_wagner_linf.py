@@ -1,8 +1,10 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -13,21 +15,48 @@ from .carlini_wagner import CarliniWagner
 
 
 class CarliniWagnerLInf(CarliniWagner):
+    """Carlini-Wagner L-infinity attack.
+
+    Attributes:
+      reduce_c: Whether to decrease ``c`` after successful steps.
+      c_incr_factor: Multiplicative factor to increase ``c`` on failure.
+      tau_decr_factor: Multiplicative factor to reduce ``tau`` per outer step.
+    """
+
     def __init__(
         self,
-        model,
-        confidence=0.0,
-        lr=1e-2,
-        max_iter=10000,
-        abort_early=True,
-        initial_c=1e-3,
-        reduce_c=False,
-        c_incr_factor=2,
-        tau_decr_factor=0.9,
-        targeted=False,
-        range_min=None,
-        range_max=None,
-    ):
+        model: nn.Module,
+        confidence: float = 0.0,
+        lr: float = 1e-2,
+        max_iter: int = 10000,
+        abort_early: bool = True,
+        initial_c: float = 1e-3,
+        reduce_c: bool = False,
+        c_incr_factor: float = 2,
+        tau_decr_factor: float = 0.9,
+        targeted: bool = False,
+        range_min: Optional[float] = None,
+        range_max: Optional[float] = None,
+    ) -> None:
+        """Initialize CW-Linf attack.
+
+        Args:
+          model: Model under attack.
+          confidence: Confidence margin in the objective.
+          lr: Optimizer learning rate.
+          max_iter: Maximum optimization steps.
+          abort_early: Whether to stop optimization early.
+          initial_c: Initial weight for classification objective.
+          reduce_c: Whether to reduce ``c`` after successful steps.
+          c_incr_factor: Multiplicative increase for ``c`` on failure.
+          tau_decr_factor: Multiplicative decrease for ``tau`` across outer loop.
+          targeted: Whether the attack is targeted.
+          range_min: Optional minimum clamp value.
+          range_max: Optional maximum clamp value.
+
+        Returns:
+          None.
+        """
 
         super().__init__(
             model,
@@ -40,12 +69,30 @@ class CarliniWagnerLInf(CarliniWagner):
             range_min=range_min,
             range_max=range_max,
         )
+        if c_incr_factor <= 1:
+            raise ValueError(
+                "cw-linf requires c_incr_factor > 1, "
+                f"got c_incr_factor={c_incr_factor}"
+            )
+        if tau_decr_factor <= 0 or tau_decr_factor >= 1:
+            raise ValueError(
+                "cw-linf requires 0 < tau_decr_factor < 1, "
+                f"got tau_decr_factor={tau_decr_factor}"
+            )
         self.reduce_c = reduce_c
         self.c_incr_factor = c_incr_factor
         self.tau_decr_factor = tau_decr_factor
 
     @property
-    def attack_info(self):
+    def attack_info(self) -> Dict[str, Any]:
+        """Return attack metadata.
+
+        Args:
+          None.
+
+        Returns:
+          Dictionary describing CW-Linf configuration.
+        """
         info = super().attack_info
         new_info = {
             "reduce_c": self.reduce_c,
@@ -57,13 +104,33 @@ class CarliniWagnerLInf(CarliniWagner):
         info.update(new_info)
         return info
 
-    def _attack(self, x, target, start_adv, tau, c):
+    def _attack(
+        self,
+        x: torch.Tensor,
+        target: torch.Tensor,
+        start_adv: torch.Tensor,
+        tau: float,
+        c: float,
+    ) -> Optional[Tuple[torch.Tensor, float]]:
+        """Run inner optimization for a fixed ``tau`` and ``c``.
+
+        Args:
+          x: Single input sample batch (size 1).
+          target: Target label tensor (size 1).
+          start_adv: Starting adversarial point.
+          tau: Current L-infinity radius target.
+          c: Current classification-term weight.
+
+        Returns:
+          ``(x_adv, c)`` on success, else ``None``.
+        """
 
         w_start = self.w_x(start_adv).detach()
         c_step = 0
         modifier = 1e-3 * torch.randn_like(w_start).detach()
         modifier.requires_grad = True
         opt = optim.Adam([modifier], lr=self.lr)
+        log_interval = max(1, self.max_iter // 10)
         while c < 2e6:
             step_success = False
             for opt_step in range(self.max_iter):
@@ -83,7 +150,7 @@ class CarliniWagnerLInf(CarliniWagner):
 
                 # if the attack is successful f(x+delta)==0
                 step_success = f < 1e-4
-                if opt_step % (self.max_iter // 10) == 0:
+                if opt_step % log_interval == 0:
                     logging.info(
                         "--------carlini-wagner-linf--l1-optim "
                         "c_step={0:d} opt-step={1:d} c={2:f} "
@@ -111,7 +178,16 @@ class CarliniWagnerLInf(CarliniWagner):
 
         return None
 
-    def _generate_one(self, x, target):
+    def _generate_one(self, x: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Generate one CW-Linf adversarial example.
+
+        Args:
+          x: Single clean example.
+          target: Single target label.
+
+        Returns:
+          One adversarial example.
+        """
 
         x = x.unsqueeze(dim=0)
         target = target.unsqueeze(dim=0)
@@ -150,7 +226,16 @@ class CarliniWagnerLInf(CarliniWagner):
 
         return best_adv[0]
 
-    def generate(self, input, target):
+    def generate(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Generate CW-Linf adversarial examples.
+
+        Args:
+          input: Clean input batch.
+          target: Labels or attack targets.
+
+        Returns:
+          Adversarial batch.
+        """
 
         if self.is_binary is None:
             # run the model to know weather is binary classification problem or multiclass
@@ -158,7 +243,7 @@ class CarliniWagnerLInf(CarliniWagner):
             if z.shape[-1] == 1:
                 self.is_binary = True
             else:
-                self.is_binary = None
+                self.is_binary = False
             del z
 
         x_adv = input.clone()

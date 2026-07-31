@@ -1,0 +1,68 @@
+data:
+  train:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 64
+      max_chunk_length: 4.0
+      min_chunk_length: 4.0
+      num_chunks_per_seg_epoch: 6
+      class_name: class_id
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 64
+      max_chunk_length: 4.0
+      min_chunk_length: 4.0
+      num_chunks_per_seg_epoch: 6
+      class_name: class_id
+    data_loader:
+      num_workers: 8
+feats: fbank80_stmn_16k.yaml
+model:
+  resnet_type: lresnet34
+  in_channels: 1
+  in_feats: 80
+  in_kernel_size: 3
+  in_stride: 1
+  no_maxpool: true
+  embed_dim: 256
+  cos_scale: 30.0
+  margin: 0.3
+  margin_warmup_epochs: 20.0
+  dropout_rate: 0.0
+trainer:
+  optim:
+    opt_type: adam
+    lr: 0.05
+    amsgrad: true
+    beta1: 0.9
+    beta2: 0.95
+    weight_decay: 1.0e-05
+  lrsched: lrsched_exp_default.yaml
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 8000
+    hold_steps: 40000
+    min_lr: 1.0e-05
+    update_lr_on_opt_step: true
+    warmup_steps: 1000
+  use_amp: true
+  log_interval: 1000
+  epochs: 70
+  eff_batch_size: 512

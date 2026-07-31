@@ -25,11 +25,11 @@ from hyperion.helpers import VectorClassReader as VCR
 # from hyperion.utils.trial_scores import TrialScores
 # from hyperion.helpers import TrialDataReader as TDR
 from hyperion.helpers import PLDAFactory as F
-from hyperion.transforms import TransformList
-from hyperion.score_norm import AdaptSNorm as SNorm
-from hyperion.clustering import AHC
+from hyperion.np.transforms import TransformList
+from hyperion.np.score_norm import AdaptSNorm as SNorm
+from hyperion.np.clustering import AHC
 from hyperion.utils import Utt2Info
-from hyperion.classifiers import BinaryLogisticRegression as LR
+from hyperion.np.classifiers import BinaryLogisticRegression as LR
 
 
 def apply_ahc(

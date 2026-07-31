@@ -1,0 +1,71 @@
+name: Documentation
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  schedule:
+    - cron: "17 6 * * 1"
+
+jobs:
+  html:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install documentation dependencies
+        run: python -m pip install -r docs/requirements.txt
+      - name: Check public API documentation coverage
+        run: python docs/check_api_coverage.py
+      - name: Check public namespace documentation coverage
+        run: python docs/check_namespace_coverage.py
+      - name: Check tutorial quality coverage
+        run: python docs/check_tutorial_coverage.py
+      - name: Check release-note discipline
+        run: python docs/check_release_notes.py
+      - name: Check CLI classification coverage
+        run: python docs/check_cli_coverage.py
+      - name: Check generated CLI index for drift
+        run: python docs/render_cli_index.py --check
+      - name: Check CLI task-index and generated-help visibility
+        run: python docs/check_cli_quality.py
+      - name: Build strict HTML documentation
+        run: HYPERION_PYTHON=python docs/build.sh html
+
+  doctest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install documentation dependencies
+        run: python -m pip install -r docs/requirements.txt
+      - name: Run executable documentation examples
+        run: HYPERION_PYTHON=python docs/build.sh doctest
+
+  linkcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install documentation dependencies
+        run: python -m pip install -r docs/requirements.txt
+      - name: Check external documentation links with retry
+        run: HYPERION_PYTHON=python bash docs/run_linkcheck_with_retry.sh
+
+  spelling:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install documentation dependencies
+        run: python -m pip install -r docs/requirements.txt
+      - name: Check documentation spelling
+        run: HYPERION_PYTHON=python docs/build.sh spelling

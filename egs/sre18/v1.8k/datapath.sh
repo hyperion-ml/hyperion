@@ -9,7 +9,7 @@ master_key=$master_key_dir/NIST_SRE_segments_key.v2.csv
 
 #paths to databases
 
-if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
+if [ "$(hostname -y)" == "clsp" ];then
     ldc_root=/export/corpora/LDC
     sitw_root=/export/corpora/SRI/sitw
     swbd_cell2_root=/export/corpora5/LDC/LDC2004S07

@@ -1,39 +1,73 @@
 """
- Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import time
+
 import logging
+import time
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
 
-from ...utils.math import invert_trimat
+from ...utils.math_funcs import invert_trimat
 from .plda_base import PLDABase
 
 
 class SPLDA(PLDABase):
+    """Simplified PLDA model with a low-rank speaker subspace.
+
+    Attributes:
+        y_dim: Speaker-factor dimension.
+        V: Speaker-factor loading matrix.
+        U: Precision factor such that ``W = U U^T``.
+        W: Within-class precision matrix reconstructed from ``U``.
+    """
+
     def __init__(
         self,
-        x_dim=None,
-        y_dim=None,
-        mu=None,
-        V=None,
-        W=None,
-        num_classes=0,
-        x_ref=None,
-        p_tar=0.05,
-        margin_multi=0.3,
-        margin_tar=0.3,
-        margin_non=0.3,
-        margin_warmup_epochs=10,
-        adapt_margin=False,
-        adapt_gamma=0.99,
-        lnorm=False,
-        var_floor=1e-5,
-        prec_floor=1e-5,
-        preprocessor=None,
-    ):
+        x_dim: Optional[int] = None,
+        y_dim: Optional[int] = None,
+        mu: Optional[torch.Tensor] = None,
+        V: Optional[torch.Tensor] = None,
+        W: Optional[torch.Tensor] = None,
+        num_classes: int = 0,
+        x_ref: Optional[torch.Tensor] = None,
+        p_tar: float = 0.05,
+        margin_multi: float = 0.3,
+        margin_tar: float = 0.3,
+        margin_non: float = 0.3,
+        margin_warmup_epochs: int = 10,
+        adapt_margin: bool = False,
+        adapt_gamma: float = 0.99,
+        lnorm: bool = False,
+        var_floor: float = 1e-5,
+        prec_floor: float = 1e-5,
+        preprocessor: Optional[nn.Module] = None,
+    ) -> None:
+        """Initialize the SPLDA model.
+
+        Args:
+            x_dim: Embedding dimension. Required when ``mu`` is not provided.
+            y_dim: Speaker-factor dimension. Required when ``V`` is not
+                provided.
+            mu: Optional global mean vector.
+            V: Optional loading matrix.
+            W: Optional within-class precision matrix.
+            num_classes: Number of reference classes for multi-class scoring.
+            x_ref: Optional reference embeddings used for multi-class scoring.
+            p_tar: Target prior probability.
+            margin_multi: Multi-class margin value.
+            margin_tar: Binary target margin value.
+            margin_non: Binary non-target margin value.
+            margin_warmup_epochs: Number of epochs used to warm up the margins.
+            adapt_margin: Whether to adapt margins from observed scores.
+            adapt_gamma: Exponential moving-average factor for adaptation.
+            lnorm: Whether to length-normalize embeddings before scoring.
+            var_floor: Lower bound for variance-like quantities.
+            prec_floor: Lower bound for precision-like quantities.
+            preprocessor: Optional preprocessing module applied before scoring.
+        """
         super().__init__(
             x_dim=x_dim,
             mu=mu,
@@ -70,21 +104,19 @@ class SPLDA(PLDABase):
             assert W.shape[0] == W.shape[1]
             assert W.shape[0] == self.x_dim
 
-        # W_eigval, W_eigvec = torch.linalg.eigh(W)
-        # W_eigval, W_eigvec = torch.symeig(W, eigenvectors=True)
-        # self.W_eigval = nn.Parameter(W_eigval)
-        # self.W_eigvec = nn.Parameter(W_eigvec)
-        eigval, U = torch.symeig(W, eigenvectors=True)
+        eigval, U = torch.linalg.eigh(W)
+        eigval = eigval.clamp(min=self.prec_floor)
         U = U * torch.sqrt(eigval)
         self.U = nn.Parameter(U)
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """Return the string representation."""
         return (
             "{}(x_dim={}, y_dim={}, num_classes={}, p_tar={}, "
             "margin_multi={}, margin_tar={}, margin_non={}, "
             "margin_warmup_epochs={}, "
             "adapt_margin={}, adapt_gamma={}, "
-            "lnorm={}, preprocessor={}"
+            "lnorm={}, preprocessor={}, "
             "var_floor={}, prec_floor={} "
         ).format(
             self.__class__.__name__,
@@ -110,7 +142,8 @@ class SPLDA(PLDABase):
     #     return torch.matmul(self.W_eigvec * W_eigval, self.W_eigvec.t())
 
     @property
-    def W(self):
+    def W(self) -> torch.Tensor:
+        """Reconstruct the within-class precision matrix."""
         return torch.matmul(self.U, self.U.t())
 
     # @property
@@ -118,23 +151,27 @@ class SPLDA(PLDABase):
     #     iW_eigval = (1 / self.W_eigval.clamp(min=self.prec_floor)).clamp(min=self.var_floor)
     #     return torch.matmul(self.W_eigvec * iW_eigval, self.W_eigvec.t())
 
-    def _compute_aux_L(self):
+    def _compute_aux_L(self) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Precompute matrices used by the scoring equations."""
         WV = torch.matmul(self.W, self.V.t())
         VV = torch.matmul(self.V, WV)
-        I = torch.eye(self.y_dim)
+        I = torch.eye(self.y_dim, dtype=WV.dtype, device=WV.device)
         return I, WV, VV
 
-    def _compute_aux_llr_1vs1(self):
+    def _compute_aux_llr_1vs1(
+        self,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Precompute auxiliary matrices for 1-vs-1 scoring."""
         I, WV, VV = self._compute_aux_L()
         Lnon = I + VV
-        cholLnon = torch.cholesky(Lnon, upper=True)
+        cholLnon = torch.linalg.cholesky(Lnon).mT
         mult_icholLnon, logcholLnon = invert_trimat(
             cholLnon, lower=False, right_inv=True, return_logdet=True
         )
         logLnon = 2 * logcholLnon
 
         Ltar = I + 2 * VV
-        cholLtar = torch.cholesky(Ltar, upper=True)
+        cholLtar = torch.linalg.cholesky(Ltar).mT
         mult_icholLtar, logcholLtar = invert_trimat(
             cholLtar, lower=False, right_inv=True, return_logdet=True
         )
@@ -180,8 +217,16 @@ class SPLDA(PLDABase):
 
     @staticmethod
     def _llr_from_Qs(
-        Qtar_12, Qtar_1, Qtar_2, Qnon_1, Qnon_2, logLtar, logLnon_1, logLnon_2
-    ):
+        Qtar_12: torch.Tensor,
+        Qtar_1: torch.Tensor,
+        Qtar_2: torch.Tensor,
+        Qnon_1: torch.Tensor,
+        Qnon_2: torch.Tensor,
+        logLtar: torch.Tensor,
+        logLnon_1: torch.Tensor,
+        logLnon_2: torch.Tensor,
+    ) -> torch.Tensor:
+        """Combine quadratic terms into LLR scores."""
         Q1 = (Qtar_1 - Qnon_1).unsqueeze(dim=-1)
         Q2 = Qtar_2 - Qnon_2
         scores = 2 * Qtar_12
@@ -191,11 +236,32 @@ class SPLDA(PLDABase):
         return scores
 
     @staticmethod
-    def _llr_compQ(VWF, icholL):
+    def _llr_compQ(VWF: torch.Tensor, icholL: Any) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Compute transformed latent variables and their quadratic norm."""
         gamma = icholL(VWF)
         return gamma, torch.sum(gamma * gamma, dim=1)
 
-    def llr_1vs1(self, x1, x2, aux_comps=None, preproc=True):
+    def llr_1vs1(
+        self,
+        x1: torch.Tensor,
+        x2: torch.Tensor,
+        aux_comps: Optional[
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+        ] = None,
+        preproc: bool = True,
+    ) -> torch.Tensor:
+        """Compute 1-vs-1 LLR scores.
+
+        Args:
+            x1: Enrollment embeddings.
+            x2: Test embeddings.
+            aux_comps: Optional cached auxiliary matrices from
+                :meth:`_compute_aux_llr_1vs1`.
+            preproc: Whether to apply the preprocessor before scoring.
+
+        Returns:
+            Score matrix with shape ``(num_enroll, num_test)``.
+        """
         if self.preprocessor is not None and preproc:
             x1 = self.preprocessor(x1)
             x2 = self.preprocessor(x2)
@@ -219,7 +285,25 @@ class SPLDA(PLDABase):
             Qtar_12, Qtar_1, Qtar_2, Qnon_1, Qnon_2, logLtar, logLnon, logLnon
         )
 
-    def llr_self(self, x, aux_comps=None, preproc=True):
+    def llr_self(
+        self,
+        x: torch.Tensor,
+        aux_comps: Optional[
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+        ] = None,
+        preproc: bool = True,
+    ) -> torch.Tensor:
+        """Compute self-similarity LLR scores.
+
+        Args:
+            x: Input embeddings.
+            aux_comps: Optional cached auxiliary matrices from
+                :meth:`_compute_aux_llr_1vs1`.
+            preproc: Whether to apply the preprocessor before scoring.
+
+        Returns:
+            Square score matrix for self comparisons.
+        """
         if self.preprocessor is not None and preproc:
             x = self.preprocessor(x)
 
@@ -238,7 +322,27 @@ class SPLDA(PLDABase):
             Qtar_11, Qtar_1, Qtar_1, Qnon_1, Qnon_1, logLtar, logLnon, logLnon
         )
 
-    def llr_1vs1_and_self(self, x1, x2, aux_comps=None, preproc=True):
+    def llr_1vs1_and_self(
+        self,
+        x1: torch.Tensor,
+        x2: torch.Tensor,
+        aux_comps: Optional[
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+        ] = None,
+        preproc: bool = True,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Compute pairwise and self-similarity LLR scores.
+
+        Args:
+            x1: Enrollment embeddings.
+            x2: Test embeddings.
+            aux_comps: Optional cached auxiliary matrices from
+                :meth:`_compute_aux_llr_1vs1`.
+            preproc: Whether to apply the preprocessor before scoring.
+
+        Returns:
+            Tuple ``(llr_1vs1, llr_self)``.
+        """
         if self.preprocessor is not None and preproc:
             x1 = self.preprocessor(x1)
             x2 = self.preprocessor(x2)
@@ -269,7 +373,12 @@ class SPLDA(PLDABase):
         )
         return llr_1vs1, llr_self
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
+        """Return a serializable configuration dictionary.
+
+        Returns:
+            Configuration dictionary that can be used to reconstruct the model.
+        """
         config = {"y_dim": self.y_dim}
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))

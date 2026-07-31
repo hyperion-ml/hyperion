@@ -1,16 +1,19 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import os
 import re
-import soundfile as sf
+from pathlib import Path
+from typing import List, Optional, Union
 
 import numpy as np
+import soundfile as sf
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..hyp_defs import float_cpu
-from ..utils.scp_list import SCPList
+from ..utils import PathLike
 from ..utils.kaldi_io_funcs import is_token
 from .audio_reader import valid_ext
 
@@ -23,71 +26,124 @@ subtype_to_npdtype = {
     "DOUBLE": "float64",
     "MS_ADPCM": "int16",
     "ULAW": "int16",
-    "PCM_U8": "uint8",
-    "PCM_S8": "int8",
+    "PCM_S8": "int16",
     "VORBIS": "float32",
     "GSM610": "int16",
     "G721_32": "int16",
-    "PCM_24": "int24",
+    "PCM_24": "int32",
+}
+
+scale_32 = 2**31 - 1
+scale_24 = 2**23 - 1
+scale_16 = 2**15 - 1
+scale_8 = 2**7 - 1
+
+
+subtype_to_scale = {
+    "PCM_32": scale_32,
+    "ALAW": scale_16,
+    "IMA_ADPCM": scale_16,
+    "FLOAT": 1,
+    "PCM_16": scale_16,
+    "DOUBLE": 1,
+    "MS_ADPCM": scale_16,
+    "ULAW": scale_16,
+    "PCM_S8": scale_8,
+    "VORBIS": 1,
+    "GSM610": scale_16,
+    "G721_32": scale_16,
+    "PCM_24": scale_24,
 }
 
 
-class AudioWriter(object):
-    """Abstract base class to write audio files.
+class AudioWriter:
+    """Write audio arrays to disk and optionally create an output manifest.
 
     Attributes:
-      output_path: output data file path.
-      script_path: optional output scp file.
-      audio_format:   audio file format
-      audio_subtype: subtype of audio in [PCM_16, PCM_32, FLOAT, DOUBLE, ...],
-               if None, it uses soundfile defaults (recommended)
-      scp_sep: Separator for scp files (default ' ').
+      output_path: Directory where audio files are saved.
+      script_path: Optional output Kaldi ``.scp`` or table file (``.csv``/``.tsv``).
+      audio_format: Output audio container format.
+      audio_subtype: Audio encoding subtype (e.g., ``PCM_16``, ``FLOAT``).
+      wav_scale: Scale of the input waveform.
+      channels_first: If True, interprets 2-D inputs as ``(channels, num_samples)``.
+      always_2d: If True, always writes 2-channel output audio.
+
+    Example:
+      >>> import numpy as np
+      >>> with AudioWriter(
+      ...     "./audio_out",
+      ...     script_path="./audio_out/recordings.csv",
+      ...     audio_format="wav",
+      ...     audio_subtype="pcm_16",
+      ...     channels_first=True,
+      ... ) as w:
+      ...     x = np.random.randn(1, 16000).astype("float32")  # (channels, samples)
+      ...     files = w.write("utt1", x, 16000)
+      >>> files[0]
+      './audio_out/utt1.wav'
     """
 
     def __init__(
         self,
-        output_path,
-        script_path=None,
-        audio_format="wav",
-        audio_subtype=None,
-        scp_sep=" ",
+        output_path: PathLike,
+        script_path: Optional[PathLike] = None,
+        audio_format: str = "wav",
+        audio_subtype: Optional[str] = None,
+        wav_scale: float = 1.0,
+        channels_first: bool = True,
+        always_2d: bool = False,
     ):
-        self.output_path = output_path
-        self.script_path = script_path
+        self.output_path = Path(output_path)
+        self.script_path = Path(script_path) if script_path is not None else None
         self.audio_format = audio_format
-        self.scp_sep = scp_sep
+        self.output_path.mkdir(exist_ok=True, parents=True)
 
         assert "." + self.audio_format in valid_ext
         if audio_subtype is None:
             self.subtype = sf.default_subtype(self.audio_format)
         else:
-            self.subtype = audio_subtype
+            self.subtype = audio_subtype.upper()
             assert sf.check_format(self.audio_format, self.subtype)
 
-        if not os.path.exists(output_path):
-            try:
-                os.makedirs(output_path)
-            except FileExistsError:
-                pass
+        self._dtype = subtype_to_npdtype[self.subtype]
 
+        self.wav_scale = wav_scale
+        self.channels_first = channels_first
+        self.always_2d = always_2d
+        # we multiply the audio for this number before saving it.
+        self._output_wav_scale = subtype_to_scale[self.subtype] / wav_scale
+
+        self.script_is_scp = False
+        self.script_sep = None
+        self.f_script = None
         if script_path is not None:
-            self.f_script = open(script_path, "w")
-        else:
-            self.f_script = None
+            self.script_path.parent.mkdir(exist_ok=True, parents=True)
+            script_ext = self.script_path.suffix
+            self.script_is_scp = script_ext == ".scp"
+
+            if self.script_is_scp:
+                self.f_script = open(self.script_path, "w")
+            else:
+                self.script_sep = "," if script_ext == ".csv" else "\t"
+                self.f_script = open(self.script_path, "w", encoding="utf-8")
+                row = self.script_sep.join(
+                    ["id", "storage_path", "duration", "sample_freq"]
+                )
+                self.f_script.write(f"{row}\n")
 
     def __enter__(self):
-        """Function required when entering contructions of type
+        """Function required when entering constructions of type
 
         with AudioWriter('./path') as f:
-           f.write(key, data)
+           f.write(key, data, fs)
         """
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        """Function required when exiting from contructions of type
+        """Function required when exiting from constructions of type
 
         with AudioWriter('./path') as f:
-           f.write(key, data)
+           f.write(key, data, fs)
         """
         self.close()
 
@@ -96,21 +152,49 @@ class AudioWriter(object):
         if self.f_script is not None:
             self.f_script.close()
 
-    def write(self, keys, data, fs):
-        """Writes waveform to audio file.
+    def write(
+        self,
+        keys: Union[str, List[str], np.array],
+        data: Union[np.array, List[np.array]],
+        fs: Union[int, float, List[int], List[float], np.array],
+    ):
+        """Write one or more waveforms to audio files.
 
         Args:
-          key: List of recodings names.
-          data: List of waveforms
-          fs:
+          keys: Recording key or list of recording keys.
+          data: Single waveform array or list of waveform arrays.
+          fs: Sample rate scalar or list of sample rates aligned with ``keys``.
+
+        Returns:
+          List with the output file paths written for each key.
+
+        Raises:
+          ValueError: If key/data/fs lengths are inconsistent.
         """
         if isinstance(keys, str):
             keys = [keys]
-            data = [data]
+        else:
+            keys = list(keys)
 
-        fs_is_list = isinstance(fs, (list, np.ndarray))
-        assert self.subtype in subtype_to_npdtype
-        dtype = subtype_to_npdtype[self.subtype]
+        if isinstance(data, np.ndarray):
+            if len(keys) != 1:
+                raise ValueError(
+                    "data is a single audio array but keys contains multiple items"
+                )
+            data = [data]
+        else:
+            data = list(data)
+
+        if isinstance(fs, (int, float, np.integer, np.floating)):
+            fs = [int(fs)] * len(keys)
+        else:
+            fs = [int(v) for v in fs]
+
+        if not (len(keys) == len(data) == len(fs)):
+            raise ValueError(
+                f"keys/data/fs length mismatch: {len(keys)}/{len(data)}/{len(fs)}"
+            )
+
         output_files = []
         for i, key_i in enumerate(keys):
             assert is_token(key_i), "Token %s not valid" % key_i
@@ -120,55 +204,115 @@ class AudioWriter(object):
                 file_basename,
                 self.audio_format,
             )
-            fs_i = fs[i] if fs_is_list else fs
-            data_i = data[i].astype(dtype, copy=False)
+            fs_i = fs[i]
+            data_i = self._prepare_audio(data[i])
+            data_i = (self._output_wav_scale * data_i).astype(self._dtype, copy=False)
             sf.write(output_file, data_i, fs_i, subtype=self.subtype)
 
             output_files.append(output_file)
 
             if self.f_script is not None:
-                self.f_script.write("%s%s%s\n" % (key_i, self.scp_sep, output_file))
+                if self.script_is_scp:
+                    self.f_script.write(f"{key_i} {output_file}\n")
+                else:
+                    duration_i = data_i.shape[0] / fs_i
+                    if self.script_sep in key_i:
+                        key_i = '"' + key_i + '"'
+
+                    if self.script_sep in output_file:
+                        output_file = '"' + output_file + '"'
+                    row = self.script_sep.join(
+                        [key_i, output_file, str(duration_i), str(fs_i)]
+                    )
+                    self.f_script.write(f"{row}\n")
                 self.f_script.flush()
 
         return output_files
 
+    def _prepare_audio(self, x: np.array) -> np.array:
+        """Convert input waveform to soundfile layout.
+
+        Returns audio as either ``(num_samples,)`` or ``(num_samples, channels)``,
+        honoring ``channels_first`` and ``always_2d``.
+        """
+        x = np.asarray(x)
+        if x.ndim == 1:
+            pass
+        elif x.ndim == 2:
+            if self.channels_first:
+                x = x.T
+        else:
+            raise ValueError(
+                f"Audio tensor for writing must be 1-D or 2-D, got shape={x.shape}"
+            )
+
+        if self.always_2d:
+            if x.ndim == 1:
+                x = np.stack((x, x), axis=1)
+            elif x.shape[1] == 1:
+                x = np.repeat(x, 2, axis=1)
+            elif x.shape[1] > 2:
+                x = x[:, :2]
+
+        return x
+
     @staticmethod
     def filter_args(**kwargs):
         valid_args = (
-            "output_fs",
-            "output_wav_scale",
-            "output_audio_format",
-            "output_audio_subtype",
+            "wav_scale",
+            "audio_format",
+            "audio_subtype",
+            "channels_first",
+            "always_2d",
         )
-        return dict(
-            (re.sub("output_", "", k), kwargs[k]) for k in valid_args if k in kwargs
-        )
+        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
-
-        # parser.add_argument(p1+'output-wav-scale', default=1, type=float,
-        #                      help=('scale to divide the waveform before writing'))
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "output-audio-format",
+            "--audio-format",
             default="flac",
             choices=["flac", "ogg", "wav"],
             help=("ouput audio format"),
         )
 
         parser.add_argument(
-            p1 + "output-audio-subtype",
+            "--audio-subtype",
             default=None,
-            choices=["pcm_16", "pcm_24", "float", "double", "vorbis"],
+            choices=["pcm_16", "pcm_24", "pcm_32", "float", "double", "vorbis"],
             help=("coding format for audio file"),
         )
 
-        # parser.add_argument(p1+'output-fs', default=16000, type=int,
-        #                      help=('output sample frequency'))
+        try:
+            parser.add_argument(
+                "--wav-scale",
+                type=float,
+                default=1.0,
+                help=("input waveform scale wrt 1"),
+            )
+            parser.add_argument(
+                "--channels-first",
+                default=True,
+                action=ActionYesNo,
+                help=("if true, interpret 2-D input as (channels, num_samples)"),
+            )
+            parser.add_argument(
+                "--always-2d",
+                default=False,
+                action=ActionYesNo,
+                help=("if true, force saved waveform to have exactly 2 channels"),
+            )
+        except:
+            pass
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
     add_argparse_args = add_class_args

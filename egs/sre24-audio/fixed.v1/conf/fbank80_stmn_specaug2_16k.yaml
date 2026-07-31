@@ -1,0 +1,47 @@
+audio_feats:
+  sample_frequency: 16000
+  frame_length: 25
+  frame_shift: 10
+  fft_length: 512
+  remove_dc_offset: true
+  preemphasis_coeff: 0.97
+  window_type: povey
+  use_fft_mag: false
+  dither: 3.0517578125e-05
+  fb_type: mel_kaldi
+  num_filters: 80
+  low_freq: 20.0
+  high_freq: 7600.0
+  norm_filters: false
+  num_ceps: 13
+  snip_edges: false
+  center: false
+  energy_floor: 0
+  raw_energy: true
+  use_energy: false
+  cepstral_lifter: 22
+  audio_feat: logfb
+mvn:
+  norm_mean: true
+  norm_var: false
+  left_context: 150
+  right_context: 150
+  context: 150
+spec_augment:
+  time_warp_prob: 0.0
+  time_warp_window: 80
+  time_warp_mode: bicubic
+  time_mask_prob: 1.0
+  time_mask_min_width: 0
+  time_mask_max_width: 4
+  time_mask_min_num_masks: 1.0
+  time_mask_max_num_masks: 1.0
+  time_use_num_masks_percentage: false
+  freq_mask_prob: 1.0
+  freq_mask_min_width: 0
+  freq_mask_max_width: 4
+  freq_mask_min_num_masks: 1
+  freq_mask_max_num_masks: 1
+  mask_method: constant
+  mask_value: 0.0
+aug_after_mvn: true

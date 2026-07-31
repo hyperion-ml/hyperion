@@ -1,31 +1,76 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .dropout import Dropout1d, DropConnect2d, DropConnect1d
-from .global_pool import *
-
-from .activation_factory import ActivationFactory
-from .norm_layer_factory import NormLayer2dFactory, NormLayer1dFactory
-from .pool_factory import GlobalPool1dFactory
-
-from .margin_losses import CosLossOutput, ArcLossOutput, SubCenterArcLossOutput
-
-from .audio_feats import *
-from .audio_feats_factory import AudioFeatsFactory
-from .spec_augment import AxisMasker, SpecWarper, SpecAugment
-from .mvn import MeanVarianceNorm
-
-from .attention import (
-    ScaledDotProdAttV1,
+from .activation_factory import ActivationFactory, ActivationSpec
+from .attention_v1 import (
+    LocalScaledDotProdAttRelPosEncV1,
     LocalScaledDotProdAttV1,
     ScaledDotProdAttRelPosEncV1,
-    LocalScaledDotProdAttRelPosEncV1,
+    ScaledDotProdAttV1,
 )
-from .pos_encoder import PosEncoder, RelPosEncoder, NoPosEncoder
-
-from .subpixel_convs import SubPixelConv1d, SubPixelConv2d, ICNR1d, ICNR2d
-from .interpolate import Interpolate
-
+from .audio_feats import (
+    Spec2LogFilterBank,
+    Wav2FFT,
+    Wav2KanBayashiLogFilterBank,
+    Wav2LogFilterBank,
+    Wav2LogSpec,
+    Wav2MFCC,
+    Wav2Spec,
+    Wav2Win,
+)
+from .audio_feats_factory import AudioFeatsFactory
 from .calibrators import LinBinCalibrator
+from .dropout import DropConnect1d, DropConnect2d, Dropout1d, DropPath1d, DropPath2d
+from .feat_fuser_factory import FeatFuserFactory
+from .feat_fusers import (
+    CatFeatFuser,
+    LastFeatFuser,
+    LinearFeatFuser,
+    WeightedAvgFeatFuser,
+)
+from .gather_distributed import GatherDistributed, GatherDistributedFunction
+from .global_pool import (
+    GlobalAvgPool1d,
+    GlobalChWiseAttMeanStdPool1d,
+    GlobalMeanLogVarPool1d,
+    GlobalMeanStdPool1d,
+    LDEPool1d,
+    ScaledDotProdAttV1Pool1d,
+)
+from .grad_rev_layer import GradientReversalLayer
+from .grn import GRN1d, GRN2d
+from .group_vq import GroupVectorQuantizer
+from .interpolate import Interpolate
+from .lora import LoRAFactory
+from .loudness_norm import LoudnessNorm
+from .margin_losses import ArcLossOutput, CosLossOutput, SubCenterArcLossOutput
+from .mvn import MeanVarianceNorm
+from .norm_layer_factory import NormLayer1dFactory, NormLayer2dFactory
+from .norm_layers import RMSNorm
+from .pool_factory import GlobalPool1dFactory
+from .pos_encoder import (
+    ConvPosEncoder,
+    NoPosEncoder,
+    PosEncoder,
+    PosEncoderBase,
+    RelPosEncoder,
+    RotaryPosEncoder,
+)
+from .residual_vq import ResidualVectorQuantizer
+from .snake import Snake1d
+from .spec_augment import AxisMasker, SpecAugment, SpecWarper
+from .streaming_convs import StreamingCausalConv1d, StreamingCausalConvTranspose1d
+from .subpixel_convs import ICNR1d, ICNR2d, SubPixelConv1d, SubPixelConv2d
+from .vq import (
+    AdaptiveRateDistortionEMVectorQuantizer,
+    BinarySplittingGMMVectorQuantizer,
+    EMAGumbelVectorQuantizer,
+    EMANNVectorQuantizer,
+    GumbelVectorQuantizer,
+    NNVectorQuantizer,
+    VectorQuantizerOutput,
+    VQDistanceType,
+)
+from .vq_factory import VectorQuantizerFactory

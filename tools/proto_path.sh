@@ -37,6 +37,11 @@ conda activate $HYP_ENV
 if [ "$(hostname --domain)" == "cm.gemini" ];then
     module load ffmpeg
 fi
+if [ "$(hostname -y)" == "clsp" ];then
+  source /etc/profile.d/modules.sh
+  module load sox
+  module load ffmpeg
+fi
 
 export LRU_CACHE_CAPACITY=1 #this will avoid crazy ram memory when using pytorch with cpu, it controls cache of MKLDNN
 export HDF5_USE_FILE_LOCKING=FALSE

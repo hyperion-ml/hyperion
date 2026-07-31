@@ -1,17 +1,30 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import math
+
+from typing import Any, Callable, Dict, Optional, Union
+
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, BatchNorm2d, Dropout2d
+from torch.nn import Dropout2d
 
 from ..layers import ActivationFactory as AF
-from .se_blocks import SEBlock2D, TSEBlock2D
+from .resnet_blocks import FreqPosEnc
+from .se_blocks import CFwSEBlock2d, FwSEBlock2d, SEBlock2d, TSEBlock2d
+
+ActivationType = Union[nn.Module, Dict[str, Any]]
+VALID_SE_TYPES = {"t-se", "cw-se", "fw-se", "cfw-se"}
 
 
-def _conv3x3(in_channels, out_channels, stride=1, groups=1, dilation=1, bias=False):
+def _conv3x3(
+    in_channels: int,
+    out_channels: int,
+    stride: int = 1,
+    groups: int = 1,
+    dilation: int = 1,
+    bias: bool = False,
+) -> nn.Conv2d:
     """3x3 convolution with padding"""
     return nn.Conv2d(
         in_channels,
@@ -25,13 +38,23 @@ def _conv3x3(in_channels, out_channels, stride=1, groups=1, dilation=1, bias=Fal
     )
 
 
-def _conv1x1(in_channels, out_channels, stride=1, bias=False):
+def _conv1x1(
+    in_channels: int,
+    out_channels: int,
+    stride: int = 1,
+    bias: bool = False,
+) -> nn.Conv2d:
     """1x1 convolution"""
     return nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=bias)
 
 
-def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before):
-
+def _make_downsample(
+    in_channels: int,
+    out_channels: int,
+    stride: int,
+    norm_layer: Callable[[int], nn.Module],
+    norm_before: bool,
+) -> nn.Module:
     if norm_before:
         return nn.Sequential(
             _conv1x1(in_channels, out_channels, stride, bias=False),
@@ -41,27 +64,86 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
     return _conv1x1(in_channels, out_channels, stride, bias=True)
 
 
+def _require_num_feats(num_feats: Optional[int], what: str) -> int:
+    if num_feats is None:
+        raise ValueError(f"num_feats must be provided when {what}")
+    return num_feats
+
+
+def _validate_se_type(se_type: str) -> str:
+    if se_type not in VALID_SE_TYPES:
+        raise ValueError(
+            f"invalid se_type='{se_type}', expected one of {sorted(VALID_SE_TYPES)}"
+        )
+    return se_type
+
+
 class Res2NetBasicBlock(nn.Module):
+    """Res2Net basic block. This is a modified Res2Net block with
+    two 3x3 convolutions, instead of the standard bottleneck block.
+
+    Attributes:
+      in_channels:       input channels.
+      channels:          output channels.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+
+      dropout_rate:      dropout rate.
+      width_factor:      multiplication factor for the number of channels in the first layer
+                         or the block.
+      scale:             scale parameter of the Res2Net.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+      se_r:              squeeze-excitation compression ratio.
+      se_type:           type of squeeze excitation in [t-se, cw-se, fw-se, cfw-se]
+      freq_pos_enc: use  frequency wise positional encoder
+      num_feats:         Number of features in dimension 2, needed if se_type!=cw-se or freq_pos_enc=True.
+      time_se:           (legacy deprecated) If true, use t-se
+    """
+
     expansion = 1
 
     def __init__(
         self,
-        in_channels,
-        channels,
-        activation={"name": "relu", "inplace": True},
-        stride=1,
-        dropout_rate=0,
-        width_factor=1,
-        scale=4,
-        groups=1,
-        dilation=1,
-        norm_layer=None,
-        norm_before=True,
-        se_r=None,
-        time_se=False,
-        num_feats=None,
-    ):
+        in_channels: int,
+        channels: int,
+        activation: ActivationType = {"name": "relu", "inplace": True},
+        stride: int = 1,
+        dropout_rate: float = 0,
+        width_factor: float = 1,
+        scale: int = 4,
+        groups: int = 1,
+        dilation: int = 1,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+        se_r: Optional[int] = None,
+        se_type: str = "cw-se",
+        freq_pos_enc: bool = False,
+        num_feats: Optional[int] = None,
+        time_se: bool = False,
+    ) -> None:
+        """Create a Res2Net basic block.
 
+        Args:
+          in_channels: input channels.
+          channels: output channels.
+          activation: activation specification.
+          stride: downsampling stride.
+          dropout_rate: dropout probability.
+          width_factor: channel multiplier for the first layer.
+          scale: Res2Net scale factor.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          norm_layer: normalization layer constructor, if None BatchNorm2d is used.
+          norm_before: if True normalization is before activation, otherwise after.
+          se_r: squeeze-excitation reduction ratio, or None to disable SE.
+          se_type: squeeze-excitation variant.
+          freq_pos_enc: if True, add frequency positional encoding.
+          num_feats: number of feature bins required by positional encoding.
+          time_se: legacy alias for ``se_type='t-se'``.
+        """
         super().__init__()
 
         self.in_channels = in_channels
@@ -74,7 +156,7 @@ class Res2NetBasicBlock(nn.Module):
         width_in = in_channels // scale
         width_mid = int(width_factor * channels) // scale
         self.width_in = width_in
-        self.has_proj1 = width_in != width_mid
+        self.has_proj1 = width_in != width_mid and stride == 1
         self.scale = scale
         channels_mid = width_mid * scale
         if scale == 1:
@@ -124,24 +206,65 @@ class Res2NetBasicBlock(nn.Module):
         self.context = dilation
         self.downsample_factor = stride
 
+        self.pos_enc = None
+        if freq_pos_enc:
+            num_feats = _require_num_feats(
+                num_feats, "freq_pos_enc=True in Res2NetBasicBlock"
+            )
+            self.pos_enc = FreqPosEnc(num_feats)
+
         if se_r is not None:
             if time_se:
-                self.se_layer = TSEBlock2D(channels, num_feats, se_r, activation)
-            else:
-                self.se_layer = SEBlock2D(channels, se_r, activation)
+                se_type = "t-se"
+            se_type = _validate_se_type(se_type)
+
+            if se_type == "t-se":
+                num_feats = _require_num_feats(num_feats, f"se_type='{se_type}'")
+                self.se_layer = TSEBlock2d(channels, num_feats, se_r, activation)
+            elif se_type == "cw-se":
+                self.se_layer = SEBlock2d(channels, se_r, activation)
+            elif se_type == "fw-se":
+                num_feats = _require_num_feats(num_feats, f"se_type='{se_type}'")
+                self.se_layer = FwSEBlock2d(num_feats, se_r, activation)
+            elif se_type == "cfw-se":
+                num_feats = _require_num_feats(num_feats, f"se_type='{se_type}'")
+                self.se_layer = CFwSEBlock2d(channels, num_feats, se_r, activation)
         else:
             self.se_layer = None
 
     @property
     def out_channels(self):
+        """Return the output channel count.
+
+        Returns:
+          Number of output channels.
+        """
         return self.channels
 
-    def forward(self, x):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the Res2Net basic block.
+
+        Args:
+          x: input tensor with shape=(batch, in_channels, height, width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape=(batch, out_channels, height, width).
+        """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
+        if self.pos_enc is not None:
+            x = self.pos_enc(x)
+
         split_size = [self.width_in for i in range(self.scale - 1)]
         split_size.append(self.in_channels % self.width_in + self.width_in)
         split_x = torch.split(x, split_size, 1)
-        # split_x = torch.split(x, self.width_in, 1)
+
         x = []
         for i in range(self.num_3x3):
             if i == 0 or self.stride > 1:
@@ -157,7 +280,7 @@ class Res2NetBasicBlock(nn.Module):
                 x_i = self.bn1s[i](x_i)
             x_i = self.act1(x_i)
             if not self.norm_before:
-                x_i = self.bn1(x_i)
+                x_i = self.bn1s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:
@@ -168,18 +291,18 @@ class Res2NetBasicBlock(nn.Module):
         x = self.conv2(x)
         if self.norm_before:
             x = self.bn2(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        if self.se_layer:
-            x = self.se_layer(x)
-
-        x += residual
-        x = self.act2(x)
-
-        if not self.norm_before:
+            x += residual
+            x = self.act2(x)
+        else:
+            x = self.act2(x)
             x = self.bn2(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
+
+            x += residual
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -188,26 +311,68 @@ class Res2NetBasicBlock(nn.Module):
 
 
 class Res2NetBNBlock(nn.Module):
+    """Res2Net bottleneck block.
+
+    Attributes:
+      in_channels:       input channels.
+      channels:          channels in bottleneck layer when width_factor=1.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+      dropout_rate:      dropout rate.
+      width_factor:      multiplication factor for the number of channels in the bottleneck.
+      scale:             scale parameter of the Res2Net.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+      se_r:              squeeze-excitation compression ratio.
+      se_type:           type of squeeze excitation in [t-se, cw-se, fw-se, cfw-se]
+      freq_pos_enc: use  frequency wise positional encoder
+      num_feats:         Number of features in dimension 2, needed if se_type!=cw-se or freq_pos_enc=True.
+      time_se:           (legacy deprecated) If true, use t-se
+    """
+
     expansion = 4
 
     def __init__(
         self,
-        in_channels,
-        channels,
-        activation={"name": "relu", "inplace": True},
-        stride=1,
-        dropout_rate=0,
-        width_factor=1,
-        scale=4,
-        groups=1,
-        dilation=1,
-        norm_layer=None,
-        norm_before=True,
-        se_r=None,
-        time_se=False,
-        num_feats=None,
-    ):
+        in_channels: int,
+        channels: int,
+        activation: ActivationType = {"name": "relu", "inplace": True},
+        stride: int = 1,
+        dropout_rate: float = 0,
+        width_factor: float = 1,
+        scale: int = 4,
+        groups: int = 1,
+        dilation: int = 1,
+        norm_layer: Optional[Callable[[int], nn.Module]] = None,
+        norm_before: bool = True,
+        se_r: Optional[int] = None,
+        se_type: str = "cw-se",
+        freq_pos_enc: bool = False,
+        num_feats: Optional[int] = None,
+        time_se: bool = False,
+    ) -> None:
+        """Create a Res2Net bottleneck block.
 
+        Args:
+          in_channels: input channels.
+          channels: bottleneck channels.
+          activation: activation specification.
+          stride: downsampling stride.
+          dropout_rate: dropout probability.
+          width_factor: channel multiplier for the bottleneck.
+          scale: Res2Net scale factor.
+          groups: number of convolution groups.
+          dilation: convolution dilation.
+          norm_layer: normalization layer constructor, if None BatchNorm2d is used.
+          norm_before: if True normalization is before activation, otherwise after.
+          se_r: squeeze-excitation reduction ratio, or None to disable SE.
+          se_type: squeeze-excitation variant.
+          freq_pos_enc: if True, add frequency positional encoding.
+          num_feats: number of feature bins required by positional encoding.
+          time_se: legacy alias for ``se_type='t-se'``.
+        """
         super().__init__()
 
         self.in_channels = in_channels
@@ -265,22 +430,61 @@ class Res2NetBNBlock(nn.Module):
         self.context = dilation
         self.downsample_factor = stride
 
+        self.pos_enc = None
+        if freq_pos_enc:
+            num_feats = _require_num_feats(
+                num_feats, "freq_pos_enc=True in Res2NetBNBlock"
+            )
+            self.pos_enc = FreqPosEnc(num_feats)
+
         if se_r is not None:
             if time_se:
-                self.se_layer = TSEBlock2D(
-                    channels * self.expansion, num_feats, se_r, activation
-                )
-            else:
-                self.se_layer = SEBlock2D(channels * self.expansion, se_r, activation)
+                se_type = "t-se"
+            se_type = _validate_se_type(se_type)
+
+            se_channels = channels * self.expansion
+            if se_type == "t-se":
+                num_feats = _require_num_feats(num_feats, f"se_type='{se_type}'")
+                self.se_layer = TSEBlock2d(se_channels, num_feats, se_r, activation)
+            elif se_type == "cw-se":
+                self.se_layer = SEBlock2d(se_channels, se_r, activation)
+            elif se_type == "fw-se":
+                num_feats = _require_num_feats(num_feats, f"se_type='{se_type}'")
+                self.se_layer = FwSEBlock2d(num_feats, se_r, activation)
+            elif se_type == "cfw-se":
+                num_feats = _require_num_feats(num_feats, f"se_type='{se_type}'")
+                self.se_layer = CFwSEBlock2d(se_channels, num_feats, se_r, activation)
         else:
             self.se_layer = None
 
     @property
     def out_channels(self):
+        """Return the output channel count.
+
+        Returns:
+          Number of output channels.
+        """
         return self.channels * self.expansion
 
-    def forward(self, x):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the Res2Net bottleneck block.
+
+        Args:
+          x: input tensor with shape=(batch, in_channels, height, width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape=(batch, out_channels, height, width).
+        """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
+        if self.pos_enc is not None:
+            x = self.pos_enc(x)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -301,7 +505,7 @@ class Res2NetBNBlock(nn.Module):
                 x_i = self.bn2s[i](x_i)
             x_i = self.act2(x_i)
             if not self.norm_before:
-                x_i = self.bn2(x_i)
+                x_i = self.bn2s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:
@@ -315,18 +519,18 @@ class Res2NetBNBlock(nn.Module):
         x = self.conv3(x)
         if self.norm_before:
             x = self.bn3(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        if self.se_layer:
-            x = self.se_layer(x)
-
-        x += residual
-        x = self.act3(x)
-
-        if not self.norm_before:
+            x += residual
+            x = self.act3(x)
+        else:
+            x = self.act3(x)
             x = self.bn3(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
+
+            x += residual
 
         if self.dropout_rate > 0:
             x = self.dropout(x)

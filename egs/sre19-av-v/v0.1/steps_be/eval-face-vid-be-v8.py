@@ -18,7 +18,7 @@ from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils.trial_scores import TrialScores
 
 # from hyperion.helpers import PLDAFactory as F
-# from hyperion.transforms import TransformList
+# from hyperion.np.transforms import TransformList
 from face_video_trial_data_reader import FaceVideoTrialDataReaderV1 as TDR
 from face_be_utils import *
 

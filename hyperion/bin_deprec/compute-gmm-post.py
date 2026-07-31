@@ -1,27 +1,27 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Computes GMM posteriors
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
-
 from keras import backend as K
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
-from hyperion.io import HypDataWriter
 from hyperion.helpers import SequenceReader as SR
-from hyperion.transforms import TransformList
+from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
+from hyperion.io import HypDataWriter
 from hyperion.pdfs import DiagGMM
+from hyperion.transforms import TransformList
 
 
 def to_sparse(r, num_comp):
@@ -60,7 +60,7 @@ def compute_gmm_post(
         batch_size=1,
         shuffle_seqs=False,
         preproc=preproc,
-        **sr_args
+        **sr_args,
     )
 
     t1 = time.time()

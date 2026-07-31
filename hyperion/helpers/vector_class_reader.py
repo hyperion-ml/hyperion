@@ -1,20 +1,20 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
-import os
 import argparse
-import time
 import copy
+import os
+import sys
+import time
 
 import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
-from ..utils.utt2info import Utt2Info
+from ..np.transforms import TransformList
 from ..utils.tensors import to3D_by_class
-from ..transforms import TransformList
+from ..utils.utt2info import Utt2Info
 
 
 class VectorClassReader(object):
@@ -49,7 +49,7 @@ class VectorClassReader(object):
                     v[0]: int(v[1]) for v in [line.rstrip().split() for line in f]
                 }
 
-        self.rng = np.random.RandomState(vcr_seed)
+        self.rng = np.random.default_rng(vcr_seed)
         self.csplit_max_spc = csplit_max_spc
         self.csplit_min_spc = csplit_min_spc
         self.csplit_mode = csplit_mode

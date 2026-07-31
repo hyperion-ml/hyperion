@@ -1,6 +1,6 @@
 """
- Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -12,7 +12,19 @@ import torch.nn.functional as nnf
 
 
 class BCEWithLLR(nn.Module):
-    def __init__(self, p_tar=0.5):
+    """Binary cross-entropy on log-likelihood ratios.
+
+    Attributes:
+        p_tar: Target prior used to reweight positive and negative samples.
+        logit_ptar: Log-odds corresponding to ``p_tar``.
+    """
+
+    def __init__(self, p_tar: float = 0.5) -> None:
+        """Initializes the loss.
+
+        Args:
+            p_tar: Target prior used to balance positive and negative examples.
+        """
         super().__init__()
         self.p_tar = p_tar
         self.logit_ptar = math.log(p_tar / (1 - p_tar))
@@ -53,7 +65,16 @@ class BCEWithLLR(nn.Module):
     #         x, y, weight=weight, reduction='mean')
     #     return loss
 
-    def forward(self, x, y):
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Computes the weighted BCE loss on logits.
+
+        Args:
+            x: Input logits.
+            y: Binary targets with the same shape as ``x``.
+
+        Returns:
+            Scalar loss tensor.
+        """
         y = y.float()
         ntar = torch.mean(y, dim=0)
         nnon = torch.mean(1 - y, dim=0)

@@ -1,28 +1,31 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
+
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
-from hyperion.torch.torch_defs import float_torch
-from hyperion.torch.utils import open_device
-from hyperion.torch.data import SeqDataset, ClassWeightedSeqSampler as Sampler
-from hyperion.torch.helpers import TorchNALoader
+from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
+from hyperion.torch.data import ClassWeightedRandomSegChunkSampler as Sampler
+from hyperion.torch.data import SeqDataset
 from hyperion.torch.helpers import OptimizerFactory as OF
-from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
+from hyperion.torch.helpers import TorchNALoader
 from hyperion.torch.layers import GlobalPool1dFactory as PF
-from hyperion.torch.seq_embed import XVector, XVectorTrainer
+from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
 from hyperion.torch.metrics import CategoricalAccuracy
+from hyperion.torch.models.xvectors.xvector import XVector
+from hyperion.torch.torch_defs import float_torch
+from hyperion.torch.trainers.xvector_trainer import XVectorTrainer
+from hyperion.torch.utils import open_device
 
 
 def train_xvector(
@@ -39,7 +42,7 @@ def train_xvector(
     resume_path,
     num_gpus,
     seed,
-    **kwargs
+    **kwargs,
 ):
 
     device = open_device(num_gpus=num_gpus)

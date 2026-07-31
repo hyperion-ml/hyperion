@@ -1,0 +1,7 @@
+sample_frequency: 8000
+frame_length: 25
+low_freq: 20 
+high_freq: 3700
+num_filters: 64
+snip_edges: false
+use_energy: false

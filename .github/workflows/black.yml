@@ -1,17 +1,25 @@
 name: black
 
 on:
-  push:	
-    branches: [ master ]
+  push:
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   black:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
       - uses: psf/black@stable
         with:
           options: "--check --diff --color --extend-exclude '/hyp_utils\\/kaldi/'"
-          version: "21.10b0"
+          src: "./hyperion ./tests"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Check import sorting with isort
+        uses: isort/isort-action@v1
+        with:
+          isort-version: "6.0.1"
+          sort-paths: "hyperion tests"

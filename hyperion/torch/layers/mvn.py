@@ -1,29 +1,63 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser
+
+from __future__ import annotations
+
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
+from ..utils import seq_lengths_to_mask
+
+SQRT_EPS = 1e-5
 
 
 class MeanVarianceNorm(nn.Module):
-    def __init__(
-        self, norm_mean=True, norm_var=False, left_context=0, right_context=0, dim=1
-    ):
+    """Short-time mean-variance normalization for sequence features.
 
-        super(MeanVarianceNorm, self).__init__()
+    Attributes:
+        norm_mean: If ``True``, applies mean normalization.
+        norm_var: If ``True``, applies variance normalization.
+        left_context: Left context (frames) for local normalization windows.
+        right_context: Right context (frames) for local normalization windows.
+        dim: Time dimension used for normalization.
+    """
+
+    def __init__(
+        self,
+        norm_mean: bool = True,
+        norm_var: bool = False,
+        left_context: int = 0,
+        right_context: int = 0,
+        dim: int = 1,
+    ) -> None:
+        """Initializes the MVN layer.
+
+        Args:
+            norm_mean: If ``True``, normalizes the sequence mean.
+            norm_var: If ``True``, normalizes the sequence variance.
+            left_context: Left context (frames) for local window statistics.
+            right_context: Right context (frames) for local window statistics.
+            dim: Time dimension in the input tensor.
+
+        Returns:
+            None.
+        """
+        super().__init__()
         self.norm_mean = norm_mean
         self.norm_var = norm_var
         self.left_context = left_context
         self.right_context = right_context
         self.dim = dim
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = "{}(norm_mean={}, norm_var={}, left_context={}, right_context={}, dim={})".format(
             self.__class__.__name__,
             self.norm_mean,
@@ -34,78 +68,199 @@ class MeanVarianceNorm(nn.Module):
         )
         return s
 
-    def forward(self, x):
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        x_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Applies short-time MVN to an input feature tensor.
 
-        T = x.shape[self.dim]
+        Args:
+            x: Feature tensor.
+            x_lengths: Sequence lengths used to build a mask when ``x_mask`` is ``None``.
+            x_mask: Mask of valid frames. If provided, ``x_lengths`` is ignored.
+
+        Returns:
+            Normalized feature tensor.
+        """
+        if not self.norm_mean and not self.norm_var:
+            return x
+
+        if self.dim != 1:
+            x = x.transpose(1, self.dim)
+            if x_mask is not None and x_mask.dim() == x.dim():
+                x_mask = x_mask.transpose(1, self.dim)
+
+        max_length = x.size(1)
+        if x_lengths is not None and x_mask is None:
+            x_mask = seq_lengths_to_mask(
+                x_lengths,
+                max_length,
+                dtype=x.dtype,
+                ndim=x.dim(),
+                none_if_all_max=True,
+            )
+
         if (self.left_context == 0 and self.right_context == 0) or (
-            T <= self.left_context + self.right_context + 1
+            max_length <= self.left_context + self.right_context + 1
         ):
-            return self.normalize_global(x)
+            x = self.normalize_global(x, x_mask)
+        else:
+            x = self.normalize_cumsum(x, x_mask)
 
-        return self.normalize_cumsum(x)
+        if self.dim != 1:
+            x = x.transpose(1, self.dim).contiguous()
 
-    def normalize_global(self, x):
+        return x
+
+    def _normalize_global_nomask(self, x: torch.Tensor) -> torch.Tensor:
+        """Applies utterance-level normalization without masking.
+
+        Args:
+            x: Input feature tensor.
+
+        Returns:
+            Normalized feature tensor.
+        """
         # Global mean/var norm.
+
         if self.norm_mean:
-            m_x = torch.mean(x, dim=self.dim, keepdim=True)
+            m_x = torch.mean(x, dim=1, keepdim=True)
             x = x - m_x
 
         if self.norm_var:
-            s_x = torch.std(x, dim=self.dim, keepdim=True).clamp(min=1e-5)
+            s_x = torch.std(x, dim=1, keepdim=True).clamp(min=1e-5)
             x = x / s_x
 
         return x
 
-    def normalize_cumsum(self, x):
+    def _normalize_global_mask(
+        self, x: torch.Tensor, x_mask: torch.Tensor
+    ) -> torch.Tensor:
+        """Applies utterance-level normalization with a frame mask.
 
+        Args:
+            x: Input feature tensor.
+            x_mask: Valid-frame mask broadcastable to ``x``.
+
+        Returns:
+            Normalized feature tensor.
+        """
+        # Global mean/var norm.
+        den = torch.mean(x_mask, dim=1, keepdim=True)
+        x = x * x_mask
+        m_x = torch.mean(x, dim=1, keepdim=True) / den
         if self.norm_mean:
+            x = x - m_x
+            if self.norm_var:
+                s2_x = torch.mean(x**2, dim=1, keepdim=True) / den
+                s_x = torch.sqrt(s2_x.clamp(min=SQRT_EPS))
+                x = x / s_x
+        elif self.norm_var:
+            s2_x = torch.mean((x - m_x) ** 2, dim=1, keepdim=True) / den
+            s_x = torch.sqrt(s2_x.clamp(min=SQRT_EPS))
+            x = x / s_x
+
+        return x
+
+    def normalize_global(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Applies utterance-level normalization.
+
+        Args:
+            x: Input feature tensor.
+            x_mask: Optional valid-frame mask.
+
+        Returns:
+            Normalized feature tensor.
+        """
+        # Global mean/var norm.
+        if x_mask is None:
+            return self._normalize_global_nomask(x)
+        return self._normalize_global_mask(x, x_mask)
+
+    def _prenormalize_cumsum(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor]
+    ) -> torch.Tensor:
+        """Preprocesses input before cumulative-sum local normalization.
+
+        Args:
+            x: Input feature tensor.
+            x_mask: Optional valid-frame mask.
+
+        Returns:
+            Pre-normalized tensor for cumulative-sum processing.
+        """
+        if self.norm_mean or x_mask is not None:
             # substract first global mean
             # it will help cumsum numerical stability
-            m_x = torch.mean(x, dim=self.dim, keepdim=True)
+            if x_mask is not None:
+                x = x * x_mask
+                den = torch.mean(x_mask, dim=1, keepdim=True)
+            else:
+                den = 1
+            m_x = torch.mean(x, dim=1, keepdim=True) / den
+
+        if self.norm_mean:
             x = x - m_x
+            if x_mask is not None:
+                x = x * x_mask
+        elif x_mask is not None:
+            x = x * x_mask + m_x * (1 - x_mask)
 
-        if self.dim != 1:
-            x = x.transpose(self.dim, 1)
+        return x
 
+    def normalize_cumsum(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Applies local mean/variance normalization via cumulative sums.
+
+        Args:
+            x: Input feature tensor.
+            x_mask: Optional valid-frame mask.
+
+        Returns:
+            Normalized feature tensor.
+        """
+
+        x = self._prenormalize_cumsum(x, x_mask)
         total_context = self.left_context + self.right_context + 1
 
         xx = nn.functional.pad(
-            x.transpose(1, -1), (self.left_context, self.right_context), mode="reflect"
+            x.transpose(1, -1),
+            (self.left_context + 1, self.right_context),
+            mode="reflect",
         ).transpose(1, -1)
+        xx[:, 0] = 0
 
-        if self.norm_mean:
+        if self.norm_mean or self.norm_var:
             c_x = torch.cumsum(xx, dim=1)
-            m_x = (
-                c_x[:, total_context - 1 :] - c_x[:, : -total_context + 1]
-            ) / total_context
+            m_x = (c_x[:, total_context:] - c_x[:, :-total_context]) / total_context
 
         if self.norm_var:
-            c_x = torch.cumsum(xx ** 2, dim=1)
-            m_x2 = (
-                c_x[:, total_context - 1 :] - c_x[:, : -total_context + 1]
-            ) / total_context
+            c_x = torch.cumsum(xx**2, dim=1)
+            m_x2 = (c_x[:, total_context:] - c_x[:, :-total_context]) / total_context
 
         if self.norm_mean:
             x = x - m_x
 
         if self.norm_var:
-            s_x = torch.sqrt((m_x2 - m_x ** 2).clamp(min=1e-5))
+            s_x = torch.sqrt((m_x2 - m_x**2).clamp(min=SQRT_EPS))
             x = x / s_x
-
-        if self.dim != 1:
-            x = x.transpose(self.dim, 1)
 
         return x.contiguous()
 
     @staticmethod
-    def filter_args(**kwargs):
-        """Filters ST-CMVN args from arguments dictionary.
+    def filter_args(**kwargs: Any) -> dict[str, Any]:
+        """Filters ST-MVN args from arguments dictionary.
 
         Args:
-          kwargs: Arguments dictionary.
+            kwargs: Arguments dictionary.
 
         Returns:
-          Dictionary with ST-CMVN options.
+            Dictionary with ST-MVN options.
         """
 
         valid_args = (
@@ -131,28 +286,31 @@ class MeanVarianceNorm(nn.Module):
         return d
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         """Adds ST-CMVN options to parser.
 
         Args:
-          parser: Arguments parser
-          prefix: Options prefix.
+            parser: Arguments parser.
+            prefix: Optional nested option prefix.
+
+        Returns:
+            None.
         """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            "--no-norm-mean",
-            default=False,
-            action="store_true",
-            help="don't center the features",
+            "--norm-mean",
+            default=True,
+            action=ActionYesNo,
+            help="center the features",
         )
 
         parser.add_argument(
             "--norm-var",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help="normalize the variance of the features",
         )
 

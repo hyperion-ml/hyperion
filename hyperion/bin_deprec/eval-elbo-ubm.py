@@ -1,24 +1,25 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Evaluate the likelihood of the ubm on some data
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 
-from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.helpers import SequenceReader as SR
-from hyperion.transforms import TransformList
+from hyperion.hyp_defs import config_logger, float_cpu
 from hyperion.pdfs import DiagGMM
+from hyperion.transforms import TransformList
 
 
 def eval_elbo(
@@ -38,7 +39,7 @@ def eval_elbo(
         batch_size=1,
         shuffle_seqs=False,
         preproc=preproc,
-        **sr_args
+        **sr_args,
     )
 
     t1 = time.time()

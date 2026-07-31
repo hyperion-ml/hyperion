@@ -1,45 +1,136 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from jsonargparse import ArgumentParser, ActionParser
-import time
 import math
+import time
+from collections import OrderedDict
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
+# import k2
+try:
+    import k2
+except:
+    from ..utils import dummy_k2 as k2
+
+import sentencepiece as spm
 import torch
-
-from ..torch_defs import floatstr_torch
-from ...io import RandomAccessAudioReader as AR
-from ...utils.utt2info import Utt2Info
-from ...augment import SpeechAugment
-
-from torch.utils.data import Dataset
 import torch.distributed as dist
+import torchaudio.transforms as tat
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from torch.utils.data import Dataset
+
+from ...io import RandomAccessAudioReader as AR
+from ...np.augment import SpeechAugment
+from ...np.preprocessing import ResamplerToTargetFreq
+from ...utils import ClassInfo, HyperDataset, PathLike, SegmentSet
+from ...utils.misc import filter_func_args
+from ...utils.text import read_text
+from ..tokenizers import HypTokenizer
+from ..torch_defs import floatstr_torch
+from ..utils import collate_seqs_1d, collate_seqs_nd, list_of_dicts_to_list
 
 
 class AudioDataset(Dataset):
+    """Dataset that reads audio and supervision attributes from a HyperDataset.
+
+    Args:
+      dataset_path: HyperDataset file or directory.
+      class_names: Class attribute names to return as integer class indexes.
+      tokenizer_mappings: Mappings from input segment attributes and tokenizer
+            aliases to output attributes, formatted as input->tokenizer->output.
+      tokenizer_files: Tokenizer aliases and configuration files, formatted as
+            alias:path.
+      extra_attrs: Extra segment attributes to return without conversion.
+      aug_cfgs: Augmentation configuration files.
+      num_augs: Number of augmentations per segment and augmentation type.
+      num_aug_mix: Number of AugMix augmentations per segment.
+      aug_mix_alpha: AugMix Dirichlet and beta distribution parameter.
+      target_sample_freq: Target sample frequency. If not None, audio is
+            resampled to this frequency.
+      wav_scale: Multiplicative factor for waveform samples.
+      is_val: Whether this is a validation dataset.
+      enable_tel_codecs_if: SegmentSet expression controlling telephone codec
+            augmentation.
+      enable_media_codecs_if: SegmentSet expression controlling media codec
+            augmentation.
+      enable_transcodec_if: SegmentSet expression controlling transcodec
+            augmentation.
+      seed: Random seed.
+      bpe_model: Deprecated SentencePiece model for text labels.
+
+    Attributes:
+      dataset: Loaded HyperDataset instance.
+      r: Random access audio reader.
+      rank: Distributed process rank.
+      world_size: Distributed world size.
+      epoch: Current sampler epoch.
+      is_val: Whether this is a validation dataset.
+      class_names: Class attributes returned by the dataset.
+      extra_attrs: Additional raw segment attributes returned by the dataset.
+      tokenizers: Mapping from tokenizer aliases to tokenizer instances.
+      output_attrs_to_input: Mapping from output attributes to input segment
+            attributes.
+      output_attrs_to_tokenizers: Mapping from output attributes to tokenizer
+            aliases.
+      augmenters: Audio augmenters applied in __getitem__.
+      reverb_context: Maximum left context required by the augmenters.
+      target_sample_freq: Optional target sample frequency.
+      resampler: Optional target-frequency resampler.
+      rng: NumPy random generator used for AugMix.
+    """
+
     def __init__(
         self,
-        audio_path,
-        key_file,
-        class_file=None,
-        time_durs_file=None,
-        min_chunk_length=1,
-        max_chunk_length=None,
-        aug_cfg=None,
-        return_fullseqs=False,
-        return_class=True,
-        return_clean_aug_pair=False,
-        transpose_input=False,
-        wav_scale=2 ** 15 - 1,
-        is_val=False,
-    ):
+        dataset_path: PathLike,
+        class_names: Optional[List[str]] = None,
+        tokenizer_mappings: Optional[List[str]] = None,
+        tokenizer_files: Optional[List[str]] = None,
+        extra_attrs: Optional[List[str]] = None,
+        aug_cfgs: Optional[List[str]] = None,
+        num_augs: int = 1,
+        num_aug_mix: int = 0,
+        aug_mix_alpha: float = 0.5,
+        target_sample_freq: Optional[float] = None,
+        wav_scale: float = 1.0,
+        is_val: bool = False,
+        enable_tel_codecs_if: Optional[str] = None,
+        enable_media_codecs_if: Optional[str] = None,
+        enable_transcodec_if: Optional[str] = None,
+        seed: int = 112358,
+        bpe_model: Optional[str] = None,
+    ) -> None:
+        """Initializes an AudioDataset.
 
+        Args:
+          dataset_path: HyperDataset file or directory.
+          class_names: Class attribute names to return as integer class indexes.
+          tokenizer_mappings: Mappings formatted as input->tokenizer->output.
+          tokenizer_files: Tokenizer aliases and configuration files formatted
+            as alias:path.
+          extra_attrs: Extra segment attributes to return without conversion.
+          aug_cfgs: Augmentation configuration files.
+          num_augs: Number of augmentations per segment and augmentation type.
+          num_aug_mix: Number of AugMix augmentations per segment.
+          aug_mix_alpha: AugMix Dirichlet and beta distribution parameter.
+          target_sample_freq: Optional target sample frequency.
+          wav_scale: Multiplicative factor for waveform samples.
+          is_val: Whether this is a validation dataset.
+          enable_tel_codecs_if: SegmentSet expression controlling telephone
+            codec augmentation.
+          enable_media_codecs_if: SegmentSet expression controlling media codec
+            augmentation.
+          enable_transcodec_if: SegmentSet expression controlling transcodec
+            augmentation.
+          seed: Random seed.
+          bpe_model: Deprecated SentencePiece model for text labels.
+        """
+        super().__init__()
         try:
             rank = dist.get_rank()
             world_size = dist.get_world_size()
@@ -47,381 +138,769 @@ class AudioDataset(Dataset):
             rank = 0
             world_size = 1
 
+        if rank == 0:
+            logging.info("loading dataset %s", dataset_path)
+
+        self.dataset = HyperDataset.load(dataset_path)
+
         self.rank = rank
         self.world_size = world_size
+        self.epoch = 0
 
-        if rank == 0:
-            logging.info("opening dataset %s" % audio_path)
-        self.r = AR(audio_path, wav_scale=wav_scale)
-        if rank == 0:
-            logging.info("loading utt2info file %s" % key_file)
-        self.u2c = Utt2Info.load(key_file, sep=" ")
-        if rank == 0:
-            logging.info("dataset contains %d seqs" % self.num_seqs)
-
-        self.is_val = is_val
-        self._read_time_durs_file(time_durs_file)
-
-        # self._seq_lengths = self.r.read_time_duration(self.u2c.key)
-        self._prune_short_seqs(min_chunk_length)
-
-        self.short_seq_exist = self._seq_shorter_than_max_length_exists(
-            max_chunk_length
+        recordings = self.dataset.recordings()
+        segments = self.dataset.segments()
+        self.r = AR(
+            recordings=recordings,
+            segments=segments if segments.has_time_marks else None,
+            wav_scale=wav_scale,
         )
 
-        self._prepare_class_info(class_file)
+        self.is_val = is_val
+        self.class_names = class_names if class_names is not None else []
+        self.extra_attrs = extra_attrs if extra_attrs is not None else []
 
-        if max_chunk_length is None:
-            max_chunk_length = min_chunk_length
-        self._min_chunk_length = min_chunk_length
-        self._max_chunk_length = max_chunk_length
+        # logging.info("loading class-info files")
+        # self._load_class_infos(class_names, class_files, is_val)
 
-        self.return_fullseqs = return_fullseqs
-        self.return_class = return_class
-        self.return_clean_aug_pair = return_clean_aug_pair
+        self._load_tokenizers(tokenizer_mappings, tokenizer_files)
 
-        self.transpose_input = transpose_input
+        if bpe_model is not None:
+            logging.info("loading bpe models")
+            self._load_bpe_model(bpe_model)
 
-        self.augmenter = None
-        self.reverb_context = 0
-        if aug_cfg is not None:
-            self.augmenter = SpeechAugment.create(
-                aug_cfg, random_seed=112358 + 1000 * rank
+        self.num_augs = num_augs
+        self.num_aug_mix = num_aug_mix
+        self.aug_mix_alpha = aug_mix_alpha
+        self.seed = seed
+        self.rng = np.random.default_rng(seed + 1000 * rank)
+        self._create_augmenters(aug_cfgs)
+        self._worker_reseeded = False
+
+        self.target_sample_freq = target_sample_freq
+        # self.resamplers = {}
+        self.resampler = (
+            None
+            if target_sample_freq is None
+            else ResamplerToTargetFreq(target_sample_freq)
+        )
+
+        # prepare enable codecs conditions
+        self.enable_tel_codecs_if = enable_tel_codecs_if
+        self.enable_media_codecs_if = enable_media_codecs_if
+        self.enable_transcodec_if = enable_transcodec_if
+        if enable_tel_codecs_if:
+            segments.eval(f"enable_tel_codecs = {enable_tel_codecs_if}", inplace=True)
+        if enable_media_codecs_if:
+            segments.eval(
+                f"enable_media_codecs = {enable_media_codecs_if}", inplace=True
             )
-            self.reverb_context = self.augmenter.max_reverb_context
+        if enable_transcodec_if:
+            segments.eval(f"enable_transcodec = {enable_transcodec_if}", inplace=True)
 
-    def _read_time_durs_file(self, file_path):
+    def _load_bpe_model(self, bpe_model: str) -> None:
+        """Loads a deprecated SentencePiece BPE model.
+
+        Args:
+          bpe_model: Path to the SentencePiece model.
+        """
         if self.rank == 0:
-            logging.info("reading time_durs file %s" % file_path)
-        nf_df = pd.read_csv(file_path, header=None, sep=" ")
-        nf_df.index = nf_df[0]
-        self._seq_lengths = nf_df.loc[self.u2c.key, 1].values
+            logging.info("loading bpe file %s", bpe_model)
+        self.sp = spm.SentencePieceProcessor()
+        self.sp.load(bpe_model)
+        blank_id = self.sp.piece_to_id("<blk>")
+        vocab_size = self.sp.get_piece_size()
+
+    # def _load_class_infos(self, class_names, is_val):
+    #     self.class_info = OrderedDict()
+    #     if class_names is None:
+    #         assert class_files is None
+    #         return
+
+    #     assert len(class_names) == len(class_files)
+    #     for name, file in zip(class_names, class_files):
+    #         assert (
+    #             name in self.seg_set
+    #         ), f"class_name {name} not present in the segment set"
+    #         self.seg_set.convert_col_to_str(
+    #             name
+    #         )  # make sure that class ids are strings
+    #         if self.rank == 0:
+    #             logging.info("loading class-info file %s", file)
+    #         table = ClassInfo.load(file)
+    #         self.class_info[name] = table
+    #         if not is_val:
+    #             # check that all classes are present in the training segments
+    #             class_ids = table["id"]
+    #             segment_class_ids = self.seg_set[name].unique()
+    #             for c_id in class_ids:
+    #                 if c_id not in segment_class_ids:
+    #                     logging.warning(
+    #                         "%s class: %s not present in dataset", name, c_id
+    #                     )
+
+    def _load_tokenizers(
+        self,
+        tokenizer_mappings: Optional[List[str]],
+        tokenizer_files: Optional[List[str]],
+    ) -> None:
+        """Loads tokenizers and segment-to-output attribute mappings.
+
+        Args:
+          tokenizer_mappings: Mappings formatted as input->tokenizer->output.
+          tokenizer_files: Tokenizer aliases and configuration files formatted
+            as alias:path.
+        """
+        self.tokenizers = OrderedDict()
+        self.output_attrs_to_input = OrderedDict()
+        self.output_attrs_to_tokenizers = OrderedDict()
+
+        if tokenizer_mappings is None:
+            assert tokenizer_files is None
+            return
+
+        assert tokenizer_files is not None
+        logging.info("loading tokenizers")
+
+        for tokenizer_file in tokenizer_files:
+            assert isinstance(
+                tokenizer_file, str
+            ), f"tokenizer file {tokenizer_file} should be a string"
+            tokenizer_name, tokenizer_file = tokenizer_file.split(":", maxsplit=1)
+            if self.rank == 0:
+                logging.info("loading tokenizer file %s", tokenizer_file)
+            tokenizer = HypTokenizer.auto_load(tokenizer_file)
+            self.tokenizers[tokenizer_name] = tokenizer
+
+        segments = self.dataset.segments()
+        for map in tokenizer_mappings:
+            in_attr_name, tokenizer_name, out_attr_name = map.split("->", maxsplit=2)
+            assert (
+                in_attr_name in segments
+            ), f"field {in_attr_name} not present in the segment set"
+            assert (
+                tokenizer_name in self.tokenizers
+            ), f"tokenizer {tokenizer_name} not present in tokenizer_files"
+            self.output_attrs_to_input[out_attr_name] = in_attr_name
+            self.output_attrs_to_tokenizers[out_attr_name] = tokenizer_name
+
+    def _create_augmenters(self, aug_cfgs: Optional[List[str]]) -> None:
+        """Creates the speech augmentation pipeline.
+
+        Args:
+          aug_cfgs: Augmentation configuration files.
+        """
+        self.augmenters = []
+        self.reverb_context = 0
+        if aug_cfgs is None:
+            return
+
+        for aug_cfg in aug_cfgs:
+            logging.info(f"loading augmentation={aug_cfg}")
+            augmenter = SpeechAugment.create(
+                aug_cfg, random_seed=self.seed + 1000 * self.rank
+            )
+            self.augmenters.append(augmenter)
+            self.reverb_context = max(augmenter.max_reverb_context, self.reverb_context)
+
+    def set_epoch(self, epoch: int) -> None:
+        """Sets the current epoch.
+
+        Args:
+          epoch: Epoch number.
+        """
+        self.epoch = epoch
+
+    def _maybe_reseed_worker(self) -> None:
+        """Reseeds random generators once inside each DataLoader worker."""
+        if self._worker_reseeded:
+            return
+
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:
+            self._worker_reseeded = True
+            return
+
+        base_seed = int(worker_info.seed) + 1000 * self.rank
+        self.rng = np.random.default_rng(seed=base_seed)
+        child_seeds = np.random.SeedSequence(base_seed).spawn(len(self.augmenters))
+        for i, augmenter in enumerate(self.augmenters):
+            if hasattr(augmenter, "reseed"):
+                augmenter.reseed(child_seeds[i])
+
+        self._worker_reseeded = True
 
     @property
-    def wav_scale(self):
+    def segments(self) -> SegmentSet:
+        """Returns the segments of the dataset.
+
+        Returns:
+          Segment metadata table.
+        """
+        return self.dataset.segments()
+
+    @property
+    def wav_scale(self) -> float:
+        """Returns the waveform scale.
+
+        Returns:
+          Waveform multiplicative scale.
+        """
         return self.r.wav_scale
 
     @property
-    def num_seqs(self):
-        return len(self.u2c)
+    def num_seqs(self) -> int:
+        """Returns the number of sequences.
 
-    def __len__(self):
+        Returns:
+          Number of sequences in the dataset.
+        """
+        return len(self.dataset)
+
+    def __len__(self) -> int:
+        """Returns the number of sequences.
+
+        Returns:
+          Number of sequences in the dataset.
+        """
         return self.num_seqs
 
     @property
-    def seq_lengths(self):
-        return self._seq_lengths
+    def seq_lengths(self) -> pd.Series:
+        """Returns sequence durations.
+
+        Returns:
+          Series containing segment durations in seconds.
+        """
+        return self.dataset.segments()["duration"]
 
     @property
-    def total_length(self):
+    def total_length(self) -> float:
+        """Returns the total duration.
+
+        Returns:
+          Sum of all sequence durations.
+        """
         return np.sum(self.seq_lengths)
 
     @property
-    def min_chunk_length(self):
-        if self.return_fullseqs:
-            self._min_chunk_length = np.min(self.seq_lengths)
-        return self._min_chunk_length
+    def min_seq_length(self) -> float:
+        """Returns the shortest duration.
 
-    @property
-    def max_chunk_length(self):
-        if self._max_chunk_length is None:
-            self._max_chunk_length = np.max(self.seq_lengths)
-        return self._max_chunk_length
-
-    @property
-    def min_seq_length(self):
+        Returns:
+          Minimum sequence duration.
+        """
         return np.min(self.seq_lengths)
 
     @property
-    def max_seq_length(self):
+    def max_seq_length(self) -> float:
+        """Returns the longest duration.
+
+        Returns:
+          Maximum sequence duration.
+        """
         return np.max(self.seq_lengths)
 
-    def _prune_short_seqs(self, min_length):
-        if self.rank == 0:
-            logging.info("pruning short seqs")
-        keep_idx = self.seq_lengths >= min_length
-        self.u2c = self.u2c.filter_index(keep_idx)
-        self._seq_lengths = self.seq_lengths[keep_idx]
-        if self.rank == 0:
-            logging.info(
-                "pruned seqs with min_length < %f,"
-                "keep %d/%d seqs" % (min_length, self.num_seqs, len(keep_idx))
-            )
+    @property
+    def num_classes(self) -> Dict[str, int]:
+        """Returns the number of classes for each requested class attribute.
 
-    def _prepare_class_info(self, class_file):
-        class_weights = None
-        if class_file is None:
-            classes, class_idx = np.unique(self.u2c.info, return_inverse=True)
-            class2idx = {k: i for i, k in enumerate(classes)}
-        else:
-            if self.rank == 0:
-                logging.info("reading class-file %s" % (class_file))
-            class_info = pd.read_csv(class_file, header=None, sep=" ")
-            class2idx = {str(k): i for i, k in enumerate(class_info[0])}
-            class_idx = np.array([class2idx[k] for k in self.u2c.info], dtype=int)
-            if class_info.shape[1] == 2:
-                class_weights = np.array(class_info[1]).astype(
-                    floatstr_torch(), copy=False
-                )
-
-        self.num_classes = len(class2idx)
-
-        class2utt_idx = {}
-        class2num_utt = np.zeros((self.num_classes,), dtype=int)
-
-        for k in range(self.num_classes):
-            idx = (class_idx == k).nonzero()[0]
-            class2utt_idx[k] = idx
-            class2num_utt[k] = len(idx)
-            if class2num_utt[k] == 0:
-                if not self.is_val:
-                    logging.warning("class %d doesn't have any samples" % (k))
-                if class_weights is None:
-                    class_weights = np.ones((self.num_classes,), dtype=floatstr_torch())
-                class_weights[k] = 0
-
-        count_empty = np.sum(class2num_utt == 0)
-        if count_empty > 0:
-            logging.warning("%d classes have 0 samples" % (count_empty))
-
-        self.utt_idx2class = class_idx
-        self.class2utt_idx = class2utt_idx
-        self.class2num_utt = class2num_utt
-        if class_weights is not None:
-            class_weights /= np.sum(class_weights)
-            class_weights = torch.Tensor(class_weights)
-        self.class_weights = class_weights
-
-        if self.short_seq_exist:
-            # if there are seq shorter than max_chunk_lenght we need some extra variables
-            # we will need class_weights to put to 0 classes that have all utts shorter than the batch chunk length
-            if self.class_weights is None:
-                self.class_weights = torch.ones((self.num_classes,))
-
-            # we need the max length of the utterances of each class
-            class2max_length = torch.zeros((self.num_classes,), dtype=torch.float)
-            for c in range(self.num_classes):
-                if class2num_utt[c] > 0:
-                    class2max_length[c] = np.max(
-                        self.seq_lengths[self.class2utt_idx[c]]
-                    )
-
-            self.class2max_length = class2max_length
-
-    def _seq_shorter_than_max_length_exists(self, max_length):
-        return np.any(self.seq_lengths < max_length)
+        Returns:
+          Dictionary keyed by class attribute name.
+        """
+        return {k: self.dataset.classes_value(k).num_classes for k in self.class_names}
 
     @property
-    def var_chunk_length(self):
-        return self.min_chunk_length < self.max_chunk_length
+    def class_info(self) -> Dict[str, ClassInfo]:
+        """Returns class metadata tables.
 
-    def get_random_chunk_length(self):
+        Returns:
+          Dictionary keyed by class attribute name.
+        """
+        return {k: self.dataset.classes_value(k) for k in self.class_names}
 
-        if self.var_chunk_length:
-            return (
-                torch.rand(size=(1,)).item()
-                * (self.max_chunk_length - self.min_chunk_length)
-                + self.min_chunk_length
+    def _parse_segment_item(
+        self, segment: Union[str, Tuple[str, float, float], List[Any]]
+    ) -> Tuple[str, float, float]:
+        """Parses a dataset index or chunk tuple.
+
+        Args:
+          segment: Segment id, or tuple/list with segment id, start, and
+            duration.
+
+        Returns:
+          Segment id, start time, and duration.
+        """
+        if isinstance(segment, (tuple, list)):
+            seg_id, start, duration = segment
+            assert duration <= self.dataset.segments().loc[seg_id].duration, (
+                f"{seg_id} with start={start} duration "
+                f"({self.dataset.segments().loc[seg_id].duration}) < "
+                f"chunk duration ({duration})"
             )
-
-        return self.max_chunk_length
-
-    def __getitem__(self, index):
-        # logging.info('{} {} {} get item {}'.format(
-        #     self, os.getpid(), threading.get_ident(), index))
-        if self.return_fullseqs:
-            return self._get_fullseq(index)
         else:
-            return self._get_random_chunk(index)
+            seg_id, start, duration = segment, 0, 0
 
-    def _get_fullseq(self, index):
-        key = self.u2c.key[index]
-        x, fs = self.r.read([key])
+        return seg_id, start, duration
+
+    def _read_audio(
+        self, seg_id: str, start: float, duration: float
+    ) -> Tuple[np.ndarray, int]:
+        """Reads one audio segment.
+
+        Args:
+          seg_id: Segment id.
+          start: Start time in seconds.
+          duration: Duration in seconds. Zero means read the full segment.
+
+        Returns:
+          Waveform samples and sample frequency.
+        """
+        # how much extra audio we need to load to
+        # calculate the reverb of the first part of the audio
+        reverb_context = min(self.reverb_context, start)
+        start -= reverb_context
+        read_duration = duration + reverb_context
+
+        # read audio
+        x, fs = self.r.read([seg_id], time_offset=start, time_durs=read_duration)
         x = x[0].astype(floatstr_torch(), copy=False)
-        x_clean = x
-        if self.augmenter is not None:
-            x, aug_info = self.augmenter(x)
-
-        if self.transpose_input:
-            x = x[None, :]
-            if self.return_clean_aug_pair:
-                x_clean = x_clean[None, :]
-
-        if self.return_clean_aug_pair:
-            r = x, x_clean
-
-        if not self.return_class:
-            return r
-
-        class_idx = self.utt_idx2class[index]
-        r = *r, class_idx
-        return r
-
-    def _get_random_chunk(self, index):
-
-        if len(index) == 2:
-            index, chunk_length = index
-        else:
-            chunk_length = self.max_chunk_length
-
-        key = self.u2c.key[index]
-
-        full_seq_length = self.seq_lengths[index]
-        assert (
-            chunk_length <= full_seq_length
-        ), "chunk_length(%d) <= full_seq_length(%d)" % (chunk_length, full_seq_length)
-
-        time_offset = torch.rand(size=(1,)).item() * (full_seq_length - chunk_length)
-        reverb_context = min(self.reverb_context, time_offset)
-        time_offset -= reverb_context
-        read_chunk_length = chunk_length + reverb_context
-
-        # logging.info('get-random-chunk {} {} {} {} {}'.format(index, key, time_offset, chunk_length, full_seq_length ))
-        x, fs = self.r.read([key], time_offset=time_offset, time_durs=read_chunk_length)
-
-        # try:
-        #     x, fs = self.r.read([key], time_offset=time_offset,
-        #                     time_durs=read_chunk_length)
-        # except:
-        #     # some files produce error in the fseek after reading the data,
-        #     # this seems an issue from pysoundfile or soundfile lib itself
-        #     # reading from a sligthly different starting position seems to solve the problem in most cases
-        #     try:
-        #         logging.info('error-1 reading at key={} totol_dur={} offset={} read_chunk_length={}, retrying...'.format(
-        #             key, full_seq_length, time_offset, read_chunk_length))
-        #         time_offset = math.floor(time_offset)
-        #         x, fs = self.r.read([key], time_offset=time_offset,
-        #                             time_durs=read_chunk_length)
-        #     except:
-        #         try:
-        #             # if changing the value of time-offset doesn't solve the issue, we try to read from
-        #             # from time-offset to the end of the file, and remove the extra frames later
-        #             logging.info('error-2 reading at key={} totol_dur={} offset={} retrying reading until end-of-file ...'.format(
-        #                 key, full_seq_length, time_offset))
-        #             x, fs = self.r.read([key], time_offset=time_offset)
-        #             x = [x[0][:int(read_chunk_length * fs[0])]]
-        #         except:
-        #             # try to read the full file
-        #             logging.info('error-3 reading at key={} totol_dur={} retrying reading full file ...'.format(
-        #                 key, full_seq_length))
-        #             x, fs = self.r.read([key])
-        #             x = [x[0][:int(read_chunk_length * fs[0])]]
-
-        x = x[0]
-        fs = fs[0]
-
-        x_clean = x
-        logging.info("hola1")
-        if self.augmenter is not None:
-            logging.info("hola2")
-            chunk_length_samples = int(chunk_length * fs)
-            end_idx = len(x)
-            reverb_context_samples = end_idx - chunk_length_samples
-            assert reverb_context_samples >= 0, (
-                "key={} time-offset={}, read-chunk={} "
-                "read-x-samples={}, chunk_samples={}, reverb_context_samples={}"
-            ).format(
-                key,
-                time_offset,
-                read_chunk_length,
-                end_idx,
-                chunk_length_samples,
-                reverb_context_samples,
+        if x.ndim == 2:
+            logging.warning(
+                f"read audio {seg_id} with stereo channels, of shape {x.shape}"
             )
-            # end_idx = reverb_context_samples + chunk_length_samples
-            x, aug_info = self.augmenter(x)
-            x = x[reverb_context_samples:end_idx]
-            if self.return_clean_aug_pair:
-                x_clean = x_clean[reverb_context_samples:end_idx]
-                x_clean = x_clean.astype(floatstr_torch(), copy=False)
-            # x_clean = x_clean[reverb_context_samples:]
-            # logging.info('augmentation x-clean={}, x={}, aug_info={}'.format(
-            #    x_clean.shape, x.shape, aug_info))
-        #     if len(x) != 64000:
-        #         logging.info('x!=4s, {} {} {} {} {} {} {} {}'.format(len(x),reverb_context, reverb_context_samples, chunk_length, chunk_length_samples, end_idx, fs, read_chunk_length))
+            x = np.sum(x, axis=0)  # sum channels if stereo
+            assert len(x) > 10
+            logging.warning("maximum/minimum values: %.3f/%.3f", x.max(), x.min())
+        return x, fs[0]
 
-        # if len(x) != 64000:
-        #         logging.info('x!=4s-2, {} {} {} {}'.format(len(x), chunk_length, fs, read_chunk_length))
+    def _get_enable_codecs(self, seg_id: str) -> Dict[str, bool]:
+        """Gets augmentation codec switches for a segment.
 
-        if self.transpose_input:
-            x = x[None, :]
-            if self.return_clean_aug_pair:
-                x_clean = x_clean[None, :]
+        Args:
+          seg_id: Segment id.
 
-        x = x.astype(floatstr_torch(), copy=False)
-        if self.return_clean_aug_pair:
-            r = x, x_clean
+        Returns:
+          Dictionary of codec enable flags.
+        """
+        segments = self.dataset.segments()
+        enable_codecs = {
+            "enable_tel_codecs": True,
+            "enable_media_codecs": True,
+            "enable_transcodec": True,
+        }
+        if self.enable_tel_codecs_if is not None:
+            enable_codecs["enable_tel_codecs"] = segments.loc[
+                seg_id, "enable_tel_codecs"
+            ]
+
+        if self.enable_media_codecs_if is not None:
+            enable_codecs["enable_media_codecs"] = segments.loc[
+                seg_id, "enable_media_codecs"
+            ]
+
+        if self.enable_transcodec_if is not None:
+            enable_codecs["enable_transcodec"] = segments.loc[
+                seg_id, "enable_transcodec"
+            ]
+
+        return enable_codecs
+
+    def _apply_aug_mix(
+        self, x: np.ndarray, x_augs: Dict[str, np.ndarray], aug_idx: int
+    ) -> Dict[str, np.ndarray]:
+        """Applies AugMix to a set of augmented waveforms.
+
+        Args:
+          x: Original waveform.
+          x_augs: Augmented waveforms to mix.
+          aug_idx: Augmenter index used in output keys.
+
+        Returns:
+          Dictionary with AugMix waveform outputs.
+        """
+        x_aug_mix = {}
+        alpha_d = (self.aug_mix_alpha,) * len(x_augs)
+        w = self.rng.dirichlet(alpha_d, self.num_aug_mix)
+        m = self.rng.beta(self.aug_mix_alpha, self.aug_mix_alpha, self.num_aug_mix)
+        for i in range(self.num_aug_mix):
+            x_mix = np.zeros_like(x)
+            for j, (_, x_aug_j) in enumerate(x_augs.items()):
+                x_mix += w[i, j] * x_aug_j
+
+            x_aug_mix[f"audio_aug_{aug_idx}_{i}"] = m[i] * x + (1 - m[i]) * x_mix
+
+        return x_aug_mix
+
+    def _apply_augs(
+        self, x: np.ndarray, duration: float, fs: int, enable_codecs: Dict[str, bool]
+    ) -> Dict[str, np.ndarray]:
+        """Applies configured augmentations to a waveform.
+
+        Args:
+          x: Input waveform.
+          duration: Requested segment duration in seconds.
+          fs: Sample frequency.
+          enable_codecs: Codec augmentation switches.
+
+        Returns:
+          Dictionary of augmented waveform outputs.
+        """
+        if not self.augmenters:
+            return {}
+
+        if duration == 0:
+            num_samples = len(x)
         else:
-            r = (x,)
+            num_samples = int(duration * fs)
 
-        if not self.return_class:
-            return r
+        reverb_context_samples = len(x) - num_samples
+        x_orig = x[reverb_context_samples:]
+        x_augs = {}
+        # for each type of augmentation
+        for i, augmenter in enumerate(self.augmenters):
+            # we do n_augs per augmentation type
+            x_augs_i = {}
+            for j in range(self.num_augs):
+                # augment x
+                x_aug, aug_attrs = augmenter(x, fs, **enable_codecs)
+                # remove the extra left context used to compute the reverberation.
+                x_aug = x_aug[reverb_context_samples : len(x)]
+                x_aug = x_aug.astype(floatstr_torch(), copy=False)
+                x_augs_i[f"audio_aug_{i}_{j}"] = x_aug
 
-        class_idx = self.utt_idx2class[index]
-        r = *r, class_idx
-        return r
+            if self.num_aug_mix > 0:
+                x_augs_i = self._apply_aug_mix(x_orig, x_augs_i, i)
+
+            x_augs.update(x_augs_i)
+
+        if len(x_augs) == 1:
+            # if we just have one aug so we just call it audio_aug
+            x_augs["audio_aug"] = x_augs.pop("audio_aug_0_0")
+
+        return x_augs
+
+    def _get_segment_attrs(self, seg_id: str) -> Dict[str, Any]:
+        """Gets supervision and extra attributes for a segment.
+
+        Args:
+          seg_id: Segment id.
+
+        Returns:
+          Dictionary of segment attributes.
+        """
+        seg_attrs = {}
+
+        # tokenizer_name = ""
+        # for attr_name, tokenizer_name in self.tokenizers_to_attrs.items():
+        # if attr_name in self.tokenizers_to_attrs:
+        #     tokenizer_name = info_name
+        #     info_name = self.tokenizers_to_attrs[tokenizer_name]
+        # elif tokenizer_name in self.tokenizers:
+        #         seg_info_i = self.tokenizers[tokenizer_name].encode(seg_info_i)
+        #     elif info_name == "text":
+        #         seg_info_i = self.sp.encode(seg_info_i, out_type=int)
+
+        for attr_name, tokenizer_name in self.output_attrs_to_tokenizers.items():
+            in_attr_name = self.output_attrs_to_input[attr_name]
+            in_attr = self.dataset.segments().loc[seg_id, in_attr_name]
+            attr_tokens = self.tokenizers[tokenizer_name].encode(in_attr)
+            seg_attrs[attr_name] = attr_tokens
+
+        for class_name in self.class_names:
+            class_id = self.dataset.segments().loc[seg_id, class_name]
+            seg_attrs[class_name] = self.dataset.classes_value(class_name).loc[
+                class_id, "class_idx"
+            ]
+
+        for attr_name in self.extra_attrs:
+            seg_attrs[attr_name] = self.dataset.segments().loc[seg_id, attr_name]
+
+        return seg_attrs
+
+    def _resample(self, x: np.ndarray, fs: int) -> Tuple[np.ndarray, int]:
+        """Resamples a waveform when a target sample frequency is configured.
+
+        Args:
+          x: Input waveform.
+          fs: Input sample frequency.
+
+        Returns:
+          Waveform and sample frequency after optional resampling.
+        """
+        if self.target_sample_freq is None:
+            return x, fs
+
+        return self.resampler(x, fs)
+
+    def __getitem__(
+        self, segment: Union[str, Tuple[str, float, float], List[Any]]
+    ) -> Dict[str, Any]:
+        """Reads one dataset item.
+
+        Args:
+          segment: Segment id, or tuple/list with segment id, start, and
+            duration.
+
+        Returns:
+          Dictionary containing audio, metadata, and optional augmentations.
+        """
+        self._maybe_reseed_worker()
+        seg_id, start, duration = self._parse_segment_item(segment)
+        audio, fs = self._read_audio(seg_id, start, duration)
+        assert (
+            len(audio) > 0
+        ), f"read audio empty seg_id={seg_id}, start={start}, dur={duration}"
+        audio, fs = self._resample(audio, fs)
+        batch_data = {"id": seg_id, "sample_freq": fs, "audio": audio}
+        enable_codecs = self._get_enable_codecs(seg_id)
+        audio_augs = self._apply_augs(audio, duration, fs, enable_codecs)
+        batch_data.update(audio_augs)
+        seg_attrs = self._get_segment_attrs(seg_id)
+        batch_data.update(seg_attrs)
+        return batch_data
 
     @staticmethod
-    def filter_args(**kwargs):
+    def collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Collates a list of dataset items into a mini-batch.
 
-        ar_args = AR.filter_args(**kwargs)
-        valid_args = (
-            "path_prefix",
-            "class_file",
-            "time_durs_file",
-            "min_chunk_length",
-            "max_chunk_length",
-            "return_fullseqs",
-            "part_idx",
-            "num_parts",
-        )
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-        args.update(ar_args)
+        Args:
+          batch: Dataset items returned by __getitem__.
+
+        Returns:
+          Collated mini-batch.
+        """
+
+        # sort batch by the length of audios
+        audio_lengths = []
+        for record in batch:
+            audio_lengths.append(record["audio"].shape[0])
+
+        audio_lengths = torch.as_tensor(audio_lengths)
+        if not torch.all(audio_lengths[:-1] >= audio_lengths[1:]):
+            sort_idx = torch.argsort(audio_lengths, descending=True)
+            batch = [batch[i] for i in sort_idx]
+
+        del audio_lengths
+
+        def _is_list_of_tensors(x):
+            return isinstance(x[0], (torch.Tensor, np.ndarray))
+
+        def _is_list_of_items(x):
+            return isinstance(
+                x[0],
+                (
+                    int,
+                    float,
+                    np.int64,
+                    np.int32,
+                    np.int16,
+                    np.int8,
+                    np.float32,
+                    np.float64,
+                    np.float16,
+                ),
+            )
+
+        def _is_list_of_strs(x):
+            return isinstance(x[0], str)
+
+        def _is_list_of_strlists(x):
+            return isinstance(x[0], list) and isinstance(x[0][0], str)
+
+        def _is_list_of_intlists(x):
+            return isinstance(x[0], list) and isinstance(x[0][0], int)
+
+        output_batch = {}
+        batch_keys = batch[0].keys()
+        for key in batch_keys:
+            item_list = list_of_dicts_to_list(batch, key)
+            if key == "id":
+                # this are the segment ids
+                output_batch[key] = item_list
+            elif (
+                key == "audio" or key[:6] == "audio_" and _is_list_of_tensors(item_list)
+            ):
+                # these are input audios
+                assert item_list[0].ndim == 1, f"{batch[0]}"
+                data, data_lengths = collate_seqs_1d(item_list)
+                output_batch[key] = data
+                output_batch[f"{key}_lengths"] = data_lengths
+            elif _is_list_of_items(item_list):
+                # these should be things like class ids
+                output_batch[key] = torch.as_tensor(item_list)
+            elif _is_list_of_tensors(item_list):
+                # other tensor data
+                data, data_lengths = collate_seqs_nd(item_list)
+                output_batch[key] = data
+                output_batch[f"{key}_lengths"] = data_lengths
+            elif _is_list_of_intlists(item_list):
+                # we assume k2 ragged tensor for now
+                output_batch[key] = k2.RaggedTensor(item_list)
+            elif _is_list_of_strs(item_list):
+                # we just left them as they are:
+                output_batch[key] = item_list
+            else:
+                raise TypeError(
+                    f"we don't know how to collate {key} data={item_list} type={type(item_list[0])}"
+                )
+
+        return output_batch
+
+    def get_collator(self) -> Callable[[List[Dict[str, Any]]], Dict[str, Any]]:
+        """Returns the dataset collator.
+
+        Returns:
+          Callable that collates dataset items into a mini-batch.
+        """
+        # return lambda batch: AudioDataset.collate(batch)
+        return AudioDataset.collate
+
+    @staticmethod
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Filters keyword arguments accepted by the constructor.
+
+        Args:
+          **kwargs: Candidate keyword arguments.
+
+        Returns:
+          Constructor keyword arguments.
+        """
+        args = filter_func_args(AudioDataset.__init__, kwargs)
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(
+        parser: ArgumentParser, prefix: Optional[str] = None, skip: set = set()
+    ) -> None:
+        """Adds dataset constructor arguments to an argument parser.
+
+        Args:
+          parser: Argument parser.
+          prefix: Optional nested parser prefix.
+          skip: Argument names to skip.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        # parser.add_argument('--path-prefix',
-        #                     default='',
-        #                     help=('path prefix for rspecifier scp file'))
+        if "dataset_path" not in skip:
+            parser.add_argument(
+                "--dataset-path",
+                required=True,
+                help="recordings manifest file (kaldi .scp or pandas .csv)",
+            )
 
         parser.add_argument(
-            "--class-file",
+            "--class-names",
             default=None,
-            help=("ordered list of classes keys, it can contain class weights"),
+            nargs="+",
+            help=(
+                "list with the names of the types of classes that the dataset "
+                "has to return, e.g., speaker, language"
+            ),
         )
 
         parser.add_argument(
-            "--time-durs-file", default=None, help=("utt to duration in secs file")
+            "--extra-attrs",
+            default=None,
+            nargs="+",
+            help="extra segment attributes to return without conversion",
         )
 
         parser.add_argument(
-            "--min-chunk-length",
+            "--tokenizer-mappings",
+            default=None,
+            nargs="+",
+            help="""list mapping segment_set fields and tokenizer names to
+            output names, e.g., text->text-1->text_ids,
+            this argument has to be sync with tokenizer_files.
+            """,
+        )
+
+        parser.add_argument(
+            "--tokenizer-files",
+            default=None,
+            nargs="+",
+            help="""list of tokenizer names and configuration files, e.g.,
+            text-1:/path/to/tokenizer.yml,
+            this argument has to be sync with tokenizer_mappings.
+            """,
+        )
+
+        parser.add_argument(
+            "--bpe-model",
+            default=None,
+            help="bpe model for the text label",
+        )
+
+        if "aug_cfgs" not in skip:
+            parser.add_argument(
+                "--aug-cfgs",
+                default=None,
+                nargs="+",
+                help="augmentation configuration file.",
+            )
+
+        parser.add_argument(
+            "--num-augs",
+            default=1,
+            type=int,
+            help="number of augmentations per segment and augmentation type",
+        )
+        parser.add_argument(
+            "--num-aug-mix",
+            default=0,
+            type=int,
+            help="number of AugMix augmentations per segment",
+        )
+        parser.add_argument(
+            "--aug-mix-alpha",
+            default=0.5,
             type=float,
+            help="number of AugMix augmentations per segment",
+        )
+
+        parser.add_argument(
+            "--target-sample-freq",
             default=None,
-            help=("minimum length of sequence chunks"),
+            type=int,
+            help=(
+                "target sampling frequencey, if not None all audios are "
+                "converted to this sample freq"
+            ),
         )
         parser.add_argument(
-            "--max-chunk-length",
+            "--enable-tel-codecs-if",
+            default=None,
+            help="""condition to enable telephone codec augmentation, 
+            for example use only if the segment is not conv. tel. speech: source_type != 'cts'""",
+        )
+        parser.add_argument(
+            "--enable-media-codecs-if",
+            default=None,
+            help="""condition to enable media codec augmentation, 
+            for example use only if the segment is audio from video: source_type == 'afv'""",
+        )
+        parser.add_argument(
+            "--enable-transcodec-if",
+            default=None,
+            help="""condition to enable transcodec augmentation, 
+            for example use transcodec only if the segment is spoof: spoof_det == 'spoof'""",
+        )
+
+        parser.add_argument(
+            "--seed",
+            default=11235811,
+            type=int,
+            help="random seed",
+        )
+
+        parser.add_argument(
+            "--wav-scale",
+            default=1.0,
             type=float,
-            default=None,
-            help=("maximum length of sequence chunks"),
+            help=("multiplicative factor for waveform"),
         )
 
-        parser.add_argument(
-            "--return-fullseqs",
-            default=False,
-            action="store_true",
-            help=("returns full sequences instead of chunks"),
-        )
-
-        AR.add_class_args(parser)
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='audio dataset options')
-
-    add_argparse_args = add_class_args

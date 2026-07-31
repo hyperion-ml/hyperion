@@ -1,19 +1,22 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from copy import deepcopy
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
 from .list_utils import *
-from .vad_utils import *
+from .misc import PathLike
 from .segment_list import SegmentList
+from .vad_utils import *
 
 
-class RTTM(object):
+class RTTM:
     """Class to manipulate rttm files
 
     Attributes:
@@ -23,7 +26,7 @@ class RTTM(object):
       unique_file_key: unique file names.
     """
 
-    def __init__(self, segments, index_by_file=True):
+    def __init__(self, segments: pd.DataFrame, index_by_file: bool = True) -> None:
         self.segments = segments
         self._index_by_file = index_by_file
         if index_by_file:
@@ -38,18 +41,18 @@ class RTTM(object):
     @classmethod
     def create(
         cls,
-        segment_type,
-        file_id,
-        chnl=None,
-        tbeg=None,
-        tdur=None,
-        ortho=None,
-        stype=None,
-        name=None,
-        conf=None,
-        slat=None,
-        index_by_file=True,
-    ):
+        segment_type: Sequence[Any],
+        file_id: Sequence[Any],
+        chnl: Optional[Sequence[Any]] = None,
+        tbeg: Optional[Sequence[Any]] = None,
+        tdur: Optional[Sequence[Any]] = None,
+        ortho: Optional[Sequence[Any]] = None,
+        stype: Optional[Sequence[Any]] = None,
+        name: Optional[Sequence[Any]] = None,
+        conf: Optional[Sequence[Any]] = None,
+        slat: Optional[Sequence[Any]] = None,
+        index_by_file: bool = True,
+    ) -> "RTTM":
         num_segments = len(segment_type)
         nans = ["<NA>" for i in range(num_segments)]
         if chnl is None:
@@ -89,15 +92,15 @@ class RTTM(object):
     @classmethod
     def create_spkdiar(
         cls,
-        file_id,
-        tbeg,
-        tdur,
-        spk_id,
-        conf=None,
-        chnl=None,
-        index_by_file=True,
-        prepend_file_id=False,
-    ):
+        file_id: Sequence[Any],
+        tbeg: Sequence[Any],
+        tdur: Sequence[Any],
+        spk_id: Sequence[Any],
+        conf: Optional[Sequence[Any]] = None,
+        chnl: Optional[Sequence[Any]] = None,
+        index_by_file: bool = True,
+        prepend_file_id: bool = False,
+    ) -> "RTTM":
         segment_type = ["SPEAKER"] * len(file_id)
         spk_id = cls._make_spk_ids(spk_id, file_id, prepend_file_id)
         return cls.create(
@@ -114,15 +117,15 @@ class RTTM(object):
     @classmethod
     def create_spkdiar_single_file(
         cls,
-        file_id,
-        tbeg,
-        tdur,
-        spk_id,
-        conf=None,
-        chnl=None,
-        index_by_file=True,
-        prepend_file_id=False,
-    ):
+        file_id: str,
+        tbeg: Sequence[Any],
+        tdur: Sequence[Any],
+        spk_id: Sequence[Any],
+        conf: Optional[Sequence[Any]] = None,
+        chnl: Optional[Sequence[Any]] = None,
+        index_by_file: bool = True,
+        prepend_file_id: bool = False,
+    ) -> "RTTM":
         assert len(tbeg) == len(spk_id)
         assert len(tbeg) == len(tdur)
         segment_type = ["SPEAKER"] * len(tbeg)
@@ -142,13 +145,13 @@ class RTTM(object):
     @classmethod
     def create_spkdiar_from_segments(
         cls,
-        segments,
-        spk_id,
-        conf=None,
-        chnl=None,
-        index_by_file=True,
-        prepend_file_id=False,
-    ):
+        segments: pd.DataFrame,
+        spk_id: Sequence[Any],
+        conf: Optional[Sequence[Any]] = None,
+        chnl: Optional[Sequence[Any]] = None,
+        index_by_file: bool = True,
+        prepend_file_id: bool = False,
+    ) -> "RTTM":
         assert len(segments) == len(spk_id)
         file_id = segments.file_id
         tbeg = segments.tbeg
@@ -168,8 +171,12 @@ class RTTM(object):
 
     @classmethod
     def create_spkdiar_from_ext_segments(
-        cls, ext_segments, chnl=None, index_by_file=True, prepend_file_id=False
-    ):
+        cls,
+        ext_segments: Any,
+        chnl: Optional[Sequence[Any]] = None,
+        index_by_file: bool = True,
+        prepend_file_id: bool = False,
+    ) -> "RTTM":
         file_id = ext_segments.file_id
         tbeg = ext_segments.tbeg
         tdur = ext_segments.tend - ext_segments.tbeg
@@ -191,26 +198,28 @@ class RTTM(object):
         )
 
     @staticmethod
-    def _make_spk_ids(spk_ids, file_id, prepend_file_id):
+    def _make_spk_ids(
+        spk_ids: Sequence[Any], file_id: Sequence[Any], prepend_file_id: bool
+    ) -> Union[Sequence[Any], List[str]]:
         if prepend_file_id:
             return [f + "_" + str(s) for f, s in zip(file_id, spk_ids)]
         return spk_ids  # [str(s) for f,s in zip(file_id,spk_ids)]
 
     @staticmethod
-    def _prepend_file_id(spk_ids, file_id):
+    def _prepend_file_id(spk_ids: Sequence[Any], file_id: Sequence[Any]) -> List[str]:
         return [f + "_" + str(s) for f, s in zip(file_id, spk_ids)]
 
-    def validate(self):
+    def validate(self) -> None:
         """Validates the attributes of the RTTM object."""
         if not self.tbeg_is_sorted():
             self.sort()
 
     @property
-    def index_by_file(self):
+    def index_by_file(self) -> bool:
         return self._index_by_file
 
     @index_by_file.setter
-    def index_by_file(self, value):
+    def index_by_file(self, value: bool) -> None:
         self._index_by_file = value
         if self._index_by_file:
             self.segments.index = self.segments.file_key
@@ -218,37 +227,37 @@ class RTTM(object):
             self.segments.index = self.segments.segment
 
     @property
-    def file_id(self):
+    def file_id(self) -> np.ndarray:
         return np.asarray(self.segments["file_id"])
 
     @property
-    def tbeg(self):
+    def tbeg(self) -> np.ndarray:
         return np.asarray(self.segments["tbeg"])
 
     @property
-    def tdur(self):
+    def tdur(self) -> np.ndarray:
         return np.asarray(self.segments["tdur"])
 
     @property
-    def name(self):
+    def name(self) -> np.ndarray:
         return np.asarray(self.segments["name"])
 
-    def copy(self):
+    def copy(self) -> "RTTM":
         """Makes a copy of the object."""
         return deepcopy(self)
 
     @property
-    def num_files(self):
+    def num_files(self) -> int:
         return len(self.unique_file_id)
 
     @property
-    def total_num_spks(self):
+    def total_num_spks(self) -> int:
         return len(
             self.segments[self.segments["segment_type"] == "SPEAKER"].name.unique()
         )
 
     @property
-    def num_spks_per_file(self):
+    def num_spks_per_file(self) -> Dict[Any, int]:
         return {
             file_id: len(
                 self.segments[
@@ -260,14 +269,14 @@ class RTTM(object):
         }
 
     @property
-    def avg_num_spks_per_file(self):
+    def avg_num_spks_per_file(self) -> float:
         return np.mean([v for k, v in self.num_spks_per_file.items()])
 
-    def __iter__(self):
+    def __iter__(self) -> "RTTM":
         self.iter_idx = 0
         return self
 
-    def __next__(self):
+    def __next__(self) -> Union["RTTM", pd.Series]:
         if self.index_by_file:
             if self.iter_idx < len(self.unique_file_id):
                 r = self.__getitem__(self.unique_file_id[self.iter_idx])
@@ -282,25 +291,22 @@ class RTTM(object):
         self.iter_idx += 1
         return r
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Returns the number of segments in the list."""
         return len(self.segments)
 
-    def __contains__(self, key):
+    def __contains__(self, key: Any) -> bool:
         """Returns True if the segments contains the key"""
         return key in self.segments.segment_id
 
-    def __getitem__(self, key):
-        """It allows to acces the de segments by file_id or segment
-           like in a ditionary, e.g.:
-           If input is a string key:
-               segmetns = SegmentList(...)
-               segment, tbeg, tend = segments['file']
+    def __getitem__(self, key: Union[str, int]) -> Union["RTTM", pd.Series]:
+        """Access RTTM segments by file key or integer position.
+
         Args:
-          key: Segment or file key
+          key: File key or integer position.
+
         Returns:
-          if index_by_file is True if returns segments of a given file_id
-          in SegmentsList format, else it returns DataFrame
+          An ``RTTM`` object for a file or a row from the segment table.
         """
         if self.index_by_file:
             df = self.segments.loc[key]
@@ -308,7 +314,7 @@ class RTTM(object):
         else:
             return self.segments.iloc[key]
 
-    def save(self, file_path, sep=" "):
+    def save(self, file_path: PathLike, sep: str = " ") -> None:
         """Saves segments to text file.
 
         Args:
@@ -331,7 +337,9 @@ class RTTM(object):
         ].to_csv(file_path, sep=sep, float_format="%.3f", index=False, header=False)
 
     @classmethod
-    def load(cls, file_path, sep=" ", index_by_file=True):
+    def load(
+        cls, file_path: PathLike, sep: str = " ", index_by_file: bool = True
+    ) -> "RTTM":
         """Loads script list from text file.
 
         Args:
@@ -360,26 +368,26 @@ class RTTM(object):
         )
         return cls(df, index_by_file=index_by_file)
 
-    def filter(self, filter_key, keep=True):
+    def filter(self, filter_key: Sequence[Any], keep: bool = True) -> "RTTM":
         if not keep:
             filter_key = np.setdiff1d(np.asarray(self.segments.index), filter_key)
         df = self.segments.loc[filter_key]
         return RTTM(df, index_by_file=self.index_by_file)
 
-    def split(self, idx, num_parts):
+    def split(self, idx: int, num_parts: int) -> "RTTM":
         key, _ = split_list(self.index, idx, num_parts)
         df = self.segments.loc[key]
         return RTTM(df, index_by_file=self.index_by_file)
 
     @classmethod
-    def merge(cls, rttm_list, index_by_file=True):
+    def merge(cls, rttm_list: Sequence["RTTM"], index_by_file: bool = True) -> "RTTM":
         dfs = []
         for rttm_i in rttm_list:
             dfs.append(rttm_i.segments)
         df = pd.concat(dfs)
         return cls(df, index_by_file=index_by_file)
 
-    def merge_adjacent_segments(self, t_margin=0):
+    def merge_adjacent_segments(self, t_margin: float = 0) -> None:
         segm = self.segments
         segm_1 = self.segments.shift(1)
         delta = segm.tbeg - segm_1.tbeg - segm_1.tdur
@@ -397,24 +405,26 @@ class RTTM(object):
                 self.segments.iloc[i - 1, self.segments.columns.get_loc("tdur")] = (
                     tend - tbeg
                 )
-                self.segments.iloc[
-                    i, self.segments.columns.get_loc("segment_type")
-                ] = "DROP"
+                self.segments.iloc[i, self.segments.columns.get_loc("segment_type")] = (
+                    "DROP"
+                )
 
         self.segments = self.segments[self.segments.segment_type != "DROP"]
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Equal operator"""
+        if not isinstance(other, RTTM):
+            return False
         eq = self.segments.equals(other.segments)
         eq = eq and self.index_by_file == other.index_by_file
 
         return eq
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         """Non-equal operator"""
         return not self.__eq__(other)
 
-    def __cmp__(self, other):
+    def __cmp__(self, other: object) -> int:
         """Comparison operator"""
         if self.__eq__(other):
             return 0
@@ -476,8 +486,12 @@ class RTTM(object):
     #     return np.asarray(names), num_names
 
     def get_segment_names_from_timestamps(
-        self, file_id, timestamps, segment_type="SPEAKER", min_seg_dur=0.1
-    ):
+        self,
+        file_id: Any,
+        timestamps: Sequence[Sequence[float]],
+        segment_type: str = "SPEAKER",
+        min_seg_dur: float = 0.1,
+    ) -> Tuple[np.ndarray, List[Any], List[float]]:
         num_segm = len(timestamps)
         names = []
         num_names = np.zeros((num_segm,), dtype=int)
@@ -526,13 +540,15 @@ class RTTM(object):
         index = np.asarray(index, dtype=np.int)
         return index, names, durs
 
-    def get_files_with_names_diff_to_file(self, file_id, segment_type="SPEAKER"):
+    def get_files_with_names_diff_to_file(
+        self, file_id: Any, segment_type: str = "SPEAKER"
+    ) -> np.ndarray:
         segments = self.segments[self.segments["segment_type"] == segment_type]
         names = segments[segments["file_id"] == file_id].name.unique()
         sel_files = segments[~segments.name.isin(names)].file_id.unique()
         return sel_files
 
-    def prepend_file_id_to_name(self, segment_type="SPEAKER"):
+    def prepend_file_id_to_name(self, segment_type: str = "SPEAKER") -> None:
         idx = self.segments["segment_type"] == segment_type
         self.segments.loc[idx, "name"] = self.segments.loc[
             idx, ["file_id", "name"]
@@ -560,7 +576,7 @@ class RTTM(object):
     #     # logging.debug(self.segments.loc[index_1])
     #     self.segments.loc[index, 'tdur'] = tend[index] - tavg[index]
 
-    def get_segments_from_file(self, file_id):
+    def get_segments_from_file(self, file_id: Any) -> pd.DataFrame:
         if self.index_by_file:
             segments = self.segments.loc[[file_id]]
         else:
@@ -568,21 +584,21 @@ class RTTM(object):
 
         return segments
 
-    def get_uniq_names_for_file(self, file_id=None):
+    def get_uniq_names_for_file(self, file_id: Optional[Any] = None) -> np.ndarray:
         segments = self.get_segments_from_file(file_id)
         u_names = np.unique(segments["name"])
         return u_names
 
     def get_bin_frame_mask_for_spk(
         self,
-        file_id,
-        name,
-        frame_length=0.025,
-        frame_shift=0.01,
-        snip_edges=False,
-        signal_length=None,
-        max_frames=None,
-    ):
+        file_id: Any,
+        name: Any,
+        frame_length: float = 0.025,
+        frame_shift: float = 0.01,
+        snip_edges: bool = False,
+        signal_length: Optional[float] = None,
+        max_frames: Optional[int] = None,
+    ) -> np.ndarray:
         """Returns binary mask of a given speaker to select feature frames
 
         Args:
@@ -609,8 +625,13 @@ class RTTM(object):
         )
 
     def get_bin_sample_mask_for_spk(
-        self, file_id, name, fs, signal_length=None, max_samples=None
-    ):
+        self,
+        file_id: Any,
+        name: Any,
+        fs: float,
+        signal_length: Optional[float] = None,
+        max_samples: Optional[int] = None,
+    ) -> np.ndarray:
         """Returns binary mask of a given speaker to select waveform samples
 
         Args:
@@ -636,7 +657,7 @@ class RTTM(object):
 
         tend[tend > max_samples] = max_samples
 
-        vad = np.zeros((max_samples,), dtype=np.bool)
+        vad = np.zeros((max_samples,), dtype=bool)
         for i, j in zip(tbeg, tend):
             if j > i:
                 vad[i:j] = True
@@ -657,7 +678,9 @@ class RTTM(object):
     #     for i in range(len(u_names)):
     #         M[tbeg[i]:tend[i], name_ids[i]] = 1
 
-    def compute_stats(self, nbins_dur=None):
+    def compute_stats(
+        self, nbins_dur: Optional[int] = None
+    ) -> Tuple[pd.Series, Tuple[np.ndarray, np.ndarray], int]:
 
         # segment durations
         max_dur = self.segments["tdur"].max()
@@ -682,7 +705,7 @@ class RTTM(object):
         # TODO
         return dur_info, hist_dur, total_spks
 
-    def to_segment_list(self):
+    def to_segment_list(self) -> SegmentList:
 
         segments = self.segments[["file_id", "tbeg"]].copy()
         segments["tend"] = self.segments["tbeg"] + self.segments["tdur"]
@@ -695,10 +718,10 @@ class RTTM(object):
 
         return SegmentList(segments)
 
-    def sort(self):
+    def sort(self) -> None:
         self.segments.sort_values(by=["file_id", "tbeg"], inplace=True)
 
-    def tbeg_is_sorted(self):
+    def tbeg_is_sorted(self) -> bool:
         return np.all(
             np.logical_or(
                 self.tbeg[1:] - self.tbeg[:-1] >= 0,

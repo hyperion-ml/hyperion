@@ -1,20 +1,20 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
-import os
-import logging
 import argparse
-import time
 import copy
+import logging
+import os
+import sys
+import time
 
 import numpy as np
 
 from ..io import HypDataReader
-from ..utils import TrialNdx, SCPList
-from ..transforms import TransformList
+from ..np.transforms import TransformList
+from ..utils import SCPList, TrialNdx
 
 
 class ClassifTrialDataReader(object):

@@ -1,24 +1,25 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 """
 Score Normalization
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 
 from hyperion.hyp_defs import config_logger
 from hyperion.score_norm import *
-from hyperion.utils.trial_scroes import TrialScores
 from hyperion.utils.trial_ndx import TrialNdx
+from hyperion.utils.trial_scroes import TrialScores
 
 
 def load_scores(score_file, enr_coh_file, coh_test_file, coh_coh_file):

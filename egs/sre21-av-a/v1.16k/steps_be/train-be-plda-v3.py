@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from hyperion.hyp_defs import float_cpu, config_logger
-from hyperion.transforms import TransformList, PCA, LDA, LNorm
+from hyperion.np.transforms import TransformList, PCA, LDA, LNorm
 from hyperion.helpers import PLDAFactory as F
 from hyperion.utils import Utt2Info
 from hyperion.io import RandomAccessDataReaderFactory as DRF

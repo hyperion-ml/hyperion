@@ -1,11 +1,12 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
+
 import numpy as np
+import pytest
 
 from hyperion.utils.trial_ndx import TrialNdx
 
@@ -71,12 +72,12 @@ def test_split():
 def test_load_save():
 
     ndx1 = create_ndx()
-    file_h5 = output_dir + "/test.h5"
+    file_h5 = output_dir + "/test_ndx.h5"
     ndx1.save(file_h5)
     ndx3 = TrialNdx.load(file_h5)
     assert ndx1 == ndx3
 
-    file_txt = output_dir + "/test.txt"
+    file_txt = output_dir + "/test_ndx.txt"
     ndx3.trial_mask[0, :] = True
     ndx3.trial_mask[:, 0] = True
     ndx3.save(file_txt)

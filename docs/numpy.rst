@@ -1,241 +1,94 @@
-Numpy Models and Tools
-======================
+NumPy Backend API
+=================
 
-Hyperion provides several models and feature extractors based on numpy.
+``hyperion.np`` provides the statistical backend used after embedding
+extraction: preprocessing transforms, PLDA, calibration, score normalization,
+and array-level metrics. These components operate on NumPy arrays and serialize
+their state independently of PyTorch checkpoints.
 
-Feature Extraction and Voice Activity Detection
------------------------------------------------
-
-Feature Extraction Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: hyperion.feats.mfcc
-
-.. autoclass:: hyperion.feats.filter_banks.FilterBankFactory
-	       
-.. autoclass:: hyperion.feats.feature_windows.FeatureWindowFactory
-	     
-Feature Normalization Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: hyperion.feats.feature_normalization
-
-Voice Activity Detection Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: hyperion.feats.energy_vad.EnergyVAD
-
-Feature Extraction Functions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: hyperion.feats.stft
-
-
-Speech Augmentation
+Model serialization
 -------------------
 
-Combined Speech Augmentation Class
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. autoclass:: hyperion.np.HyperNPModel
+   :no-index:
+   :members: get_config, save, load, auto_load
 
-.. autoclass:: hyperion.augment.speech_augment.SpeechAugment
+``HyperNPModel`` subclasses register by class name and persist configuration
+plus parameters in HDF5-style files. Use :meth:`auto_load` when callers should
+restore the recorded concrete model class. See
+:doc:`how-to/save-load-models-and-backends` for deployment guidance.
 
-Noise Augmentation Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Transforms and preprocessing
+----------------------------
 
-.. autoclass:: hyperion.augment.noise_augment.NoiseAugment
+.. autoclass:: hyperion.np.transforms.TransformList
+   :no-index:
+   :members: fit, predict, save, load
 
-.. autoclass:: hyperion.augment.noise_augment.SingleNoiseAugment
+Use ``TransformList`` to preserve the ordered preprocessing chain used for a
+backend. Fit transforms on development data only, then load and apply the same
+chain to enrollment, test, and cohort embeddings. The principal transforms are
+centering/whitening, length normalization, PCA, LDA, and CORAL.
 
+* :doc:`np/transforms` provides worked transform examples.
+* :doc:`how-to/extract-score-xvectors` shows transform use with PLDA.
 
-Reverberation Augmentation Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+PLDA and scoring backends
+-------------------------
 
-.. autoclass:: hyperion.augment.reverb_augment.ReverbAugment
+.. autoclass:: hyperion.np.pdfs.plda.factory.PLDAFactory
+   :no-index:
+   :members: create, add_class_args
 
-.. autoclass:: hyperion.augment.reverb_augment.SingleReverbAugment
+PLDA backends consume matrices shaped ``(num_embeddings, embedding_dim)`` and
+speaker/class ids aligned with rows during training. Scoring returns a matrix
+whose rows correspond to enrollment models and columns to test segments.
 
-Speed Augmentation Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* :doc:`np/pdfs/plda` covers SPLDA, FRPLDA, full PLDA, and N-vs-M scoring.
+* Use ``hyperion-train-plda`` and ``hyperion-eval-plda-backend`` for the
+  file/table workflow.
 
-.. autoclass:: hyperion.augment.speed_augment.SpeedAugment
+Calibration and score normalization
+-----------------------------------
 
+Calibration turns raw scores into application-specific calibrated scores using
+development keys. Score normalization uses background cohorts. Both must be
+fit without evaluation labels to avoid contaminating metrics.
 
-Hyperion Numpy Models
----------------------
+.. autoclass:: hyperion.np.classifiers.binary_logistic_regression.BinaryLogisticRegression
+   :no-index:
+   :members: fit, predict, save, load
 
-All numpy ML models in Hyperion derive from the same base class
+.. autoclass:: hyperion.np.score_norm.adapt_s_norm.AdaptSNorm
+   :no-index:
 
-.. autoclass:: hyperion.hyp_model.HypModel
+See :doc:`how-to/extract-score-xvectors` for calibration and adaptive S-Norm
+placement in a verification pipeline.
 
-.. autoclass:: hyperion.model_loader.ModelLoader
-	       
-
-Probability Density Functions
------------------------------
-
-These are classes that define different probability density functions like GMMs and PLDA
-
-Core PDF Classes
-~~~~~~~~~~~~~~~~
-
-.. autoclass:: hyperion.pdfs.core.pdf.PDF
-
-.. autoclass:: hyperion.pdfs.core.exp_family.ExpFamily
-
-.. autoclass:: hyperion.pdfs.core.normal_cov.NormalCov
-	       
-.. autoclass:: hyperion.pdfs.core.normal_diag_cov.NormalDiagCov
-
-
-PLDA Classes
-~~~~~~~~~~~~
-
-.. autoclass:: hyperion.pdfs.plda.plda_base.PLDABase
-
-.. autoclass:: hyperion.pdfs.plda.frplda.FRPLDA
-
-.. autoclass:: hyperion.pdfs.plda.splda.SPLDA
-
-.. autoclass:: hyperion.pdfs.plda.plda.PLDA
-
-	       
-Mixture Models
-~~~~~~~~~~~~~~
-
-.. autoclass:: hyperion.pdfs.mixtures.exp_family_mixture.ExpFamilyMixture
-
-.. autoclass:: hyperion.pdfs.mixtures.gmm.GMM
-
-.. autoclass:: hyperion.pdfs.mixtures.gmm_diag_cov.GMMDiagCov
-
-.. autoclass:: hyperion.pdfs.mixtures.gmm_tied_diag_cov.GMMTiedDiagCov
-
-
-Classifiers and Calibrators
----------------------------
-
-Gaussian Classifiers
-~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: hyperion.classifiers.linear_gbe.LinearGBE
-
-SVM Classifiers
-~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: hyperion.classifiers.linear_svmc.LinearSVMC
-	     
-
-Logistic Regression Classifiers and Calibrators
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: hyperion.classifiers.logistic_regression.LogisticRegression
-
-.. autoclass:: hyperion.classifiers.binary_logistic_regression.BinaryLogisticRegression
-
-
-Clustering Tools
-----------------
-
-.. autoclass:: hyperion.clustering.kmeans.KMeans
-
-.. autoclass:: hyperion.clustering.ahc.AHC
-
-	       
-Score Normalization
--------------------
-
-.. autoclass:: hyperion.score_norm.score_norm.ScoreNorm
-
-.. autoclass:: hyperion.score_norm.t_norm.TNorm
-
-.. autoclass:: hyperion.score_norm.z_norm.ZNorm
-
-.. autoclass:: hyperion.score_norm.zt_norm.ZTNorm
-
-.. autoclass:: hyperion.score_norm.tz_norm.TZNorm
-
-.. autoclass:: hyperion.score_norm.s_norm.SNorm
-
-.. autoclass:: hyperion.score_norm.adapt_s_norm.AdaptSNorm
-
-
-Feature Transformations
------------------------
-
-These are classes to apply feature transformations/projections like PCA, LDA, etc.
-
-Transform Classes
-~~~~~~~~~~~~~~~~~
-
-.. autoclass:: hyperion.transforms.pca.PCA
-
-.. autoclass:: hyperion.transforms.lda.LDA
-
-.. autoclass:: hyperion.transforms.cent_whiten.CentWhiten
-
-.. autoclass:: hyperion.transforms.lnorm.LNorm
-
-.. autoclass:: hyperion.transforms.coral.CORAL
-
-.. autoclass:: hyperion.transforms.gaussianizer.Gaussianizer
-
-.. autoclass:: hyperion.transforms.nap.NAP
-
-.. autoclass:: hyperion.transforms.nda.NDA
-
-.. autoclass:: hyperion.transforms.mvn.MVN
-
-.. autoclass:: hyperion.transforms.skl_tsne.SklTSNE
-
-
-Sequence of Transformations Classes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: hyperion.transforms.transform_list.TransformList
-
-Auxiliary Classes
-~~~~~~~~~~~~~~~~~
-
-.. autoclass:: hyperion.transforms.sb_sw.SbSw
-
-
-Metrics
--------
-
-Metric Functions
-~~~~~~~~~~~~~~~~
-
-These are some functions to compute performance metrics used in speaker identification and verification
-
-.. automodule:: hyperion.metrics.eer
-
-.. automodule:: hyperion.metrics.dcf
-
-.. automodule:: hyperion.metrics.cllr
-
-.. automodule:: hyperion.metrics.roc
-
-.. automodule:: hyperion.metrics.acc
-
-.. automodule:: hyperion.metrics.confusion_matrix
-
-.. automodule:: hyperion.metrics.utils
-		
-
-Helper Code Blocks
+Other stable areas
 ------------------
 
-Classes and codeblocks that are re-used in several scripts
+The NumPy stack also includes speech augmentation, features, classifiers,
+clustering, diarization, and metric utilities. Their public use should be
+guided by the corresponding task documentation rather than by importing every
+implementation module directly.
 
-.. autoclass:: hyperion.helpers.vector_reader.VectorReader
+The contract-level reference for calibration, cohort score normalization,
+clustering, diarization, and augmentation is :doc:`numpy-extension-points`.
 
-.. autoclass:: hyperion.helpers.vector_class_reader.VectorClassReader
+.. toctree::
+   :maxdepth: 1
 
-.. autoclass:: hyperion.helpers.trial_data_reader.TrialDataReader
+   np/mfcc
+   np/pdfs/mixtures
+   np/pdfs/plda
+   np/transforms
+   np/speech_augmentation
 
-.. autoclass:: hyperion.helpers.multi_test_trial_data_reader.MultiTestTrialDataReader
+See also
+--------
 
-.. autoclass:: hyperion.helpers.multi_test_trial_data_reader_v2.MultiTestTrialDataReaderV2
-
-.. autoclass:: hyperion.helpers.plda_factor.PLDAFactory
-	       
+* :doc:`metrics`
+* :doc:`numpy-extension-points`
+* :doc:`how-to/extract-score-xvectors`
+* :doc:`how-to/save-load-models-and-backends`

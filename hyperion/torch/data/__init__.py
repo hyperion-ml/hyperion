@@ -1,13 +1,20 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
-# datasets
-from .feat_seq_dataset import FeatSeqDataset
-from .paired_feat_seq_dataset import PairedFeatSeqDataset
 
 from .audio_dataset import AudioDataset
 
 # samplers
-from .weighted_seq_sampler import ClassWeightedSeqSampler
+from .bucketing_seg_sampler import BucketingSegSampler
+from .class_weighted_seg_chunk_sampler import ClassWeightedRandomSegChunkSampler
+from .dino_audio_dataset import DINOAudioDataset
+from .embed_sampler_factory import EmbedSamplerFactory
+
+# datasets
+from .feat_seq_dataset import FeatSeqDataset
+from .legacy_audio_dataset import LegacyAudioDataset
+from .paired_feat_seq_dataset import PairedFeatSeqDataset
+
+# from .weighted_seq_sampler import ClassWeightedSeqSampler
+from .seg_sampler_factory import SegSamplerFactory

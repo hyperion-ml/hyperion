@@ -73,7 +73,7 @@ echo "$0: generate attacks for $data_dir to $output_dir"
 if [ $stage -le 1 ];then
     $cmd JOB=1:$nj $log_dir/generate_attack.JOB.log \
 	hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	torch-generate-adv-attacks-xvector-verif.py \
+	generate_adv_attacks_xvector_verif.py \
 	--feats $feat_config ${args} $attacks_opts \
 	--v-file scp:$vector_file \
 	--key-file $key_file \
