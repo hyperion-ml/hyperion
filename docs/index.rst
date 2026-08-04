@@ -42,6 +42,7 @@ including:
    how-to/prepare-data-and-vad
    how-to/submit-jobs
    how-to/run-resumable-distributed-training
+   how-to/manage-torch-checkpoints
    how-to/train-pretrained-wav2vec2-xvector
    how-to/use-configuration-files
    how-to/save-load-models-and-backends

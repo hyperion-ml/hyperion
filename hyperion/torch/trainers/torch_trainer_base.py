@@ -3,15 +3,18 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import glob
+import json
 import logging
 import math
 import re
+import shutil
+import tempfile
 import time
 from collections import OrderedDict as ODict
+from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.amp as amp
@@ -223,7 +226,33 @@ class TorchTrainerBase:
         swa_update_steps (int): Number of steps between averaging model weights in SWA.
         swa_anneal_steps (int): Number of steps over which to anneal SWA LR.
         bn_update_steps (int): Max number of batches to use for batchnorm statistics update after SWA.
+        checkpoint_dir_prefix: Prefix used for modern checkpoint directories.
+        trainer_state_file_name: Name of the checkpoint-wide trainer state file.
+        rng_state_file_name: Name of the checkpoint-wide Torch RNG state file.
+        model_config_file_name: Name of a model configuration file within a
+            model checkpoint directory.
+        model_weights_file_name: Name of a model weights file within a model
+            checkpoint directory.
+        optimizer_state_file_name: Name of a model optimizer-state file.
+        lr_scheduler_state_file_name: Name of a model learning-rate scheduler
+            state file.
+        wd_scheduler_state_file_name: Name of a model weight-decay scheduler
+            state file.
+        swa_model_weights_file_name: Name of an SWA model weights file.
+        swa_scheduler_state_file_name: Name of an SWA scheduler state file.
     """
+
+    checkpoint_dir_prefix = "checkpoint"
+    trainer_state_file_name = "trainer_state.json"
+    rng_state_file_name = "rng_state.pth"
+    model_config_file_name = "config.json"
+    model_weights_file_name = "model.safetensors"
+    optimizer_state_file_name = "optimizer.pt"
+    lr_scheduler_state_file_name = "lr_scheduler.pt"
+    wd_scheduler_state_file_name = "wd_scheduler.pt"
+    swa_model_weights_file_name = "swa_model.safetensors"
+    swa_scheduler_state_file_name = "swa_scheduler.pt"
+    checkpoint_model_names: Tuple[str, ...] = ()
 
     def __init__(
         self,
@@ -366,8 +395,6 @@ class TorchTrainerBase:
 
         self.rank: int = 0
         self.world_size: int = 1
-
-        self.ckpt_search_name: str = "model"
 
         self.train_data: Optional[DataLoader[Any]] = None
         self.val_data: Optional[DataLoader[Any]] = None
@@ -547,6 +574,15 @@ class TorchTrainerBase:
         if FSDP is None:
             return False
         return isinstance(module, FSDP)
+
+    def is_fsdp_training(self) -> bool:
+        """Return whether this trainer uses FSDP distributed training.
+
+        Returns:
+            ``True`` when FSDP state-dict collectives require every rank to
+            participate in checkpoint save or restore.
+        """
+        return self.ddp and self.ddp_type == DDPType.FSDP
 
     def _wrap_with_fully_shard(
         self, model: nn.Module, fsdp_kwargs: Dict[str, Any]
@@ -1736,10 +1772,60 @@ class TorchTrainerBase:
             checkpoint["logs"] = logs
 
         if self.in_swa:
-            checkpoint["swa_model_state_dict"] = swa_model.state_dict()
+            checkpoint["swa_model_state_dict"] = self._swa_model_state_dict(
+                swa_model
+            )
             checkpoint["swa_scheduler_state_dict"] = swa_scheduler.state_dict()
 
         return checkpoint
+
+    def _swa_model_state_dict(
+        self, swa_model: AveragedModel
+    ) -> Dict[str, torch.Tensor]:
+        """Return SWA weights in the ``AveragedModel`` state-dict layout.
+
+        Args:
+            swa_model: Averaged model whose state should be collected.
+
+        Returns:
+            SWA state dictionary, using ``module.`` keys and ``n_averaged`` as
+            expected by ``AveragedModel.load_state_dict``.
+        """
+        if not self._is_fsdp_module(swa_model.module):
+            return swa_model.state_dict()
+
+        state_dict = get_model_state_dict(
+            swa_model.module,
+            options=StateDictOptions(
+                full_state_dict=True,
+                cpu_offload=True,
+            ),
+        )
+        swa_state_dict = {f"module.{key}": value for key, value in state_dict.items()}
+        swa_state_dict["n_averaged"] = swa_model.n_averaged.detach().cpu().clone()
+        return swa_state_dict
+
+    def swa_model_checkpoint(
+        self, model: HyperTorchModel, swa_model: AveragedModel
+    ) -> Dict[str, Any]:
+        """Create the standalone final-SWA model checkpoint payload.
+
+        Unlike a resumable checkpoint, this deliberately excludes optimizer,
+        scheduler, trainer, and RNG state. In particular, an optimizer belongs
+        to the original training model rather than the averaged SWA copy, so it
+        must not be serialized through FSDP with the SWA model.
+
+        Args:
+            model: Model used to obtain the reconstructible configuration.
+            swa_model: Averaged model whose weights are exported.
+
+        Returns:
+            Configuration and SWA weights for a standalone model directory.
+        """
+        return {
+            "model_cfg": model.get_config(),
+            "swa_model_state_dict": self._swa_model_state_dict(swa_model),
+        }
 
     def save_now(self) -> bool:
         """
@@ -1803,49 +1889,360 @@ class TorchTrainerBase:
         """
         return self.max_steps is not None and self.cur_step >= self.max_steps
 
-    def save_model_checkpoint_to_file(
+    @classmethod
+    def checkpoint_dir_name(cls, epoch: int, step: int) -> str:
+        """Return the canonical name of a modern checkpoint directory.
+
+        Args:
+            epoch: Epoch index included in the checkpoint name.
+            step: Global optimization step included in the checkpoint name.
+
+        Returns:
+            Checkpoint directory name.
+        """
+        return f"{cls.checkpoint_dir_prefix}_ep{epoch:04d}_step{step:010d}"
+
+    def checkpoint_dir(self, epoch: int, step: int) -> Path:
+        """Return the root directory for a modern checkpoint.
+
+        Args:
+            epoch: Epoch index included in the checkpoint name.
+            step: Global optimization step included in the checkpoint name.
+
+        Returns:
+            Checkpoint root directory path.
+        """
+        return self.exp_path / self.checkpoint_dir_name(epoch, step)
+
+    def checkpoint_model_dir(self, model_name: str, epoch: int, step: int) -> Path:
+        """Return the directory containing one model's checkpoint state.
+
+        Args:
+            model_name: Name of the model within the checkpoint.
+            epoch: Epoch index included in the checkpoint name.
+            step: Global optimization step included in the checkpoint name.
+
+        Returns:
+            Model checkpoint directory path.
+        """
+        return self.checkpoint_dir(epoch, step) / model_name
+
+    def checkpoint_trainer_state_path(self, epoch: int, step: int) -> Path:
+        """Return the shared trainer-state path for a modern checkpoint.
+
+        Args:
+            epoch: Epoch index included in the checkpoint name.
+            step: Global optimization step included in the checkpoint name.
+
+        Returns:
+            Trainer-state JSON path.
+        """
+        return self.checkpoint_dir(epoch, step) / self.trainer_state_file_name
+
+    def checkpoint_rng_state_path(self, epoch: int, step: int) -> Path:
+        """Return the shared Torch RNG-state path for a modern checkpoint.
+
+        Args:
+            epoch: Epoch index included in the checkpoint name.
+            step: Global optimization step included in the checkpoint name.
+
+        Returns:
+            Torch RNG-state path.
+        """
+        return self.checkpoint_dir(epoch, step) / self.rng_state_file_name
+
+    @contextmanager
+    def checkpoint_save_dir(self, epoch: int, step: int) -> Iterator[Path]:
+        """Create a temporary checkpoint directory and publish it atomically.
+
+        The yielded directory is a sibling of the final checkpoint directory.
+        It is renamed into place only when the context exits without an error,
+        preventing a partially written checkpoint from being discovered during
+        automatic resume.
+
+        Args:
+            epoch: Epoch index included in the checkpoint name.
+            step: Global optimization step included in the checkpoint name.
+
+        Yields:
+            Temporary checkpoint root directory.
+
+        Raises:
+            FileExistsError: If the final checkpoint directory already exists.
+        """
+        checkpoint_dir = self.checkpoint_dir(epoch, step)
+        if checkpoint_dir.exists():
+            raise FileExistsError(
+                f"Checkpoint directory already exists: {checkpoint_dir}"
+            )
+
+        self.exp_path.mkdir(parents=True, exist_ok=True)
+        tmp_dir = Path(
+            tempfile.mkdtemp(
+                prefix=f".{checkpoint_dir.name}.tmp-",
+                dir=self.exp_path,
+            )
+        )
+        try:
+            yield tmp_dir
+            tmp_dir.replace(checkpoint_dir)
+        except Exception:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            raise
+
+    @classmethod
+    def _parse_checkpoint_dir_name(cls, name: str) -> Optional[Tuple[int, int]]:
+        """Parse an epoch and step from a canonical checkpoint directory name.
+
+        Args:
+            name: Candidate checkpoint directory name.
+
+        Returns:
+            Epoch and step when ``name`` is canonical, otherwise ``None``.
+        """
+        match = re.fullmatch(
+            rf"{re.escape(cls.checkpoint_dir_prefix)}_ep(\d+)_step(\d+)", name
+        )
+        if match is None:
+            return None
+
+        return int(match.group(1)), int(match.group(2))
+
+    def is_complete_checkpoint_dir(self, checkpoint_dir: PathLike) -> bool:
+        """Return whether a checkpoint contains all required resume artifacts.
+
+        Args:
+            checkpoint_dir: Candidate checkpoint root directory.
+
+        Returns:
+            ``True`` when the checkpoint root contains its shared state files
+            and every model required by this trainer has configuration, model
+            weights, and optimizer state.
+        """
+        checkpoint_dir = Path(checkpoint_dir)
+        if not (
+            checkpoint_dir.is_dir()
+            and (checkpoint_dir / self.trainer_state_file_name).is_file()
+            and (checkpoint_dir / self.rng_state_file_name).is_file()
+        ):
+            return False
+
+        for model_name in self.checkpoint_model_names:
+            model_dir = checkpoint_dir / model_name
+            if not (
+                (model_dir / self.model_config_file_name).is_file()
+                and (model_dir / self.model_weights_file_name).is_file()
+                and (model_dir / self.optimizer_state_file_name).is_file()
+            ):
+                return False
+
+        return True
+
+    def find_last_checkpoint_dir(self) -> Tuple[Optional[Path], int, int]:
+        """Find the newest complete modern checkpoint directory.
+
+        Returns:
+            Checkpoint root path, epoch, and step. The path is ``None`` when no
+            complete modern checkpoint exists.
+        """
+        checkpoint_path: Optional[Path] = None
+        last_epoch = 0
+        last_step = 0
+        for path in self.exp_path.glob(f"{self.checkpoint_dir_prefix}_ep*_step*"):
+            parsed = self._parse_checkpoint_dir_name(path.name)
+            if parsed is None or not self.is_complete_checkpoint_dir(path):
+                continue
+
+            epoch, step = parsed
+            if (epoch, step) > (last_epoch, last_step):
+                checkpoint_path = path
+                last_epoch = epoch
+                last_step = step
+
+        return checkpoint_path, last_epoch, last_step
+
+    def save_trainer_state_to_dir(
+        self, checkpoint_dir: PathLike, checkpoint: Dict[str, Any]
+    ) -> None:
+        """Save state shared by every model in a checkpoint directory.
+
+        Args:
+            checkpoint_dir: Root directory for one checkpoint.
+            checkpoint: Full model checkpoint dictionary containing shared state.
+        """
+        checkpoint_dir = Path(checkpoint_dir)
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        trainer_state = {
+            key: checkpoint[key]
+            for key in ("epoch", "batch", "step", "logs")
+            if key in checkpoint
+        }
+        with (checkpoint_dir / self.trainer_state_file_name).open(
+            "w", encoding="utf-8"
+        ) as f:
+            json.dump(
+                trainer_state,
+                f,
+                default=HyperTorchModel._json_default,
+                indent=2,
+            )
+            f.write("\n")
+        torch.save(checkpoint["rng_state"], checkpoint_dir / self.rng_state_file_name)
+
+    def load_trainer_state_from_dir(self, checkpoint_dir: PathLike) -> Dict[str, Any]:
+        """Load state shared by every model in a checkpoint directory.
+
+        Args:
+            checkpoint_dir: Root directory for one checkpoint.
+
+        Returns:
+            Shared trainer state, including the Torch RNG state.
+        """
+        checkpoint_dir = Path(checkpoint_dir)
+        trainer_state_path = checkpoint_dir / self.trainer_state_file_name
+        rng_state_path = checkpoint_dir / self.rng_state_file_name
+        with trainer_state_path.open("r", encoding="utf-8") as f:
+            trainer_state = json.load(f)
+        trainer_state["rng_state"] = torch.load(
+            rng_state_path,
+            map_location=torch.device("cpu"),
+            weights_only=True,
+        )
+        return trainer_state
+
+    def save_model_checkpoint_to_dir(
         self,
+        checkpoint_dir: PathLike,
         model_name: str,
         checkpoint: Dict[str, Any],
     ) -> None:
-        """
-        Saves a model checkpoint to disk using epoch and step as part of the filename.
+        """Save model-specific checkpoint state in the hybrid checkpoint format.
 
         Args:
-            model_name (str): Identifier for the model (used in filename).
-            checkpoint (Dict[str, Any]): Checkpoint dictionary to save.
+            checkpoint_dir: Root directory for one checkpoint.
+            model_name: Name of the model within the checkpoint.
+            checkpoint: Full model checkpoint dictionary.
         """
-        file_path = "%s/%s_ep%04d_step%010d.pth" % (
-            self.exp_path,
-            model_name,
-            self.cur_epoch,
-            self.cur_step,
+        model_dir = Path(checkpoint_dir) / model_name
+        HyperTorchModel.save_config_state_dict(
+            model_dir,
+            checkpoint["model_cfg"],
+            checkpoint["model_state_dict"],
+        )
+        torch.save(
+            checkpoint["optimizer_state_dict"],
+            model_dir / self.optimizer_state_file_name,
         )
 
-        logging.info("saving %s to %s", model_name, file_path)
-        torch.save(checkpoint, file_path)
+        state_files = (
+            ("lr_scheduler_state_dict", self.lr_scheduler_state_file_name),
+            ("wd_scheduler_state_dict", self.wd_scheduler_state_file_name),
+            ("swa_scheduler_state_dict", self.swa_scheduler_state_file_name),
+        )
+        for state_key, file_name in state_files:
+            if state_key in checkpoint:
+                torch.save(checkpoint[state_key], model_dir / file_name)
 
-    def save_swa_model_checkpoint_to_file(
+        if "swa_model_state_dict" in checkpoint:
+            from safetensors.torch import save_file
+
+            save_file(
+                HyperTorchModel.prepare_safetensors_state_dict(
+                    checkpoint["swa_model_state_dict"]
+                ),
+                str(model_dir / self.swa_model_weights_file_name),
+            )
+
+    def load_model_checkpoint_from_dir(
+        self, checkpoint_dir: PathLike, model_name: str
+    ) -> Dict[str, Any]:
+        """Load model-specific state from a hybrid checkpoint directory.
+
+        Args:
+            checkpoint_dir: Root directory for one checkpoint.
+            model_name: Name of the model within the checkpoint.
+
+        Returns:
+            Model checkpoint dictionary compatible with existing state loaders.
+        """
+        model_dir = Path(checkpoint_dir) / model_name
+        cfg, state_dict = HyperTorchModel.load_config_state_dict(model_dir)
+        checkpoint = {
+            "model_cfg": cfg,
+            "model_state_dict": state_dict,
+            "optimizer_state_dict": torch.load(
+                model_dir / self.optimizer_state_file_name,
+                map_location=torch.device("cpu"),
+                weights_only=True,
+            ),
+        }
+
+        state_files = (
+            ("lr_scheduler_state_dict", self.lr_scheduler_state_file_name),
+            ("wd_scheduler_state_dict", self.wd_scheduler_state_file_name),
+            ("swa_scheduler_state_dict", self.swa_scheduler_state_file_name),
+        )
+        for state_key, file_name in state_files:
+            file_path = model_dir / file_name
+            if file_path.is_file():
+                checkpoint[state_key] = torch.load(
+                    file_path,
+                    map_location=torch.device("cpu"),
+                    weights_only=True,
+                )
+
+        swa_model_path = model_dir / self.swa_model_weights_file_name
+        if swa_model_path.is_file():
+            from safetensors.torch import load_file
+
+            checkpoint["swa_model_state_dict"] = load_file(
+                str(swa_model_path), device="cpu"
+            )
+
+        return checkpoint
+
+    def save_swa_model_to_dir(
         self, model_name: str, checkpoint: Dict[str, Any]
-    ) -> None:
-        """
-        Saves an SWA model checkpoint to disk by replacing the model state
-        with the SWA model state and updating the filename.
+    ) -> Path:
+        """Save an SWA model as a standalone modern model directory.
 
         Args:
-            model_name (str): Identifier for the model (used in filename).
-            checkpoint (Dict[str, Any]): Checkpoint dictionary to save.
-        """
-        checkpoint["model_state_dict"] = checkpoint["swa_model_state_dict"]
-        del checkpoint["swa_model_state_dict"]
-        file_path = "%s/swa_%s_ep%04d_step%010d.pth" % (
-            self.exp_path,
-            model_name,
-            self.cur_epoch,
-            self.cur_step,
-        )
+            model_name: Name of the model whose SWA weights are being saved.
+            checkpoint: Full model checkpoint dictionary containing SWA weights.
 
-        torch.save(checkpoint, file_path)
+        Returns:
+            Directory containing the standalone SWA model artifact.
+        """
+        if "swa_model_state_dict" not in checkpoint:
+            raise ValueError("Checkpoint does not contain SWA model weights.")
+
+        model_dir = self.exp_path / (
+            f"swa_{model_name}_ep{self.cur_epoch:04d}_step{self.cur_step:010d}"
+        )
+        if model_dir.exists():
+            raise FileExistsError(f"SWA model directory already exists: {model_dir}")
+
+        self.exp_path.mkdir(parents=True, exist_ok=True)
+        tmp_dir = Path(
+            tempfile.mkdtemp(prefix=f".{model_dir.name}.tmp-", dir=self.exp_path)
+        )
+        try:
+            swa_model_state_dict = {
+                key.removeprefix("module."): value
+                for key, value in checkpoint["swa_model_state_dict"].items()
+                if key != "n_averaged"
+            }
+            HyperTorchModel.save_config_state_dict(
+                tmp_dir,
+                checkpoint["model_cfg"],
+                swa_model_state_dict,
+            )
+            tmp_dir.replace(model_dir)
+        except Exception:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            raise
+
+        return model_dir
 
     def _load_vars_from_checkpoint(
         self, checkpoint: Dict[str, Any]
@@ -1920,6 +2317,7 @@ class TorchTrainerBase:
         else:
             set_model_state_dict(
                 model,
+                checkpoint["model_state_dict"],
                 options=StateDictOptions(
                     full_state_dict=True,
                     broadcast_from_rank0=True,
@@ -1927,7 +2325,7 @@ class TorchTrainerBase:
             )
 
         if optimizer is not None:
-            if self.ddp and self.ddp_type == DDPType.FSDP:
+            if self.is_fsdp_training():
                 set_optimizer_state_dict(
                     model=model,
                     optimizers=optimizer,
@@ -1937,7 +2335,8 @@ class TorchTrainerBase:
                         broadcast_from_rank0=True,
                     ),
                 )
-            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            else:
+                optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         if lr_scheduler is not None:
             lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
@@ -1947,32 +2346,28 @@ class TorchTrainerBase:
 
         if self.do_swa:
             if "swa_model_state_dict" in checkpoint:
-                swa_model.load_state_dict(checkpoint["swa_model_state_dict"])
+                if self.is_fsdp_training() and self._is_fsdp_module(
+                    swa_model.module
+                ):
+                    swa_state_dict = checkpoint["swa_model_state_dict"]
+                    set_model_state_dict(
+                        swa_model.module,
+                        {
+                            key.removeprefix("module."): value
+                            for key, value in swa_state_dict.items()
+                            if key != "n_averaged"
+                        },
+                        options=StateDictOptions(
+                            full_state_dict=True,
+                            broadcast_from_rank0=True,
+                        ),
+                    )
+                    swa_model.n_averaged.copy_(
+                        swa_state_dict["n_averaged"].to(swa_model.n_averaged.device)
+                    )
+                else:
+                    swa_model.load_state_dict(checkpoint["swa_model_state_dict"])
                 swa_scheduler.load_state_dict(checkpoint["swa_scheduler_state_dict"])
-
-    def find_last_checkpoint(
-        self, model_name: str = "model"
-    ) -> Tuple[Optional[str], int, int]:
-        """
-        Finds the most recent checkpoint file for a given model based on epoch and step.
-
-        Args:
-            model_name (str): Name prefix used in checkpoint filenames.
-
-        Returns:
-            Tuple[str, int, int]: Path to the checkpoint file, last epoch, and last step.
-        """
-        file_path = None
-        last_epoch = 0
-        last_step = 0
-        file_pattern = "%s/%s_ep[0-9]*_step[0-9]*.pth" % (self.exp_path, model_name)
-        file_paths = sorted(glob.glob(file_pattern))
-        if len(file_paths) > 0:
-            file_path = file_paths[-1]
-            last_epoch = int(re.search(r"ep[0-9]*", file_path).group()[2:])
-            last_step = int(re.search(r"step[0-9]*", file_paths[-1]).group()[4:])
-
-        return file_path, last_epoch, last_step
 
     def load_last_checkpoint(self) -> Optional[Dict[str, Any]]:
         """
@@ -1981,36 +2376,11 @@ class TorchTrainerBase:
         Returns:
             Optional[Dict[str, Any]]: Logs from the last checkpoint if found, otherwise None.
         """
-        _, last_epoch, last_step = self.find_last_checkpoint(self.ckpt_search_name)
+        _, last_epoch, last_step = self.find_last_checkpoint_dir()
         if last_epoch > 0 or last_step > 0:
             return self.load_checkpoint(last_epoch, last_step)
 
         return None
-
-    def load_model_checkpoint_from_file(
-        self, model_name: str = "model", epoch: int = 0, step: int = 0
-    ) -> Dict[str, Any]:
-        """
-        Loads a checkpoint file from disk for a specific model at a given epoch and step.
-
-        Args:
-            model_name (str): Identifier for the model.
-            epoch (int): Epoch number in checkpoint filename.
-            step (int): Step number in checkpoint filename.
-
-        Returns:
-            Dict[str, Any]: Loaded checkpoint.
-        """
-        file_path = "%s/%s_ep%04d_step%010d.pth" % (
-            self.exp_path,
-            model_name,
-            epoch,
-            step,
-        )
-        logging.info("loading %s from %s", model_name, file_path)
-        return torch.load(
-            file_path, mmap=True, map_location=torch.device("cpu"), weights_only=False
-        )
 
     def load_checkpoint(self, epoch: int, step: int) -> Optional[Dict[str, Any]]:
         """

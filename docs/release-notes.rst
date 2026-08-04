@@ -33,19 +33,26 @@ Unreleased
 Stable public API
 ~~~~~~~~~~~~~~~~~
 
-No stable public API changes have been recorded for the next release.
+* ``HyperTorchModel.save`` and ``HyperTorchModel.auto_load`` now support
+  model directories containing ``config.json`` and ``model.safetensors`` in
+  addition to the legacy ``.pth`` model format. See
+  :doc:`how-to/save-load-models-and-backends`.
 
 CLI commands
 ~~~~~~~~~~~~
 
-No maintained CLI commands have been added, removed, or renamed for the next
-release.
+* Added ``hyperion-to-safetensors`` to convert trusted legacy Hyperion model
+  checkpoints to model directories, optionally including trainer-resume state.
+  See :doc:`cli/conversion`.
 
 Artifact and configuration compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-No artifact, checkpoint, serialized configuration, or stable data-format
-compatibility changes have been recorded for the next release.
+* Modern ``TorchTrainerBase`` subclasses now publish atomic checkpoint
+  directories with JSON model configuration, safetensors model weights, and
+  separate PyTorch optimizer and scheduler state. Existing legacy ``.pth``
+  model checkpoints remain loadable and can be migrated with
+  ``hyperion-to-safetensors``. See :doc:`how-to/manage-torch-checkpoints`.
 
 Deprecations
 ~~~~~~~~~~~~

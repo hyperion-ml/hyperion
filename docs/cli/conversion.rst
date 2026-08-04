@@ -4,6 +4,21 @@ Audio, Feature, and VAD Conversion Commands
 This family converts existing artifacts without changing their semantic ids.
 Use CSV indexes for new outputs.
 
+PyTorch checkpoint migration
+----------------------------
+
+``hyperion-to-safetensors`` converts a trusted legacy Hyperion model ``.pth``
+checkpoint to the modern ``config.json`` plus ``model.safetensors`` layout. It
+defaults to a ``model/`` subdirectory under ``--out-model-dir``; use
+``--model-name`` for names such as ``dac_model`` or ``discrim_model``. Add
+``--get-trainer-state`` when the converted checkpoint must resume a modern
+trainer rather than only load a model for inference.
+
+Legacy conversion loads the input with PyTorch ``weights_only=False`` to read
+its pickled metadata. Only convert files from trusted sources. See
+:doc:`../how-to/manage-torch-checkpoints` for directory layouts, multi-model
+conversion, and examples.
+
 VAD conversion
 --------------
 

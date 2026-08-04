@@ -1143,10 +1143,10 @@ class HFWav2VecBase(HyperTorchModel):
         base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
-    def save(self, file_path: PathLike) -> None:
-        """Saves the model to disk."""
+    def save_to_file(self, file_path: PathLike) -> None:
+        """Save the model in the legacy ``.pth`` format."""
         self.ignore_pretrained = True
-        super().save(file_path)
+        super().save_to_file(file_path)
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:

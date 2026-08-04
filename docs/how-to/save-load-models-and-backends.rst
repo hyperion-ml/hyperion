@@ -27,6 +27,39 @@ evaluation mode. Keep the checkpoint together with the resolved
 ``config.yaml`` written by the trainer and the class CSV that defined the
 classifier targets.
 
+Modern PyTorch model directories are also accepted. Pass the model
+subdirectory—not the enclosing trainer checkpoint root—to load its
+``config.json`` and ``model.safetensors`` files:
+
+.. code-block:: python
+
+   model = HyperTorchModel.auto_load(
+       "exp/xvector/checkpoint_ep0005_step0000001000/model"
+   )
+
+Save a PyTorch model
+--------------------
+
+``HyperTorchModel.save`` selects the output format from the destination path.
+A ``.pth`` suffix preserves the legacy single-file format; any other path is a
+model directory containing ``config.json`` and ``model.safetensors``:
+
+.. code-block:: python
+
+   model.save("exp/xvector/model.pth")  # legacy model file
+   model.save("exp/xvector/model")      # modern model directory
+
+``save_to_file`` and ``save_to_dir`` remain available when an explicit format
+is preferable.
+
+Before writing a safetensors file, Hyperion makes an independent contiguous
+copy for every state-dictionary key. This supports PyTorch models with
+non-contiguous tensor views or tied/shared parameters. Tied parameters are
+stored as separate tensor values; the model constructor is responsible for
+re-establishing the intended ties before ``load_state_dict`` restores them.
+Custom serialization code can use
+``HyperTorchModel.prepare_safetensors_state_dict`` to apply the same rule.
+
 Load NumPy preprocessing and PLDA
 ---------------------------------
 
@@ -79,5 +112,6 @@ See also
 --------
 
 * :doc:`use-configuration-files`
+* :doc:`manage-torch-checkpoints`
 * :doc:`extract-score-xvectors`
 * :doc:`../documentation-policy`

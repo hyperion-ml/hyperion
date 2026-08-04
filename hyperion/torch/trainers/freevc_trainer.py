@@ -107,6 +107,8 @@ class FreeVCTrainer(TorchTrainerBase):
         num_val_log_samples: Max number of samples to log during validation.
     """
 
+    checkpoint_model_names = ("vc_model", "discrim_model")
+
     def __init__(
         self,
         vc_model: HyperTorchModel,
@@ -263,8 +265,6 @@ class FreeVCTrainer(TorchTrainerBase):
         self.discrim_adv_loss = AudioDiscriminatorAdvLoss()
         self.gen_adv_loss = AudioGeneratorAdvLoss()
         self.feat_matching_loss = FeatureMatchingLoss()
-        self.ckpt_search_name = "vc_model"
-
     def prepare_models_for_training(self) -> None:
         """Initializes optimizers, schedulers, and SWA for both VC and discriminator models.
 
@@ -806,7 +806,7 @@ class FreeVCTrainer(TorchTrainerBase):
         Args:
             logs (Optional[Dict[str, Any]]): Logging metrics to include in the checkpoint.
         """
-        if self.rank != 0:
+        if self.rank != 0 and not self.is_fsdp_training():
             return
 
         checkpoint = self.model_checkpoint(
@@ -819,8 +819,7 @@ class FreeVCTrainer(TorchTrainerBase):
             logs=logs,
         )
 
-        self.save_model_checkpoint_to_file("vc_model", checkpoint)
-
+        trainer_checkpoint = checkpoint
         checkpoint = self.model_checkpoint(
             self.discrim_model,
             self.discrim_optimizer,
@@ -829,7 +828,17 @@ class FreeVCTrainer(TorchTrainerBase):
             logs=logs,
         )
 
-        self.save_model_checkpoint_to_file("discrim_model", checkpoint)
+        if self.rank != 0:
+            return
+
+        with self.checkpoint_save_dir(self.cur_epoch, self.cur_step) as checkpoint_dir:
+            self.save_model_checkpoint_to_dir(
+                checkpoint_dir, "vc_model", trainer_checkpoint
+            )
+            self.save_model_checkpoint_to_dir(
+                checkpoint_dir, "discrim_model", checkpoint
+            )
+            self.save_trainer_state_to_dir(checkpoint_dir, trainer_checkpoint)
 
     def save_swa_model(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """Saves the final SWA-averaged generator model to disk.
@@ -837,26 +846,18 @@ class FreeVCTrainer(TorchTrainerBase):
         Args:
             logs (Optional[Dict[str, Any]]): Logging metrics to include in the checkpoint.
         """
+        if self.rank != 0 and not self.is_fsdp_training():
+            return
+
+        checkpoint = self.swa_model_checkpoint(
+            self.vc_model,
+            self.swa_vc_model,
+        )
+
         if self.rank != 0:
             return
 
-        checkpoint = self.model_checkpoint(
-            self.vc_model,
-            self.vc_optimizer,
-            self.vc_lr_scheduler,
-            self.vc_wd_scheduler,
-            self.swa_vc_model,
-            self.swa_vc_scheduler,
-            logs=logs,
-        )
-        checkpoint["model_state_dict"] = checkpoint["swa_model_state_dict"]
-        del checkpoint["swa_model_state_dict"]
-        file_path = "%s/swa_vc_model_ep%04d_%010d.pth" % (
-            self.exp_path,
-            self.cur_epoch,
-            self.cur_step,
-        )
-        torch.save(checkpoint, file_path)
+        self.save_swa_model_to_dir("vc_model", checkpoint)
 
     def load_checkpoint(self, epoch: int, step: int) -> Optional[Dict[str, Any]]:
         """Loads training state from checkpoint files for both generator and discriminator.
@@ -868,8 +869,10 @@ class FreeVCTrainer(TorchTrainerBase):
         Returns:
             Optional[Dict[str, Any]]: Logs saved with the checkpoint, if any.
         """
-        checkpoint = self.load_model_checkpoint_from_file("vc_model", epoch, step)
-        logs = self._load_vars_from_checkpoint(checkpoint)
+        checkpoint_dir = self.checkpoint_dir(epoch, step)
+        trainer_state = self.load_trainer_state_from_dir(checkpoint_dir)
+        checkpoint = self.load_model_checkpoint_from_dir(checkpoint_dir, "vc_model")
+        logs = self._load_vars_from_checkpoint(trainer_state)
         self._load_model_state_dicts_from_checkpoint(
             checkpoint,
             self.vc_model,
@@ -879,7 +882,9 @@ class FreeVCTrainer(TorchTrainerBase):
             self.swa_vc_model,
             self.swa_vc_scheduler,
         )
-        checkpoint = self.load_model_checkpoint_from_file("discrim_model", epoch, step)
+        checkpoint = self.load_model_checkpoint_from_dir(
+            checkpoint_dir, "discrim_model"
+        )
         self._load_model_state_dicts_from_checkpoint(
             checkpoint,
             self.discrim_model,

@@ -39887,6 +39887,39 @@ hyperion-tables scatter3d
                            Verbosity level: 0=error, 1=warning, 2=info, 3=debug.
                            (type: <function <lambda> at <address>>, default: 1)
 
+hyperion-to-safetensors
+-----------------------
+
+Module: ``hyperion.bin.to_safetensors``.
+Support level: **stable**.
+Conditional runtime requirements: ``PyTorch``, ``safetensors``.
+
+.. code-block:: text
+
+   usage: to_safetensors.py --in-model-file IN_MODEL_FILE --out-model-dir
+                            OUT_MODEL_DIR [--model-name MODEL_NAME]
+                            [--get-trainer-state] [-v {0,1,2,3}]
+
+   Convert a trusted legacy Hyperion .pth model checkpoint.
+
+   options:
+     -h, --help            Show this help message and exit.
+     --in-model-file IN_MODEL_FILE
+                           Trusted legacy .pth model checkpoint. (required, type:
+                           <class 'Path'>)
+     --out-model-dir OUT_MODEL_DIR
+                           Output checkpoint root directory. (required, type:
+                           <class 'Path'>)
+     --model-name MODEL_NAME
+                           Model subdirectory name within --out-model-dir.
+                           (default: model)
+     --get-trainer-state, --no_get-trainer-state
+                           Also convert optimizer, scheduler, SWA, and trainer
+                           resume state. (type: bool, default: False)
+     -v {0,1,2,3}, --verbose {0,1,2,3}
+                           Logging verbosity level. (type: <function <lambda> at
+                           <address>>, default: 1)
+
 hyperion-train-dac
 ------------------
 

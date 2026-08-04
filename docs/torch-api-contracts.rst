@@ -178,6 +178,21 @@ optimizer/scheduler family, class vocabulary, and distributed topology policy.
 Changing world size or FSDP/DDP policy may require an explicitly supported
 conversion path rather than ordinary resume.
 
+Modern subclasses write a complete checkpoint directory per epoch/step, with
+shared ``trainer_state.json`` and ``rng_state.pth`` at its root and one
+subdirectory for each model. Model configuration is ``config.json`` and model
+weights are ``model.safetensors``; optimizer and scheduler states are separate
+``.pt`` files. The directory is written temporarily and renamed only when
+complete, and discovery requires shared state plus every required model's
+configuration, weights, and optimizer state. ``LegacyTorchTrainer`` retains
+its separate legacy ``.pth`` behavior. See
+:doc:`how-to/manage-torch-checkpoints` for the layout and migration command.
+
+With ordinary DDP, rank 0 writes the shared checkpoint and every rank restores
+it on resume. With FSDP, every rank participates in the full-state collection
+and restore collectives, while only rank 0 publishes files to disk. This is
+required to keep FSDP model and optimizer state consistent across ranks.
+
 ``use_amp`` and ``amp_dtype`` control mixed precision. They affect numerical
 execution but do not automatically make unsupported operations safe. Gradient
 scaling, clipping, and accumulation occur in the trainer's prescribed order;

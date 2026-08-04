@@ -71,6 +71,8 @@ class SingleModelTrainer(TorchTrainerBase):
         compile_dynamic (bool): Enables dynamic-shape compilation when compiling.
     """
 
+    checkpoint_model_names = ("model",)
+
     def __init__(
         self,
         model: HyperTorchModel,
@@ -511,7 +513,7 @@ class SingleModelTrainer(TorchTrainerBase):
         Returns:
             None
         """
-        if self.rank != 0:
+        if self.rank != 0 and not self.is_fsdp_training():
             return
 
         checkpoint = self.model_checkpoint(
@@ -524,7 +526,12 @@ class SingleModelTrainer(TorchTrainerBase):
             logs=logs,
         )
 
-        self.save_model_checkpoint_to_file("model", checkpoint)
+        if self.rank != 0:
+            return
+
+        with self.checkpoint_save_dir(self.cur_epoch, self.cur_step) as checkpoint_dir:
+            self.save_model_checkpoint_to_dir(checkpoint_dir, "model", checkpoint)
+            self.save_trainer_state_to_dir(checkpoint_dir, checkpoint)
 
     def save_swa_model(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """
@@ -537,26 +544,18 @@ class SingleModelTrainer(TorchTrainerBase):
         Returns:
             None
         """
+        if self.rank != 0 and not self.is_fsdp_training():
+            return
+
+        checkpoint = self.swa_model_checkpoint(
+            self.model,
+            self.swa_model,
+        )
+
         if self.rank != 0:
             return
 
-        checkpoint = self.model_checkpoint(
-            self.model,
-            self.optimizer,
-            self.lr_scheduler,
-            self.wd_scheduler,
-            self.swa_model,
-            self.swa_scheduler,
-            logs=logs,
-        )
-        checkpoint["model_state_dict"] = checkpoint["swa_model_state_dict"]
-        del checkpoint["swa_model_state_dict"]
-        file_path = "%s/swa_model_ep%04d_%010d.pth" % (
-            self.exp_path,
-            self.cur_epoch,
-            self.cur_step,
-        )
-        torch.save(checkpoint, file_path)
+        self.save_swa_model_to_dir("model", checkpoint)
 
     def load_checkpoint(self, epoch: int, step: int) -> Optional[Dict[str, Any]]:
         """
@@ -569,8 +568,10 @@ class SingleModelTrainer(TorchTrainerBase):
         Returns:
             Optional[Dict[str, Any]]: Logs stored in the checkpoint, if any.
         """
-        checkpoint = self.load_model_checkpoint_from_file("model", epoch, step)
-        logs = self._load_vars_from_checkpoint(checkpoint)
+        checkpoint_dir = self.checkpoint_dir(epoch, step)
+        trainer_state = self.load_trainer_state_from_dir(checkpoint_dir)
+        checkpoint = self.load_model_checkpoint_from_dir(checkpoint_dir, "model")
+        logs = self._load_vars_from_checkpoint(trainer_state)
         self._load_model_state_dicts_from_checkpoint(
             checkpoint,
             self.model,

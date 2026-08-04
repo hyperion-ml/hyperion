@@ -76,6 +76,7 @@
     {"script": "train_plda", "command": "hyperion-train-plda", "family": "training", "status": "stable", "guide": "cli/training.rst", "optional_requirements": []},
     {"script": "train_qmf", "command": "hyperion-train-qmf", "family": "training", "status": "stable", "guide": "cli/training.rst", "optional_requirements": []},
     {"script": "train_qvector", "command": "hyperion-train-qvector", "family": "training", "status": "experimental", "guide": "cli/experimental.rst", "optional_requirements": ["PyTorch"]},
+    {"script": "to_safetensors", "command": "hyperion-to-safetensors", "family": "format_conversion", "status": "stable", "guide": "cli/conversion.rst", "optional_requirements": ["PyTorch", "safetensors"]},
     {"script": "train_tokenizer", "command": "hyperion-train-tokenizer", "family": "training", "status": "experimental", "guide": "cli/experimental.rst", "optional_requirements": ["PyTorch", "codec training data"]},
     {"script": "train_verification_calibration", "command": "hyperion-train-verification-calibration", "family": "training", "status": "stable", "guide": "cli/training.rst", "optional_requirements": []},
     {"script": "train_verification_greedy_fusion", "command": "hyperion-train-verification-greedy-fusion", "family": "training", "status": "stable", "guide": "cli/training.rst", "optional_requirements": []},

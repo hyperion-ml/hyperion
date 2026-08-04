@@ -138,6 +138,7 @@ Stable commands:
 * ``hyperion-make-babble-noise-audio-files`` Conditional runtime requirements: audio backend.
 * ``hyperion-pack-wav-rirs`` Conditional runtime requirements: audio backend.
 * ``hyperion-preprocess-audio-files`` Conditional runtime requirements: audio backend.
+* ``hyperion-to-safetensors`` Conditional runtime requirements: PyTorch, safetensors.
 
 Visualization and utilities
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

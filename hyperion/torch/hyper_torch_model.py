@@ -3,9 +3,11 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import json
 import logging
 from collections import OrderedDict as ODict
 from copy import deepcopy
+from enum import Enum
 from importlib import import_module
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union
@@ -318,11 +320,25 @@ class HyperTorchModel(nn.Module):
         """
         return ["full", "frozen"]
 
-    def save(self, file_path: PathLike) -> None:
-        """Save model config and state dictionary to disk.
+    def save(self, model_path: PathLike) -> None:
+        """Save this model in the legacy or modern format selected by path.
 
         Args:
-          file_path: Destination checkpoint path.
+          model_path: ``.pth`` destination for the legacy file format, or a
+            directory destination for the modern config-and-safetensors format.
+        """
+        model_path = Path(model_path)
+        if model_path.suffix == ".pth":
+            self.save_to_file(model_path)
+            return
+
+        self.save_to_dir(model_path)
+
+    def save_to_file(self, file_path: PathLike) -> None:
+        """Save model config and state dictionary in the legacy ``.pth`` format.
+
+        Args:
+          file_path: Destination legacy checkpoint path.
         """
         file_path = Path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -330,6 +346,120 @@ class HyperTorchModel(nn.Module):
             {"model_cfg": self.get_config(), "model_state_dict": self.state_dict()},
             file_path,
         )
+
+    @staticmethod
+    def _json_default(value: Any) -> Any:
+        """Convert supported non-JSON config values to JSON values.
+
+        Args:
+            value: Value encountered by the JSON encoder.
+
+        Returns:
+            JSON-compatible representation of ``value``.
+
+        Raises:
+            TypeError: If the value cannot be represented safely in JSON.
+        """
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, torch.Tensor) and value.numel() == 1:
+            return value.item()
+        if hasattr(value, "item"):
+            item = value.item()
+            if isinstance(item, (bool, int, float, str)):
+                return item
+
+        raise TypeError(
+            f"Object of type {type(value).__name__} is not JSON serializable"
+        )
+
+    @staticmethod
+    def save_config_state_dict(
+        model_dir: PathLike,
+        cfg: Dict[str, Any],
+        state_dict: Dict[str, torch.Tensor],
+    ) -> None:
+        """Save model configuration and weights in the modern model format.
+
+        Args:
+            model_dir: Destination model directory.
+            cfg: Model configuration dictionary.
+            state_dict: Model state dictionary.
+        """
+        from safetensors.torch import save_file
+
+        model_dir = Path(model_dir)
+        model_dir.mkdir(parents=True, exist_ok=True)
+        config_path = model_dir / "config.json"
+        weights_path = model_dir / "model.safetensors"
+        with config_path.open("w", encoding="utf-8") as f:
+            json.dump(cfg, f, default=HyperTorchModel._json_default, indent=2)
+            f.write("\n")
+        save_file(
+            HyperTorchModel.prepare_safetensors_state_dict(state_dict),
+            str(weights_path),
+        )
+
+    @staticmethod
+    def prepare_safetensors_state_dict(
+        state_dict: Dict[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
+        """Return independent contiguous tensors suitable for ``safetensors``.
+
+        PyTorch state dictionaries can contain non-contiguous views or multiple
+        keys sharing one storage. ``safetensors`` cannot write either form
+        directly. A detached, contiguous clone per key makes the serialized
+        representation independent; model construction re-establishes any
+        intended parameter ties before ``load_state_dict`` applies these values.
+
+        Args:
+            state_dict: PyTorch model state dictionary.
+
+        Returns:
+            State dictionary with one independent contiguous tensor per key.
+        """
+        return {
+            key: value.detach().contiguous().clone()
+            for key, value in state_dict.items()
+        }
+
+    def save_to_dir(self, model_dir: PathLike) -> None:
+        """Save this model in the modern config-and-safetensors format.
+
+        Args:
+            model_dir: Destination model directory.
+        """
+        self.save_config_state_dict(model_dir, self.get_config(), self.state_dict())
+
+    @staticmethod
+    def load_config_state_dict(
+        model_dir: PathLike, device: Union[torch.device, str] = "cpu"
+    ) -> Tuple[Dict[str, Any], Dict[str, torch.Tensor]]:
+        """Load configuration and weights from a modern model directory.
+
+        Args:
+            model_dir: Source model directory.
+            device: Device on which to materialize the tensor state.
+
+        Returns:
+            Model configuration and state dictionary.
+        """
+        from safetensors.torch import load_file
+
+        model_dir = Path(model_dir)
+        config_path = model_dir / "config.json"
+        weights_path = model_dir / "model.safetensors"
+        if not config_path.is_file() or not weights_path.is_file():
+            raise FileNotFoundError(
+                "Expected config.json and model.safetensors in " f"{model_dir}"
+            )
+
+        with config_path.open("r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        state_dict = load_file(str(weights_path), device=str(device))
+        return cfg, state_dict
 
     @staticmethod
     def _load_cfg_state_dict(
@@ -718,7 +848,8 @@ class HyperTorchModel(nn.Module):
 
         Args:
           file_path: Local path or HF-style path.
-          model_name: State-dict prefix; defaults to ``model``.
+        model_name: State-dict prefix for legacy file checkpoints; defaults to
+            ``model``.
           extra_objs: Optional mapping from class names to model classes.
           map_location: ``torch.load`` map location.
           cache_dir: Optional HF cache directory.
@@ -731,23 +862,41 @@ class HyperTorchModel(nn.Module):
             extra_objs = {}
 
         file_path = Path(file_path)
-        file_path = HyperTorchModel._try_to_get_from_hf(
-            file_path, cache_dir=cache_dir, local_dir=local_dir
-        )
+        if file_path.is_dir():
+            if map_location is None:
+                map_location = torch.device("cpu")
+            if not isinstance(map_location, (str, torch.device)):
+                raise ValueError(
+                    "Directory-based model loading requires a string or torch.device "
+                    "map_location."
+                )
+            cfg, state_dict = HyperTorchModel.load_config_state_dict(
+                file_path, device=map_location
+            )
+        else:
+            file_path = HyperTorchModel._try_to_get_from_hf(
+                file_path, cache_dir=cache_dir, local_dir=local_dir
+            )
+            assert file_path.is_file(), (
+                f"HyperTorchModel file: {file_path} not found"
+            )
 
-        assert file_path.is_file(), f"HyperTorchModel file: {file_path} not found"
+            if map_location is None:
+                map_location = torch.device("cpu")
 
-        if map_location is None:
-            map_location = torch.device("cpu")
+            model_data = torch.load(
+                file_path,
+                map_location=map_location,
+                # PyTorch 2.6 default weights_only=True breaks config objects
+                # serialized in model_cfg (e.g., custom enums/types).
+                weights_only=False,
+            )
+            cfg = model_data["model_cfg"]
+            if model_name is None:
+                model_name = "model"
+            state_dict = model_data[f"{model_name}_state_dict"]
 
-        model_data = torch.load(
-            file_path,
-            map_location=map_location,
-            # PyTorch 2.6 default weights_only=True breaks config objects
-            # serialized in model_cfg (e.g., custom enums/types).
-            weights_only=False,
-        )
-        cfg = model_data["model_cfg"]
+        cfg = dict(cfg)
 
         if "class_name" not in cfg:
             cfg["class_name"] = "DAC"
@@ -773,10 +922,6 @@ class HyperTorchModel(nn.Module):
             class_obj = extra_objs[class_name]
         else:
             raise Exception("unknown object with class_name=%s" % (class_name))
-
-        if model_name is None:
-            model_name = "model"
-        state_dict = model_data[f"{model_name}_state_dict"]
 
         if "n_averaged" in state_dict:
             del state_dict["n_averaged"]

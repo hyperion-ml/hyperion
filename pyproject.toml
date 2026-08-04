@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyperion-ml"
-version = "0.4.0a1"
+version = "0.4.0a"
 description = "Toolkit for speaker recognition"
 readme = "README.md"
 keywords = [ "speaker recognition", "adversarial attacks", "NIST SRE", "x-vectors",]
 requires-python = ">=3.10"
-dependencies = [ "torch>=2.4.1,<=2.9.1", "torchaudio>=2.4.1,<=2.9.1", "torchvision>=0.19.1,<=0.24.1", "numpy>=1.26,<2.0", "pandas>=2.1,<2.3", "scipy>=1.11,<1.13", "scikit-learn>=1.4,<1.6", "matplotlib>=3.7.0,<3.11", "h5py>=3.11.0,<4.0", "soundfile>=0.13.1,<0.14", "transformers>=4.40,<5", "datasets>=3.0.0,<4.0", "tensorboard>=2.12,<2.21", "librosa>=0.10.1,<0.11", "lhotse>=1.30,<2.0", "sentencepiece>=0.2.0,<0.3", "kaldialign>=0.9.1,<1.0", "sphinx_rtd_theme>=0.4.3", "pympler", "memory_profiler", "gdown", "jsonargparse>=3.5.0", "wandb>=0.10.30", "isort", "black", "twine", "wheel", "loralib", "pytest", "toml", "pycountry>=24.0,<25.0", "langcodes>=3.3,<4.0", "nvidia-ml-py>=11.0.0,<14.0.0", "onnxruntime>=1.16.3,<1.19", "intervaltree>=3.1.0", "sortedcontainers>=2.4,<3.0", "pesq>=0.0.4,<0.1", "pystoi>=0.4.1,<0.5",]
+dependencies = [ "torch>=2.4.1,<=2.9.1", "safetensors>=0.4.3,<0.9", "torchaudio>=2.4.1,<=2.9.1", "torchvision>=0.19.1,<=0.24.1", "numpy>=1.26,<2.0", "pandas>=2.1,<2.3", "scipy>=1.11,<1.13", "scikit-learn>=1.4,<1.6", "matplotlib>=3.7.0,<3.11", "h5py>=3.11.0,<4.0", "soundfile>=0.13.1,<0.14", "transformers>=4.40,<5", "datasets>=3.0.0,<4.0", "tensorboard>=2.12,<2.21", "librosa>=0.10.1,<0.11", "lhotse>=1.30,<2.0", "sentencepiece>=0.2.0,<0.3", "kaldialign>=0.9.1,<1.0", "sphinx_rtd_theme>=0.4.3", "pympler", "memory_profiler", "gdown", "jsonargparse>=3.5.0", "wandb>=0.10.30", "isort", "black", "twine", "wheel", "loralib", "pytest", "toml", "utmosv2 @ git+https://github.com/jesus-villalba/UTMOSv2.git", "pycountry>=24.0,<25.0", "langcodes>=3.3,<4.0", "nvidia-ml-py>=11.0.0,<14.0.0", "onnxruntime>=1.16.3,<1.19", "intervaltree>=3.1.0", "sortedcontainers>=2.4,<3.0", "pesq>=0.0.4,<0.1", "pystoi>=0.4.1,<0.5",]
 [[project.authors]]
 name = "Jesus Villalba"
 email = "jesus.antonio.villalba@gmail.com"
@@ -26,6 +26,7 @@ torch28 = [ "torch>=2.8,<2.9", "torchaudio>=2.8,<2.9", "torchvision>=0.23,<0.24"
 torch29 = [ "torch==2.9.1", "torchaudio==2.9.1", "torchvision==0.24.1",]
 gcc217 = [ "h5py==3.11.0", "onnxruntime==1.16.3", "numpy>=1.26,<2.0",]
 onnx-cpu-modern = [ "onnxruntime>=1.18,<1.19",]
+voxprofile = [ "voxprofile @ git+https://github.com/hyperion-ml/vox-profile-release",]
 art = [ "adversarial-robustness-toolbox>=1.17",]
 
 [project.urls]
@@ -78,6 +79,7 @@ hyperion-tables = "hyperion.bin.hyperion_tables:main"
 hyperion-cluster-embeddings = "hyperion.bin.cluster_embeddings:main"
 hyperion-accum-speech-quality-metrics = "hyperion.bin.accum_speech_quality_metrics:main"
 hyperion-merge-trials = "hyperion.bin.merge_trials:main"
+hyperion-to-safetensors = "hyperion.bin.to_safetensors:main"
 hyperion-eval-xvec-cosine-scoring-from-test-wav = "hyperion.bin.eval_xvec_cosine_scoring_from_test_wav:main"
 hyperion-finetune-qvector = "hyperion.bin.finetune_qvector:main"
 hyperion-train-verification-calibration = "hyperion.bin.train_verification_calibration:main"

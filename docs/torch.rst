@@ -18,7 +18,7 @@ Core model abstractions
 All torch models derive from:
 
 .. autoclass:: hyperion.torch.HyperTorchModel
-   :members: get_config, save, load, auto_load, set_train_mode, valid_train_modes
+   :members: get_config, save, save_to_file, save_to_dir, prepare_safetensors_state_dict, load, auto_load, set_train_mode, valid_train_modes
 
 Generic torch model loader:
 

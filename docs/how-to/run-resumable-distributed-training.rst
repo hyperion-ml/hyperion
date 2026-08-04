@@ -20,6 +20,12 @@ stores logs and checkpoints under that directory. The waveform training
 commands call ``load_last_checkpoint()`` before fitting, so rerunning the same
 command resumes from the latest compatible checkpoint automatically.
 
+Modern trainers save one ``checkpoint_ep..._step...`` directory for each
+training point. Resume considers only complete directories, and each directory
+is written to a temporary sibling before being atomically published. See
+:doc:`manage-torch-checkpoints` for the complete layout and legacy migration
+workflow.
+
 Do not reuse an experiment directory after changing the architecture,
 classifier class ordering, optimizer family, or dataset split. Start a new
 ``exp_path`` instead. Preserve the experiment configuration, class CSV, and
@@ -95,4 +101,5 @@ See also
 --------
 
 * :doc:`train-waveform-xvector`
+* :doc:`manage-torch-checkpoints`
 * :doc:`../torch`
