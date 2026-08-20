@@ -1109,7 +1109,7 @@ class LegacyTorchTrainer:
                 self.exp_path,
                 model_name,
                 epoch,
-                step,≈ß
+                step,
             )
         logging.info("loading %s from %s", model_name, file_path)
         return torch.load(file_path, map_location=torch.device("cpu"), weights_only=False)
