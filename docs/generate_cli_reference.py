@@ -97,6 +97,10 @@ def add_help_block(lines: list[str], output: str) -> None:
 def normalize_for_comparison(content: str) -> str:
     """Ignore terminal wrapping differences inside captured help blocks."""
 
+    # Python's repr for locally-created lambdas varies between contexts and
+    # Python versions (``<lambda>`` vs ``<locals>.<lambda>``). It carries no
+    # useful CLI information, so remove that unstable qualifier.
+    content = content.replace("<locals>.", "")
     normalized: list[str] = []
     help_lines: list[str] = []
 
