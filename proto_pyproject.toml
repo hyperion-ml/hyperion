@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hyperion-ml"
-version = "0.0.0"  # This should be dynamically set from __init__.py
+dynamic = ["version"]
 authors = [
     { name = "Jesus Villalba", email = "jesus.antonio.villalba@gmail.com" }
 ]
@@ -62,7 +62,9 @@ gcc217 = [
 # Opt into newer ORT on modern OS (glibc >= 2.28)
 onnx-cpu-modern = ["onnxruntime>=1.18,<1.19"]
 
-voxprofile = ["voxprofile @ git+https://github.com/hyperion-ml/vox-profile-release"]
+voxprofile = ["hyperion-voxprofile==0.1.0"]
+
+voxlect = ["hyperion-voxlect==0.1.1"]
 
 art = ["adversarial-robustness-toolbox>=1.17"]
 
@@ -75,15 +77,14 @@ Homepage = "https://github.com/hyperion-ml/hyperion"
 [tool.setuptools]
 packages = { find = { exclude = ["tests"] } }
 
+[tool.setuptools.dynamic]
+version = { attr = "hyperion.__version__" }
+
 [tool.isort]
 profile = "black"
 line_length = 88
 skip_gitignore = true
 extend_skip_glob = ["hyp_utils/kaldi/**"]
-
-# [tool.setuptools.dynamic]
-# dependencies = {file = ["requirements.txt"]}
-# version = {attr = "hyperion.__version__"}
 
 #[tool.setuptools.entry-points]
 #"console_scripts" = []  # Dynamically populated from hyperion/bin
