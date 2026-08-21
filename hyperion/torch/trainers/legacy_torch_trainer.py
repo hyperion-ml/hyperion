@@ -1112,7 +1112,9 @@ class LegacyTorchTrainer:
                 step,
             )
         logging.info("loading %s from %s", model_name, file_path)
-        return torch.load(file_path, map_location=torch.device("cpu"), weights_only=False)
+        return torch.load(
+            file_path, map_location=torch.device("cpu"), weights_only=False
+        )
 
     def load_checkpoint(self, epoch: int, step: int) -> Optional[Dict[str, Any]]:
         """Loads a checkpoint file and restores the trainer state.

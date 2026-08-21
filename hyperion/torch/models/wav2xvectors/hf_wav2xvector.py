@@ -468,9 +468,7 @@ class HFWav2XVector(HyperTorchModel):
             # Keep component-specific groups intact and apply the wrapper-level
             # setting to parameters not already covered by those groups.
             grouped_params = {
-                id(param)
-                for group in param_groups
-                for param in group["params"]
+                id(param) for group in param_groups for param in group["params"]
             }
             remaining = [
                 param
