@@ -237,3 +237,33 @@ These files are good entry points for understanding the maintained architecture:
 - `docs/cli.rst`
 
 If in doubt, follow the style and extension pattern of the closest maintained file in the same subtree.
+
+## Python environment
+
+Use the project-local environment when it is present.
+
+From the repository root, if `.venv/bin/python` exists, use it for all
+Python-related commands:
+
+    .venv/bin/python
+
+This includes Python scripts, modules, `pip`, `pytest`, Black, and isort.
+Prefer commands such as:
+
+    .venv/bin/python -m pytest ...
+    .venv/bin/python -m pip install ...
+    .venv/bin/python -m black ...
+    .venv/bin/python -m isort ...
+
+If `.venv/bin/python` does not exist, continue using the available `python3`
+or `python` executable and do not treat the missing project environment as an
+error. Do not create or install a new environment automatically unless the
+user explicitly requests it or the project setup configuration is being run.
+
+When running a script from a subdirectory, resolve the repository root first
+and use the environment at:
+
+    <repository-root>/.venv/bin/python
+
+Do not use a shared editable installation from another worktree. Each
+worktree's `.venv`, when present, belongs only to that worktree.
