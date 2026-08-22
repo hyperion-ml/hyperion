@@ -86,4 +86,3 @@ trainer:
   epochs: 62
   eff_batch_size: 256
   target_key: speaker
-master_port: 2469

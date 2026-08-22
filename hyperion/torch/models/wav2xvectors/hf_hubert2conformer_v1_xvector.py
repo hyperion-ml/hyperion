@@ -32,6 +32,7 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
         feat_fuser: Union[Dict[str, Any], FeatFuserMVN],
         xvector: Union[Dict[str, Any], ConformerV1XVector],
         feat_fusion_start: int = 0,
+        bias_weight_decay: Optional[float] = None,
     ) -> None:
         """Initializes the wrapper.
 
@@ -53,7 +54,9 @@ class HFHubert2ConformerV1XVector(HFWav2XVector):
             assert isinstance(xvector, ConformerV1XVector)
             assert xvector.encoder_net.in_feats == hf_feats.hidden_size
 
-        super().__init__(hf_feats, feat_fuser, xvector, feat_fusion_start)
+        super().__init__(
+            hf_feats, feat_fuser, xvector, feat_fusion_start, bias_weight_decay
+        )
 
     @staticmethod
     def filter_args(**kwargs: Any) -> Dict[str, Any]:

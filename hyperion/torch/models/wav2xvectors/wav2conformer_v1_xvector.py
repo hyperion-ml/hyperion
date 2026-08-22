@@ -26,6 +26,7 @@ class Wav2ConformerV1XVector(Wav2XVector):
         self,
         feats: Any,
         xvector: Union[Dict[str, Any], ConformerV1XVector],
+        bias_weight_decay: Optional[float] = None,
     ) -> None:
         """Initializes the wrapper.
 
@@ -39,7 +40,7 @@ class Wav2ConformerV1XVector(Wav2XVector):
         else:
             assert isinstance(xvector, ConformerV1XVector)
 
-        super().__init__(feats, xvector)
+        super().__init__(feats, xvector, bias_weight_decay)
 
     @staticmethod
     def add_class_args(parser: Any, prefix: Optional[str] = None) -> None:

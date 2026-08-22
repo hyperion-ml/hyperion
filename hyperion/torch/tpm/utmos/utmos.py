@@ -3,16 +3,9 @@ Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import logging
-import os
-import shutil
-import tempfile
-from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
-import pandas as pd
-import soundfile as sf
 import torch
 
 from ....np.preprocessing import ResamplerToTargetFreq
@@ -20,32 +13,21 @@ from ....utils.misc import PathLike
 
 
 class UTMOSV2:
-    """Wrapper around the official implementation of UTMOS v2 model.
+    """Wrapper around the Hyperion-maintained implementation of UTMOS v2.
 
     Attributes:
-      tmp_dir: temporal dir to store audios, since the UTMOS code only allows
-        to get audio from disk
+      model: UTMOS model instance, initialized lazily on the first prediction.
+      audios: Resampled audio kept in memory until ``compute_mos`` is called.
+      tmp_audio_ids: IDs corresponding to the audio in ``audios``.
     """
 
     def __init__(self, tmp_dir: Optional[PathLike] = None):
-
-        if tmp_dir is None:
-            tmp_dir = Path("./utmos_cache")
-
+        # Keep tmp_dir in the signature for compatibility with older callers.
+        # The current UTMOS API accepts audio arrays directly, so it is unused.
         self.model = None
-        pid = os.getpid()
-        self.tmp_dir = Path(tmp_dir) / f"utmos.{pid}"
-        self.delete_tmp_dir()
-        self.make_tmp_dir()
+        self.audios = []
         self.tmp_audio_ids = []
         self.resampler = ResamplerToTargetFreq(16000.0)
-
-    def delete_tmp_dir(self):
-        if self.tmp_dir.is_dir():
-            shutil.rmtree(self.tmp_dir)
-
-    def make_tmp_dir(self):
-        self.tmp_dir.mkdir(exist_ok=True, parents=True)
 
     def add_audios(
         self,
@@ -53,8 +35,9 @@ class UTMOSV2:
         audio_fs: Union[torch.Tensor, np.ndarray, List[float]],
         audio_ids: Union[List[str], np.ndarray, None] = None,
     ):
-        """Append audios to a temporal directory.
-           compute_mos computes MOS for all audios in the temporal directory.
+        """Append audios to the in-memory prediction queue.
+
+        ``compute_mos`` predicts each queued utterance directly from memory.
 
         Arguments:
           audios: List of audio np.ndarray or torch.Tensor
@@ -67,11 +50,10 @@ class UTMOSV2:
 
         for audio, fs, audio_id in zip(audios, audio_fs, audio_ids):
             if isinstance(audio, torch.Tensor):
-                audio = audio.numpy()
+                audio = audio.detach().cpu().numpy()
 
             audio, fs = self.resampler(audio, fs)
-            file_path = self.tmp_dir / f"{audio_id}.flac"
-            sf.write(str(file_path), audio, 16000)
+            self.audios.append(audio)
             self.tmp_audio_ids.append(audio_id)
 
     def compute_mos(
@@ -80,8 +62,11 @@ class UTMOSV2:
         audio_fs: Union[torch.Tensor, np.ndarray, List[float], None] = None,
         audio_ids: Union[List[str], np.ndarray, None] = None,
     ):
-        """Computes MOS for all audios in the temporal directory.
-           If audios and audio_fs are not None, it compute MOS for these input audios.
+        """Compute MOS for queued or newly provided in-memory audios.
+
+        The current UTMOS API accepts a single waveform through ``data``. Audio
+        is predicted one utterance at a time because utterances can have
+        different lengths.
 
         Arguments:
           audios: List of audio np.ndarray or torch.Tensor
@@ -97,21 +82,20 @@ class UTMOSV2:
 
             self.model = utmosv2.create_model(pretrained=True)
 
-        preds = self.model.predict(input_dir=self.tmp_dir)
-        pred_ids = []
-        for pred in preds:
-            pred_id = Path(pred["file_path"]).stem
-            pred_ids.append(pred_id)
-            del pred["file_path"]
+        if not self.audios:
+            raise ValueError("No audios have been added for UTMOS prediction")
 
-        preds = pd.DataFrame(preds)
-        preds["id"] = pred_ids
-        preds.set_index("id", inplace=True)
-        pred_mos = preds.loc[self.tmp_audio_ids].values
-        audio_ids = self.tmp_audio_ids
+        pred_mos = []
+        for audio in self.audios:
+            pred = self.model.predict(data=audio, sr=16000)
+            if isinstance(pred, torch.Tensor):
+                pred = pred.detach().cpu().numpy()
+            pred_mos.append(np.asarray(pred).reshape(-1)[0])
 
-        self.delete_tmp_dir()
-        self.make_tmp_dir()
+        audio_ids = self.tmp_audio_ids.copy()
+        pred_mos = np.asarray(pred_mos)[:, np.newaxis]
+
+        self.audios = []
         self.tmp_audio_ids = []
         return audio_ids, pred_mos
 

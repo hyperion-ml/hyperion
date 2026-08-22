@@ -26,6 +26,7 @@ class Wav2ConvNext2dXVector(Wav2XVector):
         self,
         feats: Any,
         xvector: Union[Dict[str, Any], ConvNext2dXVector],
+        bias_weight_decay: Optional[float] = None,
     ) -> None:
         """Initializes the wrapper.
 
@@ -39,7 +40,7 @@ class Wav2ConvNext2dXVector(Wav2XVector):
         else:
             assert isinstance(xvector, ConvNext2dXVector)
 
-        super().__init__(feats, xvector)
+        super().__init__(feats, xvector, bias_weight_decay)
 
     @staticmethod
     def add_class_args(

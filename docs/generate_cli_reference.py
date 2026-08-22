@@ -95,31 +95,28 @@ def add_help_block(lines: list[str], output: str) -> None:
 
 
 def normalize_for_comparison(content: str) -> str:
-    """Ignore terminal wrapping differences inside captured help blocks."""
+    """Ignore formatting-only whitespace differences in generated help."""
 
-    normalized: list[str] = []
-    help_lines: list[str] = []
-
-    def flush_help() -> None:
-        if help_lines:
-            normalized.append(" ".join(line.strip() for line in help_lines))
-            help_lines.clear()
-
-    in_help = False
-    for line in content.splitlines():
-        if line == ".. code-block:: text":
-            flush_help()
-            in_help = True
-            normalized.append(line)
-        elif in_help and (line.startswith("   ") or not line):
-            if line:
-                help_lines.append(line[3:])
-        else:
-            flush_help()
-            in_help = False
-            normalized.append(line.rstrip())
-    flush_help()
-    return "\n".join(normalized)
+    # Python's repr for locally-created lambdas varies between contexts and
+    # Python versions (``<lambda>`` vs ``<locals>.<lambda>``). It carries no
+    # useful CLI information, so remove that unstable qualifier.
+    content = content.replace("<locals>.", "")
+    # jsonargparse can also wrap or duplicate the repr of the generic
+    # verbosity converter depending on the runtime. The option description
+    # and flags remain part of the comparison; only this unstable type text
+    # is ignored.
+    content = re.sub(
+        r"\(type:\s*<function\s+<lambda>\s+at\s+<address>>\s*,\s*"
+        r"default:\s*(?:\(type:\s*<function\s+<lambda>\s+at\s+"
+        r"<address>>\s*,\s*default:\s*)?1\)",
+        "",
+        content,
+        flags=re.DOTALL,
+    )
+    # CLI help is terminal-formatted, so its wrapping and indentation can
+    # vary with the runner even when the command text is identical.  The
+    # generated file is still checked for all non-whitespace content.
+    return " ".join(content.split())
 
 
 def render(

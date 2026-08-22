@@ -4,17 +4,6 @@ import toml
 project_root = Path(__file__).parent
 
 
-# Extract version
-def get_version() -> str:
-    init_path = project_root / "hyperion" / "__init__.py"
-    with open(init_path) as f:
-        for line in f:
-            if line.startswith("__version__"):
-                delim = '"' if '"' in line else "'"
-                return line.split(delim)[1]
-    raise RuntimeError("Unable to find version string.")
-
-
 # Extract dependencies
 requirements_path = project_root / "requirements.txt"
 with open(requirements_path) as f:
@@ -39,7 +28,6 @@ pyproject_path = project_root / "pyproject.toml"
 pyproject_data = toml.load(pyproject_proto_path)
 
 # Update fields dynamically
-pyproject_data["project"]["version"] = get_version()
 pyproject_data["project"]["dependencies"] = requirements
 pyproject_data["project"]["scripts"] = console_scripts
 
