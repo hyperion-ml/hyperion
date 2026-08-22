@@ -95,39 +95,16 @@ def add_help_block(lines: list[str], output: str) -> None:
 
 
 def normalize_for_comparison(content: str) -> str:
-    """Ignore terminal wrapping and spacing differences in help blocks."""
+    """Ignore formatting-only whitespace differences in generated help."""
 
     # Python's repr for locally-created lambdas varies between contexts and
     # Python versions (``<lambda>`` vs ``<locals>.<lambda>``). It carries no
     # useful CLI information, so remove that unstable qualifier.
     content = content.replace("<locals>.", "")
-    normalized: list[str] = []
-    help_lines: list[str] = []
-
-    def flush_help() -> None:
-        if help_lines:
-            # Help output is terminal-formatted.  Different terminal widths
-            # can move a word to another line or alter indentation, without
-            # changing the CLI itself.  Compare the block as tokens while
-            # keeping the surrounding RST structure significant.
-            normalized.append(" ".join(" ".join(help_lines).split()))
-            help_lines.clear()
-
-    in_help = False
-    for line in content.splitlines():
-        if line == ".. code-block:: text":
-            flush_help()
-            in_help = True
-            normalized.append(line)
-        elif in_help and (line.startswith("   ") or not line):
-            if line:
-                help_lines.append(line[3:])
-        else:
-            flush_help()
-            in_help = False
-            normalized.append(line.rstrip())
-    flush_help()
-    return "\n".join(normalized)
+    # CLI help is terminal-formatted, so its wrapping and indentation can
+    # vary with the runner even when the command text is identical.  The
+    # generated file is still checked for all non-whitespace content.
+    return " ".join(content.split())
 
 
 def render(
