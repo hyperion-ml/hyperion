@@ -43033,6 +43033,7 @@ hyperion-train-dino-wav2xvector resnet
                                                      [--student_model.feats.spec_augment.mask-method {constant,min,mean}]
                                                      [--student_model.feats.spec_augment.mask-value MASK_VALUE]
                                                      [--student_model.feats.aug-after-mvn]
+                                                     [--student_model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                      [--student_model.xvector CONFIG]
                                                      [--student_model.xvector.pool_net CONFIG]
                                                      [--student_model.xvector.pool_net.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
@@ -43604,6 +43605,9 @@ hyperion-train-dino-wav2xvector resnet
 
      --student_model.feats CONFIG
                            Path to a configuration file.
+     --student_model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
      --student_model.xvector CONFIG
                            Path to a configuration file.
 
@@ -44323,6 +44327,7 @@ hyperion-train-dino-wav2xvector resnet1d
                                                        [--student_model.feats.spec_augment.mask-method {constant,min,mean}]
                                                        [--student_model.feats.spec_augment.mask-value MASK_VALUE]
                                                        [--student_model.feats.aug-after-mvn]
+                                                       [--student_model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                        [--student_model.xvector CONFIG]
                                                        [--student_model.xvector.pool_net CONFIG]
                                                        [--student_model.xvector.pool_net.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
@@ -44913,6 +44918,9 @@ hyperion-train-dino-wav2xvector resnet1d
 
      --student_model.feats CONFIG
                            Path to a configuration file.
+     --student_model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
      --student_model.xvector CONFIG
                            Path to a configuration file.
 
@@ -45675,6 +45683,7 @@ hyperion-train-dino-wav2xvector conformer
                                                         [--student_model.feats.spec_augment.mask-method {constant,min,mean}]
                                                         [--student_model.feats.spec_augment.mask-value MASK_VALUE]
                                                         [--student_model.feats.aug-after-mvn]
+                                                        [--student_model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                         [--student_model.xvector CONFIG]
                                                         [--student_model.xvector.pool_net CONFIG]
                                                         [--student_model.xvector.pool_net.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
@@ -46265,6 +46274,9 @@ hyperion-train-dino-wav2xvector conformer
 
      --student_model.feats CONFIG
                            Path to a configuration file.
+     --student_model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
      --student_model.xvector CONFIG
                            Path to a configuration file.
 
@@ -57504,7 +57516,8 @@ hyperion-train-wav2vec2xvector hf_wav2vec2resnet1d
           [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
           [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
           [--model.feat_fuser.aug-after-mvn]
-          [--model.feat-fusion-start FEAT_FUSION_START] [--trainer CONFIG]
+          [--model.feat-fusion-start FEAT_FUSION_START]
+          [--model.bias-weight-decay BIAS_WEIGHT_DECAY] [--trainer CONFIG]
           [--trainer.optim CONFIG]
           [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
           [--trainer.optim.lr LR] [--trainer.optim.momentum MOMENTUM]
@@ -57946,6 +57959,9 @@ hyperion-train-wav2vec2xvector hf_wav2vec2resnet1d
                            the input to x-vector model will fuse the wav2vec
                            layers from feat_fusion_start tothe wav2vec num_layers
                            (type: int, default: 0)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
 
      --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
                            file path or HuggingFace Hub path to pre-trained model
@@ -58826,7 +58842,8 @@ hyperion-train-wav2vec2xvector hf_hubert2resnet1d
           [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
           [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
           [--model.feat_fuser.aug-after-mvn]
-          [--model.feat-fusion-start FEAT_FUSION_START] [--trainer CONFIG]
+          [--model.feat-fusion-start FEAT_FUSION_START]
+          [--model.bias-weight-decay BIAS_WEIGHT_DECAY] [--trainer CONFIG]
           [--trainer.optim CONFIG]
           [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
           [--trainer.optim.lr LR] [--trainer.optim.momentum MOMENTUM]
@@ -59268,6 +59285,9 @@ hyperion-train-wav2vec2xvector hf_hubert2resnet1d
                            the input to x-vector model will fuse the wav2vec
                            layers from feat_fusion_start tothe wav2vec num_layers
                            (type: int, default: 0)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
 
      --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
                            file path or HuggingFace Hub path to pre-trained model
@@ -60136,7 +60156,8 @@ hyperion-train-wav2vec2xvector hf_wavlm2resnet1d
           [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
           [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
           [--model.feat_fuser.aug-after-mvn]
-          [--model.feat-fusion-start FEAT_FUSION_START] [--trainer CONFIG]
+          [--model.feat-fusion-start FEAT_FUSION_START]
+          [--model.bias-weight-decay BIAS_WEIGHT_DECAY] [--trainer CONFIG]
           [--trainer.optim CONFIG]
           [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
           [--trainer.optim.lr LR] [--trainer.optim.momentum MOMENTUM]
@@ -60578,6 +60599,9 @@ hyperion-train-wav2vec2xvector hf_wavlm2resnet1d
                            the input to x-vector model will fuse the wav2vec
                            layers from feat_fusion_start tothe wav2vec num_layers
                            (type: int, default: 0)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
 
      --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
                            file path or HuggingFace Hub path to pre-trained model
@@ -61450,7 +61474,8 @@ hyperion-train-wav2vec2xvector hf_whisper2resnet1d
           [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
           [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
           [--model.feat_fuser.aug-after-mvn]
-          [--model.feat-fusion-start FEAT_FUSION_START] [--trainer CONFIG]
+          [--model.feat-fusion-start FEAT_FUSION_START]
+          [--model.bias-weight-decay BIAS_WEIGHT_DECAY] [--trainer CONFIG]
           [--trainer.optim CONFIG]
           [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
           [--trainer.optim.lr LR] [--trainer.optim.momentum MOMENTUM]
@@ -61892,6 +61917,9 @@ hyperion-train-wav2vec2xvector hf_whisper2resnet1d
                            the input to x-vector model will fuse the wav2vec
                            layers from feat_fusion_start tothe wav2vec num_layers
                            (type: int, default: 0)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
 
      --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
                            file path or HuggingFace Hub path to pre-trained model
@@ -62702,7 +62730,8 @@ hyperion-train-wav2vec2xvector hf_wav2vec2bert2resnet1d
           [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
           [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
           [--model.feat_fuser.aug-after-mvn]
-          [--model.feat-fusion-start FEAT_FUSION_START] [--trainer CONFIG]
+          [--model.feat-fusion-start FEAT_FUSION_START]
+          [--model.bias-weight-decay BIAS_WEIGHT_DECAY] [--trainer CONFIG]
           [--trainer.optim CONFIG]
           [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
           [--trainer.optim.lr LR] [--trainer.optim.momentum MOMENTUM]
@@ -63144,6 +63173,9 @@ hyperion-train-wav2vec2xvector hf_wav2vec2bert2resnet1d
                            the input to x-vector model will fuse the wav2vec
                            layers from feat_fusion_start tothe wav2vec num_layers
                            (type: int, default: 0)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
 
      --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
                            file path or HuggingFace Hub path to pre-trained model
@@ -64030,7 +64062,8 @@ hyperion-train-wav2vec2xvector hf_wav2vec2conformer
           [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
           [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
           [--model.feat_fuser.aug-after-mvn]
-          [--model.feat-fusion-start FEAT_FUSION_START] [--trainer CONFIG]
+          [--model.feat-fusion-start FEAT_FUSION_START]
+          [--model.bias-weight-decay BIAS_WEIGHT_DECAY] [--trainer CONFIG]
           [--trainer.optim CONFIG]
           [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
           [--trainer.optim.lr LR] [--trainer.optim.momentum MOMENTUM]
@@ -64472,6 +64505,9 @@ hyperion-train-wav2vec2xvector hf_wav2vec2conformer
                            the input to x-vector model will fuse the wav2vec
                            layers from feat_fusion_start tothe wav2vec num_layers
                            (type: int, default: 0)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
 
      --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
                            file path or HuggingFace Hub path to pre-trained model
@@ -65353,7 +65389,8 @@ hyperion-train-wav2vec2xvector hf_hubert2conformer
           [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
           [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
           [--model.feat_fuser.aug-after-mvn]
-          [--model.feat-fusion-start FEAT_FUSION_START] [--trainer CONFIG]
+          [--model.feat-fusion-start FEAT_FUSION_START]
+          [--model.bias-weight-decay BIAS_WEIGHT_DECAY] [--trainer CONFIG]
           [--trainer.optim CONFIG]
           [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
           [--trainer.optim.lr LR] [--trainer.optim.momentum MOMENTUM]
@@ -65795,6 +65832,9 @@ hyperion-train-wav2vec2xvector hf_hubert2conformer
                            the input to x-vector model will fuse the wav2vec
                            layers from feat_fusion_start tothe wav2vec num_layers
                            (type: int, default: 0)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
 
      --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
                            file path or HuggingFace Hub path to pre-trained model
@@ -66664,7 +66704,8 @@ hyperion-train-wav2vec2xvector hf_wavlm2conformer
           [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
           [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
           [--model.feat_fuser.aug-after-mvn]
-          [--model.feat-fusion-start FEAT_FUSION_START] [--trainer CONFIG]
+          [--model.feat-fusion-start FEAT_FUSION_START]
+          [--model.bias-weight-decay BIAS_WEIGHT_DECAY] [--trainer CONFIG]
           [--trainer.optim CONFIG]
           [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
           [--trainer.optim.lr LR] [--trainer.optim.momentum MOMENTUM]
@@ -67106,6 +67147,9 @@ hyperion-train-wav2vec2xvector hf_wavlm2conformer
                            the input to x-vector model will fuse the wav2vec
                            layers from feat_fusion_start tothe wav2vec num_layers
                            (type: int, default: 0)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
 
      --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
                            file path or HuggingFace Hub path to pre-trained model
@@ -67979,7 +68023,8 @@ hyperion-train-wav2vec2xvector hf_whisper2conformer
           [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
           [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
           [--model.feat_fuser.aug-after-mvn]
-          [--model.feat-fusion-start FEAT_FUSION_START] [--trainer CONFIG]
+          [--model.feat-fusion-start FEAT_FUSION_START]
+          [--model.bias-weight-decay BIAS_WEIGHT_DECAY] [--trainer CONFIG]
           [--trainer.optim CONFIG]
           [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
           [--trainer.optim.lr LR] [--trainer.optim.momentum MOMENTUM]
@@ -68421,6 +68466,9 @@ hyperion-train-wav2vec2xvector hf_whisper2conformer
                            the input to x-vector model will fuse the wav2vec
                            layers from feat_fusion_start tothe wav2vec num_layers
                            (type: int, default: 0)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
 
      --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
                            file path or HuggingFace Hub path to pre-trained model
@@ -69232,7 +69280,8 @@ hyperion-train-wav2vec2xvector hf_wav2vec2bert2conformer
           [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
           [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
           [--model.feat_fuser.aug-after-mvn]
-          [--model.feat-fusion-start FEAT_FUSION_START] [--trainer CONFIG]
+          [--model.feat-fusion-start FEAT_FUSION_START]
+          [--model.bias-weight-decay BIAS_WEIGHT_DECAY] [--trainer CONFIG]
           [--trainer.optim CONFIG]
           [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
           [--trainer.optim.lr LR] [--trainer.optim.momentum MOMENTUM]
@@ -69674,6 +69723,9 @@ hyperion-train-wav2vec2xvector hf_wav2vec2bert2conformer
                            the input to x-vector model will fuse the wav2vec
                            layers from feat_fusion_start tothe wav2vec num_layers
                            (type: int, default: 0)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
 
      --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
                            file path or HuggingFace Hub path to pre-trained model
@@ -70521,6 +70573,7 @@ hyperion-train-wav2xvector resnet
                                                 [--model.feats.spec_augment.mask-method {constant,min,mean}]
                                                 [--model.feats.spec_augment.mask-value MASK_VALUE]
                                                 [--model.feats.aug-after-mvn]
+                                                [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                 [--model.xvector CONFIG]
                                                 [--model.xvector.pool_net CONFIG]
                                                 [--model.xvector.pool_net.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
@@ -71029,6 +71082,9 @@ hyperion-train-wav2xvector resnet
                            loader. (type: int)
 
      --model.feats CONFIG  Path to a configuration file.
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
      --model.xvector CONFIG
                            Path to a configuration file.
 
@@ -71685,6 +71741,7 @@ hyperion-train-wav2xvector resnet1d
                                                   [--model.feats.spec_augment.mask-method {constant,min,mean}]
                                                   [--model.feats.spec_augment.mask-value MASK_VALUE]
                                                   [--model.feats.aug-after-mvn]
+                                                  [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                   [--model.xvector CONFIG]
                                                   [--model.xvector.pool_net CONFIG]
                                                   [--model.xvector.pool_net.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
@@ -72207,6 +72264,9 @@ hyperion-train-wav2xvector resnet1d
                            loader. (type: int)
 
      --model.feats CONFIG  Path to a configuration file.
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
      --model.xvector CONFIG
                            Path to a configuration file.
 
@@ -72895,6 +72955,7 @@ hyperion-train-wav2xvector conformer
                                                    [--model.feats.spec_augment.mask-method {constant,min,mean}]
                                                    [--model.feats.spec_augment.mask-value MASK_VALUE]
                                                    [--model.feats.aug-after-mvn]
+                                                   [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                    [--model.xvector CONFIG]
                                                    [--model.xvector.pool_net CONFIG]
                                                    [--model.xvector.pool_net.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
@@ -73416,6 +73477,9 @@ hyperion-train-wav2xvector conformer
                            loader. (type: int)
 
      --model.feats CONFIG  Path to a configuration file.
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
      --model.xvector CONFIG
                            Path to a configuration file.
 
@@ -74104,6 +74168,7 @@ hyperion-train-wav2xvector convnext1d
                                                     [--model.feats.spec_augment.mask-method {constant,min,mean}]
                                                     [--model.feats.spec_augment.mask-value MASK_VALUE]
                                                     [--model.feats.aug-after-mvn]
+                                                    [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                     [--model.xvector CONFIG]
                                                     [--model.xvector.pool_net CONFIG]
                                                     [--model.xvector.pool_net.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
@@ -74616,6 +74681,9 @@ hyperion-train-wav2xvector convnext1d
                            loader. (type: int)
 
      --model.feats CONFIG  Path to a configuration file.
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
      --model.xvector CONFIG
                            Path to a configuration file.
 
@@ -75281,6 +75349,7 @@ hyperion-train-wav2xvector convnext2d
                                                     [--model.feats.spec_augment.mask-method {constant,min,mean}]
                                                     [--model.feats.spec_augment.mask-value MASK_VALUE]
                                                     [--model.feats.aug-after-mvn]
+                                                    [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                     [--model.xvector CONFIG]
                                                     [--model.xvector.pool_net CONFIG]
                                                     [--model.xvector.pool_net.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
@@ -75792,6 +75861,9 @@ hyperion-train-wav2xvector convnext2d
                            loader. (type: int)
 
      --model.feats CONFIG  Path to a configuration file.
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
      --model.xvector CONFIG
                            Path to a configuration file.
 
@@ -76455,6 +76527,7 @@ hyperion-train-wav2xvector transformer_v2
                                                         [--model.feats.spec_augment.mask-method {constant,min,mean}]
                                                         [--model.feats.spec_augment.mask-value MASK_VALUE]
                                                         [--model.feats.aug-after-mvn]
+                                                        [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                         [--model.xvector CONFIG]
                                                         [--model.xvector.pool_net CONFIG]
                                                         [--model.xvector.pool_net.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
@@ -76993,6 +77066,9 @@ hyperion-train-wav2xvector transformer_v2
                            loader. (type: int)
 
      --model.feats CONFIG  Path to a configuration file.
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay for bias parameters (type:
+                           float, default: null)
      --model.xvector CONFIG
                            Path to a configuration file.
 
