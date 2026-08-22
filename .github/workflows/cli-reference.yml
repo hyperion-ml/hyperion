@@ -27,10 +27,9 @@ jobs:
       - name: Install pinned CLI-reference runtime
         run: python -m pip install -r docs/requirements-cli-reference.txt
       - name: Check generated CLI option reference for drift
-        run: |
-          python docs/generate_cli_reference.py --timeout 300 --jobs 4
-          git diff --exit-code --ignore-all-space --ignore-blank-lines -- \
-            docs/generated/cli-reference.rst
+        run: >-
+          python docs/generate_cli_reference.py --check
+          --timeout 300 --jobs 4
       - name: Check CLI task-index and generated-help visibility
         run: python docs/check_cli_quality.py
       - name: Run representative CLI end-to-end checks

@@ -101,6 +101,18 @@ def normalize_for_comparison(content: str) -> str:
     # Python versions (``<lambda>`` vs ``<locals>.<lambda>``). It carries no
     # useful CLI information, so remove that unstable qualifier.
     content = content.replace("<locals>.", "")
+    # jsonargparse can also wrap or duplicate the repr of the generic
+    # verbosity converter depending on the runtime. The option description
+    # and flags remain part of the comparison; only this unstable type text
+    # is ignored.
+    content = re.sub(
+        r"\(type:\s*<function\s+<lambda>\s+at\s+<address>>\s*,\s*"
+        r"default:\s*(?:\(type:\s*<function\s+<lambda>\s+at\s+"
+        r"<address>>\s*,\s*default:\s*)?1\)",
+        "",
+        content,
+        flags=re.DOTALL,
+    )
     # CLI help is terminal-formatted, so its wrapping and indentation can
     # vary with the runner even when the command text is identical.  The
     # generated file is still checked for all non-whitespace content.
