@@ -7,3 +7,4 @@ torch==2.8.0
 torchaudio==2.8.0
 torchvision==0.23.0
 einops>=0.8,<1.0
+jsonargparse==4.50.0
