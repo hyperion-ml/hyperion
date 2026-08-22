@@ -95,7 +95,7 @@ def add_help_block(lines: list[str], output: str) -> None:
 
 
 def normalize_for_comparison(content: str) -> str:
-    """Ignore terminal wrapping differences inside captured help blocks."""
+    """Ignore terminal wrapping and spacing differences in help blocks."""
 
     # Python's repr for locally-created lambdas varies between contexts and
     # Python versions (``<lambda>`` vs ``<locals>.<lambda>``). It carries no
@@ -106,7 +106,11 @@ def normalize_for_comparison(content: str) -> str:
 
     def flush_help() -> None:
         if help_lines:
-            normalized.append(" ".join(line.strip() for line in help_lines))
+            # Help output is terminal-formatted.  Different terminal widths
+            # can move a word to another line or alter indentation, without
+            # changing the CLI itself.  Compare the block as tokens while
+            # keeping the surrounding RST structure significant.
+            normalized.append(" ".join(" ".join(help_lines).split()))
             help_lines.clear()
 
     in_help = False
