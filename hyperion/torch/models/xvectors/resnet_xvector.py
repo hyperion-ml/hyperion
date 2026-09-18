@@ -165,6 +165,7 @@ class ResNetXVector(XVector):
             res2net_width_factor=res2net_width_factor,
             freq_pos_enc=freq_pos_enc,
         )
+        encoder_net = encoder_net.to(memory_format=torch.channels_last)
 
         super().__init__(
             encoder_net,

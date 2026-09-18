@@ -105,6 +105,7 @@ class LegacyTorchTrainer:
       train_mode: training mode in ['full', 'frozen']
       use_amp: uses mixed precision training.
       amp_dtype: "float16" | "bfloat16"
+      cudnn_benchmark: whether cuDNN benchmarks convolution algorithms.
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -151,6 +152,7 @@ class LegacyTorchTrainer:
         save_interval_steps: Optional[int] = None,
         input_key: str = "x",
         target_key: str = "class_id",
+        cudnn_benchmark: bool = False,
     ) -> None:
         """Initializes the base trainer.
 
@@ -173,6 +175,7 @@ class LegacyTorchTrainer:
           train_mode: Model-specific train mode.
           use_amp: Enables automatic mixed precision.
           amp_dtype: AMP dtype name.
+          cudnn_benchmark: Enables cuDNN convolution algorithm benchmarking.
           log_interval: Batch interval between log writes.
           use_tensorboard: Enables TensorBoard logging.
           use_wandb: Enables Weights & Biases logging.
@@ -212,6 +215,7 @@ class LegacyTorchTrainer:
         self.train_mode = train_mode
         self.use_amp = use_amp
         self.amp_dtype = AMPDType.to_dtype(amp_dtype)
+        self.cudnn_benchmark = cudnn_benchmark
         self.grad_clip = grad_clip
         self.grad_clip_norm = grad_clip_norm
         self.swa_start = swa_start
@@ -238,6 +242,7 @@ class LegacyTorchTrainer:
 
     def prepare_models_for_training(self) -> None:
         """Moves model and loss to the training device and builds schedulers."""
+        torch.backends.cudnn.benchmark = self.cudnn_benchmark
         self.loss = self._prepare_loss_for_training(self.loss, self.device)
         (
             self.model,
@@ -1297,6 +1302,12 @@ class LegacyTorchTrainer:
             action=ActionYesNo,
             default=False,
             help="use mixed precision training",
+        )
+        parser.add_argument(
+            "--cudnn-benchmark",
+            action=ActionYesNo,
+            default=False,
+            help="benchmark cuDNN convolution algorithms",
         )
         parser.add_argument(
             "--amp-dtype", default=AMPDType.FLOAT16.value, choices=AMPDType.choices()
