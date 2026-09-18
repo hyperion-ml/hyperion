@@ -86,10 +86,11 @@ def compute_wer(
 
     for i, ref_i, hyp_i in zip(utt_ids, ref, hyp):
         ali = kaldialign.align(ref_i, hyp_i, ERR, sclite_mode=sclite_mode)
+        total_words += len(ref_i)
+        utt_counts[i][4] = len(ref_i)
         for ref_word, hyp_word in ali:
-            total_words += 1
-            utt_counts[i][4] += 1
-            word_counts[ref_word][5] += 1
+            if ref_word != ERR:
+                word_counts[ref_word][5] += 1
             if ref_word == ERR:
                 ins[hyp_word] += 1
                 utt_counts[i][2] += 1
