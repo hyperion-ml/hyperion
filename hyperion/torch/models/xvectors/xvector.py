@@ -430,7 +430,7 @@ class XVector(HyperTorchModel):
             Tuple of post-processed features and output lengths.
         """
         if self.encoder_net.out_dim() == 4:
-            x = x.view(x.size(0), -1, x.size(-1))
+            x = x.reshape(x.size(0), -1, x.size(-1))
 
         if self.proj is not None:
             x = self.proj(x)
