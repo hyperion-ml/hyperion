@@ -640,9 +640,12 @@ class LegacyTorchTrainer:
             optimizer.step()
 
     def update_model(self) -> None:
-        """Updates the model and steps the LR scheduler when appropriate."""
+        """Updates the model and steps its schedulers when appropriate."""
         if self.lr_scheduler is not None and not self.in_swa:
             self.lr_scheduler.on_opt_step()
+
+        if self.wd_scheduler is not None:
+            self.wd_scheduler.on_opt_step()
 
         self._update_model_by_optim(
             self.model,
