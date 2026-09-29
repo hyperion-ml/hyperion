@@ -62,7 +62,7 @@ if [ $stage -le 3 ];then
   do
     for((j=1;j<=$num_parts;j++));
     do
-      $train_cmd $score_cosine_dir/log/voxceleb1_${i}_${j}.log \
+      $train_cmd --mem 14G $score_cosine_dir/log/voxceleb1_${i}_${j}.log \
 		 hyp_utils/conda_env.sh \
 		 hyperion-eval-cosine-scoring-backend \
 		 --feats-file csv:$xvector_dir/voxceleb1_test/xvector.csv \
