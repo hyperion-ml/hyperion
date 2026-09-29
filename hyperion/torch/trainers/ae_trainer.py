@@ -86,6 +86,7 @@ class AETrainer(LegacyTorchTrainer):
         save_interval_steps: Optional[int] = None,
         input_key: str = "x",
         target_key: str = "x",
+        cudnn_benchmark: bool = False,
     ) -> None:
         """Initializes an auto-encoder trainer.
 
@@ -120,6 +121,7 @@ class AETrainer(LegacyTorchTrainer):
           save_interval_steps: Partial checkpoint interval.
           input_key: Input key for dict batches.
           target_key: Target key for dict batches.
+          cudnn_benchmark: Enables cuDNN convolution algorithm benchmarking.
         """
         if loss is None:
             loss = nn.MSELoss()

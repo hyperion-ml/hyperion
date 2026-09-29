@@ -98,6 +98,7 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         swa_anneal_epochs: int = 10,
         save_interval_steps: Optional[int] = None,
         input_key: str = "x",
+        cudnn_benchmark: bool = False,
     ) -> None:
         """Initializes a DINO x-vector trainer.
 
@@ -136,6 +137,7 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
           swa_anneal_epochs: SWA annealing epochs.
           save_interval_steps: Partial checkpoint interval.
           input_key: Input key for dict batches.
+          cudnn_benchmark: Enables cuDNN convolution algorithm benchmarking.
         """
         super_args = filter_func_args(super().__init__, locals())
         self.teacher_model = teacher_model

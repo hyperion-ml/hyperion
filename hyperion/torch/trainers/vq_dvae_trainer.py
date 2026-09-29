@@ -85,6 +85,7 @@ class VQDVAETrainer(DVAETrainer):
         save_interval_steps: Optional[int] = None,
         input_key: str = "x_aug",
         target_key: str = "x",
+        cudnn_benchmark: bool = False,
     ) -> None:
         """Initializes a VQ-DVAE trainer.
 
@@ -118,6 +119,7 @@ class VQDVAETrainer(DVAETrainer):
           save_interval_steps: Partial checkpoint interval.
           input_key: Input key for dict batches.
           target_key: Target key for dict batches.
+          cudnn_benchmark: Enables cuDNN convolution algorithm benchmarking.
         """
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)

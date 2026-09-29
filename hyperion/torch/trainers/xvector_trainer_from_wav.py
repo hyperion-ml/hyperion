@@ -88,6 +88,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
         save_interval_steps: Optional[int] = None,
         input_key: str = "x",
         target_key: str = "class_id",
+        cudnn_benchmark: bool = False,
     ) -> None:
         """Initializes a wav-based x-vector trainer.
 
@@ -123,6 +124,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
           save_interval_steps: Partial checkpoint interval.
           input_key: Input key for dict batches.
           target_key: Target key for dict batches.
+          cudnn_benchmark: Enables cuDNN convolution algorithm benchmarking.
         """
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)

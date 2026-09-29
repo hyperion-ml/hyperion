@@ -88,6 +88,7 @@ class XVectorTrainer(LegacyTorchTrainer):
         save_interval_steps: Optional[int] = None,
         input_key: str = "x",
         target_key: str = "class_id",
+        cudnn_benchmark: bool = False,
     ) -> None:
         """Initializes an x-vector trainer.
 
@@ -122,6 +123,7 @@ class XVectorTrainer(LegacyTorchTrainer):
           save_interval_steps: Partial checkpoint interval.
           input_key: Input key for dict batches.
           target_key: Target key for dict batches.
+          cudnn_benchmark: Enables cuDNN convolution algorithm benchmarking.
         """
         if loss is None:
             loss = nn.CrossEntropyLoss()
