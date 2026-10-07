@@ -304,6 +304,7 @@ hyperion-adv-finetune-xvector-from-wav resnet
                                                             [--trainer.wandb.mode {online,offline}]
                                                             [--trainer.ddp-type {ddp}]
                                                             [--trainer.use-amp]
+                                                            [--trainer.cudnn-benchmark]
                                                             [--trainer.amp-dtype {float16,bfloat16}]
                                                             [--trainer.grad-clip GRAD_CLIP]
                                                             [--trainer.grad-clip-norm {inf,1,2}]
@@ -969,6 +970,9 @@ hyperion-adv-finetune-xvector-from-wav resnet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -1397,6 +1401,7 @@ hyperion-adv-finetune-xvector-from-wav resnet1d
                                                               [--trainer.wandb.mode {online,offline}]
                                                               [--trainer.ddp-type {ddp}]
                                                               [--trainer.use-amp]
+                                                              [--trainer.cudnn-benchmark]
                                                               [--trainer.amp-dtype {float16,bfloat16}]
                                                               [--trainer.grad-clip GRAD_CLIP]
                                                               [--trainer.grad-clip-norm {inf,1,2}]
@@ -2073,6 +2078,9 @@ hyperion-adv-finetune-xvector-from-wav resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -2443,7 +2451,7 @@ hyperion-adv-finetune-xvector-from-wav efficientnet
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -3103,6 +3111,9 @@ hyperion-adv-finetune-xvector-from-wav efficientnet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -3527,6 +3538,7 @@ hyperion-adv-finetune-xvector-from-wav tdnn
                                                           [--trainer.wandb.mode {online,offline}]
                                                           [--trainer.ddp-type {ddp}]
                                                           [--trainer.use-amp]
+                                                          [--trainer.cudnn-benchmark]
                                                           [--trainer.amp-dtype {float16,bfloat16}]
                                                           [--trainer.grad-clip GRAD_CLIP]
                                                           [--trainer.grad-clip-norm {inf,1,2}]
@@ -4192,6 +4204,9 @@ hyperion-adv-finetune-xvector-from-wav tdnn
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -4563,7 +4578,7 @@ hyperion-adv-finetune-xvector-from-wav transformer
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -5225,6 +5240,9 @@ hyperion-adv-finetune-xvector-from-wav transformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -5649,6 +5667,7 @@ hyperion-adv-finetune-xvector-from-wav spinenet
                                                               [--trainer.wandb.mode {online,offline}]
                                                               [--trainer.ddp-type {ddp}]
                                                               [--trainer.use-amp]
+                                                              [--trainer.cudnn-benchmark]
                                                               [--trainer.amp-dtype {float16,bfloat16}]
                                                               [--trainer.grad-clip GRAD_CLIP]
                                                               [--trainer.grad-clip-norm {inf,1,2}]
@@ -6314,6 +6333,9 @@ hyperion-adv-finetune-xvector-from-wav spinenet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -14673,11 +14695,11 @@ hyperion-finetune-qvector resnet
                                                [--model.qvector-dim QVECTOR_DIM]
                                                [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                [--model.qformer-weight-decay QFORMER_WEIGHT_DECAY]
-                                               [--model.proj-head-weight-decay PROJ_HEAD_WEIGHT_DECAY]
+                                               [--model.proj-weight-decay PROJ_WEIGHT_DECAY]
                                                [--model.head-weight-decay HEAD_WEIGHT_DECAY]
                                                [--model.override-head]
                                                [--model.head CONFIG]
-                                               [--model.head.head-type {classif}]
+                                               [--model.head.head-type {classif,none}]
                                                [--model.head.enable-loss]
                                                [--model.head.reduction {none,mean,sum}]
                                                [--model.head.loss-type {softmax,cos-softmax,arc-softmax,subcenter-arc-softmax}]
@@ -14690,7 +14712,22 @@ hyperion-finetune-qvector resnet
                                                [--model.head.num-classes NUM_CLASSES]
                                                [--model.head.label-smoothing LABEL_SMOOTHING]
                                                [--model.head.enable-prototype-code-rate]
-                                               [--model.head.code-rate-eps CODE_RATE_EPS]
+                                               [--model.head.prototype_code_rate CONFIG]
+                                               [--model.head.prototype_code_rate.eps EPS]
+                                               [--model.head.prototype_code_rate.jitter JITTER]
+                                               [--model.head.prototype_code_rate.gamma-1 GAMMA_1]
+                                               [--model.head.prototype_code_rate.gamma-2 GAMMA_2]
+                                               [--model.head.prototype_code_rate.normalize]
+                                               [--model.head.enable-prototype-sig-reg]
+                                               [--model.head.prototype_sig_reg CONFIG]
+                                               [--model.head.prototype_sig_reg.num-slices NUM_SLICES]
+                                               [--model.head.prototype_sig_reg.num-points NUM_POINTS]
+                                               [--model.head.prototype_sig_reg.t-max T_MAX]
+                                               [--model.head.prototype_sig_reg.seed SEED]
+                                               [--model.head.prototype_sig_reg.multi-view]
+                                               [--model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE]
+                                               [--model.head.prototype_sig_reg.distributed-mode {local,global_data}]
+                                               [--model.head.prototype_sig_reg.reduction {mean,sum,none}]
                                                --in-model-file IN_MODEL_FILE
                                                [--trainer CONFIG]
                                                [--trainer.exp-path EXP_PATH]
@@ -14781,6 +14818,7 @@ hyperion-finetune-qvector resnet
                                                [--trainer.target-key TARGET_KEY]
                                                [--trainer.train-mode {full,frozen,frozen-feat-extractor,adapters-qformers,qformers,output-feats-qformer,proj-head,output-layer}]
                                                [--trainer.qmatrix-code-rate-weight QMATRIX_CODE_RATE_WEIGHT]
+                                               [--trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT]
                                                [--trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT]
                                                [--num-gpus NUM_GPUS]
                                                [--master-port MASTER_PORT]
@@ -15173,7 +15211,7 @@ hyperion-finetune-qvector resnet
      --model.qformer-weight-decay QFORMER_WEIGHT_DECAY
                            optional weight decay override for hidden/output
                            qformer parameters (type: float, default: null)
-     --model.proj-head-weight-decay PROJ_HEAD_WEIGHT_DECAY
+     --model.proj-weight-decay PROJ_WEIGHT_DECAY
                            optional weight decay override for projection-head
                            parameters (type: float, default: null)
      --model.head-weight-decay HEAD_WEIGHT_DECAY
@@ -15186,7 +15224,7 @@ hyperion-finetune-qvector resnet
                            default: False)
      --model.head CONFIG   Path to a configuration file.
 
-     --model.head.head-type {classif}
+     --model.head.head-type {classif,none}
                            Type of Hydra head to instantiate. (default: classif)
      --model.head.enable-loss, --no_model.head.enable-loss
                            if true, the forward method computes the loss if
@@ -15220,9 +15258,50 @@ hyperion-finetune-qvector resnet
      --model.head.enable-prototype-code-rate, --no_model.head.enable-prototype-code-rate
                            enable the computation of the prototype code rate
                            (type: bool, default: False)
-     --model.head.code-rate-eps CODE_RATE_EPS
-                           epsilon parameter for the prototype code rate
-                           computation (type: float, default: 0.5)
+     --model.head.prototype_code_rate CONFIG
+                           Path to a configuration file.
+     --model.head.enable-prototype-sig-reg, --no_model.head.enable-prototype-sig-reg
+                           compute SIGReg for unnormalized class prototypes
+                           (type: bool, default: False)
+     --model.head.prototype_sig_reg CONFIG
+                           Path to a configuration file.
+
+     --model.head.prototype_code_rate.eps EPS
+                           Distortion tolerance parameter in the coding-rate
+                           formula (type: float, default: 0.5)
+     --model.head.prototype_code_rate.jitter JITTER
+                           Diagonal stabilization added to the identity term
+                           (type: float, default: 1e-06)
+     --model.head.prototype_code_rate.gamma-1 GAMMA_1
+                           Denominator scaling factor in the final coding rate
+                           (type: float, default: 1.0)
+     --model.head.prototype_code_rate.gamma-2 GAMMA_2
+                           Numerator scaling factor applied inside the log-
+                           determinant (type: float, default: 1.0)
+     --model.head.prototype_code_rate.normalize, --no_model.head.prototype_code_rate.normalize
+                           Whether to L2-normalize the input vectors before
+                           computing the rate (type: bool, default: True)
+
+     --model.head.prototype_sig_reg.num-slices NUM_SLICES
+                           Random projection count (type: int, default: 256)
+     --model.head.prototype_sig_reg.num-points NUM_POINTS
+                           Frequency-node count (type: int, default: 17)
+     --model.head.prototype_sig_reg.t-max T_MAX
+                           Symmetric frequency endpoint (type: float, default:
+                           5.0)
+     --model.head.prototype_sig_reg.seed SEED
+                           Dedicated generator base seed (type: int, default: 0)
+     --model.head.prototype_sig_reg.multi-view, --no_model.head.prototype_sig_reg.multi-view
+                           Leading axis indexes views (type: bool, default:
+                           False)
+     --model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE
+                           Directions per checkpointed chunk (type: int, default:
+                           null)
+     --model.head.prototype_sig_reg.distributed-mode {local,global_data}
+                           Statistics aggregation mode (default: local)
+     --model.head.prototype_sig_reg.reduction {mean,sum,none}
+                           Reduction across views; directions are always averaged
+                           (default: mean)
 
      --trainer.exp-path EXP_PATH
                            Path to the experiment directory for logs and
@@ -15358,10 +15437,13 @@ hyperion-finetune-qvector resnet
                            qformers, output-feats-qformer, proj-head, output-
                            layer). (default: full)
      --trainer.qmatrix-code-rate-weight QMATRIX_CODE_RATE_WEIGHT
-                           weight applied to the q-matrix code-rate regularizer
+                           Weight applied to the q-matrix code-rate regularizer.
+                           (type: float, default: 0.0)
+     --trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT
+                           Weight added for the prototype SIGReg regularizer.
                            (type: float, default: 0.0)
      --trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT
-                           weight applied to the prototype code-rate regularizer
+                           Weight applied to the prototype code-rate regularizer.
                            (type: float, default: 0.0)
 
      --trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}
@@ -15638,11 +15720,11 @@ hyperion-finetune-qvector wav2vec2
                                                  [--model.qvector-dim QVECTOR_DIM]
                                                  [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                                  [--model.qformer-weight-decay QFORMER_WEIGHT_DECAY]
-                                                 [--model.proj-head-weight-decay PROJ_HEAD_WEIGHT_DECAY]
+                                                 [--model.proj-weight-decay PROJ_WEIGHT_DECAY]
                                                  [--model.head-weight-decay HEAD_WEIGHT_DECAY]
                                                  [--model.override-head]
                                                  [--model.head CONFIG]
-                                                 [--model.head.head-type {classif}]
+                                                 [--model.head.head-type {classif,none}]
                                                  [--model.head.enable-loss]
                                                  [--model.head.reduction {none,mean,sum}]
                                                  [--model.head.loss-type {softmax,cos-softmax,arc-softmax,subcenter-arc-softmax}]
@@ -15655,7 +15737,22 @@ hyperion-finetune-qvector wav2vec2
                                                  [--model.head.num-classes NUM_CLASSES]
                                                  [--model.head.label-smoothing LABEL_SMOOTHING]
                                                  [--model.head.enable-prototype-code-rate]
-                                                 [--model.head.code-rate-eps CODE_RATE_EPS]
+                                                 [--model.head.prototype_code_rate CONFIG]
+                                                 [--model.head.prototype_code_rate.eps EPS]
+                                                 [--model.head.prototype_code_rate.jitter JITTER]
+                                                 [--model.head.prototype_code_rate.gamma-1 GAMMA_1]
+                                                 [--model.head.prototype_code_rate.gamma-2 GAMMA_2]
+                                                 [--model.head.prototype_code_rate.normalize]
+                                                 [--model.head.enable-prototype-sig-reg]
+                                                 [--model.head.prototype_sig_reg CONFIG]
+                                                 [--model.head.prototype_sig_reg.num-slices NUM_SLICES]
+                                                 [--model.head.prototype_sig_reg.num-points NUM_POINTS]
+                                                 [--model.head.prototype_sig_reg.t-max T_MAX]
+                                                 [--model.head.prototype_sig_reg.seed SEED]
+                                                 [--model.head.prototype_sig_reg.multi-view]
+                                                 [--model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE]
+                                                 [--model.head.prototype_sig_reg.distributed-mode {local,global_data}]
+                                                 [--model.head.prototype_sig_reg.reduction {mean,sum,none}]
                                                  --in-model-file IN_MODEL_FILE
                                                  [--trainer CONFIG]
                                                  [--trainer.exp-path EXP_PATH]
@@ -15746,6 +15843,7 @@ hyperion-finetune-qvector wav2vec2
                                                  [--trainer.target-key TARGET_KEY]
                                                  [--trainer.train-mode {full,frozen,frozen-feat-extractor,adapters-qformers,qformers,output-feats-qformer,proj-head,output-layer}]
                                                  [--trainer.qmatrix-code-rate-weight QMATRIX_CODE_RATE_WEIGHT]
+                                                 [--trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT]
                                                  [--trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT]
                                                  [--num-gpus NUM_GPUS]
                                                  [--master-port MASTER_PORT]
@@ -16145,7 +16243,7 @@ hyperion-finetune-qvector wav2vec2
      --model.qformer-weight-decay QFORMER_WEIGHT_DECAY
                            optional weight decay override for hidden/output
                            qformer parameters (type: float, default: null)
-     --model.proj-head-weight-decay PROJ_HEAD_WEIGHT_DECAY
+     --model.proj-weight-decay PROJ_WEIGHT_DECAY
                            optional weight decay override for projection-head
                            parameters (type: float, default: null)
      --model.head-weight-decay HEAD_WEIGHT_DECAY
@@ -16225,7 +16323,7 @@ hyperion-finetune-qvector wav2vec2
                            `mask_feature_length` generated along the feature axis
                            (type: int, default: 0)
 
-     --model.head.head-type {classif}
+     --model.head.head-type {classif,none}
                            Type of Hydra head to instantiate. (default: classif)
      --model.head.enable-loss, --no_model.head.enable-loss
                            if true, the forward method computes the loss if
@@ -16259,9 +16357,50 @@ hyperion-finetune-qvector wav2vec2
      --model.head.enable-prototype-code-rate, --no_model.head.enable-prototype-code-rate
                            enable the computation of the prototype code rate
                            (type: bool, default: False)
-     --model.head.code-rate-eps CODE_RATE_EPS
-                           epsilon parameter for the prototype code rate
-                           computation (type: float, default: 0.5)
+     --model.head.prototype_code_rate CONFIG
+                           Path to a configuration file.
+     --model.head.enable-prototype-sig-reg, --no_model.head.enable-prototype-sig-reg
+                           compute SIGReg for unnormalized class prototypes
+                           (type: bool, default: False)
+     --model.head.prototype_sig_reg CONFIG
+                           Path to a configuration file.
+
+     --model.head.prototype_code_rate.eps EPS
+                           Distortion tolerance parameter in the coding-rate
+                           formula (type: float, default: 0.5)
+     --model.head.prototype_code_rate.jitter JITTER
+                           Diagonal stabilization added to the identity term
+                           (type: float, default: 1e-06)
+     --model.head.prototype_code_rate.gamma-1 GAMMA_1
+                           Denominator scaling factor in the final coding rate
+                           (type: float, default: 1.0)
+     --model.head.prototype_code_rate.gamma-2 GAMMA_2
+                           Numerator scaling factor applied inside the log-
+                           determinant (type: float, default: 1.0)
+     --model.head.prototype_code_rate.normalize, --no_model.head.prototype_code_rate.normalize
+                           Whether to L2-normalize the input vectors before
+                           computing the rate (type: bool, default: True)
+
+     --model.head.prototype_sig_reg.num-slices NUM_SLICES
+                           Random projection count (type: int, default: 256)
+     --model.head.prototype_sig_reg.num-points NUM_POINTS
+                           Frequency-node count (type: int, default: 17)
+     --model.head.prototype_sig_reg.t-max T_MAX
+                           Symmetric frequency endpoint (type: float, default:
+                           5.0)
+     --model.head.prototype_sig_reg.seed SEED
+                           Dedicated generator base seed (type: int, default: 0)
+     --model.head.prototype_sig_reg.multi-view, --no_model.head.prototype_sig_reg.multi-view
+                           Leading axis indexes views (type: bool, default:
+                           False)
+     --model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE
+                           Directions per checkpointed chunk (type: int, default:
+                           null)
+     --model.head.prototype_sig_reg.distributed-mode {local,global_data}
+                           Statistics aggregation mode (default: local)
+     --model.head.prototype_sig_reg.reduction {mean,sum,none}
+                           Reduction across views; directions are always averaged
+                           (default: mean)
 
      --trainer.exp-path EXP_PATH
                            Path to the experiment directory for logs and
@@ -16397,10 +16536,13 @@ hyperion-finetune-qvector wav2vec2
                            qformers, output-feats-qformer, proj-head, output-
                            layer). (default: full)
      --trainer.qmatrix-code-rate-weight QMATRIX_CODE_RATE_WEIGHT
-                           weight applied to the q-matrix code-rate regularizer
+                           Weight applied to the q-matrix code-rate regularizer.
+                           (type: float, default: 0.0)
+     --trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT
+                           Weight added for the prototype SIGReg regularizer.
                            (type: float, default: 0.0)
      --trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT
-                           weight applied to the prototype code-rate regularizer
+                           Weight applied to the prototype code-rate regularizer.
                            (type: float, default: 0.0)
 
      --trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}
@@ -19048,7 +19190,7 @@ hyperion-finetune-wav2vec2xvector hf_wav2vec2resnet1d
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -19600,6 +19742,9 @@ hyperion-finetune-wav2vec2xvector hf_wav2vec2resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -19938,7 +20083,7 @@ hyperion-finetune-wav2vec2xvector hf_hubert2resnet1d
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -20490,6 +20635,9 @@ hyperion-finetune-wav2vec2xvector hf_hubert2resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -20828,7 +20976,7 @@ hyperion-finetune-wav2vec2xvector hf_wavlm2resnet1d
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -21380,6 +21528,9 @@ hyperion-finetune-wav2vec2xvector hf_wavlm2resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -21718,7 +21869,7 @@ hyperion-finetune-wav2vec2xvector hf_whisper2resnet1d
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -22253,6 +22404,9 @@ hyperion-finetune-wav2vec2xvector hf_whisper2resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -22591,7 +22745,7 @@ hyperion-finetune-wav2vec2xvector hf_wav2vec2bert2resnet1d
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -23143,6 +23297,9 @@ hyperion-finetune-wav2vec2xvector hf_wav2vec2bert2resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -23482,7 +23639,7 @@ hyperion-finetune-wav2vec2xvector hf_whisper2conformer
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -24021,6 +24178,9 @@ hyperion-finetune-wav2vec2xvector hf_whisper2conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -24360,7 +24520,7 @@ hyperion-finetune-wav2vec2xvector hf_wav2vec2bert2conformer
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -24916,6 +25076,9 @@ hyperion-finetune-wav2vec2xvector hf_wav2vec2bert2conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -25301,6 +25464,7 @@ hyperion-finetune-wav2xvector resnet
                                                    [--trainer.wandb.mode {online,offline}]
                                                    [--trainer.ddp-type {ddp}]
                                                    [--trainer.use-amp]
+                                                   [--trainer.cudnn-benchmark]
                                                    [--trainer.amp-dtype {float16,bfloat16}]
                                                    [--trainer.grad-clip GRAD_CLIP]
                                                    [--trainer.grad-clip-norm {inf,1,2}]
@@ -25772,6 +25936,9 @@ hyperion-finetune-wav2xvector resnet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -26125,6 +26292,7 @@ hyperion-finetune-wav2xvector resnet1d
                                                      [--trainer.wandb.mode {online,offline}]
                                                      [--trainer.ddp-type {ddp}]
                                                      [--trainer.use-amp]
+                                                     [--trainer.cudnn-benchmark]
                                                      [--trainer.amp-dtype {float16,bfloat16}]
                                                      [--trainer.grad-clip GRAD_CLIP]
                                                      [--trainer.grad-clip-norm {inf,1,2}]
@@ -26607,6 +26775,9 @@ hyperion-finetune-wav2xvector resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -26961,6 +27132,7 @@ hyperion-finetune-wav2xvector conformer
                                                       [--trainer.wandb.mode {online,offline}]
                                                       [--trainer.ddp-type {ddp}]
                                                       [--trainer.use-amp]
+                                                      [--trainer.cudnn-benchmark]
                                                       [--trainer.amp-dtype {float16,bfloat16}]
                                                       [--trainer.grad-clip GRAD_CLIP]
                                                       [--trainer.grad-clip-norm {inf,1,2}]
@@ -27448,6 +27620,9 @@ hyperion-finetune-wav2xvector conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -27801,6 +27976,7 @@ hyperion-finetune-wav2xvector convnext1d
                                                        [--trainer.wandb.mode {online,offline}]
                                                        [--trainer.ddp-type {ddp}]
                                                        [--trainer.use-amp]
+                                                       [--trainer.cudnn-benchmark]
                                                        [--trainer.amp-dtype {float16,bfloat16}]
                                                        [--trainer.grad-clip GRAD_CLIP]
                                                        [--trainer.grad-clip-norm {inf,1,2}]
@@ -28282,6 +28458,9 @@ hyperion-finetune-wav2xvector convnext1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -28635,6 +28814,7 @@ hyperion-finetune-wav2xvector convnext2d
                                                        [--trainer.wandb.mode {online,offline}]
                                                        [--trainer.ddp-type {ddp}]
                                                        [--trainer.use-amp]
+                                                       [--trainer.cudnn-benchmark]
                                                        [--trainer.amp-dtype {float16,bfloat16}]
                                                        [--trainer.grad-clip GRAD_CLIP]
                                                        [--trainer.grad-clip-norm {inf,1,2}]
@@ -29116,6 +29296,9 @@ hyperion-finetune-wav2xvector convnext2d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -29443,6 +29626,7 @@ Conditional runtime requirements: ``PyTorch``.
                                            [--wandb.name NAME]
                                            [--wandb.mode {online,offline}]
                                            [--ddp-type {ddp}] [--use-amp]
+                                           [--cudnn-benchmark]
                                            [--amp-dtype {float16,bfloat16}]
                                            [--grad-clip GRAD_CLIP]
                                            [--grad-clip-norm {inf,1,2}]
@@ -29676,6 +29860,9 @@ Conditional runtime requirements: ``PyTorch``.
      --use-amp, --no_use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --cudnn-benchmark, --no_cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --amp-dtype {float16,bfloat16}
                            (default: float16)
      --grad-clip GRAD_CLIP
@@ -30274,6 +30461,7 @@ hyperion-finetune-xvector-from-wav resnet
                                                         [--trainer.wandb.mode {online,offline}]
                                                         [--trainer.ddp-type {ddp}]
                                                         [--trainer.use-amp]
+                                                        [--trainer.cudnn-benchmark]
                                                         [--trainer.amp-dtype {float16,bfloat16}]
                                                         [--trainer.grad-clip GRAD_CLIP]
                                                         [--trainer.grad-clip-norm {inf,1,2}]
@@ -30892,6 +31080,9 @@ hyperion-finetune-xvector-from-wav resnet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -31293,6 +31484,7 @@ hyperion-finetune-xvector-from-wav resnet1d
                                                           [--trainer.wandb.mode {online,offline}]
                                                           [--trainer.ddp-type {ddp}]
                                                           [--trainer.use-amp]
+                                                          [--trainer.cudnn-benchmark]
                                                           [--trainer.amp-dtype {float16,bfloat16}]
                                                           [--trainer.grad-clip GRAD_CLIP]
                                                           [--trainer.grad-clip-norm {inf,1,2}]
@@ -31922,6 +32114,9 @@ hyperion-finetune-xvector-from-wav resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -32320,6 +32515,7 @@ hyperion-finetune-xvector-from-wav efficientnet
                                                               [--trainer.wandb.mode {online,offline}]
                                                               [--trainer.ddp-type {ddp}]
                                                               [--trainer.use-amp]
+                                                              [--trainer.cudnn-benchmark]
                                                               [--trainer.amp-dtype {float16,bfloat16}]
                                                               [--trainer.grad-clip GRAD_CLIP]
                                                               [--trainer.grad-clip-norm {inf,1,2}]
@@ -32940,6 +33136,9 @@ hyperion-finetune-xvector-from-wav efficientnet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -33336,6 +33535,7 @@ hyperion-finetune-xvector-from-wav tdnn
                                                       [--trainer.wandb.mode {online,offline}]
                                                       [--trainer.ddp-type {ddp}]
                                                       [--trainer.use-amp]
+                                                      [--trainer.cudnn-benchmark]
                                                       [--trainer.amp-dtype {float16,bfloat16}]
                                                       [--trainer.grad-clip GRAD_CLIP]
                                                       [--trainer.grad-clip-norm {inf,1,2}]
@@ -33954,6 +34154,9 @@ hyperion-finetune-xvector-from-wav tdnn
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -34353,6 +34556,7 @@ hyperion-finetune-xvector-from-wav transformer
                                                              [--trainer.wandb.mode {online,offline}]
                                                              [--trainer.ddp-type {ddp}]
                                                              [--trainer.use-amp]
+                                                             [--trainer.cudnn-benchmark]
                                                              [--trainer.amp-dtype {float16,bfloat16}]
                                                              [--trainer.grad-clip GRAD_CLIP]
                                                              [--trainer.grad-clip-norm {inf,1,2}]
@@ -34975,6 +35179,9 @@ hyperion-finetune-xvector-from-wav transformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -35372,6 +35579,7 @@ hyperion-finetune-xvector-from-wav spinenet
                                                           [--trainer.wandb.mode {online,offline}]
                                                           [--trainer.ddp-type {ddp}]
                                                           [--trainer.use-amp]
+                                                          [--trainer.cudnn-benchmark]
                                                           [--trainer.amp-dtype {float16,bfloat16}]
                                                           [--trainer.grad-clip GRAD_CLIP]
                                                           [--trainer.grad-clip-norm {inf,1,2}]
@@ -35990,6 +36198,9 @@ hyperion-finetune-xvector-from-wav spinenet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -37047,6 +37258,95 @@ Conditional runtime requirements: ``PyTorch``, ``Q-vector checkpoint``.
                            override internal chunk duration (in seconds) used by
                            the q-vector model (type: float, default: null)
      --use-gpu             infer qvectors in gpu (default: False)
+     -v {0,1,2,3}, --verbose {0,1,2,3}
+                           (type: <function <lambda> at <address>>, default: 1)
+
+hyperion-infer-xvectorps
+------------------------
+
+Module: ``hyperion.bin.infer_xvectorps``.
+Support level: **experimental**.
+Conditional runtime requirements: ``PyTorch``, ``XVectorP checkpoint``, ``transformers for Wav2Vec2 backbones``.
+
+.. code-block:: text
+
+   usage: infer_xvectorps.py [--cfg CFG] [--dataset-path DATASET_PATH]
+                             [--recordings-file RECORDINGS_FILE]
+                             [--segments-file SEGMENTS_FILE]
+                             [--vad-file VAD_FILE] [--vad-name VAD_NAME]
+                             [--wav-scale WAV_SCALE] [--part-idx PART_IDX]
+                             [--num-parts NUM_PARTS] [--aug-cfg AUG_CFG]
+                             [--aug-info-path AUG_INFO_PATH]
+                             [--num-augs NUM_AUGS] --model-path MODEL_PATH
+                             [--random-utt-length]
+                             [--min-utt-length MIN_UTT_LENGTH]
+                             [--max-utt-length MAX_UTT_LENGTH]
+                             [--xvector-path XVECTOR_PATH]
+                             [--logits-path LOGITS_PATH]
+                             [--max-batch-duration MAX_BATCH_DURATION]
+                             [--override-chunk-duration OVERRIDE_CHUNK_DURATION]
+                             [--use-gpu] [-v {0,1,2,3}]
+
+   Infer XVectorP embeddings from audio recordings
+
+   options:
+     -h, --help            Show this help message and exit.
+     --cfg CFG             Path to a configuration file.
+     --print_config [=flags]
+                           Print the configuration after applying all other
+                           arguments and exit. The optional flags customizes the
+                           output and are one or more keywords separated by
+                           comma. The supported flags are: skip_default,
+                           skip_unset.
+     --dataset-path DATASET_PATH
+                           HyperDataset file describing recordings, segments, and
+                           optional VAD tables (default: null)
+     --recordings-file RECORDINGS_FILE
+                           Kaldi-style recording specifier (scp/ark) used when no
+                           dataset is provided (default: null)
+     --segments-file SEGMENTS_FILE
+                           Optional Kaldi segments specifier when --recordings-
+                           file is used (default: null)
+     --vad-file VAD_FILE   Binary/table VAD specifier used when no embedded
+                           dataset VAD is selected (default: null)
+     --vad-name VAD_NAME   Name of the VAD entry stored within --dataset-path to
+                           use during decoding (default: null)
+     --wav-scale WAV_SCALE
+                           multiplicative factor for waveform (type: float,
+                           default: 1.0)
+     --part-idx PART_IDX   splits the list of files into num-parts and processes
+                           part-idx (type: int, default: 1)
+     --num-parts NUM_PARTS
+                           splits the list of files into num-parts and processes
+                           part-idx (type: int, default: 1)
+     --aug-cfg AUG_CFG     (default: null)
+     --aug-info-path AUG_INFO_PATH
+                           (default: null)
+     --num-augs NUM_AUGS   number of augmentations per utterance (type: int,
+                           default: 1)
+     --model-path MODEL_PATH
+                           (required)
+     --random-utt-length   calculates an x-vector from a random chunk (default:
+                           False)
+     --min-utt-length MIN_UTT_LENGTH
+                           minimum utterance length in secs when using random utt
+                           length (type: float, default: 5)
+     --max-utt-length MAX_UTT_LENGTH
+                           maximum utterance length in secs when using random utt
+                           length (type: float, default: 120)
+     --xvector-path XVECTOR_PATH
+                           output specifier for x-vectors (e.g., ark:filepath or
+                           h5:filepath) (default: null)
+     --logits-path LOGITS_PATH
+                           output specifier for logits (requires a classification
+                           head) (default: null)
+     --max-batch-duration MAX_BATCH_DURATION
+                           max total audio duration per inference batch in
+                           seconds (type: float, default: null)
+     --override-chunk-duration OVERRIDE_CHUNK_DURATION
+                           override internal chunk duration (in seconds) used by
+                           the XVectorP model (type: float, default: null)
+     --use-gpu             infer x-vectors on GPU (default: False)
      -v {0,1,2,3}, --verbose {0,1,2,3}
                            (type: <function <lambda> at <address>>, default: 1)
 
@@ -43161,6 +43461,7 @@ hyperion-train-dino-wav2xvector resnet
                                                      [--trainer.wandb.mode {online,offline}]
                                                      [--trainer.ddp-type {ddp}]
                                                      [--trainer.use-amp]
+                                                     [--trainer.cudnn-benchmark]
                                                      [--trainer.amp-dtype {float16,bfloat16}]
                                                      [--trainer.grad-clip GRAD_CLIP]
                                                      [--trainer.grad-clip-norm {inf,1,2}]
@@ -43976,6 +44277,9 @@ hyperion-train-dino-wav2xvector resnet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -44473,6 +44777,7 @@ hyperion-train-dino-wav2xvector resnet1d
                                                        [--trainer.wandb.mode {online,offline}]
                                                        [--trainer.ddp-type {ddp}]
                                                        [--trainer.use-amp]
+                                                       [--trainer.cudnn-benchmark]
                                                        [--trainer.amp-dtype {float16,bfloat16}]
                                                        [--trainer.grad-clip GRAD_CLIP]
                                                        [--trainer.grad-clip-norm {inf,1,2}]
@@ -45332,6 +45637,9 @@ hyperion-train-dino-wav2xvector resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -45829,6 +46137,7 @@ hyperion-train-dino-wav2xvector conformer
                                                         [--trainer.wandb.mode {online,offline}]
                                                         [--trainer.ddp-type {ddp}]
                                                         [--trainer.use-amp]
+                                                        [--trainer.cudnn-benchmark]
                                                         [--trainer.amp-dtype {float16,bfloat16}]
                                                         [--trainer.grad-clip GRAD_CLIP]
                                                         [--trainer.grad-clip-norm {inf,1,2}]
@@ -46692,6 +47001,9 @@ hyperion-train-dino-wav2xvector conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -49353,7 +49665,7 @@ Conditional runtime requirements: ``PyTorch``.
 
    usage: train_qvector.py [--cfg CFG] {resnet,wav2vec2} ...
 
-   Train QVector from audio files
+   Train a QVector model from audio files
 
    options:
      -h, --help            Show this help message and exit.
@@ -49557,10 +49869,15 @@ hyperion-train-qvector resnet
                                             [--model.qvector-dim QVECTOR_DIM]
                                             [--model.proj-bias]
                                             [--model.enable-qmatrix-code-rate]
-                                            [--model.qmatrix-code-rate-eps QMATRIX_CODE_RATE_EPS]
+                                            [--model.qmatrix_code_rate CONFIG]
+                                            [--model.qmatrix_code_rate.eps EPS]
+                                            [--model.qmatrix_code_rate.jitter JITTER]
+                                            [--model.qmatrix_code_rate.gamma-1 GAMMA_1]
+                                            [--model.qmatrix_code_rate.gamma-2 GAMMA_2]
+                                            [--model.qmatrix_code_rate.normalize]
                                             [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                             [--model.qformer-weight-decay QFORMER_WEIGHT_DECAY]
-                                            [--model.proj-head-weight-decay PROJ_HEAD_WEIGHT_DECAY]
+                                            [--model.proj-weight-decay PROJ_WEIGHT_DECAY]
                                             [--model.head-weight-decay HEAD_WEIGHT_DECAY]
                                             [--model.hidden_feats_agg_qformer CONFIG]
                                             [--model.hidden_feats_agg_qformer.in-feats IN_FEATS]
@@ -49633,7 +49950,7 @@ hyperion-train-qvector resnet
                                             [--model.output_feats_agg_qformer.norm-eps NORM_EPS]
                                             [--model.output_feats_agg_qformer.model-parallel]
                                             [--model.head CONFIG]
-                                            [--model.head.head-type {classif}]
+                                            [--model.head.head-type {classif,none}]
                                             [--model.head.enable-loss]
                                             [--model.head.reduction {none,mean,sum}]
                                             [--model.head.loss-type {softmax,cos-softmax,arc-softmax,subcenter-arc-softmax}]
@@ -49646,7 +49963,22 @@ hyperion-train-qvector resnet
                                             [--model.head.num-classes NUM_CLASSES]
                                             [--model.head.label-smoothing LABEL_SMOOTHING]
                                             [--model.head.enable-prototype-code-rate]
-                                            [--model.head.code-rate-eps CODE_RATE_EPS]
+                                            [--model.head.prototype_code_rate CONFIG]
+                                            [--model.head.prototype_code_rate.eps EPS]
+                                            [--model.head.prototype_code_rate.jitter JITTER]
+                                            [--model.head.prototype_code_rate.gamma-1 GAMMA_1]
+                                            [--model.head.prototype_code_rate.gamma-2 GAMMA_2]
+                                            [--model.head.prototype_code_rate.normalize]
+                                            [--model.head.enable-prototype-sig-reg]
+                                            [--model.head.prototype_sig_reg CONFIG]
+                                            [--model.head.prototype_sig_reg.num-slices NUM_SLICES]
+                                            [--model.head.prototype_sig_reg.num-points NUM_POINTS]
+                                            [--model.head.prototype_sig_reg.t-max T_MAX]
+                                            [--model.head.prototype_sig_reg.seed SEED]
+                                            [--model.head.prototype_sig_reg.multi-view]
+                                            [--model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE]
+                                            [--model.head.prototype_sig_reg.distributed-mode {local,global_data}]
+                                            [--model.head.prototype_sig_reg.reduction {mean,sum,none}]
                                             [--init-from-xvector-model-file INIT_FROM_XVECTOR_MODEL_FILE]
                                             [--trainer CONFIG]
                                             [--trainer.exp-path EXP_PATH]
@@ -49737,6 +50069,7 @@ hyperion-train-qvector resnet
                                             [--trainer.target-key TARGET_KEY]
                                             [--trainer.train-mode {full,frozen,frozen-feat-extractor,adapters-qformers,qformers,output-feats-qformer,proj-head,output-layer}]
                                             [--trainer.qmatrix-code-rate-weight QMATRIX_CODE_RATE_WEIGHT]
+                                            [--trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT]
                                             [--trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT]
                                             [--num-gpus NUM_GPUS]
                                             [--master-port MASTER_PORT]
@@ -49754,15 +50087,16 @@ hyperion-train-qvector resnet
      --data CONFIG         Path to a configuration file.
      --model CONFIG        Path to a configuration file.
      --init-from-xvector-model-file INIT_FROM_XVECTOR_MODEL_FILE
-                           Path to x-vector model to initialize q-vector model
-                           (type: str, default: null)
+                           Optional x-vector checkpoint used to initialize the
+                           QVector backbone. (type: str, default: null)
      --trainer CONFIG      Path to a configuration file.
      --num-gpus NUM_GPUS   number of gpus, if 0 it uses cpu (deprecated) (type:
                            int, default: 1)
      --master-port MASTER_PORT
                            optional override for MASTER_PORT; if None, use
                            launcher environment (type: int, default: null)
-     --seed SEED           random seed (type: int, default: 1123581321)
+     --seed SEED           Random seed for training. (type: int, default:
+                           1123581321)
      -v {0,1,2,3}, --verbose {0,1,2,3}
                            Verbosity level: 0=error, 1=warning, 2=info, 3=debug.
                            (type: <function <lambda> at <address>>, default: 1)
@@ -49777,7 +50111,7 @@ hyperion-train-qvector resnet
      --data.train.sampler CONFIG
                            Path to a configuration file.
      --data.train.data_loader.num-workers NUM_WORKERS
-                           Number of workers for the training dataloader. (type:
+                           Number of worker processes for this dataloader. (type:
                            int, default: 5)
 
      --data.train.dataset.dataset-path DATASET_PATH
@@ -49944,8 +50278,8 @@ hyperion-train-qvector resnet
      --data.val.sampler CONFIG
                            Path to a configuration file.
      --data.val.data_loader.num-workers NUM_WORKERS
-                           Number of workers for the validation dataloader.
-                           (type: int, default: 5)
+                           Number of worker processes for this dataloader. (type:
+                           int, default: 5)
 
      --data.val.dataset.dataset-path DATASET_PATH
                            recordings manifest file (kaldi .scp or pandas .csv)
@@ -50136,16 +50470,15 @@ hyperion-train-qvector resnet
      --model.enable-qmatrix-code-rate, --no_model.enable-qmatrix-code-rate
                            enable the computation of the q-matrix code rate
                            (type: bool, default: False)
-     --model.qmatrix-code-rate-eps QMATRIX_CODE_RATE_EPS
-                           epsilon parameter for the q-matrix code-rate
-                           computation (type: float, default: 0.5)
+     --model.qmatrix_code_rate CONFIG
+                           Path to a configuration file.
      --model.bias-weight-decay BIAS_WEIGHT_DECAY
                            optional bias-only weight decay value (type: float,
                            default: null)
      --model.qformer-weight-decay QFORMER_WEIGHT_DECAY
                            optional weight decay override for hidden/output
                            qformer parameters (type: float, default: null)
-     --model.proj-head-weight-decay PROJ_HEAD_WEIGHT_DECAY
+     --model.proj-weight-decay PROJ_WEIGHT_DECAY
                            optional weight decay override for projection-head
                            parameters (type: float, default: null)
      --model.head-weight-decay HEAD_WEIGHT_DECAY
@@ -50355,6 +50688,22 @@ hyperion-train-qvector resnet
      --model.resnet_encoder.freq-pos-enc, --no_model.resnet_encoder.freq-pos-enc
                            use frequency wise positional encoder (type: bool,
                            default: False)
+
+     --model.qmatrix_code_rate.eps EPS
+                           Distortion tolerance parameter in the coding-rate
+                           formula (type: float, default: 0.5)
+     --model.qmatrix_code_rate.jitter JITTER
+                           Diagonal stabilization added to the identity term
+                           (type: float, default: 1e-06)
+     --model.qmatrix_code_rate.gamma-1 GAMMA_1
+                           Denominator scaling factor in the final coding rate
+                           (type: float, default: 1.0)
+     --model.qmatrix_code_rate.gamma-2 GAMMA_2
+                           Numerator scaling factor applied inside the log-
+                           determinant (type: float, default: 1.0)
+     --model.qmatrix_code_rate.normalize, --no_model.qmatrix_code_rate.normalize
+                           Whether to L2-normalize the input vectors before
+                           computing the rate (type: bool, default: True)
 
      --model.hidden_feats_agg_qformer.in-feats IN_FEATS
                            input features dimension (type: int, default: null)
@@ -50566,7 +50915,7 @@ hyperion-train-qvector resnet
                            train with model parallel using external tools (no
                            built-in support) (type: bool, default: False)
 
-     --model.head.head-type {classif}
+     --model.head.head-type {classif,none}
                            Type of Hydra head to instantiate. (default: classif)
      --model.head.enable-loss, --no_model.head.enable-loss
                            if true, the forward method computes the loss if
@@ -50600,9 +50949,50 @@ hyperion-train-qvector resnet
      --model.head.enable-prototype-code-rate, --no_model.head.enable-prototype-code-rate
                            enable the computation of the prototype code rate
                            (type: bool, default: False)
-     --model.head.code-rate-eps CODE_RATE_EPS
-                           epsilon parameter for the prototype code rate
-                           computation (type: float, default: 0.5)
+     --model.head.prototype_code_rate CONFIG
+                           Path to a configuration file.
+     --model.head.enable-prototype-sig-reg, --no_model.head.enable-prototype-sig-reg
+                           compute SIGReg for unnormalized class prototypes
+                           (type: bool, default: False)
+     --model.head.prototype_sig_reg CONFIG
+                           Path to a configuration file.
+
+     --model.head.prototype_code_rate.eps EPS
+                           Distortion tolerance parameter in the coding-rate
+                           formula (type: float, default: 0.5)
+     --model.head.prototype_code_rate.jitter JITTER
+                           Diagonal stabilization added to the identity term
+                           (type: float, default: 1e-06)
+     --model.head.prototype_code_rate.gamma-1 GAMMA_1
+                           Denominator scaling factor in the final coding rate
+                           (type: float, default: 1.0)
+     --model.head.prototype_code_rate.gamma-2 GAMMA_2
+                           Numerator scaling factor applied inside the log-
+                           determinant (type: float, default: 1.0)
+     --model.head.prototype_code_rate.normalize, --no_model.head.prototype_code_rate.normalize
+                           Whether to L2-normalize the input vectors before
+                           computing the rate (type: bool, default: True)
+
+     --model.head.prototype_sig_reg.num-slices NUM_SLICES
+                           Random projection count (type: int, default: 256)
+     --model.head.prototype_sig_reg.num-points NUM_POINTS
+                           Frequency-node count (type: int, default: 17)
+     --model.head.prototype_sig_reg.t-max T_MAX
+                           Symmetric frequency endpoint (type: float, default:
+                           5.0)
+     --model.head.prototype_sig_reg.seed SEED
+                           Dedicated generator base seed (type: int, default: 0)
+     --model.head.prototype_sig_reg.multi-view, --no_model.head.prototype_sig_reg.multi-view
+                           Leading axis indexes views (type: bool, default:
+                           False)
+     --model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE
+                           Directions per checkpointed chunk (type: int, default:
+                           null)
+     --model.head.prototype_sig_reg.distributed-mode {local,global_data}
+                           Statistics aggregation mode (default: local)
+     --model.head.prototype_sig_reg.reduction {mean,sum,none}
+                           Reduction across views; directions are always averaged
+                           (default: mean)
 
      --trainer.exp-path EXP_PATH
                            Path to the experiment directory for logs and
@@ -50738,10 +51128,13 @@ hyperion-train-qvector resnet
                            qformers, output-feats-qformer, proj-head, output-
                            layer). (default: full)
      --trainer.qmatrix-code-rate-weight QMATRIX_CODE_RATE_WEIGHT
-                           weight applied to the q-matrix code-rate regularizer
+                           Weight applied to the q-matrix code-rate regularizer.
+                           (type: float, default: 0.0)
+     --trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT
+                           Weight added for the prototype SIGReg regularizer.
                            (type: float, default: 0.0)
      --trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT
-                           weight applied to the prototype code-rate regularizer
+                           Weight applied to the prototype code-rate regularizer.
                            (type: float, default: 0.0)
 
      --trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}
@@ -51084,10 +51477,15 @@ hyperion-train-qvector wav2vec2
                                               [--model.qvector-dim QVECTOR_DIM]
                                               [--model.proj-bias]
                                               [--model.enable-qmatrix-code-rate]
-                                              [--model.qmatrix-code-rate-eps QMATRIX_CODE_RATE_EPS]
+                                              [--model.qmatrix_code_rate CONFIG]
+                                              [--model.qmatrix_code_rate.eps EPS]
+                                              [--model.qmatrix_code_rate.jitter JITTER]
+                                              [--model.qmatrix_code_rate.gamma-1 GAMMA_1]
+                                              [--model.qmatrix_code_rate.gamma-2 GAMMA_2]
+                                              [--model.qmatrix_code_rate.normalize]
                                               [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
                                               [--model.qformer-weight-decay QFORMER_WEIGHT_DECAY]
-                                              [--model.proj-head-weight-decay PROJ_HEAD_WEIGHT_DECAY]
+                                              [--model.proj-weight-decay PROJ_WEIGHT_DECAY]
                                               [--model.head-weight-decay HEAD_WEIGHT_DECAY]
                                               [--model.hidden_feats_agg_qformer CONFIG]
                                               [--model.hidden_feats_agg_qformer.in-feats IN_FEATS]
@@ -51160,7 +51558,7 @@ hyperion-train-qvector wav2vec2
                                               [--model.output_feats_agg_qformer.norm-eps NORM_EPS]
                                               [--model.output_feats_agg_qformer.model-parallel]
                                               [--model.head CONFIG]
-                                              [--model.head.head-type {classif}]
+                                              [--model.head.head-type {classif,none}]
                                               [--model.head.enable-loss]
                                               [--model.head.reduction {none,mean,sum}]
                                               [--model.head.loss-type {softmax,cos-softmax,arc-softmax,subcenter-arc-softmax}]
@@ -51173,7 +51571,22 @@ hyperion-train-qvector wav2vec2
                                               [--model.head.num-classes NUM_CLASSES]
                                               [--model.head.label-smoothing LABEL_SMOOTHING]
                                               [--model.head.enable-prototype-code-rate]
-                                              [--model.head.code-rate-eps CODE_RATE_EPS]
+                                              [--model.head.prototype_code_rate CONFIG]
+                                              [--model.head.prototype_code_rate.eps EPS]
+                                              [--model.head.prototype_code_rate.jitter JITTER]
+                                              [--model.head.prototype_code_rate.gamma-1 GAMMA_1]
+                                              [--model.head.prototype_code_rate.gamma-2 GAMMA_2]
+                                              [--model.head.prototype_code_rate.normalize]
+                                              [--model.head.enable-prototype-sig-reg]
+                                              [--model.head.prototype_sig_reg CONFIG]
+                                              [--model.head.prototype_sig_reg.num-slices NUM_SLICES]
+                                              [--model.head.prototype_sig_reg.num-points NUM_POINTS]
+                                              [--model.head.prototype_sig_reg.t-max T_MAX]
+                                              [--model.head.prototype_sig_reg.seed SEED]
+                                              [--model.head.prototype_sig_reg.multi-view]
+                                              [--model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE]
+                                              [--model.head.prototype_sig_reg.distributed-mode {local,global_data}]
+                                              [--model.head.prototype_sig_reg.reduction {mean,sum,none}]
                                               [--init-from-xvector-model-file INIT_FROM_XVECTOR_MODEL_FILE]
                                               [--trainer CONFIG]
                                               [--trainer.exp-path EXP_PATH]
@@ -51264,6 +51677,7 @@ hyperion-train-qvector wav2vec2
                                               [--trainer.target-key TARGET_KEY]
                                               [--trainer.train-mode {full,frozen,frozen-feat-extractor,adapters-qformers,qformers,output-feats-qformer,proj-head,output-layer}]
                                               [--trainer.qmatrix-code-rate-weight QMATRIX_CODE_RATE_WEIGHT]
+                                              [--trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT]
                                               [--trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT]
                                               [--num-gpus NUM_GPUS]
                                               [--master-port MASTER_PORT]
@@ -51281,15 +51695,16 @@ hyperion-train-qvector wav2vec2
      --data CONFIG         Path to a configuration file.
      --model CONFIG        Path to a configuration file.
      --init-from-xvector-model-file INIT_FROM_XVECTOR_MODEL_FILE
-                           Path to x-vector model to initialize q-vector model
-                           (type: str, default: null)
+                           Optional x-vector checkpoint used to initialize the
+                           QVector backbone. (type: str, default: null)
      --trainer CONFIG      Path to a configuration file.
      --num-gpus NUM_GPUS   number of gpus, if 0 it uses cpu (deprecated) (type:
                            int, default: 1)
      --master-port MASTER_PORT
                            optional override for MASTER_PORT; if None, use
                            launcher environment (type: int, default: null)
-     --seed SEED           random seed (type: int, default: 1123581321)
+     --seed SEED           Random seed for training. (type: int, default:
+                           1123581321)
      -v {0,1,2,3}, --verbose {0,1,2,3}
                            Verbosity level: 0=error, 1=warning, 2=info, 3=debug.
                            (type: <function <lambda> at <address>>, default: 1)
@@ -51304,7 +51719,7 @@ hyperion-train-qvector wav2vec2
      --data.train.sampler CONFIG
                            Path to a configuration file.
      --data.train.data_loader.num-workers NUM_WORKERS
-                           Number of workers for the training dataloader. (type:
+                           Number of worker processes for this dataloader. (type:
                            int, default: 5)
 
      --data.train.dataset.dataset-path DATASET_PATH
@@ -51471,8 +51886,8 @@ hyperion-train-qvector wav2vec2
      --data.val.sampler CONFIG
                            Path to a configuration file.
      --data.val.data_loader.num-workers NUM_WORKERS
-                           Number of workers for the validation dataloader.
-                           (type: int, default: 5)
+                           Number of worker processes for this dataloader. (type:
+                           int, default: 5)
 
      --data.val.dataset.dataset-path DATASET_PATH
                            recordings manifest file (kaldi .scp or pandas .csv)
@@ -51680,16 +52095,15 @@ hyperion-train-qvector wav2vec2
      --model.enable-qmatrix-code-rate, --no_model.enable-qmatrix-code-rate
                            enable the computation of the q-matrix code rate
                            (type: bool, default: False)
-     --model.qmatrix-code-rate-eps QMATRIX_CODE_RATE_EPS
-                           epsilon parameter for the q-matrix code-rate
-                           computation (type: float, default: 0.5)
+     --model.qmatrix_code_rate CONFIG
+                           Path to a configuration file.
      --model.bias-weight-decay BIAS_WEIGHT_DECAY
                            optional bias-only weight decay value (type: float,
                            default: null)
      --model.qformer-weight-decay QFORMER_WEIGHT_DECAY
                            optional weight decay override for hidden/output
                            qformer parameters (type: float, default: null)
-     --model.proj-head-weight-decay PROJ_HEAD_WEIGHT_DECAY
+     --model.proj-weight-decay PROJ_WEIGHT_DECAY
                            optional weight decay override for projection-head
                            parameters (type: float, default: null)
      --model.head-weight-decay HEAD_WEIGHT_DECAY
@@ -51968,6 +52382,22 @@ hyperion-train-qvector wav2vec2
                            Fill value used when "--mask-method=constant". (type:
                            float, default: 0.0)
 
+     --model.qmatrix_code_rate.eps EPS
+                           Distortion tolerance parameter in the coding-rate
+                           formula (type: float, default: 0.5)
+     --model.qmatrix_code_rate.jitter JITTER
+                           Diagonal stabilization added to the identity term
+                           (type: float, default: 1e-06)
+     --model.qmatrix_code_rate.gamma-1 GAMMA_1
+                           Denominator scaling factor in the final coding rate
+                           (type: float, default: 1.0)
+     --model.qmatrix_code_rate.gamma-2 GAMMA_2
+                           Numerator scaling factor applied inside the log-
+                           determinant (type: float, default: 1.0)
+     --model.qmatrix_code_rate.normalize, --no_model.qmatrix_code_rate.normalize
+                           Whether to L2-normalize the input vectors before
+                           computing the rate (type: bool, default: True)
+
      --model.hidden_feats_agg_qformer.in-feats IN_FEATS
                            input features dimension (type: int, default: null)
      --model.hidden_feats_agg_qformer.att-type {sdp,torch_sdp,hf_flash_sdp}
@@ -52178,7 +52608,7 @@ hyperion-train-qvector wav2vec2
                            train with model parallel using external tools (no
                            built-in support) (type: bool, default: False)
 
-     --model.head.head-type {classif}
+     --model.head.head-type {classif,none}
                            Type of Hydra head to instantiate. (default: classif)
      --model.head.enable-loss, --no_model.head.enable-loss
                            if true, the forward method computes the loss if
@@ -52212,9 +52642,50 @@ hyperion-train-qvector wav2vec2
      --model.head.enable-prototype-code-rate, --no_model.head.enable-prototype-code-rate
                            enable the computation of the prototype code rate
                            (type: bool, default: False)
-     --model.head.code-rate-eps CODE_RATE_EPS
-                           epsilon parameter for the prototype code rate
-                           computation (type: float, default: 0.5)
+     --model.head.prototype_code_rate CONFIG
+                           Path to a configuration file.
+     --model.head.enable-prototype-sig-reg, --no_model.head.enable-prototype-sig-reg
+                           compute SIGReg for unnormalized class prototypes
+                           (type: bool, default: False)
+     --model.head.prototype_sig_reg CONFIG
+                           Path to a configuration file.
+
+     --model.head.prototype_code_rate.eps EPS
+                           Distortion tolerance parameter in the coding-rate
+                           formula (type: float, default: 0.5)
+     --model.head.prototype_code_rate.jitter JITTER
+                           Diagonal stabilization added to the identity term
+                           (type: float, default: 1e-06)
+     --model.head.prototype_code_rate.gamma-1 GAMMA_1
+                           Denominator scaling factor in the final coding rate
+                           (type: float, default: 1.0)
+     --model.head.prototype_code_rate.gamma-2 GAMMA_2
+                           Numerator scaling factor applied inside the log-
+                           determinant (type: float, default: 1.0)
+     --model.head.prototype_code_rate.normalize, --no_model.head.prototype_code_rate.normalize
+                           Whether to L2-normalize the input vectors before
+                           computing the rate (type: bool, default: True)
+
+     --model.head.prototype_sig_reg.num-slices NUM_SLICES
+                           Random projection count (type: int, default: 256)
+     --model.head.prototype_sig_reg.num-points NUM_POINTS
+                           Frequency-node count (type: int, default: 17)
+     --model.head.prototype_sig_reg.t-max T_MAX
+                           Symmetric frequency endpoint (type: float, default:
+                           5.0)
+     --model.head.prototype_sig_reg.seed SEED
+                           Dedicated generator base seed (type: int, default: 0)
+     --model.head.prototype_sig_reg.multi-view, --no_model.head.prototype_sig_reg.multi-view
+                           Leading axis indexes views (type: bool, default:
+                           False)
+     --model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE
+                           Directions per checkpointed chunk (type: int, default:
+                           null)
+     --model.head.prototype_sig_reg.distributed-mode {local,global_data}
+                           Statistics aggregation mode (default: local)
+     --model.head.prototype_sig_reg.reduction {mean,sum,none}
+                           Reduction across views; directions are always averaged
+                           (default: mean)
 
      --trainer.exp-path EXP_PATH
                            Path to the experiment directory for logs and
@@ -52350,10 +52821,13 @@ hyperion-train-qvector wav2vec2
                            qformers, output-feats-qformer, proj-head, output-
                            layer). (default: full)
      --trainer.qmatrix-code-rate-weight QMATRIX_CODE_RATE_WEIGHT
-                           weight applied to the q-matrix code-rate regularizer
+                           Weight applied to the q-matrix code-rate regularizer.
+                           (type: float, default: 0.0)
+     --trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT
+                           Weight added for the prototype SIGReg regularizer.
                            (type: float, default: 0.0)
      --trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT
-                           weight applied to the prototype code-rate regularizer
+                           Weight applied to the prototype code-rate regularizer.
                            (type: float, default: 0.0)
 
      --trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}
@@ -57560,7 +58034,7 @@ hyperion-train-wav2vec2xvector hf_wav2vec2resnet1d
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -58449,6 +58923,9 @@ hyperion-train-wav2vec2xvector hf_wav2vec2resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -58886,7 +59363,7 @@ hyperion-train-wav2vec2xvector hf_hubert2resnet1d
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -59758,6 +60235,9 @@ hyperion-train-wav2vec2xvector hf_hubert2resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -60200,7 +60680,7 @@ hyperion-train-wav2vec2xvector hf_wavlm2resnet1d
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -61088,6 +61568,9 @@ hyperion-train-wav2vec2xvector hf_wavlm2resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -61518,7 +62001,7 @@ hyperion-train-wav2vec2xvector hf_whisper2resnet1d
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -62332,6 +62815,9 @@ hyperion-train-wav2vec2xvector hf_whisper2resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -62774,7 +63260,7 @@ hyperion-train-wav2vec2xvector hf_wav2vec2bert2resnet1d
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -63663,6 +64149,9 @@ hyperion-train-wav2vec2xvector hf_wav2vec2bert2resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -64106,7 +64595,7 @@ hyperion-train-wav2vec2xvector hf_wav2vec2conformer
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -64995,6 +65484,9 @@ hyperion-train-wav2vec2xvector hf_wav2vec2conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -65433,7 +65925,7 @@ hyperion-train-wav2vec2xvector hf_hubert2conformer
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -66305,6 +66797,9 @@ hyperion-train-wav2vec2xvector hf_hubert2conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -66748,7 +67243,7 @@ hyperion-train-wav2vec2xvector hf_wavlm2conformer
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -67636,6 +68131,9 @@ hyperion-train-wav2vec2xvector hf_wavlm2conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -68067,7 +68565,7 @@ hyperion-train-wav2vec2xvector hf_whisper2conformer
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -68881,6 +69379,9 @@ hyperion-train-wav2vec2xvector hf_whisper2conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -69324,7 +69825,7 @@ hyperion-train-wav2vec2xvector hf_wav2vec2bert2conformer
           [--trainer.wandb.project PROJECT] [--trainer.wandb.group GROUP]
           [--trainer.wandb.name NAME] [--trainer.wandb.mode {online,offline}]
           [--trainer.ddp-type {ddp}] [--trainer.use-amp]
-          [--trainer.amp-dtype {float16,bfloat16}]
+          [--trainer.cudnn-benchmark] [--trainer.amp-dtype {float16,bfloat16}]
           [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
           [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
           [--trainer.swa-anneal-epochs SWA_ANNEAL_EPOCHS]
@@ -70213,6 +70714,9 @@ hyperion-train-wav2vec2xvector hf_wav2vec2bert2conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -70686,6 +71190,7 @@ hyperion-train-wav2xvector resnet
                                                 [--trainer.wandb.mode {online,offline}]
                                                 [--trainer.ddp-type {ddp}]
                                                 [--trainer.use-amp]
+                                                [--trainer.cudnn-benchmark]
                                                 [--trainer.amp-dtype {float16,bfloat16}]
                                                 [--trainer.grad-clip GRAD_CLIP]
                                                 [--trainer.grad-clip-norm {inf,1,2}]
@@ -71419,6 +71924,9 @@ hyperion-train-wav2xvector resnet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -71868,6 +72376,7 @@ hyperion-train-wav2xvector resnet1d
                                                   [--trainer.wandb.mode {online,offline}]
                                                   [--trainer.ddp-type {ddp}]
                                                   [--trainer.use-amp]
+                                                  [--trainer.cudnn-benchmark]
                                                   [--trainer.amp-dtype {float16,bfloat16}]
                                                   [--trainer.grad-clip GRAD_CLIP]
                                                   [--trainer.grad-clip-norm {inf,1,2}]
@@ -72633,6 +73142,9 @@ hyperion-train-wav2xvector resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -73081,6 +73593,7 @@ hyperion-train-wav2xvector conformer
                                                    [--trainer.wandb.mode {online,offline}]
                                                    [--trainer.ddp-type {ddp}]
                                                    [--trainer.use-amp]
+                                                   [--trainer.cudnn-benchmark]
                                                    [--trainer.amp-dtype {float16,bfloat16}]
                                                    [--trainer.grad-clip GRAD_CLIP]
                                                    [--trainer.grad-clip-norm {inf,1,2}]
@@ -73846,6 +74359,9 @@ hyperion-train-wav2xvector conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -74285,6 +74801,7 @@ hyperion-train-wav2xvector convnext1d
                                                     [--trainer.wandb.mode {online,offline}]
                                                     [--trainer.ddp-type {ddp}]
                                                     [--trainer.use-amp]
+                                                    [--trainer.cudnn-benchmark]
                                                     [--trainer.amp-dtype {float16,bfloat16}]
                                                     [--trainer.grad-clip GRAD_CLIP]
                                                     [--trainer.grad-clip-norm {inf,1,2}]
@@ -75027,6 +75544,9 @@ hyperion-train-wav2xvector convnext1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -75465,6 +75985,7 @@ hyperion-train-wav2xvector convnext2d
                                                     [--trainer.wandb.mode {online,offline}]
                                                     [--trainer.ddp-type {ddp}]
                                                     [--trainer.use-amp]
+                                                    [--trainer.cudnn-benchmark]
                                                     [--trainer.amp-dtype {float16,bfloat16}]
                                                     [--trainer.grad-clip GRAD_CLIP]
                                                     [--trainer.grad-clip-norm {inf,1,2}]
@@ -76204,6 +76725,9 @@ hyperion-train-wav2xvector convnext2d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -76669,6 +77193,7 @@ hyperion-train-wav2xvector transformer_v2
                                                         [--trainer.wandb.mode {online,offline}]
                                                         [--trainer.ddp-type {ddp}]
                                                         [--trainer.use-amp]
+                                                        [--trainer.cudnn-benchmark]
                                                         [--trainer.amp-dtype {float16,bfloat16}]
                                                         [--trainer.grad-clip GRAD_CLIP]
                                                         [--trainer.grad-clip-norm {inf,1,2}]
@@ -77488,6 +78013,9 @@ hyperion-train-wav2xvector transformer_v2
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -77960,6 +78488,7 @@ hyperion-train-xvector-from-wav resnet
                                                      [--trainer.wandb.mode {online,offline}]
                                                      [--trainer.ddp-type {ddp}]
                                                      [--trainer.use-amp]
+                                                     [--trainer.cudnn-benchmark]
                                                      [--trainer.amp-dtype {float16,bfloat16}]
                                                      [--trainer.grad-clip GRAD_CLIP]
                                                      [--trainer.grad-clip-norm {inf,1,2}]
@@ -78684,6 +79213,9 @@ hyperion-train-xvector-from-wav resnet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -79132,6 +79664,7 @@ hyperion-train-xvector-from-wav resnet1d
                                                        [--trainer.wandb.mode {online,offline}]
                                                        [--trainer.ddp-type {ddp}]
                                                        [--trainer.use-amp]
+                                                       [--trainer.cudnn-benchmark]
                                                        [--trainer.amp-dtype {float16,bfloat16}]
                                                        [--trainer.grad-clip GRAD_CLIP]
                                                        [--trainer.grad-clip-norm {inf,1,2}]
@@ -79890,6 +80423,9 @@ hyperion-train-xvector-from-wav resnet1d
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -80327,6 +80863,7 @@ hyperion-train-xvector-from-wav efficientnet
                                                            [--trainer.wandb.mode {online,offline}]
                                                            [--trainer.ddp-type {ddp}]
                                                            [--trainer.use-amp]
+                                                           [--trainer.cudnn-benchmark]
                                                            [--trainer.amp-dtype {float16,bfloat16}]
                                                            [--trainer.grad-clip GRAD_CLIP]
                                                            [--trainer.grad-clip-norm {inf,1,2}]
@@ -81061,6 +81598,9 @@ hyperion-train-xvector-from-wav efficientnet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -81490,6 +82030,7 @@ hyperion-train-xvector-from-wav tdnn
                                                    [--trainer.wandb.mode {online,offline}]
                                                    [--trainer.ddp-type {ddp}]
                                                    [--trainer.use-amp]
+                                                   [--trainer.cudnn-benchmark]
                                                    [--trainer.amp-dtype {float16,bfloat16}]
                                                    [--trainer.grad-clip GRAD_CLIP]
                                                    [--trainer.grad-clip-norm {inf,1,2}]
@@ -82197,6 +82738,9 @@ hyperion-train-xvector-from-wav tdnn
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -82629,6 +83173,7 @@ hyperion-train-xvector-from-wav transformer
                                                           [--trainer.wandb.mode {online,offline}]
                                                           [--trainer.ddp-type {ddp}]
                                                           [--trainer.use-amp]
+                                                          [--trainer.cudnn-benchmark]
                                                           [--trainer.amp-dtype {float16,bfloat16}]
                                                           [--trainer.grad-clip GRAD_CLIP]
                                                           [--trainer.grad-clip-norm {inf,1,2}]
@@ -83346,6 +83891,9 @@ hyperion-train-xvector-from-wav transformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -83780,6 +84328,7 @@ hyperion-train-xvector-from-wav spinenet
                                                        [--trainer.wandb.mode {online,offline}]
                                                        [--trainer.ddp-type {ddp}]
                                                        [--trainer.use-amp]
+                                                       [--trainer.cudnn-benchmark]
                                                        [--trainer.amp-dtype {float16,bfloat16}]
                                                        [--trainer.grad-clip GRAD_CLIP]
                                                        [--trainer.grad-clip-norm {inf,1,2}]
@@ -84500,6 +85049,9 @@ hyperion-train-xvector-from-wav spinenet
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -84947,6 +85499,7 @@ hyperion-train-xvector-from-wav conformer
                                                         [--trainer.wandb.mode {online,offline}]
                                                         [--trainer.ddp-type {ddp}]
                                                         [--trainer.use-amp]
+                                                        [--trainer.cudnn-benchmark]
                                                         [--trainer.amp-dtype {float16,bfloat16}]
                                                         [--trainer.grad-clip GRAD_CLIP]
                                                         [--trainer.grad-clip-norm {inf,1,2}]
@@ -85705,6 +86258,9 @@ hyperion-train-xvector-from-wav conformer
      --trainer.use-amp, --no_trainer.use-amp
                            use mixed precision training (type: bool, default:
                            False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           benchmark cuDNN convolution algorithms (type: bool,
+                           default: False)
      --trainer.amp-dtype {float16,bfloat16}
                            (default: float16)
      --trainer.grad-clip GRAD_CLIP
@@ -85726,6 +86282,2848 @@ hyperion-train-xvector-from-wav conformer
                            dict. key for nnet input (default: x)
      --trainer.target-key TARGET_KEY
                            dict. key for nnet targets (default: class_id)
+
+     --trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}
+                           Optimizers: SGD, Adam, AdaDelta, AdaGrad, SparseAdam
+                           AdaMax, ASGD, LBFGS, RMSprop, Rprop (type: <method
+                           'lower' of 'str' objects>, default: adam)
+     --trainer.optim.lr LR
+                           Initial learning rate (type: float, default: 0.001)
+     --trainer.optim.momentum MOMENTUM
+                           Momentum (type: float, default: 0.6)
+     --trainer.optim.beta1 BETA1
+                           Beta_1 in Adam optimizers, coefficient used for
+                           computing running averages of gradient (type: float,
+                           default: 0.9)
+     --trainer.optim.beta2 BETA2
+                           Beta_2 in Adam optimizerscoefficient used for
+                           computing running averages of gradient square (type:
+                           float, default: 0.99)
+     --trainer.optim.rho RHO
+                           Rho in AdaDelta,coefficient used for computing a
+                           running average of squared gradients (type: float,
+                           default: 0.9)
+     --trainer.optim.eps EPS
+                           Epsilon in RMSprop and Adam optimizers term added to
+                           the denominator to improve numerical stability (type:
+                           float, default: 1e-08)
+     --trainer.optim.weight-decay WEIGHT_DECAY
+                           L2 regularization coefficient (type: float, default:
+                           1e-06)
+     --trainer.optim.amsgrad
+                           AMSGrad variant of Adam (default: False)
+     --trainer.optim.nesterov
+                           Use Nesterov momentum in SGD (default: False)
+     --trainer.optim.lambd LAMBD
+                           decay term in ASGD (type: float, default: 0.0001)
+     --trainer.optim.asgd-alpha ASGD_ALPHA
+                           power for eta update in ASGD (type: float, default:
+                           0.75)
+     --trainer.optim.t0 T0
+                           point at which to start averaging in ASGD (type:
+                           float, default: 1000000.0)
+     --trainer.optim.rmsprop-alpha RMSPROP_ALPHA
+                           smoothing constant in RMSprop (type: float, default:
+                           0.99)
+     --trainer.optim.centered
+                           Compute centered RMSprop, gradient normalized by its
+                           variance (default: False)
+     --trainer.optim.lr-decay LR_DECAY
+                           Learning rate decay in AdaGrad optimizer (type: float,
+                           default: 1e-06)
+     --trainer.optim.init-acc-val INIT_ACC_VAL
+                           Init accum value in Adagrad (type: float, default: 0)
+     --trainer.optim.max-iter MAX_ITER
+                           max iterations in LBFGS (type: int, default: 20)
+
+     --trainer.lrsched.lrsch-type {none,exp_lr,invpow_lr,cos_lr,adamcos_lr,red_lr_on_plateau,noam_lr,triangular_lr}
+                           Learning rate scheduler type (e.g., exp_lr, invpow_lr,
+                           cos_lr, adamcos_lr, red_lr_on_plateau, noam_lr,
+                           triangular_lr). (type: <method 'lower' of 'str'
+                           objects>, default: none)
+     --trainer.lrsched.decay-rate DECAY_RATE
+                           Exponential decay factor applied every decay_steps.
+                           (type: float, default: 0.01)
+     --trainer.lrsched.decay-steps DECAY_STEPS
+                           Number of steps between exponential decays. (type:
+                           int, default: 100)
+     --trainer.lrsched.power POWER
+                           Exponent for inverse power decay (lr ~ step^-power).
+                           (type: float, default: 0.5)
+     --trainer.lrsched.hold-steps HOLD_STEPS
+                           Number of steps to hold the initial lr before decay.
+                           (type: int, default: 10)
+     --trainer.lrsched.t T
+                           Cycle length for cosine/triangular schedules (in
+                           steps). (type: int, default: 10)
+     --trainer.lrsched.t-mul T_MUL
+                           Cycle length multiplier after each restart
+                           (cos/triangular). (type: int, default: 1)
+     --trainer.lrsched.gamma GAMMA
+                           Max lr multiplier after each restart (cos/triangular).
+                           (type: float, default: 1.0)
+     --trainer.lrsched.warm-restarts, --no_trainer.lrsched.warm-restarts
+                           Enable warm restarts in cosine schedules. (type: bool,
+                           default: False)
+     --trainer.lrsched.monitor MONITOR
+                           Metric name to monitor for ReduceLROnPlateau.
+                           (default: val_loss)
+     --trainer.lrsched.mode {min,max}
+                           Whether lower or higher metric is better for plateau
+                           reduction. (default: min)
+     --trainer.lrsched.factor FACTOR
+                           Multiply lr by this factor when plateau reduction
+                           triggers. (type: float, default: 0.1)
+     --trainer.lrsched.patience PATIENCE
+                           Epochs with no improvement before reducing lr. (type:
+                           int, default: 10)
+     --trainer.lrsched.threshold THRESHOLD
+                           Minimum change to qualify as an improvement. (type:
+                           float, default: 0.0001)
+     --trainer.lrsched.threshold_mode {rel,abs}
+                           Use relative or absolute threshold for improvements.
+                           (default: rel)
+     --trainer.lrsched.cooldown COOLDOWN
+                           Epochs to wait after a reduction before resuming
+                           checks. (type: int, default: 0)
+     --trainer.lrsched.eps EPS
+                           Minimum lr change; smaller updates are ignored. (type:
+                           float, default: 1e-08)
+     --trainer.lrsched.min-lr MIN_LR
+                           Lower bound for learning rate. (type: float, default:
+                           0)
+     --trainer.lrsched.warmup-steps WARMUP_STEPS
+                           Steps to linearly warm up lr from 0 to the base value.
+                           (type: int, default: null)
+     --trainer.lrsched.d-model D_MODEL
+                           Transformer model dimension for Noam schedule. (type:
+                           int, default: null)
+     --trainer.lrsched.lr-factor LR_FACTOR
+                           Scale factor applied to the Noam learning rate. (type:
+                           float, default: 1)
+     --trainer.lrsched.update-lr-on-opt-step, --no_trainer.lrsched.update-lr-on-opt-step
+                           Update lr per optimizer step instead of per epoch.
+                           (type: bool, default: True)
+
+     --trainer.wdsched.wdsch-type {none,cos_wd}
+                           Weight decay scheduler type: none (no schedule) or
+                           cos_wd (cosine annealing). (type: <method 'lower' of
+                           'str' objects>, default: none)
+     --trainer.wdsched.initial-wd INITIAL_WD
+                           Initial weight decay value; it should be lower than
+                           the final value defined in the optimizer param groups.
+                           (type: float, default: 1e-05)
+     --trainer.wdsched.warmup-steps WARMUP_STEPS
+                           Number of warmup steps to reach the final weight decay
+                           value. (type: int, default: 0)
+     --trainer.wdsched.update-wd-on-opt-step, --no_trainer.wdsched.update-wd-on-opt-step
+                           Update weight decay every optimizer step instead of
+                           once per epoch. (type: bool, default: True)
+
+hyperion-train-xvectorp
+-----------------------
+
+Module: ``hyperion.bin.train_xvectorp``.
+Support level: **experimental**.
+Conditional runtime requirements: ``PyTorch``, ``transformers for the wav2vec2 subcommand``.
+
+.. code-block:: text
+
+   usage: train_xvectorp.py [--cfg CFG] {resnet,wav2vec2} ...
+
+   Train an XVectorP model from audio files
+
+   options:
+     -h, --help            Show this help message and exit.
+     --cfg CFG             Path to a configuration file.
+     --print_config [=flags]
+                           Print the configuration after applying all other
+                           arguments and exit. The optional flags customizes the
+                           output and are one or more keywords separated by
+                           comma. The supported flags are: skip_default,
+                           skip_unset.
+
+   subcommands:
+     For more details of each subcommand, add it as an argument followed by
+     --help.
+
+     Available subcommands:
+                           (required)
+       resnet
+       wav2vec2
+
+hyperion-train-xvectorp resnet
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   usage: train_xvectorp.py [options] resnet [--cfg CFG] [--data CONFIG]
+                                             [--data.train CONFIG]
+                                             [--data.train.dataset CONFIG]
+                                             --data.train.dataset.dataset-path
+                                             DATASET_PATH
+                                             [--data.train.dataset.class-names CLASS_NAMES [CLASS_NAMES ...]]
+                                             [--data.train.dataset.extra-attrs EXTRA_ATTRS [EXTRA_ATTRS ...]]
+                                             [--data.train.dataset.tokenizer-mappings TOKENIZER_MAPPINGS [TOKENIZER_MAPPINGS ...]]
+                                             [--data.train.dataset.tokenizer-files TOKENIZER_FILES [TOKENIZER_FILES ...]]
+                                             [--data.train.dataset.bpe-model BPE_MODEL]
+                                             [--data.train.dataset.aug-cfgs AUG_CFGS [AUG_CFGS ...]]
+                                             [--data.train.dataset.num-augs NUM_AUGS]
+                                             [--data.train.dataset.num-aug-mix NUM_AUG_MIX]
+                                             [--data.train.dataset.aug-mix-alpha AUG_MIX_ALPHA]
+                                             [--data.train.dataset.target-sample-freq TARGET_SAMPLE_FREQ]
+                                             [--data.train.dataset.enable-tel-codecs-if ENABLE_TEL_CODECS_IF]
+                                             [--data.train.dataset.enable-media-codecs-if ENABLE_MEDIA_CODECS_IF]
+                                             [--data.train.dataset.enable-transcodec-if ENABLE_TRANSCODEC_IF]
+                                             [--data.train.dataset.seed SEED]
+                                             [--data.train.dataset.wav-scale WAV_SCALE]
+                                             [--data.train.sampler CONFIG]
+                                             [--data.train.sampler.sampler-type {class_weighted_random_seg_chunk_sampler,random_seg_chunk_sampler,seg_sampler,seg_chunk_sampler,bucketing_seg_sampler}]
+                                             [--data.train.sampler.base-sampler-type {seg_sampler,bucketing_seg_sampler}]
+                                             [--data.train.sampler.subbase-sampler-type {seg_sampler,bucketing_seg_sampler}]
+                                             [--data.train.sampler.num-buckets NUM_BUCKETS]
+                                             [--data.train.sampler.min-chunk-length MIN_CHUNK_LENGTH]
+                                             [--data.train.sampler.max-chunk-length MAX_CHUNK_LENGTH]
+                                             [--data.train.sampler.min-chunk-overlap MIN_CHUNK_OVERLAP]
+                                             [--data.train.sampler.max-chunk-overlap MAX_CHUNK_OVERLAP]
+                                             [--data.train.sampler.length-sampling-method {uniform,maximum}]
+                                             [--data.train.sampler.min-batch-size MIN_BATCH_SIZE]
+                                             [--data.train.sampler.max-batch-size MAX_BATCH_SIZE]
+                                             [--data.train.sampler.batch-size BATCH_SIZE]
+                                             [--data.train.sampler.max-batch-length MAX_BATCH_LENGTH]
+                                             [--data.train.sampler.iters-per-epoch ITERS_PER_EPOCH]
+                                             [--data.train.sampler.num-chunks-per-seg-epoch NUM_CHUNKS_PER_SEG_EPOCH]
+                                             [--data.train.sampler.num-segs-per-class NUM_SEGS_PER_CLASS]
+                                             [--data.train.sampler.num-chunks-per-seg NUM_CHUNKS_PER_SEG]
+                                             [--data.train.sampler.weight-exponent WEIGHT_EXPONENT]
+                                             [--data.train.sampler.weight-mode {custom,uniform,data-prior}]
+                                             [--data.train.sampler.seg-weight-mode {uniform,data-prior}]
+                                             [--data.train.sampler.num-hard-prototypes NUM_HARD_PROTOTYPES]
+                                             [--data.train.sampler.drop-last]
+                                             [--data.train.sampler.sample-all-segments]
+                                             [--data.train.sampler.max-batches-per-epoch MAX_BATCHES_PER_EPOCH]
+                                             [--data.train.sampler.shuffle]
+                                             [--data.train.sampler.seed SEED]
+                                             [--data.train.sampler.length-name LENGTH_NAME]
+                                             [--data.train.sampler.class-name CLASS_NAME]
+                                             [--data.train.sampler.sort-by-length]
+                                             [--data.train.data_loader.num-workers NUM_WORKERS]
+                                             [--data.val CONFIG]
+                                             [--data.val.dataset CONFIG]
+                                             --data.val.dataset.dataset-path
+                                             DATASET_PATH
+                                             [--data.val.dataset.class-names CLASS_NAMES [CLASS_NAMES ...]]
+                                             [--data.val.dataset.extra-attrs EXTRA_ATTRS [EXTRA_ATTRS ...]]
+                                             [--data.val.dataset.tokenizer-mappings TOKENIZER_MAPPINGS [TOKENIZER_MAPPINGS ...]]
+                                             [--data.val.dataset.tokenizer-files TOKENIZER_FILES [TOKENIZER_FILES ...]]
+                                             [--data.val.dataset.bpe-model BPE_MODEL]
+                                             [--data.val.dataset.aug-cfgs AUG_CFGS [AUG_CFGS ...]]
+                                             [--data.val.dataset.num-augs NUM_AUGS]
+                                             [--data.val.dataset.num-aug-mix NUM_AUG_MIX]
+                                             [--data.val.dataset.aug-mix-alpha AUG_MIX_ALPHA]
+                                             [--data.val.dataset.target-sample-freq TARGET_SAMPLE_FREQ]
+                                             [--data.val.dataset.enable-tel-codecs-if ENABLE_TEL_CODECS_IF]
+                                             [--data.val.dataset.enable-media-codecs-if ENABLE_MEDIA_CODECS_IF]
+                                             [--data.val.dataset.enable-transcodec-if ENABLE_TRANSCODEC_IF]
+                                             [--data.val.dataset.seed SEED]
+                                             [--data.val.dataset.wav-scale WAV_SCALE]
+                                             [--data.val.sampler CONFIG]
+                                             [--data.val.sampler.sampler-type {class_weighted_random_seg_chunk_sampler,random_seg_chunk_sampler,seg_sampler,seg_chunk_sampler,bucketing_seg_sampler}]
+                                             [--data.val.sampler.base-sampler-type {seg_sampler,bucketing_seg_sampler}]
+                                             [--data.val.sampler.subbase-sampler-type {seg_sampler,bucketing_seg_sampler}]
+                                             [--data.val.sampler.num-buckets NUM_BUCKETS]
+                                             [--data.val.sampler.min-chunk-length MIN_CHUNK_LENGTH]
+                                             [--data.val.sampler.max-chunk-length MAX_CHUNK_LENGTH]
+                                             [--data.val.sampler.min-chunk-overlap MIN_CHUNK_OVERLAP]
+                                             [--data.val.sampler.max-chunk-overlap MAX_CHUNK_OVERLAP]
+                                             [--data.val.sampler.length-sampling-method {uniform,maximum}]
+                                             [--data.val.sampler.min-batch-size MIN_BATCH_SIZE]
+                                             [--data.val.sampler.max-batch-size MAX_BATCH_SIZE]
+                                             [--data.val.sampler.batch-size BATCH_SIZE]
+                                             [--data.val.sampler.max-batch-length MAX_BATCH_LENGTH]
+                                             [--data.val.sampler.iters-per-epoch ITERS_PER_EPOCH]
+                                             [--data.val.sampler.num-chunks-per-seg-epoch NUM_CHUNKS_PER_SEG_EPOCH]
+                                             [--data.val.sampler.num-segs-per-class NUM_SEGS_PER_CLASS]
+                                             [--data.val.sampler.num-chunks-per-seg NUM_CHUNKS_PER_SEG]
+                                             [--data.val.sampler.weight-exponent WEIGHT_EXPONENT]
+                                             [--data.val.sampler.weight-mode {custom,uniform,data-prior}]
+                                             [--data.val.sampler.seg-weight-mode {uniform,data-prior}]
+                                             [--data.val.sampler.num-hard-prototypes NUM_HARD_PROTOTYPES]
+                                             [--data.val.sampler.drop-last]
+                                             [--data.val.sampler.sample-all-segments]
+                                             [--data.val.sampler.max-batches-per-epoch MAX_BATCHES_PER_EPOCH]
+                                             [--data.val.sampler.shuffle]
+                                             [--data.val.sampler.seed SEED]
+                                             [--data.val.sampler.length-name LENGTH_NAME]
+                                             [--data.val.sampler.class-name CLASS_NAME]
+                                             [--data.val.sampler.sort-by-length]
+                                             [--data.val.data_loader.num-workers NUM_WORKERS]
+                                             [--model CONFIG]
+                                             [--model.acoustic_feats CONFIG]
+                                             [--model.acoustic_feats.audio_feats CONFIG]
+                                             [--model.acoustic_feats.audio_feats.sample-frequency SAMPLE_FREQUENCY]
+                                             [--model.acoustic_feats.audio_feats.frame-length FRAME_LENGTH]
+                                             [--model.acoustic_feats.audio_feats.frame-shift FRAME_SHIFT]
+                                             [--model.acoustic_feats.audio_feats.fft-length FFT_LENGTH]
+                                             [--model.acoustic_feats.audio_feats.remove-dc-offset]
+                                             [--model.acoustic_feats.audio_feats.preemphasis-coeff PREEMPHASIS_COEFF]
+                                             [--model.acoustic_feats.audio_feats.window-type {hamming,hanning,povey,rectangular,blackman}]
+                                             [--model.acoustic_feats.audio_feats.use-fft-mag]
+                                             [--model.acoustic_feats.audio_feats.dither DITHER]
+                                             [--model.acoustic_feats.audio_feats.fb-type {mel_kaldi,mel_etsi,mel_librosa,mel_librosa_htk,linear}]
+                                             [--model.acoustic_feats.audio_feats.num-filters NUM_FILTERS]
+                                             [--model.acoustic_feats.audio_feats.low-freq LOW_FREQ]
+                                             [--model.acoustic_feats.audio_feats.high-freq HIGH_FREQ]
+                                             [--model.acoustic_feats.audio_feats.norm-filters]
+                                             [--model.acoustic_feats.audio_feats.num-ceps NUM_CEPS]
+                                             [--model.acoustic_feats.audio_feats.snip-edges]
+                                             [--model.acoustic_feats.audio_feats.center]
+                                             [--model.acoustic_feats.audio_feats.energy-floor ENERGY_FLOOR]
+                                             [--model.acoustic_feats.audio_feats.raw-energy]
+                                             [--model.acoustic_feats.audio_feats.use-energy]
+                                             [--model.acoustic_feats.audio_feats.cepstral-lifter CEPSTRAL_LIFTER]
+                                             [--model.acoustic_feats.audio_feats.audio-feat {fft,spec,log_spec,logfb,mfcc,kanbayashi_logfb}]
+                                             [--model.acoustic_feats.mvn CONFIG]
+                                             [--model.acoustic_feats.mvn.norm-mean]
+                                             [--model.acoustic_feats.mvn.norm-var]
+                                             [--model.acoustic_feats.mvn.left-context LEFT_CONTEXT]
+                                             [--model.acoustic_feats.mvn.right-context RIGHT_CONTEXT]
+                                             [--model.acoustic_feats.mvn.context CONTEXT]
+                                             [--model.acoustic_feats.spec_augment CONFIG]
+                                             [--model.acoustic_feats.spec_augment.time-warp-prob TIME_WARP_PROB]
+                                             [--model.acoustic_feats.spec_augment.time-warp-window TIME_WARP_WINDOW]
+                                             [--model.acoustic_feats.spec_augment.time-warp-mode {bilinear,linear,nearest,bicubic,trilinear}]
+                                             [--model.acoustic_feats.spec_augment.time-mask-prob TIME_MASK_PROB]
+                                             [--model.acoustic_feats.spec_augment.time-mask-min-width TIME_MASK_MIN_WIDTH]
+                                             [--model.acoustic_feats.spec_augment.time-mask-max-width TIME_MASK_MAX_WIDTH]
+                                             [--model.acoustic_feats.spec_augment.time-mask-min-num-masks TIME_MASK_MIN_NUM_MASKS]
+                                             [--model.acoustic_feats.spec_augment.time-mask-max-num-masks TIME_MASK_MAX_NUM_MASKS]
+                                             [--model.acoustic_feats.spec_augment.time-use-num-masks-percentage]
+                                             [--model.acoustic_feats.spec_augment.freq-mask-prob FREQ_MASK_PROB]
+                                             [--model.acoustic_feats.spec_augment.freq-mask-min-width FREQ_MASK_MIN_WIDTH]
+                                             [--model.acoustic_feats.spec_augment.freq-mask-max-width FREQ_MASK_MAX_WIDTH]
+                                             [--model.acoustic_feats.spec_augment.freq-mask-min-num-masks FREQ_MASK_MIN_NUM_MASKS]
+                                             [--model.acoustic_feats.spec_augment.freq-mask-max-num-masks FREQ_MASK_MAX_NUM_MASKS]
+                                             [--model.acoustic_feats.spec_augment.mask-method {constant,min,mean}]
+                                             [--model.acoustic_feats.spec_augment.mask-value MASK_VALUE]
+                                             [--model.acoustic_feats.aug-after-mvn]
+                                             [--model.resnet_encoder CONFIG]
+                                             [--model.resnet_encoder.resnet-type {resnet18,resnet34,resnet50,resnet101,resnet152,resnext50_32x4d,resnext101_32x8d,wideresnet50,wideresnet101,lresnet18,lresnet34,lresnet50,lresnext50_4x4d,lresnet34_345,seresnet18,seresnet34,seresnet50,seresnet101,seresnet152,seresnext50_32x4d,seresnext101_32x8d,sewideresnet50,sewideresnet101,selresnet18,selresnet34,selresnet50,selresnext50_4x4d,tseresnet18,tseresnet34,tseresnet50,tseresnet101,tseresnet152,tseresnext50_32x4d,tseresnext101_32x8d,tsewideresnet50,tsewideresnet101,tselresnet18,tselresnet34,tselresnet50,tselresnext50_4x4d,fwseresnet18,fwseresnet34,fwseresnet50,fwseresnet101,fwseresnet152,fwseresnext50_32x4d,fwseresnext101_32x8d,fwsewideresnet50,fwsewideresnet101,fwselresnet18,fwselresnet34,fwselresnet50,fwselresnext50_4x4d,cfwseresnet18,cfwseresnet34,cfwseresnet50,cfwseresnet101,cfwseresnet152,cfwseresnext50_32x4d,cfwseresnext101_32x8d,cfwsewideresnet50,cfwsewideresnet101,cfwselresnet18,cfwselresnet34,cfwselresnet50,cfwselresnext50_4x4d,res2net18,res2net34,res2net50,res2net101,res2net152,res2next50_32x4d,res2next101_32x8d,wideres2net50,wideres2net101,lres2net50,lres2next50_4x4d,seres2net18,seres2net34,seres2net50,seres2net101,seres2net152,seres2next50_32x4d,seres2next101_32x8d,sewideres2net50,sewideres2net101,selres2net50,selres2next50_4x4d,tseres2net18,tseres2net34,tseres2net50,tseres2net101,tseres2net152,tseres2next50_32x4d,tseres2next101_32x8d,tsewideres2net50,tsewideres2net101,tselres2net50,tselres2next50_4x4d,fwseres2net18,fwseres2net34,fwseres2net50,fwseres2net101,fwseres2net152,fwseres2next50_32x4d,fwseres2next101_32x8d,fwsewideres2net50,fwsewideres2net101,fwselres2net50,fwselres2next50_4x4d,cfwseres2net18,cfwseres2net34,cfwseres2net50,cfwseres2net101,cfwseres2net152,cfwseres2next50_32x4d,cfwseres2next101_32x8d,cfwsewideres2net50,cfwsewideres2net101,cfwselres2net50,cfwselres2next50_4x4d,idrndresnet100,idrndresnet202,fwseidrndresnet100,fwseidrndresnet202,cfwseidrndresnet100,cfwseidrndresnet202}]
+                                             [--model.resnet_encoder.in-channels IN_CHANNELS]
+                                             [--model.resnet_encoder.conv-channels CONV_CHANNELS]
+                                             [--model.resnet_encoder.base-channels BASE_CHANNELS]
+                                             [--model.resnet_encoder.in-kernel-size IN_KERNEL_SIZE]
+                                             [--model.resnet_encoder.in-stride IN_STRIDE]
+                                             [--model.resnet_encoder.groups GROUPS]
+                                             [--model.resnet_encoder.norm-layer {batch-norm,group-norm,instance-norm,instance-norm-affine,layer-norm}]
+                                             [--model.resnet_encoder.in-norm]
+                                             [--model.resnet_encoder.no-maxpool]
+                                             [--model.resnet_encoder.zero-init-residual]
+                                             [--model.resnet_encoder.se-r SE_R]
+                                             [--model.resnet_encoder.res2net-scale RES2NET_SCALE]
+                                             [--model.resnet_encoder.res2net-width-factor RES2NET_WIDTH_FACTOR]
+                                             [--model.resnet_encoder.hid-act HID_ACT]
+                                             [--model.resnet_encoder.norm-before]
+                                             [--model.resnet_encoder.dropout-rate DROPOUT_RATE]
+                                             [--model.resnet_encoder.freq-pos-enc]
+                                             [--model.resnet-lr RESNET_LR]
+                                             [--model.resnet-weight-decay RESNET_WEIGHT_DECAY]
+                                             [--model.xvector-dim XVECTOR_DIM]
+                                             [--model.proj-use-norm]
+                                             [--model.proj-norm-layer {batch-norm,layer-norm,rms-norm}]
+                                             [--model.proj-norm-before]
+                                             [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
+                                             [--model.pooling-weight-decay POOLING_WEIGHT_DECAY]
+                                             [--model.enable-xvector-sig-reg]
+                                             [--model.xvector_sig_reg CONFIG]
+                                             [--model.xvector_sig_reg.num-slices NUM_SLICES]
+                                             [--model.xvector_sig_reg.num-points NUM_POINTS]
+                                             [--model.xvector_sig_reg.t-max T_MAX]
+                                             [--model.xvector_sig_reg.seed SEED]
+                                             [--model.xvector_sig_reg.multi-view]
+                                             [--model.xvector_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE]
+                                             [--model.xvector_sig_reg.distributed-mode {local,global_data}]
+                                             [--model.xvector_sig_reg.reduction {mean,sum,none}]
+                                             [--model.proj-weight-decay PROJ_WEIGHT_DECAY]
+                                             [--model.head-weight-decay HEAD_WEIGHT_DECAY]
+                                             [--model.pooling CONFIG]
+                                             [--model.pooling.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
+                                             [--model.pooling.dim DIM]
+                                             [--model.pooling.keepdim]
+                                             [--model.pooling.in-feats IN_FEATS]
+                                             [--model.pooling.inner-feats INNER_FEATS]
+                                             [--model.pooling.num-comp NUM_COMP]
+                                             [--model.pooling.dist-pow DIST_POW]
+                                             [--model.pooling.wo-bias]
+                                             [--model.pooling.num-heads NUM_HEADS]
+                                             [--model.pooling.d-k D_K]
+                                             [--model.pooling.d-v D_V]
+                                             [--model.pooling.bin-attn]
+                                             [--model.head CONFIG]
+                                             [--model.head.head-type {classif,none}]
+                                             [--model.head.enable-loss]
+                                             [--model.head.reduction {none,mean,sum}]
+                                             [--model.head.loss-type {softmax,cos-softmax,arc-softmax,subcenter-arc-softmax}]
+                                             [--model.head.cos-scale COS_SCALE]
+                                             [--model.head.margin MARGIN]
+                                             [--model.head.margin-warmup-steps MARGIN_WARMUP_STEPS]
+                                             [--model.head.intertop-k INTERTOP_K]
+                                             [--model.head.intertop-margin INTERTOP_MARGIN]
+                                             [--model.head.num-subcenters NUM_SUBCENTERS]
+                                             [--model.head.num-classes NUM_CLASSES]
+                                             [--model.head.label-smoothing LABEL_SMOOTHING]
+                                             [--model.head.enable-prototype-code-rate]
+                                             [--model.head.prototype_code_rate CONFIG]
+                                             [--model.head.prototype_code_rate.eps EPS]
+                                             [--model.head.prototype_code_rate.jitter JITTER]
+                                             [--model.head.prototype_code_rate.gamma-1 GAMMA_1]
+                                             [--model.head.prototype_code_rate.gamma-2 GAMMA_2]
+                                             [--model.head.prototype_code_rate.normalize]
+                                             [--model.head.enable-prototype-sig-reg]
+                                             [--model.head.prototype_sig_reg CONFIG]
+                                             [--model.head.prototype_sig_reg.num-slices NUM_SLICES]
+                                             [--model.head.prototype_sig_reg.num-points NUM_POINTS]
+                                             [--model.head.prototype_sig_reg.t-max T_MAX]
+                                             [--model.head.prototype_sig_reg.seed SEED]
+                                             [--model.head.prototype_sig_reg.multi-view]
+                                             [--model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE]
+                                             [--model.head.prototype_sig_reg.distributed-mode {local,global_data}]
+                                             [--model.head.prototype_sig_reg.reduction {mean,sum,none}]
+                                             [--init-from-xvector-model-file INIT_FROM_XVECTOR_MODEL_FILE]
+                                             [--trainer CONFIG]
+                                             [--trainer.exp-path EXP_PATH]
+                                             [--trainer.grad-acc-steps GRAD_ACC_STEPS]
+                                             [--trainer.eff-batch-size EFF_BATCH_SIZE]
+                                             [--trainer.num-epochs NUM_EPOCHS]
+                                             [--trainer.max-steps MAX_STEPS]
+                                             [--trainer.log-interval LOG_INTERVAL]
+                                             [--trainer.log-gpu-usage]
+                                             [--trainer.save-steps SAVE_STEPS]
+                                             [--trainer.val-steps VAL_STEPS]
+                                             [--trainer.save-hours SAVE_HOURS]
+                                             [--trainer.val-hours VAL_HOURS]
+                                             [--trainer.use-tensorboard]
+                                             [--trainer.use-wandb]
+                                             [--trainer.wandb.project PROJECT]
+                                             [--trainer.wandb.group GROUP]
+                                             [--trainer.wandb.name NAME]
+                                             [--trainer.wandb.mode {online,offline}]
+                                             [--trainer.ddp-type {ddp,fsdp}]
+                                             [--trainer.fsdp-cpu-offload]
+                                             [--trainer.fsdp-reshard-after-forward FSDP_RESHARD_AFTER_FORWARD]
+                                             [--trainer.fsdp-state-dict-type {full,sharded,local}]
+                                             [--trainer.fsdp-state-dict-cpu-offload]
+                                             [--trainer.fsdp-state-dict-rank0-only]
+                                             [--trainer.fsdp-sync-module-states]
+                                             [--trainer.fsdp-mp-param-dtype {float16,bfloat16,float32,none}]
+                                             [--trainer.fsdp-mp-reduce-dtype {float16,bfloat16,float32,none}]
+                                             [--trainer.fsdp-mp-output-dtype {float16,bfloat16,float32,none}]
+                                             [--trainer.use-amp]
+                                             [--trainer.amp-dtype {float16,bfloat16}]
+                                             [--trainer.bf16-grad-scaler]
+                                             [--trainer.grad-clip GRAD_CLIP]
+                                             [--trainer.grad-clip-norm {inf,1,2}]
+                                             [--trainer.swa-start SWA_START]
+                                             [--trainer.swa-lr SWA_LR]
+                                             [--trainer.swa-anneal-steps SWA_ANNEAL_STEPS]
+                                             [--trainer.swa-update-steps SWA_UPDATE_STEPS]
+                                             [--trainer.bn-update-steps BN_UPDATE_STEPS]
+                                             [--trainer.optim CONFIG]
+                                             [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
+                                             [--trainer.optim.lr LR]
+                                             [--trainer.optim.momentum MOMENTUM]
+                                             [--trainer.optim.beta1 BETA1]
+                                             [--trainer.optim.beta2 BETA2]
+                                             [--trainer.optim.rho RHO]
+                                             [--trainer.optim.eps EPS]
+                                             [--trainer.optim.weight-decay WEIGHT_DECAY]
+                                             [--trainer.optim.amsgrad]
+                                             [--trainer.optim.nesterov]
+                                             [--trainer.optim.lambd LAMBD]
+                                             [--trainer.optim.asgd-alpha ASGD_ALPHA]
+                                             [--trainer.optim.t0 T0]
+                                             [--trainer.optim.rmsprop-alpha RMSPROP_ALPHA]
+                                             [--trainer.optim.centered]
+                                             [--trainer.optim.lr-decay LR_DECAY]
+                                             [--trainer.optim.init-acc-val INIT_ACC_VAL]
+                                             [--trainer.optim.max-iter MAX_ITER]
+                                             [--trainer.lrsched CONFIG]
+                                             [--trainer.lrsched.lrsch-type {none,exp_lr,invpow_lr,cos_lr,adamcos_lr,red_lr_on_plateau,noam_lr,triangular_lr}]
+                                             [--trainer.lrsched.decay-rate DECAY_RATE]
+                                             [--trainer.lrsched.decay-steps DECAY_STEPS]
+                                             [--trainer.lrsched.power POWER]
+                                             [--trainer.lrsched.hold-steps HOLD_STEPS]
+                                             [--trainer.lrsched.t T]
+                                             [--trainer.lrsched.t-mul T_MUL]
+                                             [--trainer.lrsched.gamma GAMMA]
+                                             [--trainer.lrsched.warm-restarts]
+                                             [--trainer.lrsched.monitor MONITOR]
+                                             [--trainer.lrsched.mode {min,max}]
+                                             [--trainer.lrsched.factor FACTOR]
+                                             [--trainer.lrsched.patience PATIENCE]
+                                             [--trainer.lrsched.threshold THRESHOLD]
+                                             [--trainer.lrsched.threshold_mode {rel,abs}]
+                                             [--trainer.lrsched.cooldown COOLDOWN]
+                                             [--trainer.lrsched.eps EPS]
+                                             [--trainer.lrsched.min-lr MIN_LR]
+                                             [--trainer.lrsched.warmup-steps WARMUP_STEPS]
+                                             [--trainer.lrsched.d-model D_MODEL]
+                                             [--trainer.lrsched.lr-factor LR_FACTOR]
+                                             [--trainer.lrsched.update-lr-on-opt-step]
+                                             [--trainer.wdsched CONFIG]
+                                             [--trainer.wdsched.wdsch-type {none,cos_wd}]
+                                             [--trainer.wdsched.initial-wd INITIAL_WD]
+                                             [--trainer.wdsched.warmup-steps WARMUP_STEPS]
+                                             [--trainer.wdsched.update-wd-on-opt-step]
+                                             [--trainer.input-key INPUT_KEY]
+                                             [--trainer.target-key TARGET_KEY]
+                                             [--trainer.train-mode {full,frozen,frozen-feat-extractor,pooling,proj-head,output-layer}]
+                                             [--trainer.xvector-sig-reg-weight XVECTOR_SIG_REG_WEIGHT]
+                                             [--trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT]
+                                             [--trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT]
+                                             [--num-gpus NUM_GPUS]
+                                             [--master-port MASTER_PORT]
+                                             [--seed SEED] [-v {0,1,2,3}]
+
+   options:
+     -h, --help            Show this help message and exit.
+     --cfg CFG             Path to a configuration file.
+     --print_config [=flags]
+                           Print the configuration after applying all other
+                           arguments and exit. The optional flags customizes the
+                           output and are one or more keywords separated by
+                           comma. The supported flags are: skip_default,
+                           skip_unset.
+     --data CONFIG         Path to a configuration file.
+     --model CONFIG        Path to a configuration file.
+     --init-from-xvector-model-file INIT_FROM_XVECTOR_MODEL_FILE
+                           Optional x-vector checkpoint used to initialize the
+                           XVectorP backbone. (type: str, default: null)
+     --trainer CONFIG      Path to a configuration file.
+     --num-gpus NUM_GPUS   number of gpus, if 0 it uses cpu (deprecated) (type:
+                           int, default: 1)
+     --master-port MASTER_PORT
+                           optional override for MASTER_PORT; if None, use
+                           launcher environment (type: int, default: null)
+     --seed SEED           Random seed for training. (type: int, default:
+                           1123581321)
+     -v {0,1,2,3}, --verbose {0,1,2,3}
+                           Verbosity level: 0=error, 1=warning, 2=info, 3=debug.
+                           (type: <function <lambda> at <address>>, default: 1)
+
+   Data configuration block containing train/val settings.:
+     --data.train CONFIG   Path to a configuration file.
+     --data.val CONFIG     Path to a configuration file.
+
+   Training data configuration block.:
+     --data.train.dataset CONFIG
+                           Path to a configuration file.
+     --data.train.sampler CONFIG
+                           Path to a configuration file.
+     --data.train.data_loader.num-workers NUM_WORKERS
+                           Number of worker processes for this dataloader. (type:
+                           int, default: 5)
+
+     --data.train.dataset.dataset-path DATASET_PATH
+                           recordings manifest file (kaldi .scp or pandas .csv)
+                           (required)
+     --data.train.dataset.class-names CLASS_NAMES [CLASS_NAMES ...]
+                           list with the names of the types of classes that the
+                           dataset has to return, e.g., speaker, language
+                           (default: null)
+     --data.train.dataset.extra-attrs EXTRA_ATTRS [EXTRA_ATTRS ...]
+                           extra segment attributes to return without conversion
+                           (default: null)
+     --data.train.dataset.tokenizer-mappings TOKENIZER_MAPPINGS [TOKENIZER_MAPPINGS ...]
+                           list mapping segment_set fields and tokenizer names to
+                           output names, e.g., text->text-1->text_ids, this
+                           argument has to be sync with tokenizer_files.
+                           (default: null)
+     --data.train.dataset.tokenizer-files TOKENIZER_FILES [TOKENIZER_FILES ...]
+                           list of tokenizer names and configuration files, e.g.,
+                           text-1:/path/to/tokenizer.yml, this argument has to be
+                           sync with tokenizer_mappings. (default: null)
+     --data.train.dataset.bpe-model BPE_MODEL
+                           bpe model for the text label (default: null)
+     --data.train.dataset.aug-cfgs AUG_CFGS [AUG_CFGS ...]
+                           augmentation configuration file. (default: null)
+     --data.train.dataset.num-augs NUM_AUGS
+                           number of augmentations per segment and augmentation
+                           type (type: int, default: 1)
+     --data.train.dataset.num-aug-mix NUM_AUG_MIX
+                           number of AugMix augmentations per segment (type: int,
+                           default: 0)
+     --data.train.dataset.aug-mix-alpha AUG_MIX_ALPHA
+                           number of AugMix augmentations per segment (type:
+                           float, default: 0.5)
+     --data.train.dataset.target-sample-freq TARGET_SAMPLE_FREQ
+                           target sampling frequencey, if not None all audios are
+                           converted to this sample freq (type: int, default:
+                           null)
+     --data.train.dataset.enable-tel-codecs-if ENABLE_TEL_CODECS_IF
+                           condition to enable telephone codec augmentation, for
+                           example use only if the segment is not conv. tel.
+                           speech: source_type != 'cts' (default: null)
+     --data.train.dataset.enable-media-codecs-if ENABLE_MEDIA_CODECS_IF
+                           condition to enable media codec augmentation, for
+                           example use only if the segment is audio from video:
+                           source_type == 'afv' (default: null)
+     --data.train.dataset.enable-transcodec-if ENABLE_TRANSCODEC_IF
+                           condition to enable transcodec augmentation, for
+                           example use transcodec only if the segment is spoof:
+                           spoof_det == 'spoof' (default: null)
+     --data.train.dataset.seed SEED
+                           random seed (type: int, default: 11235811)
+     --data.train.dataset.wav-scale WAV_SCALE
+                           multiplicative factor for waveform (type: float,
+                           default: 1.0)
+
+     --data.train.sampler.sampler-type {class_weighted_random_seg_chunk_sampler,random_seg_chunk_sampler,seg_sampler,seg_chunk_sampler,bucketing_seg_sampler}
+                           Type of sampler to use. Determines the batching and
+                           sampling strategy for segment or chunk data. (default:
+                           class_weighted_random_seg_chunk_sampler)
+     --data.train.sampler.base-sampler-type {seg_sampler,bucketing_seg_sampler}
+                           Base sampler class used by samplers like
+                           seg_chunk_sampler or bucketing_seg_sampler to draw
+                           batches. (default: seg_sampler)
+     --data.train.sampler.subbase-sampler-type {seg_sampler,bucketing_seg_sampler}
+                           Sampler used as a base within a bucketing sampler
+                           (used when base-sampler-type is
+                           bucketing_seg_sampler). (default: seg_sampler)
+     --data.train.sampler.num-buckets NUM_BUCKETS
+                           Number of buckets to divide the dataset into by
+                           segment length (for bucketing samplers). (type: int,
+                           default: 10)
+     --data.train.sampler.min-chunk-length MIN_CHUNK_LENGTH
+                           Minimum chunk duration in seconds when slicing
+                           segments into chunks. (type: float, default: 4.0)
+     --data.train.sampler.max-chunk-length MAX_CHUNK_LENGTH
+                           Maximum chunk duration in seconds. If not set, equals
+                           min-chunk-length. (type: float, default: null)
+     --data.train.sampler.min-chunk-overlap MIN_CHUNK_OVERLAP
+                           Minimum overlap in seconds between consecutive chunks
+                           extracted from a segment. (type: float, default: 0.0)
+     --data.train.sampler.max-chunk-overlap MAX_CHUNK_OVERLAP
+                           Maximum overlap in seconds between chunks. If None,
+                           uses min-chunk-overlap. (type: float, default: null)
+     --data.train.sampler.length-sampling-method {uniform,maximum}
+                           Strategy for sampling chunk lengths. 'uniform' draws
+                           from a range, 'maximum' always uses max-chunk-length.
+                           (default: uniform)
+     --data.train.sampler.min-batch-size MIN_BATCH_SIZE
+                           Minimum number of samples (segments/chunks) in a batch
+                           per GPU. (type: int, default: 1)
+     --data.train.sampler.max-batch-size MAX_BATCH_SIZE
+                           Maximum batch size per GPU. If None, it will be
+                           estimated based on max-batch-length. (type: int,
+                           default: null)
+     --data.train.sampler.batch-size BATCH_SIZE
+                           (Deprecated) Use --min-batch-size instead. Sets fixed
+                           batch size if provided. (type: int, default: null)
+     --data.train.sampler.max-batch-length MAX_BATCH_LENGTH, --data.train.sampler.max-batch-duration MAX_BATCH_LENGTH
+                           Maximum total duration (in seconds) of segments/chunks
+                           in a batch. Used to control memory usage. (type:
+                           float, default: null)
+     --data.train.sampler.iters-per-epoch ITERS_PER_EPOCH
+                           (Deprecated) Use --num-chunks-per-seg-epoch instead.
+                           Number of iterations per epoch. (type: <function
+                           <lambda> at <address>>, default: null)
+     --data.train.sampler.num-chunks-per-seg-epoch NUM_CHUNKS_PER_SEG_EPOCH
+                           How many chunks to draw from each segment per epoch.
+                           Can be an int or 'auto'. (type: <function <lambda> at
+                           <address>>, default: auto)
+     --data.train.sampler.num-segs-per-class NUM_SEGS_PER_CLASS
+                           Number of segments to sample per class when forming a
+                           batch (used in class-weighted samplers). (type: int,
+                           default: 1)
+     --data.train.sampler.num-chunks-per-seg NUM_CHUNKS_PER_SEG
+                           Number of chunks to extract per segment in a single
+                           batch. (type: int, default: 1)
+     --data.train.sampler.weight-exponent WEIGHT_EXPONENT
+                           Exponent to apply when transforming class weights
+                           (e.g., for power-law reweighting). (type: float,
+                           default: 1.0)
+     --data.train.sampler.weight-mode {custom,uniform,data-prior}
+                           How to assign weights to classes. 'data-prior' uses
+                           segment durations, 'uniform' uses equal weights.
+                           (default: custom)
+     --data.train.sampler.seg-weight-mode {uniform,data-prior}
+                           How to sample segments within a class. 'uniform' is
+                           equal probability, 'data-prior' uses durations.
+                           (default: uniform)
+     --data.train.sampler.num-hard-prototypes NUM_HARD_PROTOTYPES
+                           Number of hard prototype classes to sample based on
+                           similarity (if affinity matrix is provided). (type:
+                           int, default: 0)
+     --data.train.sampler.drop-last, --no_data.train.sampler.drop-last
+                           Drop the final partial batch in fixed-size SegSampler
+                           mode. (type: bool, default: False)
+     --data.train.sampler.sample-all-segments, --no_data.train.sampler.sample-all-segments
+                           Cover every segment at least once per epoch when
+                           supported by the selected sampler. (type: bool,
+                           default: False)
+     --data.train.sampler.max-batches-per-epoch MAX_BATCHES_PER_EPOCH
+                           Optional limit on number of batches per epoch (across
+                           all samplers). (type: int, default: null)
+     --data.train.sampler.shuffle, --no_data.train.sampler.shuffle
+                           Shuffle segment order at the start of each epoch.
+                           (type: bool, default: False)
+     --data.train.sampler.seed SEED
+                           Random seed for deterministic sampling across epochs
+                           and distributed workers. (type: int, default: 1234)
+     --data.train.sampler.length-name LENGTH_NAME
+                           Column name in the segment table that represents the
+                           segment's duration (in seconds). (default: duration)
+     --data.train.sampler.class-name CLASS_NAME
+                           Column name in the segment table that represents the
+                           class or label of each segment. (default: class_id)
+     --data.train.sampler.sort-by-length, --no_data.train.sampler.sort-by-length
+                           If True, sorts batch items by duration (descending) to
+                           improve padding efficiency. (type: bool, default:
+                           True)
+
+   Validation data configuration block.:
+     --data.val.dataset CONFIG
+                           Path to a configuration file.
+     --data.val.sampler CONFIG
+                           Path to a configuration file.
+     --data.val.data_loader.num-workers NUM_WORKERS
+                           Number of worker processes for this dataloader. (type:
+                           int, default: 5)
+
+     --data.val.dataset.dataset-path DATASET_PATH
+                           recordings manifest file (kaldi .scp or pandas .csv)
+                           (required)
+     --data.val.dataset.class-names CLASS_NAMES [CLASS_NAMES ...]
+                           list with the names of the types of classes that the
+                           dataset has to return, e.g., speaker, language
+                           (default: null)
+     --data.val.dataset.extra-attrs EXTRA_ATTRS [EXTRA_ATTRS ...]
+                           extra segment attributes to return without conversion
+                           (default: null)
+     --data.val.dataset.tokenizer-mappings TOKENIZER_MAPPINGS [TOKENIZER_MAPPINGS ...]
+                           list mapping segment_set fields and tokenizer names to
+                           output names, e.g., text->text-1->text_ids, this
+                           argument has to be sync with tokenizer_files.
+                           (default: null)
+     --data.val.dataset.tokenizer-files TOKENIZER_FILES [TOKENIZER_FILES ...]
+                           list of tokenizer names and configuration files, e.g.,
+                           text-1:/path/to/tokenizer.yml, this argument has to be
+                           sync with tokenizer_mappings. (default: null)
+     --data.val.dataset.bpe-model BPE_MODEL
+                           bpe model for the text label (default: null)
+     --data.val.dataset.aug-cfgs AUG_CFGS [AUG_CFGS ...]
+                           augmentation configuration file. (default: null)
+     --data.val.dataset.num-augs NUM_AUGS
+                           number of augmentations per segment and augmentation
+                           type (type: int, default: 1)
+     --data.val.dataset.num-aug-mix NUM_AUG_MIX
+                           number of AugMix augmentations per segment (type: int,
+                           default: 0)
+     --data.val.dataset.aug-mix-alpha AUG_MIX_ALPHA
+                           number of AugMix augmentations per segment (type:
+                           float, default: 0.5)
+     --data.val.dataset.target-sample-freq TARGET_SAMPLE_FREQ
+                           target sampling frequencey, if not None all audios are
+                           converted to this sample freq (type: int, default:
+                           null)
+     --data.val.dataset.enable-tel-codecs-if ENABLE_TEL_CODECS_IF
+                           condition to enable telephone codec augmentation, for
+                           example use only if the segment is not conv. tel.
+                           speech: source_type != 'cts' (default: null)
+     --data.val.dataset.enable-media-codecs-if ENABLE_MEDIA_CODECS_IF
+                           condition to enable media codec augmentation, for
+                           example use only if the segment is audio from video:
+                           source_type == 'afv' (default: null)
+     --data.val.dataset.enable-transcodec-if ENABLE_TRANSCODEC_IF
+                           condition to enable transcodec augmentation, for
+                           example use transcodec only if the segment is spoof:
+                           spoof_det == 'spoof' (default: null)
+     --data.val.dataset.seed SEED
+                           random seed (type: int, default: 11235811)
+     --data.val.dataset.wav-scale WAV_SCALE
+                           multiplicative factor for waveform (type: float,
+                           default: 1.0)
+
+     --data.val.sampler.sampler-type {class_weighted_random_seg_chunk_sampler,random_seg_chunk_sampler,seg_sampler,seg_chunk_sampler,bucketing_seg_sampler}
+                           Type of sampler to use. Determines the batching and
+                           sampling strategy for segment or chunk data. (default:
+                           class_weighted_random_seg_chunk_sampler)
+     --data.val.sampler.base-sampler-type {seg_sampler,bucketing_seg_sampler}
+                           Base sampler class used by samplers like
+                           seg_chunk_sampler or bucketing_seg_sampler to draw
+                           batches. (default: seg_sampler)
+     --data.val.sampler.subbase-sampler-type {seg_sampler,bucketing_seg_sampler}
+                           Sampler used as a base within a bucketing sampler
+                           (used when base-sampler-type is
+                           bucketing_seg_sampler). (default: seg_sampler)
+     --data.val.sampler.num-buckets NUM_BUCKETS
+                           Number of buckets to divide the dataset into by
+                           segment length (for bucketing samplers). (type: int,
+                           default: 10)
+     --data.val.sampler.min-chunk-length MIN_CHUNK_LENGTH
+                           Minimum chunk duration in seconds when slicing
+                           segments into chunks. (type: float, default: 4.0)
+     --data.val.sampler.max-chunk-length MAX_CHUNK_LENGTH
+                           Maximum chunk duration in seconds. If not set, equals
+                           min-chunk-length. (type: float, default: null)
+     --data.val.sampler.min-chunk-overlap MIN_CHUNK_OVERLAP
+                           Minimum overlap in seconds between consecutive chunks
+                           extracted from a segment. (type: float, default: 0.0)
+     --data.val.sampler.max-chunk-overlap MAX_CHUNK_OVERLAP
+                           Maximum overlap in seconds between chunks. If None,
+                           uses min-chunk-overlap. (type: float, default: null)
+     --data.val.sampler.length-sampling-method {uniform,maximum}
+                           Strategy for sampling chunk lengths. 'uniform' draws
+                           from a range, 'maximum' always uses max-chunk-length.
+                           (default: uniform)
+     --data.val.sampler.min-batch-size MIN_BATCH_SIZE
+                           Minimum number of samples (segments/chunks) in a batch
+                           per GPU. (type: int, default: 1)
+     --data.val.sampler.max-batch-size MAX_BATCH_SIZE
+                           Maximum batch size per GPU. If None, it will be
+                           estimated based on max-batch-length. (type: int,
+                           default: null)
+     --data.val.sampler.batch-size BATCH_SIZE
+                           (Deprecated) Use --min-batch-size instead. Sets fixed
+                           batch size if provided. (type: int, default: null)
+     --data.val.sampler.max-batch-length MAX_BATCH_LENGTH, --data.val.sampler.max-batch-duration MAX_BATCH_LENGTH
+                           Maximum total duration (in seconds) of segments/chunks
+                           in a batch. Used to control memory usage. (type:
+                           float, default: null)
+     --data.val.sampler.iters-per-epoch ITERS_PER_EPOCH
+                           (Deprecated) Use --num-chunks-per-seg-epoch instead.
+                           Number of iterations per epoch. (type: <function
+                           <lambda> at <address>>, default: null)
+     --data.val.sampler.num-chunks-per-seg-epoch NUM_CHUNKS_PER_SEG_EPOCH
+                           How many chunks to draw from each segment per epoch.
+                           Can be an int or 'auto'. (type: <function <lambda> at
+                           <address>>, default: auto)
+     --data.val.sampler.num-segs-per-class NUM_SEGS_PER_CLASS
+                           Number of segments to sample per class when forming a
+                           batch (used in class-weighted samplers). (type: int,
+                           default: 1)
+     --data.val.sampler.num-chunks-per-seg NUM_CHUNKS_PER_SEG
+                           Number of chunks to extract per segment in a single
+                           batch. (type: int, default: 1)
+     --data.val.sampler.weight-exponent WEIGHT_EXPONENT
+                           Exponent to apply when transforming class weights
+                           (e.g., for power-law reweighting). (type: float,
+                           default: 1.0)
+     --data.val.sampler.weight-mode {custom,uniform,data-prior}
+                           How to assign weights to classes. 'data-prior' uses
+                           segment durations, 'uniform' uses equal weights.
+                           (default: custom)
+     --data.val.sampler.seg-weight-mode {uniform,data-prior}
+                           How to sample segments within a class. 'uniform' is
+                           equal probability, 'data-prior' uses durations.
+                           (default: uniform)
+     --data.val.sampler.num-hard-prototypes NUM_HARD_PROTOTYPES
+                           Number of hard prototype classes to sample based on
+                           similarity (if affinity matrix is provided). (type:
+                           int, default: 0)
+     --data.val.sampler.drop-last, --no_data.val.sampler.drop-last
+                           Drop the final partial batch in fixed-size SegSampler
+                           mode. (type: bool, default: False)
+     --data.val.sampler.sample-all-segments, --no_data.val.sampler.sample-all-segments
+                           Cover every segment at least once per epoch when
+                           supported by the selected sampler. (type: bool,
+                           default: False)
+     --data.val.sampler.max-batches-per-epoch MAX_BATCHES_PER_EPOCH
+                           Optional limit on number of batches per epoch (across
+                           all samplers). (type: int, default: null)
+     --data.val.sampler.shuffle, --no_data.val.sampler.shuffle
+                           Shuffle segment order at the start of each epoch.
+                           (type: bool, default: False)
+     --data.val.sampler.seed SEED
+                           Random seed for deterministic sampling across epochs
+                           and distributed workers. (type: int, default: 1234)
+     --data.val.sampler.length-name LENGTH_NAME
+                           Column name in the segment table that represents the
+                           segment's duration (in seconds). (default: duration)
+     --data.val.sampler.class-name CLASS_NAME
+                           Column name in the segment table that represents the
+                           class or label of each segment. (default: class_id)
+     --data.val.sampler.sort-by-length, --no_data.val.sampler.sort-by-length
+                           If True, sorts batch items by duration (descending) to
+                           improve padding efficiency. (type: bool, default:
+                           True)
+
+     --model.acoustic_feats CONFIG
+                           Path to a configuration file.
+     --model.resnet_encoder CONFIG
+                           Path to a configuration file.
+     --model.resnet-lr RESNET_LR
+                           optional learning-rate override for ResNet backbone
+                           parameters (type: float, default: null)
+     --model.resnet-weight-decay RESNET_WEIGHT_DECAY
+                           optional weight-decay override for ResNet backbone
+                           parameters (type: float, default: null)
+     --model.xvector-dim XVECTOR_DIM
+                           final x-vector embedding dimension (type: int,
+                           default: 256)
+     --model.proj-use-norm, --no_model.proj-use-norm
+                           enable normalization of the projection input or output
+                           (type: bool, default: True)
+     --model.proj-norm-layer {batch-norm,layer-norm,rms-norm}
+                           projection normalization type (batch-norm by default)
+                           (type: <function <lambda> at <address>>, default:
+                           null)
+     --model.proj-norm-before, --no_model.proj-norm-before
+                           apply normalization before projection; false applies
+                           it after (type: bool, default: True)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay override for biases and
+                           normalization parameters (type: float, default: null)
+     --model.pooling-weight-decay POOLING_WEIGHT_DECAY
+                           optional weight decay override for global pooling
+                           parameters (type: float, default: null)
+     --model.enable-xvector-sig-reg, --no_model.enable-xvector-sig-reg
+                           Calculate SIGReg on projected xvectors. (type: bool,
+                           default: False)
+     --model.xvector_sig_reg CONFIG
+                           Path to a configuration file.
+     --model.proj-weight-decay PROJ_WEIGHT_DECAY
+                           optional weight decay override for projection-head
+                           parameters (type: float, default: null)
+     --model.head-weight-decay HEAD_WEIGHT_DECAY
+                           optional weight decay override for downstream head
+                           parameters (type: float, default: null)
+     --model.pooling CONFIG
+                           Path to a configuration file.
+     --model.head CONFIG   Path to a configuration file.
+
+     --model.acoustic_feats.audio_feats CONFIG
+                           Path to a configuration file.
+     --model.acoustic_feats.mvn CONFIG
+                           Path to a configuration file.
+     --model.acoustic_feats.spec_augment CONFIG
+                           Path to a configuration file.
+     --model.acoustic_feats.aug-after-mvn, --no_model.acoustic_feats.aug-after-mvn
+                           Apply SpecAugment after short-term mean/variance
+                           normalization (default: before MVN). (type: bool,
+                           default: False)
+
+     --model.acoustic_feats.audio_feats.sample-frequency SAMPLE_FREQUENCY
+                           Waveform data sample frequency (must match the
+                           waveform file, if specified there) (type: int,
+                           default: 16000)
+     --model.acoustic_feats.audio_feats.frame-length FRAME_LENGTH
+                           Frame length in milliseconds (type: float, default:
+                           25.0)
+     --model.acoustic_feats.audio_feats.frame-shift FRAME_SHIFT
+                           Frame shift in milliseconds (type: float, default:
+                           10.0)
+     --model.acoustic_feats.audio_feats.fft-length FFT_LENGTH
+                           Length of FFT (type: int, default: 512)
+     --model.acoustic_feats.audio_feats.remove-dc-offset, --no_model.acoustic_feats.audio_feats.remove-dc-offset
+                           Subtract mean from waveform on each frame (type: bool,
+                           default: True)
+     --model.acoustic_feats.audio_feats.preemphasis-coeff PREEMPHASIS_COEFF
+                           Coefficient for use in signal preemphasis (type:
+                           float, default: 0.97)
+     --model.acoustic_feats.audio_feats.window-type {hamming,hanning,povey,rectangular,blackman}
+                           Type of window
+                           ("hamming"|"hanning"|"povey"|"rectangular"|"blackman")
+                           (default: povey)
+     --model.acoustic_feats.audio_feats.use-fft-mag
+                           If true, it uses |X(f)|, if false, it uses |X(f)|^2
+                           (default: False)
+     --model.acoustic_feats.audio_feats.dither DITHER
+                           Dithering constant (0.0 means no dither) (type: float,
+                           default: 3.0517578125e-05)
+     --model.acoustic_feats.audio_feats.fb-type {mel_kaldi,mel_etsi,mel_librosa,mel_librosa_htk,linear}
+                           Filter-bank type: mel_kaldi, mel_etsi, mel_librosa,
+                           mel_librosa_htk, linear (default: mel_kaldi)
+     --model.acoustic_feats.audio_feats.num-filters NUM_FILTERS
+                           Number of triangular mel-frequency bins (type: int,
+                           default: 23)
+     --model.acoustic_feats.audio_feats.low-freq LOW_FREQ
+                           Low cutoff frequency for mel bins (type: float,
+                           default: 20)
+     --model.acoustic_feats.audio_feats.high-freq HIGH_FREQ
+                           High cutoff frequency for mel bins (if < 0, offset
+                           from Nyquist) (type: float, default: 0)
+     --model.acoustic_feats.audio_feats.norm-filters
+                           Normalize filters coeff to sum up to 1 (default:
+                           False)
+     --model.acoustic_feats.audio_feats.num-ceps NUM_CEPS
+                           Number of cepstra in MFCC computation (including C0)
+                           (type: int, default: 13)
+     --model.acoustic_feats.audio_feats.snip-edges, --no_model.acoustic_feats.audio_feats.snip-edges
+                           If true, end effects will be handled by outputting
+                           only frames that completely fit in the file, and the
+                           number of frames depends on the frame-length. If
+                           false, the number of frames depends only on the frame-
+                           shift, and we reflect the data at the ends. (type:
+                           bool, default: True)
+     --model.acoustic_feats.audio_feats.center, --no_model.acoustic_feats.audio_feats.center
+                           If true, puts the center of the frame at
+                           t*frame_shift, it overrides snip-edges and sets it to
+                           false (type: bool, default: False)
+     --model.acoustic_feats.audio_feats.energy-floor ENERGY_FLOOR
+                           Floor on energy (absolute, not relative) in MFCC
+                           computation (type: float, default: 0)
+     --model.acoustic_feats.audio_feats.raw-energy, --no_model.acoustic_feats.audio_feats.raw-energy
+                           If true, compute energy before preemphasis and
+                           windowing (type: bool, default: True)
+     --model.acoustic_feats.audio_feats.use-energy, --no_model.acoustic_feats.audio_feats.use-energy
+                           Use energy (not C0) in MFCC computation (type: bool,
+                           default: True)
+     --model.acoustic_feats.audio_feats.cepstral-lifter CEPSTRAL_LIFTER
+                           Constant that controls scaling of MFCCs (type: float,
+                           default: 22)
+     --model.acoustic_feats.audio_feats.audio-feat {fft,spec,log_spec,logfb,mfcc,kanbayashi_logfb}
+                           It can return intermediate result: fft, spec,
+                           log_spec, logfb, mfcc (default: logfb)
+
+     --model.acoustic_feats.mvn.norm-mean, --no_model.acoustic_feats.mvn.norm-mean
+                           center the features (type: bool, default: True)
+     --model.acoustic_feats.mvn.norm-var, --no_model.acoustic_feats.mvn.norm-var
+                           normalize the variance of the features (type: bool,
+                           default: False)
+     --model.acoustic_feats.mvn.left-context LEFT_CONTEXT
+                           past context in number of frames (type: int, default:
+                           150)
+     --model.acoustic_feats.mvn.right-context RIGHT_CONTEXT
+                           future context in number of frames (type: int,
+                           default: 150)
+     --model.acoustic_feats.mvn.context CONTEXT
+                           past/future context in number of frames, overwrites
+                           left-context and right-context options (type: int,
+                           default: null)
+
+     --model.acoustic_feats.spec_augment.time-warp-prob TIME_WARP_PROB
+                           Probability of applying time warping. (type: float,
+                           default: 0.0)
+     --model.acoustic_feats.spec_augment.time-warp-window TIME_WARP_WINDOW
+                           Time-warp window size (in frames). (type: int,
+                           default: 5)
+     --model.acoustic_feats.spec_augment.time-warp-mode {bilinear,linear,nearest,bicubic,trilinear}
+                           Interpolation mode used for time warping. (default:
+                           bicubic)
+     --model.acoustic_feats.spec_augment.time-mask-prob TIME_MASK_PROB
+                           Probability of applying time masking. (type: float,
+                           default: 0.0)
+     --model.acoustic_feats.spec_augment.time-mask-min-width TIME_MASK_MIN_WIDTH
+                           Minimum time-mask width (in frames). (type: int,
+                           default: 0)
+     --model.acoustic_feats.spec_augment.time-mask-max-width TIME_MASK_MAX_WIDTH
+                           Maximum time-mask width (in frames). (type: int,
+                           default: 100)
+     --model.acoustic_feats.spec_augment.time-mask-min-num-masks TIME_MASK_MIN_NUM_MASKS
+                           Minimum number of time masks (or percentage per 100
+                           frames when enabled). (type: float, default: 1)
+     --model.acoustic_feats.spec_augment.time-mask-max-num-masks TIME_MASK_MAX_NUM_MASKS
+                           Maximum number of time masks (or percentage per 100
+                           frames when enabled). (type: float, default: 2)
+     --model.acoustic_feats.spec_augment.time-use-num-masks-percentage, --no_model.acoustic_feats.spec_augment.time-use-num-masks-percentage
+                           If true, min/max time-mask counts are interpreted as
+                           percentages per 100 frames. (type: bool, default:
+                           False)
+     --model.acoustic_feats.spec_augment.freq-mask-prob FREQ_MASK_PROB
+                           Probability of applying frequency masking. (type:
+                           float, default: 0.0)
+     --model.acoustic_feats.spec_augment.freq-mask-min-width FREQ_MASK_MIN_WIDTH
+                           Minimum frequency-mask width (in bins). (type: int,
+                           default: 0)
+     --model.acoustic_feats.spec_augment.freq-mask-max-width FREQ_MASK_MAX_WIDTH
+                           Maximum frequency-mask width (in bins). (type: int,
+                           default: 20)
+     --model.acoustic_feats.spec_augment.freq-mask-min-num-masks FREQ_MASK_MIN_NUM_MASKS
+                           Minimum number of frequency masks. (type: int,
+                           default: 1)
+     --model.acoustic_feats.spec_augment.freq-mask-max-num-masks FREQ_MASK_MAX_NUM_MASKS
+                           Maximum number of frequency masks. (type: int,
+                           default: 2)
+     --model.acoustic_feats.spec_augment.mask-method {constant,min,mean}
+                           How to choose mask fill value: "constant", "min", or
+                           "mean". (default: constant)
+     --model.acoustic_feats.spec_augment.mask-value MASK_VALUE
+                           Fill value used when "--mask-method=constant". (type:
+                           float, default: 0.0)
+
+     --model.resnet_encoder.resnet-type {resnet18,resnet34,resnet50,resnet101,resnet152,resnext50_32x4d,resnext101_32x8d,wideresnet50,wideresnet101,lresnet18,lresnet34,lresnet50,lresnext50_4x4d,lresnet34_345,seresnet18,seresnet34,seresnet50,seresnet101,seresnet152,seresnext50_32x4d,seresnext101_32x8d,sewideresnet50,sewideresnet101,selresnet18,selresnet34,selresnet50,selresnext50_4x4d,tseresnet18,tseresnet34,tseresnet50,tseresnet101,tseresnet152,tseresnext50_32x4d,tseresnext101_32x8d,tsewideresnet50,tsewideresnet101,tselresnet18,tselresnet34,tselresnet50,tselresnext50_4x4d,fwseresnet18,fwseresnet34,fwseresnet50,fwseresnet101,fwseresnet152,fwseresnext50_32x4d,fwseresnext101_32x8d,fwsewideresnet50,fwsewideresnet101,fwselresnet18,fwselresnet34,fwselresnet50,fwselresnext50_4x4d,cfwseresnet18,cfwseresnet34,cfwseresnet50,cfwseresnet101,cfwseresnet152,cfwseresnext50_32x4d,cfwseresnext101_32x8d,cfwsewideresnet50,cfwsewideresnet101,cfwselresnet18,cfwselresnet34,cfwselresnet50,cfwselresnext50_4x4d,res2net18,res2net34,res2net50,res2net101,res2net152,res2next50_32x4d,res2next101_32x8d,wideres2net50,wideres2net101,lres2net50,lres2next50_4x4d,seres2net18,seres2net34,seres2net50,seres2net101,seres2net152,seres2next50_32x4d,seres2next101_32x8d,sewideres2net50,sewideres2net101,selres2net50,selres2next50_4x4d,tseres2net18,tseres2net34,tseres2net50,tseres2net101,tseres2net152,tseres2next50_32x4d,tseres2next101_32x8d,tsewideres2net50,tsewideres2net101,tselres2net50,tselres2next50_4x4d,fwseres2net18,fwseres2net34,fwseres2net50,fwseres2net101,fwseres2net152,fwseres2next50_32x4d,fwseres2next101_32x8d,fwsewideres2net50,fwsewideres2net101,fwselres2net50,fwselres2next50_4x4d,cfwseres2net18,cfwseres2net34,cfwseres2net50,cfwseres2net101,cfwseres2net152,cfwseres2next50_32x4d,cfwseres2next101_32x8d,cfwsewideres2net50,cfwsewideres2net101,cfwselres2net50,cfwselres2next50_4x4d,idrndresnet100,idrndresnet202,fwseidrndresnet100,fwseidrndresnet202,cfwseidrndresnet100,cfwseidrndresnet202}
+                           ResNet type (type: <method 'lower' of 'str' objects>,
+                           default: lresnet34)
+     --model.resnet_encoder.in-channels IN_CHANNELS
+                           number of input channels (type: int, default: 1)
+     --model.resnet_encoder.conv-channels CONV_CHANNELS
+                           number of output channels in input convolution (type:
+                           int, default: 64)
+     --model.resnet_encoder.base-channels BASE_CHANNELS
+                           base channels of first ResNet block (type: int,
+                           default: 64)
+     --model.resnet_encoder.in-kernel-size IN_KERNEL_SIZE
+                           kernel size of first convolution (type: int, default:
+                           7)
+     --model.resnet_encoder.in-stride IN_STRIDE
+                           stride of first convolution (type: int, default: 2)
+     --model.resnet_encoder.groups GROUPS
+                           number of groups in residual blocks convolutions
+                           (type: int, default: 1)
+     --model.resnet_encoder.norm-layer {batch-norm,group-norm,instance-norm,instance-norm-affine,layer-norm}
+                           type of normalization layer (default: null)
+     --model.resnet_encoder.in-norm, --no_model.resnet_encoder.in-norm
+                           batch normalization at the input (type: bool, default:
+                           False)
+     --model.resnet_encoder.no-maxpool, --no_model.resnet_encoder.no-maxpool
+                           don't do max pooling after first convolution (type:
+                           bool, default: False)
+     --model.resnet_encoder.zero-init-residual, --no_model.resnet_encoder.zero-init-residual
+                           Zero-initialize the last BN in each residual branch
+                           (type: bool, default: False)
+     --model.resnet_encoder.se-r SE_R
+                           squeeze ratio in squeeze-excitation blocks (type: int,
+                           default: 16)
+     --model.resnet_encoder.res2net-scale RES2NET_SCALE
+                           scale parameter for res2net (type: int, default: 4)
+     --model.resnet_encoder.res2net-width-factor RES2NET_WIDTH_FACTOR
+                           multiplicative factor for the internal width of
+                           res2net (type: float, default: 1)
+     --model.resnet_encoder.hid-act HID_ACT
+                           hidden activation (default: relu)
+     --model.resnet_encoder.norm-before, --no_model.resnet_encoder.norm-before
+                           batch normalizaton before activation (type: bool,
+                           default: True)
+     --model.resnet_encoder.dropout-rate DROPOUT_RATE
+                           dropout (type: float, default: 0)
+     --model.resnet_encoder.freq-pos-enc, --no_model.resnet_encoder.freq-pos-enc
+                           use frequency wise positional encoder (type: bool,
+                           default: False)
+
+     --model.xvector_sig_reg.num-slices NUM_SLICES
+                           Random projection count (type: int, default: 256)
+     --model.xvector_sig_reg.num-points NUM_POINTS
+                           Frequency-node count (type: int, default: 17)
+     --model.xvector_sig_reg.t-max T_MAX
+                           Symmetric frequency endpoint (type: float, default:
+                           5.0)
+     --model.xvector_sig_reg.seed SEED
+                           Dedicated generator base seed (type: int, default: 0)
+     --model.xvector_sig_reg.multi-view, --no_model.xvector_sig_reg.multi-view
+                           Leading axis indexes views (type: bool, default:
+                           False)
+     --model.xvector_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE
+                           Directions per checkpointed chunk (type: int, default:
+                           null)
+     --model.xvector_sig_reg.distributed-mode {local,global_data}
+                           Statistics aggregation mode (default: global_data)
+     --model.xvector_sig_reg.reduction {mean,sum,none}
+                           Reduction across views; directions are always averaged
+                           (default: mean)
+
+     --model.pooling.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}
+                           Pooling methods: avg, mean+stddev, mean+logvar, lde,
+                           scaled-dot-prod-att-v1, ch-wise-att-mean+stddev (type:
+                           <method 'lower' of 'str' objects>, default:
+                           mean+stddev)
+     --model.pooling.dim DIM
+                           Pooling dimension (usually the time dimension) (type:
+                           int, default: -1)
+     --model.pooling.keepdim
+                           Keeps the pooled dimension as a singleton axis
+                           (default: False)
+     --model.pooling.in-feats IN_FEATS
+                           Input feature size for LDE/attention pooling (type:
+                           int, default: 0)
+     --model.pooling.inner-feats INNER_FEATS
+                           Hidden feature size for channel-wise attentive pooling
+                           (type: int, default: 0)
+     --model.pooling.num-comp NUM_COMP
+                           Number of components for LDE pooling (type: int,
+                           default: 8)
+     --model.pooling.dist-pow DIST_POW
+                           Distance power for LDE pooling (typically 1 or 2)
+                           (type: int, default: 2)
+     --model.pooling.wo-bias
+                           Disables bias in LDE pooling (default: False)
+     --model.pooling.num-heads NUM_HEADS
+                           Number of attention heads (type: int, default: 4)
+     --model.pooling.d-k D_K
+                           Key dimension for attention (type: int, default: 256)
+     --model.pooling.d-v D_V
+                           Value dimension for attention (type: int, default:
+                           256)
+     --model.pooling.bin-attn
+                           Uses binary attention (sigmoid instead of softmax)
+                           (default: False)
+
+     --model.head.head-type {classif,none}
+                           Type of Hydra head to instantiate. (default: classif)
+     --model.head.enable-loss, --no_model.head.enable-loss
+                           if true, the forward method computes the loss if
+                           targets are provided (type: bool, default: True)
+     --model.head.reduction {none,mean,sum}
+                           reduction method for the loss (default: mean)
+     --model.head.loss-type {softmax,cos-softmax,arc-softmax,subcenter-arc-softmax}
+                           loss type: softmax, arc-softmax, cos-softmax,
+                           subcenter-arc-softmax (default: arc-softmax)
+     --model.head.cos-scale COS_SCALE
+                           scale for arcface (type: float, default: 64)
+     --model.head.margin MARGIN
+                           margin for arcface, cosface,... (type: float, default:
+                           0.3)
+     --model.head.margin-warmup-steps MARGIN_WARMUP_STEPS
+                           number of steps until we set the final margin (type:
+                           int, default: 0)
+     --model.head.intertop-k INTERTOP_K
+                           K for InterTopK penalty (type: int, default: 5)
+     --model.head.intertop-margin INTERTOP_MARGIN
+                           margin for InterTopK penalty (type: float, default:
+                           0.0)
+     --model.head.num-subcenters NUM_SUBCENTERS
+                           number of subcenters in subcenter losses (type: int,
+                           default: 2)
+     --model.head.num-classes NUM_CLASSES
+                           number of output classes (type: int, default: null)
+     --model.head.label-smoothing LABEL_SMOOTHING
+                           label smoothing value for cross-entropy loss (type:
+                           float, default: 0.0)
+     --model.head.enable-prototype-code-rate, --no_model.head.enable-prototype-code-rate
+                           enable the computation of the prototype code rate
+                           (type: bool, default: False)
+     --model.head.prototype_code_rate CONFIG
+                           Path to a configuration file.
+     --model.head.enable-prototype-sig-reg, --no_model.head.enable-prototype-sig-reg
+                           compute SIGReg for unnormalized class prototypes
+                           (type: bool, default: False)
+     --model.head.prototype_sig_reg CONFIG
+                           Path to a configuration file.
+
+     --model.head.prototype_code_rate.eps EPS
+                           Distortion tolerance parameter in the coding-rate
+                           formula (type: float, default: 0.5)
+     --model.head.prototype_code_rate.jitter JITTER
+                           Diagonal stabilization added to the identity term
+                           (type: float, default: 1e-06)
+     --model.head.prototype_code_rate.gamma-1 GAMMA_1
+                           Denominator scaling factor in the final coding rate
+                           (type: float, default: 1.0)
+     --model.head.prototype_code_rate.gamma-2 GAMMA_2
+                           Numerator scaling factor applied inside the log-
+                           determinant (type: float, default: 1.0)
+     --model.head.prototype_code_rate.normalize, --no_model.head.prototype_code_rate.normalize
+                           Whether to L2-normalize the input vectors before
+                           computing the rate (type: bool, default: True)
+
+     --model.head.prototype_sig_reg.num-slices NUM_SLICES
+                           Random projection count (type: int, default: 256)
+     --model.head.prototype_sig_reg.num-points NUM_POINTS
+                           Frequency-node count (type: int, default: 17)
+     --model.head.prototype_sig_reg.t-max T_MAX
+                           Symmetric frequency endpoint (type: float, default:
+                           5.0)
+     --model.head.prototype_sig_reg.seed SEED
+                           Dedicated generator base seed (type: int, default: 0)
+     --model.head.prototype_sig_reg.multi-view, --no_model.head.prototype_sig_reg.multi-view
+                           Leading axis indexes views (type: bool, default:
+                           False)
+     --model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE
+                           Directions per checkpointed chunk (type: int, default:
+                           null)
+     --model.head.prototype_sig_reg.distributed-mode {local,global_data}
+                           Statistics aggregation mode (default: local)
+     --model.head.prototype_sig_reg.reduction {mean,sum,none}
+                           Reduction across views; directions are always averaged
+                           (default: mean)
+
+     --trainer.exp-path EXP_PATH
+                           Path to the experiment directory for logs and
+                           checkpoints. (default: null)
+     --trainer.grad-acc-steps GRAD_ACC_STEPS
+                           Number of batches to accumulate gradients before
+                           optimizer step. (type: int, default: 1)
+     --trainer.eff-batch-size EFF_BATCH_SIZE
+                           Target effective batch size. Overrides grad-acc-steps
+                           based on dataset and world size. (type: int, default:
+                           null)
+     --trainer.num-epochs NUM_EPOCHS
+                           Total number of training epochs. (type: int, default:
+                           200)
+     --trainer.max-steps MAX_STEPS
+                           Maximum number of optimization steps. Overrides num-
+                           epochs if set. (type: int, default: null)
+     --trainer.log-interval LOG_INTERVAL
+                           Number of steps between logging to stdout or loggers.
+                           (type: int, default: 1000)
+     --trainer.log-gpu-usage, --no_trainer.log-gpu-usage
+                           Enable GPU memory and utilization logging (e.g., in
+                           TensorBoard). (type: bool, default: False)
+     --trainer.save-steps SAVE_STEPS
+                           Interval (in steps) between saving model checkpoints.
+                           If None, saves at epoch end only. (type: int, default:
+                           null)
+     --trainer.val-steps VAL_STEPS
+                           Interval (in steps) between validation passes. If
+                           None, validates only at epoch end. (type: int,
+                           default: null)
+     --trainer.save-hours SAVE_HOURS
+                           Minimum hours between saving checkpoints based on
+                           wall-clock time. (type: float, default: null)
+     --trainer.val-hours VAL_HOURS
+                           Minimum hours between validation runs based on wall-
+                           clock time. (type: float, default: null)
+     --trainer.use-tensorboard, --no_trainer.use-tensorboard
+                           Enable TensorBoard logging. (type: bool, default:
+                           False)
+     --trainer.use-wandb, --no_trainer.use-wandb
+                           Enable Weights & Biases (W&B) experiment tracking.
+                           (type: bool, default: False)
+     --trainer.wandb.project PROJECT
+                           Name of the W&B project. (default: null)
+     --trainer.wandb.group GROUP
+                           W&B group name for multiple runs. (default: null)
+     --trainer.wandb.name NAME
+                           Run name to appear in the W&B dashboard. (default:
+                           null)
+     --trainer.wandb.mode {online,offline}
+                           W&B logging mode: 'online' to sync or 'offline' to log
+                           locally. (default: online)
+     --trainer.ddp-type {ddp,fsdp}
+                           Distributed backend: standard DDP or torch FSDP
+                           sharded/full. (default: ddp)
+     --trainer.fsdp-cpu-offload, --no_trainer.fsdp-cpu-offload
+                           Whether to offload parameters to CPU during training
+                           (used in FSDP). (type: bool, default: False)
+     --trainer.fsdp-reshard-after-forward FSDP_RESHARD_AFTER_FORWARD
+                           Control FSDP2 resharding after forward (None=default
+                           child=True/root=False, True/False override,
+                           int=reshard to smaller world size). (default: null)
+     --trainer.fsdp-state-dict-type {full,sharded,local}
+                           State dict format to use for saving/loading FSDP
+                           models. (default: full)
+     --trainer.fsdp-state-dict-cpu-offload, --no_trainer.fsdp-state-dict-cpu-offload
+                           Offload FSDP state dicts to CPU when saving/loading.
+                           (type: bool, default: True)
+     --trainer.fsdp-state-dict-rank0-only, --no_trainer.fsdp-state-dict-rank0-only
+                           Gather full FSDP state dict only on rank 0. (type:
+                           bool, default: True)
+     --trainer.fsdp-sync-module-states, --no_trainer.fsdp-sync-module-states
+                           Synchronize module states before the first FSDP
+                           forward pass. (type: bool, default: False)
+     --trainer.fsdp-mp-param-dtype {float16,bfloat16,float32,none}
+                           Override FSDP mixed-precision param dtype (default
+                           uses amp-dtype when AMP is enabled). Use 'none' to
+                           disable. (default: null)
+     --trainer.fsdp-mp-reduce-dtype {float16,bfloat16,float32,none}
+                           Override FSDP mixed-precision reduce dtype (default
+                           uses amp-dtype when AMP is enabled). Use 'none' to
+                           disable. (default: null)
+     --trainer.fsdp-mp-output-dtype {float16,bfloat16,float32,none}
+                           Override FSDP mixed-precision output dtype (default
+                           uses amp-dtype when AMP is enabled). Use 'none' to
+                           disable. (default: null)
+     --trainer.use-amp, --no_trainer.use-amp
+                           Enable automatic mixed precision (AMP) training.
+                           (type: bool, default: False)
+     --trainer.amp-dtype {float16,bfloat16}
+                           AMP data type. Choose 'float16' or 'bfloat16'.
+                           (default: float16)
+     --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
+                           Enable gradient scaling for bfloat16 (BF16) training.
+                           (type: bool, default: False)
+     --trainer.grad-clip GRAD_CLIP
+                           Maximum norm for gradient clipping. Set to 0 to
+                           disable clipping. (type: float, default: 0)
+     --trainer.grad-clip-norm {inf,1,2}
+                           Norm type used for gradient clipping (L1, L2, or L∞).
+                           (default: 2)
+     --trainer.swa-start SWA_START
+                           Step at which to start Stochastic Weight Averaging
+                           (SWA). Disabled if 0. (type: int, default: 0)
+     --trainer.swa-lr SWA_LR
+                           Learning rate for SWA optimization phase. (type:
+                           float, default: 0.001)
+     --trainer.swa-anneal-steps SWA_ANNEAL_STEPS
+                           Number of steps to anneal SWA learning rate. (type:
+                           int, default: 50000)
+     --trainer.swa-update-steps SWA_UPDATE_STEPS
+                           How frequently (in steps) to update SWA weights.
+                           (type: int, default: 5000)
+     --trainer.bn-update-steps BN_UPDATE_STEPS
+                           Steps used to update BatchNorm statistics after SWA
+                           finalization. (type: int, default: 5000)
+     --trainer.optim CONFIG
+                           Path to a configuration file.
+     --trainer.lrsched CONFIG
+                           Path to a configuration file.
+     --trainer.wdsched CONFIG
+                           Path to a configuration file.
+     --trainer.input-key INPUT_KEY
+                           Batch dictionary key that contains the tensor fed to
+                           the model. (default: audio_aug)
+     --trainer.target-key TARGET_KEY
+                           Batch dictionary key that contains the supervision
+                           targets. (default: speaker)
+     --trainer.train-mode {full,frozen,frozen-feat-extractor,pooling,proj-head,output-layer}
+                           Named train-mode to activate inside the model (full,
+                           frozen, frozen-feat-extractor, pooling, proj-head,
+                           output-layer). (default: full)
+     --trainer.xvector-sig-reg-weight XVECTOR_SIG_REG_WEIGHT
+                           Weight added for global x-vector SIGReg. (type: float,
+                           default: 0.0)
+     --trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT
+                           Weight added for the prototype SIGReg regularizer.
+                           (type: float, default: 0.0)
+     --trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT
+                           Weight applied to the prototype code-rate regularizer.
+                           (type: float, default: 0.0)
+
+     --trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}
+                           Optimizers: SGD, Adam, AdaDelta, AdaGrad, SparseAdam
+                           AdaMax, ASGD, LBFGS, RMSprop, Rprop (type: <method
+                           'lower' of 'str' objects>, default: adam)
+     --trainer.optim.lr LR
+                           Initial learning rate (type: float, default: 0.001)
+     --trainer.optim.momentum MOMENTUM
+                           Momentum (type: float, default: 0.6)
+     --trainer.optim.beta1 BETA1
+                           Beta_1 in Adam optimizers, coefficient used for
+                           computing running averages of gradient (type: float,
+                           default: 0.9)
+     --trainer.optim.beta2 BETA2
+                           Beta_2 in Adam optimizerscoefficient used for
+                           computing running averages of gradient square (type:
+                           float, default: 0.99)
+     --trainer.optim.rho RHO
+                           Rho in AdaDelta,coefficient used for computing a
+                           running average of squared gradients (type: float,
+                           default: 0.9)
+     --trainer.optim.eps EPS
+                           Epsilon in RMSprop and Adam optimizers term added to
+                           the denominator to improve numerical stability (type:
+                           float, default: 1e-08)
+     --trainer.optim.weight-decay WEIGHT_DECAY
+                           L2 regularization coefficient (type: float, default:
+                           1e-06)
+     --trainer.optim.amsgrad
+                           AMSGrad variant of Adam (default: False)
+     --trainer.optim.nesterov
+                           Use Nesterov momentum in SGD (default: False)
+     --trainer.optim.lambd LAMBD
+                           decay term in ASGD (type: float, default: 0.0001)
+     --trainer.optim.asgd-alpha ASGD_ALPHA
+                           power for eta update in ASGD (type: float, default:
+                           0.75)
+     --trainer.optim.t0 T0
+                           point at which to start averaging in ASGD (type:
+                           float, default: 1000000.0)
+     --trainer.optim.rmsprop-alpha RMSPROP_ALPHA
+                           smoothing constant in RMSprop (type: float, default:
+                           0.99)
+     --trainer.optim.centered
+                           Compute centered RMSprop, gradient normalized by its
+                           variance (default: False)
+     --trainer.optim.lr-decay LR_DECAY
+                           Learning rate decay in AdaGrad optimizer (type: float,
+                           default: 1e-06)
+     --trainer.optim.init-acc-val INIT_ACC_VAL
+                           Init accum value in Adagrad (type: float, default: 0)
+     --trainer.optim.max-iter MAX_ITER
+                           max iterations in LBFGS (type: int, default: 20)
+
+     --trainer.lrsched.lrsch-type {none,exp_lr,invpow_lr,cos_lr,adamcos_lr,red_lr_on_plateau,noam_lr,triangular_lr}
+                           Learning rate scheduler type (e.g., exp_lr, invpow_lr,
+                           cos_lr, adamcos_lr, red_lr_on_plateau, noam_lr,
+                           triangular_lr). (type: <method 'lower' of 'str'
+                           objects>, default: none)
+     --trainer.lrsched.decay-rate DECAY_RATE
+                           Exponential decay factor applied every decay_steps.
+                           (type: float, default: 0.01)
+     --trainer.lrsched.decay-steps DECAY_STEPS
+                           Number of steps between exponential decays. (type:
+                           int, default: 100)
+     --trainer.lrsched.power POWER
+                           Exponent for inverse power decay (lr ~ step^-power).
+                           (type: float, default: 0.5)
+     --trainer.lrsched.hold-steps HOLD_STEPS
+                           Number of steps to hold the initial lr before decay.
+                           (type: int, default: 10)
+     --trainer.lrsched.t T
+                           Cycle length for cosine/triangular schedules (in
+                           steps). (type: int, default: 10)
+     --trainer.lrsched.t-mul T_MUL
+                           Cycle length multiplier after each restart
+                           (cos/triangular). (type: int, default: 1)
+     --trainer.lrsched.gamma GAMMA
+                           Max lr multiplier after each restart (cos/triangular).
+                           (type: float, default: 1.0)
+     --trainer.lrsched.warm-restarts, --no_trainer.lrsched.warm-restarts
+                           Enable warm restarts in cosine schedules. (type: bool,
+                           default: False)
+     --trainer.lrsched.monitor MONITOR
+                           Metric name to monitor for ReduceLROnPlateau.
+                           (default: val_loss)
+     --trainer.lrsched.mode {min,max}
+                           Whether lower or higher metric is better for plateau
+                           reduction. (default: min)
+     --trainer.lrsched.factor FACTOR
+                           Multiply lr by this factor when plateau reduction
+                           triggers. (type: float, default: 0.1)
+     --trainer.lrsched.patience PATIENCE
+                           Epochs with no improvement before reducing lr. (type:
+                           int, default: 10)
+     --trainer.lrsched.threshold THRESHOLD
+                           Minimum change to qualify as an improvement. (type:
+                           float, default: 0.0001)
+     --trainer.lrsched.threshold_mode {rel,abs}
+                           Use relative or absolute threshold for improvements.
+                           (default: rel)
+     --trainer.lrsched.cooldown COOLDOWN
+                           Epochs to wait after a reduction before resuming
+                           checks. (type: int, default: 0)
+     --trainer.lrsched.eps EPS
+                           Minimum lr change; smaller updates are ignored. (type:
+                           float, default: 1e-08)
+     --trainer.lrsched.min-lr MIN_LR
+                           Lower bound for learning rate. (type: float, default:
+                           0)
+     --trainer.lrsched.warmup-steps WARMUP_STEPS
+                           Steps to linearly warm up lr from 0 to the base value.
+                           (type: int, default: null)
+     --trainer.lrsched.d-model D_MODEL
+                           Transformer model dimension for Noam schedule. (type:
+                           int, default: null)
+     --trainer.lrsched.lr-factor LR_FACTOR
+                           Scale factor applied to the Noam learning rate. (type:
+                           float, default: 1)
+     --trainer.lrsched.update-lr-on-opt-step, --no_trainer.lrsched.update-lr-on-opt-step
+                           Update lr per optimizer step instead of per epoch.
+                           (type: bool, default: True)
+
+     --trainer.wdsched.wdsch-type {none,cos_wd}
+                           Weight decay scheduler type: none (no schedule) or
+                           cos_wd (cosine annealing). (type: <method 'lower' of
+                           'str' objects>, default: none)
+     --trainer.wdsched.initial-wd INITIAL_WD
+                           Initial weight decay value; it should be lower than
+                           the final value defined in the optimizer param groups.
+                           (type: float, default: 1e-05)
+     --trainer.wdsched.warmup-steps WARMUP_STEPS
+                           Number of warmup steps to reach the final weight decay
+                           value. (type: int, default: 0)
+     --trainer.wdsched.update-wd-on-opt-step, --no_trainer.wdsched.update-wd-on-opt-step
+                           Update weight decay every optimizer step instead of
+                           once per epoch. (type: bool, default: True)
+
+hyperion-train-xvectorp wav2vec2
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   usage: train_xvectorp.py [options] wav2vec2 [--cfg CFG] [--data CONFIG]
+                                               [--data.train CONFIG]
+                                               [--data.train.dataset CONFIG]
+                                               --data.train.dataset.dataset-path
+                                               DATASET_PATH
+                                               [--data.train.dataset.class-names CLASS_NAMES [CLASS_NAMES ...]]
+                                               [--data.train.dataset.extra-attrs EXTRA_ATTRS [EXTRA_ATTRS ...]]
+                                               [--data.train.dataset.tokenizer-mappings TOKENIZER_MAPPINGS [TOKENIZER_MAPPINGS ...]]
+                                               [--data.train.dataset.tokenizer-files TOKENIZER_FILES [TOKENIZER_FILES ...]]
+                                               [--data.train.dataset.bpe-model BPE_MODEL]
+                                               [--data.train.dataset.aug-cfgs AUG_CFGS [AUG_CFGS ...]]
+                                               [--data.train.dataset.num-augs NUM_AUGS]
+                                               [--data.train.dataset.num-aug-mix NUM_AUG_MIX]
+                                               [--data.train.dataset.aug-mix-alpha AUG_MIX_ALPHA]
+                                               [--data.train.dataset.target-sample-freq TARGET_SAMPLE_FREQ]
+                                               [--data.train.dataset.enable-tel-codecs-if ENABLE_TEL_CODECS_IF]
+                                               [--data.train.dataset.enable-media-codecs-if ENABLE_MEDIA_CODECS_IF]
+                                               [--data.train.dataset.enable-transcodec-if ENABLE_TRANSCODEC_IF]
+                                               [--data.train.dataset.seed SEED]
+                                               [--data.train.dataset.wav-scale WAV_SCALE]
+                                               [--data.train.sampler CONFIG]
+                                               [--data.train.sampler.sampler-type {class_weighted_random_seg_chunk_sampler,random_seg_chunk_sampler,seg_sampler,seg_chunk_sampler,bucketing_seg_sampler}]
+                                               [--data.train.sampler.base-sampler-type {seg_sampler,bucketing_seg_sampler}]
+                                               [--data.train.sampler.subbase-sampler-type {seg_sampler,bucketing_seg_sampler}]
+                                               [--data.train.sampler.num-buckets NUM_BUCKETS]
+                                               [--data.train.sampler.min-chunk-length MIN_CHUNK_LENGTH]
+                                               [--data.train.sampler.max-chunk-length MAX_CHUNK_LENGTH]
+                                               [--data.train.sampler.min-chunk-overlap MIN_CHUNK_OVERLAP]
+                                               [--data.train.sampler.max-chunk-overlap MAX_CHUNK_OVERLAP]
+                                               [--data.train.sampler.length-sampling-method {uniform,maximum}]
+                                               [--data.train.sampler.min-batch-size MIN_BATCH_SIZE]
+                                               [--data.train.sampler.max-batch-size MAX_BATCH_SIZE]
+                                               [--data.train.sampler.batch-size BATCH_SIZE]
+                                               [--data.train.sampler.max-batch-length MAX_BATCH_LENGTH]
+                                               [--data.train.sampler.iters-per-epoch ITERS_PER_EPOCH]
+                                               [--data.train.sampler.num-chunks-per-seg-epoch NUM_CHUNKS_PER_SEG_EPOCH]
+                                               [--data.train.sampler.num-segs-per-class NUM_SEGS_PER_CLASS]
+                                               [--data.train.sampler.num-chunks-per-seg NUM_CHUNKS_PER_SEG]
+                                               [--data.train.sampler.weight-exponent WEIGHT_EXPONENT]
+                                               [--data.train.sampler.weight-mode {custom,uniform,data-prior}]
+                                               [--data.train.sampler.seg-weight-mode {uniform,data-prior}]
+                                               [--data.train.sampler.num-hard-prototypes NUM_HARD_PROTOTYPES]
+                                               [--data.train.sampler.drop-last]
+                                               [--data.train.sampler.sample-all-segments]
+                                               [--data.train.sampler.max-batches-per-epoch MAX_BATCHES_PER_EPOCH]
+                                               [--data.train.sampler.shuffle]
+                                               [--data.train.sampler.seed SEED]
+                                               [--data.train.sampler.length-name LENGTH_NAME]
+                                               [--data.train.sampler.class-name CLASS_NAME]
+                                               [--data.train.sampler.sort-by-length]
+                                               [--data.train.data_loader.num-workers NUM_WORKERS]
+                                               [--data.val CONFIG]
+                                               [--data.val.dataset CONFIG]
+                                               --data.val.dataset.dataset-path
+                                               DATASET_PATH
+                                               [--data.val.dataset.class-names CLASS_NAMES [CLASS_NAMES ...]]
+                                               [--data.val.dataset.extra-attrs EXTRA_ATTRS [EXTRA_ATTRS ...]]
+                                               [--data.val.dataset.tokenizer-mappings TOKENIZER_MAPPINGS [TOKENIZER_MAPPINGS ...]]
+                                               [--data.val.dataset.tokenizer-files TOKENIZER_FILES [TOKENIZER_FILES ...]]
+                                               [--data.val.dataset.bpe-model BPE_MODEL]
+                                               [--data.val.dataset.aug-cfgs AUG_CFGS [AUG_CFGS ...]]
+                                               [--data.val.dataset.num-augs NUM_AUGS]
+                                               [--data.val.dataset.num-aug-mix NUM_AUG_MIX]
+                                               [--data.val.dataset.aug-mix-alpha AUG_MIX_ALPHA]
+                                               [--data.val.dataset.target-sample-freq TARGET_SAMPLE_FREQ]
+                                               [--data.val.dataset.enable-tel-codecs-if ENABLE_TEL_CODECS_IF]
+                                               [--data.val.dataset.enable-media-codecs-if ENABLE_MEDIA_CODECS_IF]
+                                               [--data.val.dataset.enable-transcodec-if ENABLE_TRANSCODEC_IF]
+                                               [--data.val.dataset.seed SEED]
+                                               [--data.val.dataset.wav-scale WAV_SCALE]
+                                               [--data.val.sampler CONFIG]
+                                               [--data.val.sampler.sampler-type {class_weighted_random_seg_chunk_sampler,random_seg_chunk_sampler,seg_sampler,seg_chunk_sampler,bucketing_seg_sampler}]
+                                               [--data.val.sampler.base-sampler-type {seg_sampler,bucketing_seg_sampler}]
+                                               [--data.val.sampler.subbase-sampler-type {seg_sampler,bucketing_seg_sampler}]
+                                               [--data.val.sampler.num-buckets NUM_BUCKETS]
+                                               [--data.val.sampler.min-chunk-length MIN_CHUNK_LENGTH]
+                                               [--data.val.sampler.max-chunk-length MAX_CHUNK_LENGTH]
+                                               [--data.val.sampler.min-chunk-overlap MIN_CHUNK_OVERLAP]
+                                               [--data.val.sampler.max-chunk-overlap MAX_CHUNK_OVERLAP]
+                                               [--data.val.sampler.length-sampling-method {uniform,maximum}]
+                                               [--data.val.sampler.min-batch-size MIN_BATCH_SIZE]
+                                               [--data.val.sampler.max-batch-size MAX_BATCH_SIZE]
+                                               [--data.val.sampler.batch-size BATCH_SIZE]
+                                               [--data.val.sampler.max-batch-length MAX_BATCH_LENGTH]
+                                               [--data.val.sampler.iters-per-epoch ITERS_PER_EPOCH]
+                                               [--data.val.sampler.num-chunks-per-seg-epoch NUM_CHUNKS_PER_SEG_EPOCH]
+                                               [--data.val.sampler.num-segs-per-class NUM_SEGS_PER_CLASS]
+                                               [--data.val.sampler.num-chunks-per-seg NUM_CHUNKS_PER_SEG]
+                                               [--data.val.sampler.weight-exponent WEIGHT_EXPONENT]
+                                               [--data.val.sampler.weight-mode {custom,uniform,data-prior}]
+                                               [--data.val.sampler.seg-weight-mode {uniform,data-prior}]
+                                               [--data.val.sampler.num-hard-prototypes NUM_HARD_PROTOTYPES]
+                                               [--data.val.sampler.drop-last]
+                                               [--data.val.sampler.sample-all-segments]
+                                               [--data.val.sampler.max-batches-per-epoch MAX_BATCHES_PER_EPOCH]
+                                               [--data.val.sampler.shuffle]
+                                               [--data.val.sampler.seed SEED]
+                                               [--data.val.sampler.length-name LENGTH_NAME]
+                                               [--data.val.sampler.class-name CLASS_NAME]
+                                               [--data.val.sampler.sort-by-length]
+                                               [--data.val.data_loader.num-workers NUM_WORKERS]
+                                               [--model CONFIG]
+                                               [--model.hf_feats CONFIG]
+                                               [--model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH]
+                                               [--model.hf_feats.normalize-input]
+                                               [--model.hf_feats.use-input-attention-mask]
+                                               [--model.hf_feats.cache-dir CACHE_DIR]
+                                               [--model.hf_feats.force-download]
+                                               [--model.hf_feats.revision REVISION]
+                                               [--model.hf_feats.drop-layers-gt DROP_LAYERS_GT]
+                                               [--model.hf_feats.override-dropouts]
+                                               [--model.hf_feats.override-spec-augment]
+                                               [--model.hf_feats.left-encoder-context LEFT_ENCODER_CONTEXT]
+                                               [--model.hf_feats.right-encoder-context RIGHT_ENCODER_CONTEXT]
+                                               [--model.hf_feats.feat-extract-lr FEAT_EXTRACT_LR]
+                                               [--model.hf_feats.encoder-lr ENCODER_LR]
+                                               [--model.hf_feats.use-lora]
+                                               [--model.hf_feats.lora-components {k_proj,q_proj,v_proj,out_proj,intermediate_dense,output_dense} [{k_proj,q_proj,v_proj,out_proj,intermediate_dense,output_dense} ...]]
+                                               [--model.hf_feats.lora-rank LORA_RANK]
+                                               [--model.hf_feats.lora-alpha LORA_ALPHA]
+                                               [--model.hf_feats.lora-dropout LORA_DROPOUT]
+                                               [--model.hf_feats.lora-merge-weights]
+                                               [--model.hf_feats.vocab-size VOCAB_SIZE]
+                                               [--model.hf_feats.hidden-size HIDDEN_SIZE]
+                                               [--model.hf_feats.num-hidden-layers NUM_HIDDEN_LAYERS]
+                                               [--model.hf_feats.num-attention-heads NUM_ATTENTION_HEADS]
+                                               [--model.hf_feats.intermediate-size INTERMEDIATE_SIZE]
+                                               [--model.hf_feats.hidden-act {gelu,relu,selu,gelu_new}]
+                                               [--model.hf_feats.hidden-dropout HIDDEN_DROPOUT]
+                                               [--model.hf_feats.activation-dropout ACTIVATION_DROPOUT]
+                                               [--model.hf_feats.attention-dropout ATTENTION_DROPOUT]
+                                               [--model.hf_feats.layerdrop LAYERDROP]
+                                               [--model.hf_feats.initializer-range INITIALIZER_RANGE]
+                                               [--model.hf_feats.layer-norm-eps LAYER_NORM_EPS]
+                                               [--model.hf_feats.feat-extract-norm {group,layer}]
+                                               [--model.hf_feats.feat-proj-dropout FEAT_PROJ_DROPOUT]
+                                               [--model.hf_feats.feat-extract-activation {gelu,relu,selu,gelu_new}]
+                                               [--model.hf_feats.conv-dim CONV_DIM [CONV_DIM ...]]
+                                               [--model.hf_feats.conv-stride CONV_STRIDE [CONV_STRIDE ...]]
+                                               [--model.hf_feats.conv-kernel CONV_KERNEL [CONV_KERNEL ...]]
+                                               [--model.hf_feats.conv-bias]
+                                               [--model.hf_feats.num-conv-pos-embeddings NUM_CONV_POS_EMBEDDINGS]
+                                               [--model.hf_feats.num-conv-pos-embedding-groups NUM_CONV_POS_EMBEDDING_GROUPS]
+                                               [--model.hf_feats.do-stable-layer-norm]
+                                               [--model.hf_feats.apply-spec-augment]
+                                               [--model.hf_feats.mask-time-prob MASK_TIME_PROB]
+                                               [--model.hf_feats.mask-time-length MASK_TIME_LENGTH]
+                                               [--model.hf_feats.mask-time-min-masks MASK_TIME_MIN_MASKS]
+                                               [--model.hf_feats.mask-feature-prob MASK_FEATURE_PROB]
+                                               [--model.hf_feats.mask-feature-length MASK_FEATURE_LENGTH]
+                                               [--model.hf_feats.mask-feature-min-masks MASK_FEATURE_MIN_MASKS]
+                                               [--model.hf_feats.add-adapter]
+                                               [--model.hf_feats.adapter-kernel-size ADAPTER_KERNEL_SIZE]
+                                               [--model.hf_feats.adapter-stride ADAPTER_STRIDE]
+                                               [--model.hf_feats.num-adapter-layers NUM_ADAPTER_LAYERS]
+                                               [--model.hf_feats.output-hidden-size OUTPUT_HIDDEN_SIZE]
+                                               [--model.feat_fuser CONFIG]
+                                               [--model.feat_fuser.feat_fuser CONFIG]
+                                               [--model.feat_fuser.feat_fuser.fuser-type {last,weighted-avg,linear,cat}]
+                                               [--model.feat_fuser.feat_fuser.proj-dim PROJ_DIM]
+                                               [--model.feat_fuser.feat_fuser.proj-bias]
+                                               [--model.feat_fuser.mvn CONFIG]
+                                               [--model.feat_fuser.mvn.norm-mean]
+                                               [--model.feat_fuser.mvn.norm-var]
+                                               [--model.feat_fuser.mvn.left-context LEFT_CONTEXT]
+                                               [--model.feat_fuser.mvn.right-context RIGHT_CONTEXT]
+                                               [--model.feat_fuser.mvn.context CONTEXT]
+                                               [--model.feat_fuser.spec_augment CONFIG]
+                                               [--model.feat_fuser.spec_augment.time-warp-prob TIME_WARP_PROB]
+                                               [--model.feat_fuser.spec_augment.time-warp-window TIME_WARP_WINDOW]
+                                               [--model.feat_fuser.spec_augment.time-warp-mode {bilinear,linear,nearest,bicubic,trilinear}]
+                                               [--model.feat_fuser.spec_augment.time-mask-prob TIME_MASK_PROB]
+                                               [--model.feat_fuser.spec_augment.time-mask-min-width TIME_MASK_MIN_WIDTH]
+                                               [--model.feat_fuser.spec_augment.time-mask-max-width TIME_MASK_MAX_WIDTH]
+                                               [--model.feat_fuser.spec_augment.time-mask-min-num-masks TIME_MASK_MIN_NUM_MASKS]
+                                               [--model.feat_fuser.spec_augment.time-mask-max-num-masks TIME_MASK_MAX_NUM_MASKS]
+                                               [--model.feat_fuser.spec_augment.time-use-num-masks-percentage]
+                                               [--model.feat_fuser.spec_augment.freq-mask-prob FREQ_MASK_PROB]
+                                               [--model.feat_fuser.spec_augment.freq-mask-min-width FREQ_MASK_MIN_WIDTH]
+                                               [--model.feat_fuser.spec_augment.freq-mask-max-width FREQ_MASK_MAX_WIDTH]
+                                               [--model.feat_fuser.spec_augment.freq-mask-min-num-masks FREQ_MASK_MIN_NUM_MASKS]
+                                               [--model.feat_fuser.spec_augment.freq-mask-max-num-masks FREQ_MASK_MAX_NUM_MASKS]
+                                               [--model.feat_fuser.spec_augment.mask-method {constant,min,mean}]
+                                               [--model.feat_fuser.spec_augment.mask-value MASK_VALUE]
+                                               [--model.feat_fuser.aug-after-mvn]
+                                               [--model.feat-fusion-start FEAT_FUSION_START]
+                                               [--model.backbone-feats-lr BACKBONE_FEATS_LR]
+                                               [--model.backbone-feats-weight-decay BACKBONE_FEATS_WEIGHT_DECAY]
+                                               [--model.backbone-lr BACKBONE_LR]
+                                               [--model.backbone-weight-decay BACKBONE_WEIGHT_DECAY]
+                                               [--model.xvector-dim XVECTOR_DIM]
+                                               [--model.proj-use-norm]
+                                               [--model.proj-norm-layer {batch-norm,layer-norm,rms-norm}]
+                                               [--model.proj-norm-before]
+                                               [--model.bias-weight-decay BIAS_WEIGHT_DECAY]
+                                               [--model.pooling-weight-decay POOLING_WEIGHT_DECAY]
+                                               [--model.enable-xvector-sig-reg]
+                                               [--model.xvector_sig_reg CONFIG]
+                                               [--model.xvector_sig_reg.num-slices NUM_SLICES]
+                                               [--model.xvector_sig_reg.num-points NUM_POINTS]
+                                               [--model.xvector_sig_reg.t-max T_MAX]
+                                               [--model.xvector_sig_reg.seed SEED]
+                                               [--model.xvector_sig_reg.multi-view]
+                                               [--model.xvector_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE]
+                                               [--model.xvector_sig_reg.distributed-mode {local,global_data}]
+                                               [--model.xvector_sig_reg.reduction {mean,sum,none}]
+                                               [--model.proj-weight-decay PROJ_WEIGHT_DECAY]
+                                               [--model.head-weight-decay HEAD_WEIGHT_DECAY]
+                                               [--model.pooling CONFIG]
+                                               [--model.pooling.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}]
+                                               [--model.pooling.dim DIM]
+                                               [--model.pooling.keepdim]
+                                               [--model.pooling.in-feats IN_FEATS]
+                                               [--model.pooling.inner-feats INNER_FEATS]
+                                               [--model.pooling.num-comp NUM_COMP]
+                                               [--model.pooling.dist-pow DIST_POW]
+                                               [--model.pooling.wo-bias]
+                                               [--model.pooling.num-heads NUM_HEADS]
+                                               [--model.pooling.d-k D_K]
+                                               [--model.pooling.d-v D_V]
+                                               [--model.pooling.bin-attn]
+                                               [--model.head CONFIG]
+                                               [--model.head.head-type {classif,none}]
+                                               [--model.head.enable-loss]
+                                               [--model.head.reduction {none,mean,sum}]
+                                               [--model.head.loss-type {softmax,cos-softmax,arc-softmax,subcenter-arc-softmax}]
+                                               [--model.head.cos-scale COS_SCALE]
+                                               [--model.head.margin MARGIN]
+                                               [--model.head.margin-warmup-steps MARGIN_WARMUP_STEPS]
+                                               [--model.head.intertop-k INTERTOP_K]
+                                               [--model.head.intertop-margin INTERTOP_MARGIN]
+                                               [--model.head.num-subcenters NUM_SUBCENTERS]
+                                               [--model.head.num-classes NUM_CLASSES]
+                                               [--model.head.label-smoothing LABEL_SMOOTHING]
+                                               [--model.head.enable-prototype-code-rate]
+                                               [--model.head.prototype_code_rate CONFIG]
+                                               [--model.head.prototype_code_rate.eps EPS]
+                                               [--model.head.prototype_code_rate.jitter JITTER]
+                                               [--model.head.prototype_code_rate.gamma-1 GAMMA_1]
+                                               [--model.head.prototype_code_rate.gamma-2 GAMMA_2]
+                                               [--model.head.prototype_code_rate.normalize]
+                                               [--model.head.enable-prototype-sig-reg]
+                                               [--model.head.prototype_sig_reg CONFIG]
+                                               [--model.head.prototype_sig_reg.num-slices NUM_SLICES]
+                                               [--model.head.prototype_sig_reg.num-points NUM_POINTS]
+                                               [--model.head.prototype_sig_reg.t-max T_MAX]
+                                               [--model.head.prototype_sig_reg.seed SEED]
+                                               [--model.head.prototype_sig_reg.multi-view]
+                                               [--model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE]
+                                               [--model.head.prototype_sig_reg.distributed-mode {local,global_data}]
+                                               [--model.head.prototype_sig_reg.reduction {mean,sum,none}]
+                                               [--init-from-xvector-model-file INIT_FROM_XVECTOR_MODEL_FILE]
+                                               [--trainer CONFIG]
+                                               [--trainer.exp-path EXP_PATH]
+                                               [--trainer.grad-acc-steps GRAD_ACC_STEPS]
+                                               [--trainer.eff-batch-size EFF_BATCH_SIZE]
+                                               [--trainer.num-epochs NUM_EPOCHS]
+                                               [--trainer.max-steps MAX_STEPS]
+                                               [--trainer.log-interval LOG_INTERVAL]
+                                               [--trainer.log-gpu-usage]
+                                               [--trainer.save-steps SAVE_STEPS]
+                                               [--trainer.val-steps VAL_STEPS]
+                                               [--trainer.save-hours SAVE_HOURS]
+                                               [--trainer.val-hours VAL_HOURS]
+                                               [--trainer.use-tensorboard]
+                                               [--trainer.use-wandb]
+                                               [--trainer.wandb.project PROJECT]
+                                               [--trainer.wandb.group GROUP]
+                                               [--trainer.wandb.name NAME]
+                                               [--trainer.wandb.mode {online,offline}]
+                                               [--trainer.ddp-type {ddp,fsdp}]
+                                               [--trainer.fsdp-cpu-offload]
+                                               [--trainer.fsdp-reshard-after-forward FSDP_RESHARD_AFTER_FORWARD]
+                                               [--trainer.fsdp-state-dict-type {full,sharded,local}]
+                                               [--trainer.fsdp-state-dict-cpu-offload]
+                                               [--trainer.fsdp-state-dict-rank0-only]
+                                               [--trainer.fsdp-sync-module-states]
+                                               [--trainer.fsdp-mp-param-dtype {float16,bfloat16,float32,none}]
+                                               [--trainer.fsdp-mp-reduce-dtype {float16,bfloat16,float32,none}]
+                                               [--trainer.fsdp-mp-output-dtype {float16,bfloat16,float32,none}]
+                                               [--trainer.use-amp]
+                                               [--trainer.amp-dtype {float16,bfloat16}]
+                                               [--trainer.bf16-grad-scaler]
+                                               [--trainer.grad-clip GRAD_CLIP]
+                                               [--trainer.grad-clip-norm {inf,1,2}]
+                                               [--trainer.swa-start SWA_START]
+                                               [--trainer.swa-lr SWA_LR]
+                                               [--trainer.swa-anneal-steps SWA_ANNEAL_STEPS]
+                                               [--trainer.swa-update-steps SWA_UPDATE_STEPS]
+                                               [--trainer.bn-update-steps BN_UPDATE_STEPS]
+                                               [--trainer.optim CONFIG]
+                                               [--trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}]
+                                               [--trainer.optim.lr LR]
+                                               [--trainer.optim.momentum MOMENTUM]
+                                               [--trainer.optim.beta1 BETA1]
+                                               [--trainer.optim.beta2 BETA2]
+                                               [--trainer.optim.rho RHO]
+                                               [--trainer.optim.eps EPS]
+                                               [--trainer.optim.weight-decay WEIGHT_DECAY]
+                                               [--trainer.optim.amsgrad]
+                                               [--trainer.optim.nesterov]
+                                               [--trainer.optim.lambd LAMBD]
+                                               [--trainer.optim.asgd-alpha ASGD_ALPHA]
+                                               [--trainer.optim.t0 T0]
+                                               [--trainer.optim.rmsprop-alpha RMSPROP_ALPHA]
+                                               [--trainer.optim.centered]
+                                               [--trainer.optim.lr-decay LR_DECAY]
+                                               [--trainer.optim.init-acc-val INIT_ACC_VAL]
+                                               [--trainer.optim.max-iter MAX_ITER]
+                                               [--trainer.lrsched CONFIG]
+                                               [--trainer.lrsched.lrsch-type {none,exp_lr,invpow_lr,cos_lr,adamcos_lr,red_lr_on_plateau,noam_lr,triangular_lr}]
+                                               [--trainer.lrsched.decay-rate DECAY_RATE]
+                                               [--trainer.lrsched.decay-steps DECAY_STEPS]
+                                               [--trainer.lrsched.power POWER]
+                                               [--trainer.lrsched.hold-steps HOLD_STEPS]
+                                               [--trainer.lrsched.t T]
+                                               [--trainer.lrsched.t-mul T_MUL]
+                                               [--trainer.lrsched.gamma GAMMA]
+                                               [--trainer.lrsched.warm-restarts]
+                                               [--trainer.lrsched.monitor MONITOR]
+                                               [--trainer.lrsched.mode {min,max}]
+                                               [--trainer.lrsched.factor FACTOR]
+                                               [--trainer.lrsched.patience PATIENCE]
+                                               [--trainer.lrsched.threshold THRESHOLD]
+                                               [--trainer.lrsched.threshold_mode {rel,abs}]
+                                               [--trainer.lrsched.cooldown COOLDOWN]
+                                               [--trainer.lrsched.eps EPS]
+                                               [--trainer.lrsched.min-lr MIN_LR]
+                                               [--trainer.lrsched.warmup-steps WARMUP_STEPS]
+                                               [--trainer.lrsched.d-model D_MODEL]
+                                               [--trainer.lrsched.lr-factor LR_FACTOR]
+                                               [--trainer.lrsched.update-lr-on-opt-step]
+                                               [--trainer.wdsched CONFIG]
+                                               [--trainer.wdsched.wdsch-type {none,cos_wd}]
+                                               [--trainer.wdsched.initial-wd INITIAL_WD]
+                                               [--trainer.wdsched.warmup-steps WARMUP_STEPS]
+                                               [--trainer.wdsched.update-wd-on-opt-step]
+                                               [--trainer.input-key INPUT_KEY]
+                                               [--trainer.target-key TARGET_KEY]
+                                               [--trainer.train-mode {full,frozen,frozen-feat-extractor,pooling,proj-head,output-layer}]
+                                               [--trainer.xvector-sig-reg-weight XVECTOR_SIG_REG_WEIGHT]
+                                               [--trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT]
+                                               [--trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT]
+                                               [--num-gpus NUM_GPUS]
+                                               [--master-port MASTER_PORT]
+                                               [--seed SEED] [-v {0,1,2,3}]
+
+   options:
+     -h, --help            Show this help message and exit.
+     --cfg CFG             Path to a configuration file.
+     --print_config [=flags]
+                           Print the configuration after applying all other
+                           arguments and exit. The optional flags customizes the
+                           output and are one or more keywords separated by
+                           comma. The supported flags are: skip_default,
+                           skip_unset.
+     --data CONFIG         Path to a configuration file.
+     --model CONFIG        Path to a configuration file.
+     --init-from-xvector-model-file INIT_FROM_XVECTOR_MODEL_FILE
+                           Optional x-vector checkpoint used to initialize the
+                           XVectorP backbone. (type: str, default: null)
+     --trainer CONFIG      Path to a configuration file.
+     --num-gpus NUM_GPUS   number of gpus, if 0 it uses cpu (deprecated) (type:
+                           int, default: 1)
+     --master-port MASTER_PORT
+                           optional override for MASTER_PORT; if None, use
+                           launcher environment (type: int, default: null)
+     --seed SEED           Random seed for training. (type: int, default:
+                           1123581321)
+     -v {0,1,2,3}, --verbose {0,1,2,3}
+                           Verbosity level: 0=error, 1=warning, 2=info, 3=debug.
+                           (type: <function <lambda> at <address>>, default: 1)
+
+   Data configuration block containing train/val settings.:
+     --data.train CONFIG   Path to a configuration file.
+     --data.val CONFIG     Path to a configuration file.
+
+   Training data configuration block.:
+     --data.train.dataset CONFIG
+                           Path to a configuration file.
+     --data.train.sampler CONFIG
+                           Path to a configuration file.
+     --data.train.data_loader.num-workers NUM_WORKERS
+                           Number of worker processes for this dataloader. (type:
+                           int, default: 5)
+
+     --data.train.dataset.dataset-path DATASET_PATH
+                           recordings manifest file (kaldi .scp or pandas .csv)
+                           (required)
+     --data.train.dataset.class-names CLASS_NAMES [CLASS_NAMES ...]
+                           list with the names of the types of classes that the
+                           dataset has to return, e.g., speaker, language
+                           (default: null)
+     --data.train.dataset.extra-attrs EXTRA_ATTRS [EXTRA_ATTRS ...]
+                           extra segment attributes to return without conversion
+                           (default: null)
+     --data.train.dataset.tokenizer-mappings TOKENIZER_MAPPINGS [TOKENIZER_MAPPINGS ...]
+                           list mapping segment_set fields and tokenizer names to
+                           output names, e.g., text->text-1->text_ids, this
+                           argument has to be sync with tokenizer_files.
+                           (default: null)
+     --data.train.dataset.tokenizer-files TOKENIZER_FILES [TOKENIZER_FILES ...]
+                           list of tokenizer names and configuration files, e.g.,
+                           text-1:/path/to/tokenizer.yml, this argument has to be
+                           sync with tokenizer_mappings. (default: null)
+     --data.train.dataset.bpe-model BPE_MODEL
+                           bpe model for the text label (default: null)
+     --data.train.dataset.aug-cfgs AUG_CFGS [AUG_CFGS ...]
+                           augmentation configuration file. (default: null)
+     --data.train.dataset.num-augs NUM_AUGS
+                           number of augmentations per segment and augmentation
+                           type (type: int, default: 1)
+     --data.train.dataset.num-aug-mix NUM_AUG_MIX
+                           number of AugMix augmentations per segment (type: int,
+                           default: 0)
+     --data.train.dataset.aug-mix-alpha AUG_MIX_ALPHA
+                           number of AugMix augmentations per segment (type:
+                           float, default: 0.5)
+     --data.train.dataset.target-sample-freq TARGET_SAMPLE_FREQ
+                           target sampling frequencey, if not None all audios are
+                           converted to this sample freq (type: int, default:
+                           null)
+     --data.train.dataset.enable-tel-codecs-if ENABLE_TEL_CODECS_IF
+                           condition to enable telephone codec augmentation, for
+                           example use only if the segment is not conv. tel.
+                           speech: source_type != 'cts' (default: null)
+     --data.train.dataset.enable-media-codecs-if ENABLE_MEDIA_CODECS_IF
+                           condition to enable media codec augmentation, for
+                           example use only if the segment is audio from video:
+                           source_type == 'afv' (default: null)
+     --data.train.dataset.enable-transcodec-if ENABLE_TRANSCODEC_IF
+                           condition to enable transcodec augmentation, for
+                           example use transcodec only if the segment is spoof:
+                           spoof_det == 'spoof' (default: null)
+     --data.train.dataset.seed SEED
+                           random seed (type: int, default: 11235811)
+     --data.train.dataset.wav-scale WAV_SCALE
+                           multiplicative factor for waveform (type: float,
+                           default: 1.0)
+
+     --data.train.sampler.sampler-type {class_weighted_random_seg_chunk_sampler,random_seg_chunk_sampler,seg_sampler,seg_chunk_sampler,bucketing_seg_sampler}
+                           Type of sampler to use. Determines the batching and
+                           sampling strategy for segment or chunk data. (default:
+                           class_weighted_random_seg_chunk_sampler)
+     --data.train.sampler.base-sampler-type {seg_sampler,bucketing_seg_sampler}
+                           Base sampler class used by samplers like
+                           seg_chunk_sampler or bucketing_seg_sampler to draw
+                           batches. (default: seg_sampler)
+     --data.train.sampler.subbase-sampler-type {seg_sampler,bucketing_seg_sampler}
+                           Sampler used as a base within a bucketing sampler
+                           (used when base-sampler-type is
+                           bucketing_seg_sampler). (default: seg_sampler)
+     --data.train.sampler.num-buckets NUM_BUCKETS
+                           Number of buckets to divide the dataset into by
+                           segment length (for bucketing samplers). (type: int,
+                           default: 10)
+     --data.train.sampler.min-chunk-length MIN_CHUNK_LENGTH
+                           Minimum chunk duration in seconds when slicing
+                           segments into chunks. (type: float, default: 4.0)
+     --data.train.sampler.max-chunk-length MAX_CHUNK_LENGTH
+                           Maximum chunk duration in seconds. If not set, equals
+                           min-chunk-length. (type: float, default: null)
+     --data.train.sampler.min-chunk-overlap MIN_CHUNK_OVERLAP
+                           Minimum overlap in seconds between consecutive chunks
+                           extracted from a segment. (type: float, default: 0.0)
+     --data.train.sampler.max-chunk-overlap MAX_CHUNK_OVERLAP
+                           Maximum overlap in seconds between chunks. If None,
+                           uses min-chunk-overlap. (type: float, default: null)
+     --data.train.sampler.length-sampling-method {uniform,maximum}
+                           Strategy for sampling chunk lengths. 'uniform' draws
+                           from a range, 'maximum' always uses max-chunk-length.
+                           (default: uniform)
+     --data.train.sampler.min-batch-size MIN_BATCH_SIZE
+                           Minimum number of samples (segments/chunks) in a batch
+                           per GPU. (type: int, default: 1)
+     --data.train.sampler.max-batch-size MAX_BATCH_SIZE
+                           Maximum batch size per GPU. If None, it will be
+                           estimated based on max-batch-length. (type: int,
+                           default: null)
+     --data.train.sampler.batch-size BATCH_SIZE
+                           (Deprecated) Use --min-batch-size instead. Sets fixed
+                           batch size if provided. (type: int, default: null)
+     --data.train.sampler.max-batch-length MAX_BATCH_LENGTH, --data.train.sampler.max-batch-duration MAX_BATCH_LENGTH
+                           Maximum total duration (in seconds) of segments/chunks
+                           in a batch. Used to control memory usage. (type:
+                           float, default: null)
+     --data.train.sampler.iters-per-epoch ITERS_PER_EPOCH
+                           (Deprecated) Use --num-chunks-per-seg-epoch instead.
+                           Number of iterations per epoch. (type: <function
+                           <lambda> at <address>>, default: null)
+     --data.train.sampler.num-chunks-per-seg-epoch NUM_CHUNKS_PER_SEG_EPOCH
+                           How many chunks to draw from each segment per epoch.
+                           Can be an int or 'auto'. (type: <function <lambda> at
+                           <address>>, default: auto)
+     --data.train.sampler.num-segs-per-class NUM_SEGS_PER_CLASS
+                           Number of segments to sample per class when forming a
+                           batch (used in class-weighted samplers). (type: int,
+                           default: 1)
+     --data.train.sampler.num-chunks-per-seg NUM_CHUNKS_PER_SEG
+                           Number of chunks to extract per segment in a single
+                           batch. (type: int, default: 1)
+     --data.train.sampler.weight-exponent WEIGHT_EXPONENT
+                           Exponent to apply when transforming class weights
+                           (e.g., for power-law reweighting). (type: float,
+                           default: 1.0)
+     --data.train.sampler.weight-mode {custom,uniform,data-prior}
+                           How to assign weights to classes. 'data-prior' uses
+                           segment durations, 'uniform' uses equal weights.
+                           (default: custom)
+     --data.train.sampler.seg-weight-mode {uniform,data-prior}
+                           How to sample segments within a class. 'uniform' is
+                           equal probability, 'data-prior' uses durations.
+                           (default: uniform)
+     --data.train.sampler.num-hard-prototypes NUM_HARD_PROTOTYPES
+                           Number of hard prototype classes to sample based on
+                           similarity (if affinity matrix is provided). (type:
+                           int, default: 0)
+     --data.train.sampler.drop-last, --no_data.train.sampler.drop-last
+                           Drop the final partial batch in fixed-size SegSampler
+                           mode. (type: bool, default: False)
+     --data.train.sampler.sample-all-segments, --no_data.train.sampler.sample-all-segments
+                           Cover every segment at least once per epoch when
+                           supported by the selected sampler. (type: bool,
+                           default: False)
+     --data.train.sampler.max-batches-per-epoch MAX_BATCHES_PER_EPOCH
+                           Optional limit on number of batches per epoch (across
+                           all samplers). (type: int, default: null)
+     --data.train.sampler.shuffle, --no_data.train.sampler.shuffle
+                           Shuffle segment order at the start of each epoch.
+                           (type: bool, default: False)
+     --data.train.sampler.seed SEED
+                           Random seed for deterministic sampling across epochs
+                           and distributed workers. (type: int, default: 1234)
+     --data.train.sampler.length-name LENGTH_NAME
+                           Column name in the segment table that represents the
+                           segment's duration (in seconds). (default: duration)
+     --data.train.sampler.class-name CLASS_NAME
+                           Column name in the segment table that represents the
+                           class or label of each segment. (default: class_id)
+     --data.train.sampler.sort-by-length, --no_data.train.sampler.sort-by-length
+                           If True, sorts batch items by duration (descending) to
+                           improve padding efficiency. (type: bool, default:
+                           True)
+
+   Validation data configuration block.:
+     --data.val.dataset CONFIG
+                           Path to a configuration file.
+     --data.val.sampler CONFIG
+                           Path to a configuration file.
+     --data.val.data_loader.num-workers NUM_WORKERS
+                           Number of worker processes for this dataloader. (type:
+                           int, default: 5)
+
+     --data.val.dataset.dataset-path DATASET_PATH
+                           recordings manifest file (kaldi .scp or pandas .csv)
+                           (required)
+     --data.val.dataset.class-names CLASS_NAMES [CLASS_NAMES ...]
+                           list with the names of the types of classes that the
+                           dataset has to return, e.g., speaker, language
+                           (default: null)
+     --data.val.dataset.extra-attrs EXTRA_ATTRS [EXTRA_ATTRS ...]
+                           extra segment attributes to return without conversion
+                           (default: null)
+     --data.val.dataset.tokenizer-mappings TOKENIZER_MAPPINGS [TOKENIZER_MAPPINGS ...]
+                           list mapping segment_set fields and tokenizer names to
+                           output names, e.g., text->text-1->text_ids, this
+                           argument has to be sync with tokenizer_files.
+                           (default: null)
+     --data.val.dataset.tokenizer-files TOKENIZER_FILES [TOKENIZER_FILES ...]
+                           list of tokenizer names and configuration files, e.g.,
+                           text-1:/path/to/tokenizer.yml, this argument has to be
+                           sync with tokenizer_mappings. (default: null)
+     --data.val.dataset.bpe-model BPE_MODEL
+                           bpe model for the text label (default: null)
+     --data.val.dataset.aug-cfgs AUG_CFGS [AUG_CFGS ...]
+                           augmentation configuration file. (default: null)
+     --data.val.dataset.num-augs NUM_AUGS
+                           number of augmentations per segment and augmentation
+                           type (type: int, default: 1)
+     --data.val.dataset.num-aug-mix NUM_AUG_MIX
+                           number of AugMix augmentations per segment (type: int,
+                           default: 0)
+     --data.val.dataset.aug-mix-alpha AUG_MIX_ALPHA
+                           number of AugMix augmentations per segment (type:
+                           float, default: 0.5)
+     --data.val.dataset.target-sample-freq TARGET_SAMPLE_FREQ
+                           target sampling frequencey, if not None all audios are
+                           converted to this sample freq (type: int, default:
+                           null)
+     --data.val.dataset.enable-tel-codecs-if ENABLE_TEL_CODECS_IF
+                           condition to enable telephone codec augmentation, for
+                           example use only if the segment is not conv. tel.
+                           speech: source_type != 'cts' (default: null)
+     --data.val.dataset.enable-media-codecs-if ENABLE_MEDIA_CODECS_IF
+                           condition to enable media codec augmentation, for
+                           example use only if the segment is audio from video:
+                           source_type == 'afv' (default: null)
+     --data.val.dataset.enable-transcodec-if ENABLE_TRANSCODEC_IF
+                           condition to enable transcodec augmentation, for
+                           example use transcodec only if the segment is spoof:
+                           spoof_det == 'spoof' (default: null)
+     --data.val.dataset.seed SEED
+                           random seed (type: int, default: 11235811)
+     --data.val.dataset.wav-scale WAV_SCALE
+                           multiplicative factor for waveform (type: float,
+                           default: 1.0)
+
+     --data.val.sampler.sampler-type {class_weighted_random_seg_chunk_sampler,random_seg_chunk_sampler,seg_sampler,seg_chunk_sampler,bucketing_seg_sampler}
+                           Type of sampler to use. Determines the batching and
+                           sampling strategy for segment or chunk data. (default:
+                           class_weighted_random_seg_chunk_sampler)
+     --data.val.sampler.base-sampler-type {seg_sampler,bucketing_seg_sampler}
+                           Base sampler class used by samplers like
+                           seg_chunk_sampler or bucketing_seg_sampler to draw
+                           batches. (default: seg_sampler)
+     --data.val.sampler.subbase-sampler-type {seg_sampler,bucketing_seg_sampler}
+                           Sampler used as a base within a bucketing sampler
+                           (used when base-sampler-type is
+                           bucketing_seg_sampler). (default: seg_sampler)
+     --data.val.sampler.num-buckets NUM_BUCKETS
+                           Number of buckets to divide the dataset into by
+                           segment length (for bucketing samplers). (type: int,
+                           default: 10)
+     --data.val.sampler.min-chunk-length MIN_CHUNK_LENGTH
+                           Minimum chunk duration in seconds when slicing
+                           segments into chunks. (type: float, default: 4.0)
+     --data.val.sampler.max-chunk-length MAX_CHUNK_LENGTH
+                           Maximum chunk duration in seconds. If not set, equals
+                           min-chunk-length. (type: float, default: null)
+     --data.val.sampler.min-chunk-overlap MIN_CHUNK_OVERLAP
+                           Minimum overlap in seconds between consecutive chunks
+                           extracted from a segment. (type: float, default: 0.0)
+     --data.val.sampler.max-chunk-overlap MAX_CHUNK_OVERLAP
+                           Maximum overlap in seconds between chunks. If None,
+                           uses min-chunk-overlap. (type: float, default: null)
+     --data.val.sampler.length-sampling-method {uniform,maximum}
+                           Strategy for sampling chunk lengths. 'uniform' draws
+                           from a range, 'maximum' always uses max-chunk-length.
+                           (default: uniform)
+     --data.val.sampler.min-batch-size MIN_BATCH_SIZE
+                           Minimum number of samples (segments/chunks) in a batch
+                           per GPU. (type: int, default: 1)
+     --data.val.sampler.max-batch-size MAX_BATCH_SIZE
+                           Maximum batch size per GPU. If None, it will be
+                           estimated based on max-batch-length. (type: int,
+                           default: null)
+     --data.val.sampler.batch-size BATCH_SIZE
+                           (Deprecated) Use --min-batch-size instead. Sets fixed
+                           batch size if provided. (type: int, default: null)
+     --data.val.sampler.max-batch-length MAX_BATCH_LENGTH, --data.val.sampler.max-batch-duration MAX_BATCH_LENGTH
+                           Maximum total duration (in seconds) of segments/chunks
+                           in a batch. Used to control memory usage. (type:
+                           float, default: null)
+     --data.val.sampler.iters-per-epoch ITERS_PER_EPOCH
+                           (Deprecated) Use --num-chunks-per-seg-epoch instead.
+                           Number of iterations per epoch. (type: <function
+                           <lambda> at <address>>, default: null)
+     --data.val.sampler.num-chunks-per-seg-epoch NUM_CHUNKS_PER_SEG_EPOCH
+                           How many chunks to draw from each segment per epoch.
+                           Can be an int or 'auto'. (type: <function <lambda> at
+                           <address>>, default: auto)
+     --data.val.sampler.num-segs-per-class NUM_SEGS_PER_CLASS
+                           Number of segments to sample per class when forming a
+                           batch (used in class-weighted samplers). (type: int,
+                           default: 1)
+     --data.val.sampler.num-chunks-per-seg NUM_CHUNKS_PER_SEG
+                           Number of chunks to extract per segment in a single
+                           batch. (type: int, default: 1)
+     --data.val.sampler.weight-exponent WEIGHT_EXPONENT
+                           Exponent to apply when transforming class weights
+                           (e.g., for power-law reweighting). (type: float,
+                           default: 1.0)
+     --data.val.sampler.weight-mode {custom,uniform,data-prior}
+                           How to assign weights to classes. 'data-prior' uses
+                           segment durations, 'uniform' uses equal weights.
+                           (default: custom)
+     --data.val.sampler.seg-weight-mode {uniform,data-prior}
+                           How to sample segments within a class. 'uniform' is
+                           equal probability, 'data-prior' uses durations.
+                           (default: uniform)
+     --data.val.sampler.num-hard-prototypes NUM_HARD_PROTOTYPES
+                           Number of hard prototype classes to sample based on
+                           similarity (if affinity matrix is provided). (type:
+                           int, default: 0)
+     --data.val.sampler.drop-last, --no_data.val.sampler.drop-last
+                           Drop the final partial batch in fixed-size SegSampler
+                           mode. (type: bool, default: False)
+     --data.val.sampler.sample-all-segments, --no_data.val.sampler.sample-all-segments
+                           Cover every segment at least once per epoch when
+                           supported by the selected sampler. (type: bool,
+                           default: False)
+     --data.val.sampler.max-batches-per-epoch MAX_BATCHES_PER_EPOCH
+                           Optional limit on number of batches per epoch (across
+                           all samplers). (type: int, default: null)
+     --data.val.sampler.shuffle, --no_data.val.sampler.shuffle
+                           Shuffle segment order at the start of each epoch.
+                           (type: bool, default: False)
+     --data.val.sampler.seed SEED
+                           Random seed for deterministic sampling across epochs
+                           and distributed workers. (type: int, default: 1234)
+     --data.val.sampler.length-name LENGTH_NAME
+                           Column name in the segment table that represents the
+                           segment's duration (in seconds). (default: duration)
+     --data.val.sampler.class-name CLASS_NAME
+                           Column name in the segment table that represents the
+                           class or label of each segment. (default: class_id)
+     --data.val.sampler.sort-by-length, --no_data.val.sampler.sort-by-length
+                           If True, sorts batch items by duration (descending) to
+                           improve padding efficiency. (type: bool, default:
+                           True)
+
+     --model.hf_feats CONFIG
+                           Path to a configuration file.
+     --model.feat_fuser CONFIG
+                           Path to a configuration file.
+     --model.feat-fusion-start FEAT_FUSION_START
+                           first hidden-state index used for feature fusion (0
+                           selects the input embedding) (type: int, default: 0)
+     --model.backbone-feats-lr BACKBONE_FEATS_LR
+                           learning-rate override for the HF feature encoder
+                           (type: float, default: null)
+     --model.backbone-feats-weight-decay BACKBONE_FEATS_WEIGHT_DECAY
+                           weight-decay override for the HF feature encoder
+                           (type: float, default: null)
+     --model.backbone-lr BACKBONE_LR
+                           learning-rate override for the HF Transformer encoder
+                           (type: float, default: null)
+     --model.backbone-weight-decay BACKBONE_WEIGHT_DECAY
+                           weight-decay override for the HF Transformer encoder
+                           (type: float, default: null)
+     --model.xvector-dim XVECTOR_DIM
+                           final x-vector embedding dimension (type: int,
+                           default: 256)
+     --model.proj-use-norm, --no_model.proj-use-norm
+                           enable normalization of the projection input or output
+                           (type: bool, default: True)
+     --model.proj-norm-layer {batch-norm,layer-norm,rms-norm}
+                           projection normalization type (batch-norm by default)
+                           (type: <function <lambda> at <address>>, default:
+                           null)
+     --model.proj-norm-before, --no_model.proj-norm-before
+                           apply normalization before projection; false applies
+                           it after (type: bool, default: True)
+     --model.bias-weight-decay BIAS_WEIGHT_DECAY
+                           optional weight decay override for biases and
+                           normalization parameters (type: float, default: null)
+     --model.pooling-weight-decay POOLING_WEIGHT_DECAY
+                           optional weight decay override for global pooling
+                           parameters (type: float, default: null)
+     --model.enable-xvector-sig-reg, --no_model.enable-xvector-sig-reg
+                           Calculate SIGReg on projected xvectors. (type: bool,
+                           default: False)
+     --model.xvector_sig_reg CONFIG
+                           Path to a configuration file.
+     --model.proj-weight-decay PROJ_WEIGHT_DECAY
+                           optional weight decay override for projection-head
+                           parameters (type: float, default: null)
+     --model.head-weight-decay HEAD_WEIGHT_DECAY
+                           optional weight decay override for downstream head
+                           parameters (type: float, default: null)
+     --model.pooling CONFIG
+                           Path to a configuration file.
+     --model.head CONFIG   Path to a configuration file.
+
+     --model.hf_feats.pretrained-model-path PRETRAINED_MODEL_PATH
+                           file path or HuggingFace Hub path to pre-trained model
+                           (default: null)
+     --model.hf_feats.normalize-input, --no_model.hf_feats.normalize-input
+                           whether or not to zero-mean unit-variance normalize
+                           the input (type: bool, default: True)
+     --model.hf_feats.use-input-attention-mask, --no_model.hf_feats.use-input-attention-mask
+                           whether we should input an attention mask to the
+                           wav2vec model (type: bool, default: False)
+     --model.hf_feats.cache-dir CACHE_DIR
+                           path to a directory in which a downloaded pretrained
+                           model configuration should be cached if the standard
+                           cache should not be used (default:
+                           ./.cache/hyperion_hf)
+     --model.hf_feats.force-download, --no_model.hf_feats.force-download
+                           whether or not to force the (re-)download the model
+                           weights and configuration files and override thecached
+                           versions if they exist (type: bool, default: False)
+     --model.hf_feats.revision REVISION
+                           the specific model version to use. It can be a branch
+                           name, a tag name, or a commit id. (default: main)
+     --model.hf_feats.drop-layers-gt DROP_LAYERS_GT
+                           drop encoder layers greater than this value. (type:
+                           int, default: null)
+     --model.hf_feats.override-dropouts, --no_model.hf_feats.override-dropouts
+                           whether to use the dropout probabilities passed in the
+                           arguments instead of the defaults in the pretrained
+                           model. (type: bool, default: False)
+     --model.hf_feats.override-spec-augment, --no_model.hf_feats.override-spec-augment
+                           whether to use the spec augment config. passed in the
+                           arguments instead of the defaults in the pretrained
+                           model. (type: bool, default: False)
+     --model.hf_feats.left-encoder-context LEFT_ENCODER_CONTEXT
+                           past context frames used by the transformer encoder
+                           when the signal is evaluated chunk by chunk. (type:
+                           int, default: 16)
+     --model.hf_feats.right-encoder-context RIGHT_ENCODER_CONTEXT
+                           future context frames used by the transformer encoder
+                           when the signal is evaluated chunk by chunk. (type:
+                           int, default: 16)
+     --model.hf_feats.feat-extract-lr FEAT_EXTRACT_LR
+                           lr for conv feature extractor, it serves to set a lr
+                           different than the global one. (type: float, default:
+                           null)
+     --model.hf_feats.encoder-lr ENCODER_LR
+                           lr for transformer encoder, it serves to set a lr
+                           different than the global one. (type: float, default:
+                           null)
+     --model.hf_feats.use-lora, --no_model.hf_feats.use-lora
+                           use low-rank adapters (type: bool, default: False)
+     --model.hf_feats.lora-components {k_proj,q_proj,v_proj,out_proj,intermediate_dense,output_dense} [{k_proj,q_proj,v_proj,out_proj,intermediate_dense,output_dense} ...]
+                           list of components where we apply LoRA, e.g., [Wq, Wv]
+                           (default: ['q_proj', 'v_proj'])
+     --model.hf_feats.lora-rank LORA_RANK
+                           rank of LoRA (default: 4)
+     --model.hf_feats.lora-alpha LORA_ALPHA
+                           scale for LoRA (type: int, default: 8)
+     --model.hf_feats.lora-dropout LORA_DROPOUT
+                           dropout rate for LoRA (default: 0.0)
+     --model.hf_feats.lora-merge-weights, --no_model.hf_feats.lora-merge-weights
+                           lora weights are merged with the pretrained weights at
+                           inference. (type: bool, default: True)
+     --model.hf_feats.vocab-size VOCAB_SIZE
+                           vocabulary size of the model. Defines the different
+                           tokens that can be represented by the *inputs_ids*
+                           passed to the forward method. (type: int, default: 32)
+     --model.hf_feats.hidden-size HIDDEN_SIZE
+                           dimensionality of the encoder layers and the pooler
+                           layer. (type: int, default: 768)
+     --model.hf_feats.num-hidden-layers NUM_HIDDEN_LAYERS
+                           number of hidden layers in the Transformer encoder
+                           (type: int, default: 12)
+     --model.hf_feats.num-attention-heads NUM_ATTENTION_HEADS
+                           number of attention heads for each attention layer in
+                           the Transformer encoder (type: int, default: 12)
+     --model.hf_feats.intermediate-size INTERMEDIATE_SIZE
+                           dimensionality of the feed-forward layer in the
+                           Transformer encoder (type: int, default: 3072)
+     --model.hf_feats.hidden-act {gelu,relu,selu,gelu_new}
+                           the non-linear activation function (function or
+                           string) in the encoder and pooler (default: gelu)
+     --model.hf_feats.hidden-dropout HIDDEN_DROPOUT
+                           the dropout probability for all fully connected layers
+                           in the embeddings, encoder, and pooler (type: float,
+                           default: 0.1)
+     --model.hf_feats.activation-dropout ACTIVATION_DROPOUT
+                           the dropout probability for all intermediate layer in
+                           feedforward transformer layers (type: float, default:
+                           0.1)
+     --model.hf_feats.attention-dropout ATTENTION_DROPOUT
+                           the dropout ratio for the attention probabilities
+                           (type: float, default: 0.1)
+     --model.hf_feats.layerdrop LAYERDROP
+                           prob. of dropping a layer (type: float, default: 0.1)
+     --model.hf_feats.initializer-range INITIALIZER_RANGE
+                           the standard deviation of the
+                           truncated_normal_initializer for initializing all
+                           weight matrices (type: float, default: 0.02)
+     --model.hf_feats.layer-norm-eps LAYER_NORM_EPS
+                           the standard deviation of the
+                           truncated_normal_initializer for initializing all
+                           weight matrices (type: float, default: 1e-12)
+     --model.hf_feats.feat-extract-norm {group,layer}
+                           the norm to be applied to 1D convolutional layers in
+                           feature encoder. One of `group` for group
+                           normalization of only the first 1D convolutional layer
+                           or `layer` for layer normalization of all 1D
+                           convolutional layers (default: group)
+     --model.hf_feats.feat-proj-dropout FEAT_PROJ_DROPOUT
+                           the dropout probability for output of the feature
+                           encoder (type: float, default: 0.1)
+     --model.hf_feats.feat-extract-activation {gelu,relu,selu,gelu_new}
+                           the non-linear activation function (function or
+                           string) in the 1D convolutional layers of the feature
+                           extractor (default: gelu)
+     --model.hf_feats.conv-dim CONV_DIM [CONV_DIM ...]
+                           a tuple of integers defining the number of input and
+                           output channels of each 1D convolutional layer in the
+                           feature encoder. The length of *conv_dim* defines the
+                           number of 1D convolutional layers (type: int, default:
+                           [512, 512, 512, 512, 512, 512, 512])
+     --model.hf_feats.conv-stride CONV_STRIDE [CONV_STRIDE ...]
+                           a tuple of integers defining the stride of each 1D
+                           convolutional layer in the feature encoder (type: int,
+                           default: [5, 2, 2, 2, 2, 2, 2])
+     --model.hf_feats.conv-kernel CONV_KERNEL [CONV_KERNEL ...]
+                           a tuple of integers defining the kernel size of each
+                           1D convolutional layer in the feature encoder (type:
+                           int, default: [10, 3, 3, 3, 3, 3, 3])
+     --model.hf_feats.conv-bias, --no_model.hf_feats.conv-bias
+                           whether the 1D convolutional layers have a bias (type:
+                           bool, default: False)
+     --model.hf_feats.num-conv-pos-embeddings NUM_CONV_POS_EMBEDDINGS
+                           number of convolutional positional embeddings. Defines
+                           the kernel size of 1D convolutional positional
+                           embeddings layer (type: int, default: 128)
+     --model.hf_feats.num-conv-pos-embedding-groups NUM_CONV_POS_EMBEDDING_GROUPS
+                           number of groups of 1D convolutional positional
+                           embeddings layer (type: int, default: 16)
+     --model.hf_feats.do-stable-layer-norm, --no_model.hf_feats.do-stable-layer-norm
+                           whether to apply *stable* layer norm architecture of
+                           the Transformer encoder (type: bool, default: False)
+     --model.hf_feats.apply-spec-augment, --no_model.hf_feats.apply-spec-augment
+                           whether to apply *SpecAugment* data augmentation to
+                           the outputs of the feature encoder (type: bool,
+                           default: True)
+     --model.hf_feats.mask-time-prob MASK_TIME_PROB
+                           percentage (between 0 and 1) of all feature vectors
+                           along the time axis which will be masked (type: float,
+                           default: 0.05)
+     --model.hf_feats.mask-time-length MASK_TIME_LENGTH
+                           length of vector span along the time axis (type: int,
+                           default: 10)
+     --model.hf_feats.mask-time-min-masks MASK_TIME_MIN_MASKS
+                           the minimum number of masks of length
+                           `mask_time_length` generated along the time axis
+                           (type: int, default: 2)
+     --model.hf_feats.mask-feature-prob MASK_FEATURE_PROB
+                           percentage (between 0 and 1) of all feature vectors
+                           along the feature axis which will be masked (type:
+                           float, default: 0.0)
+     --model.hf_feats.mask-feature-length MASK_FEATURE_LENGTH
+                           length of vector span along the feature axis (type:
+                           int, default: 10)
+     --model.hf_feats.mask-feature-min-masks MASK_FEATURE_MIN_MASKS
+                           The minimum number of masks of length
+                           `mask_feature_length` generated along the feature axis
+                           (type: int, default: 0)
+     --model.hf_feats.add-adapter, --no_model.hf_feats.add-adapter
+                           whether a convolutional network should be stacked on
+                           top of the Wav2Vec2 Encoder (type: bool, default:
+                           False)
+     --model.hf_feats.adapter-kernel-size ADAPTER_KERNEL_SIZE
+                           kernel size of the convolutional layers in the adapter
+                           network (type: int, default: 3)
+     --model.hf_feats.adapter-stride ADAPTER_STRIDE
+                           stride of the convolutional layers in the adapter
+                           network (type: int, default: 2)
+     --model.hf_feats.num-adapter-layers NUM_ADAPTER_LAYERS
+                           number of convolutional layers that should be used in
+                           the adapter network (type: int, default: 3)
+     --model.hf_feats.output-hidden-size OUTPUT_HIDDEN_SIZE
+                           dimensionality of the encoder output layer. If not
+                           defined, this defaults to *hidden-size*. Only relevant
+                           if `add_adapter is True (type: int, default: null)
+
+     --model.feat_fuser.feat_fuser CONFIG
+                           Path to a configuration file.
+     --model.feat_fuser.mvn CONFIG
+                           Path to a configuration file.
+     --model.feat_fuser.spec_augment CONFIG
+                           Path to a configuration file.
+     --model.feat_fuser.aug-after-mvn, --no_model.feat_fuser.aug-after-mvn
+                           do spec augment after st-mvn,instead of before (type:
+                           bool, default: False)
+
+     --model.feat_fuser.feat_fuser.fuser-type {last,weighted-avg,linear,cat}
+                           One of ['last', 'weighted-avg', 'linear', 'cat']
+                           (default: weighted-avg)
+     --model.feat_fuser.feat_fuser.proj-dim PROJ_DIM
+                           project features after fusion to proj_dim (type: int,
+                           default: null)
+     --model.feat_fuser.feat_fuser.proj-bias, --no_model.feat_fuser.feat_fuser.proj-bias
+                           linear projection has bias (type: bool, default: True)
+
+     --model.feat_fuser.mvn.norm-mean, --no_model.feat_fuser.mvn.norm-mean
+                           center the features (type: bool, default: True)
+     --model.feat_fuser.mvn.norm-var, --no_model.feat_fuser.mvn.norm-var
+                           normalize the variance of the features (type: bool,
+                           default: False)
+     --model.feat_fuser.mvn.left-context LEFT_CONTEXT
+                           past context in number of frames (type: int, default:
+                           150)
+     --model.feat_fuser.mvn.right-context RIGHT_CONTEXT
+                           future context in number of frames (type: int,
+                           default: 150)
+     --model.feat_fuser.mvn.context CONTEXT
+                           past/future context in number of frames, overwrites
+                           left-context and right-context options (type: int,
+                           default: null)
+
+     --model.feat_fuser.spec_augment.time-warp-prob TIME_WARP_PROB
+                           Probability of applying time warping. (type: float,
+                           default: 0.0)
+     --model.feat_fuser.spec_augment.time-warp-window TIME_WARP_WINDOW
+                           Time-warp window size (in frames). (type: int,
+                           default: 5)
+     --model.feat_fuser.spec_augment.time-warp-mode {bilinear,linear,nearest,bicubic,trilinear}
+                           Interpolation mode used for time warping. (default:
+                           bicubic)
+     --model.feat_fuser.spec_augment.time-mask-prob TIME_MASK_PROB
+                           Probability of applying time masking. (type: float,
+                           default: 0.0)
+     --model.feat_fuser.spec_augment.time-mask-min-width TIME_MASK_MIN_WIDTH
+                           Minimum time-mask width (in frames). (type: int,
+                           default: 0)
+     --model.feat_fuser.spec_augment.time-mask-max-width TIME_MASK_MAX_WIDTH
+                           Maximum time-mask width (in frames). (type: int,
+                           default: 100)
+     --model.feat_fuser.spec_augment.time-mask-min-num-masks TIME_MASK_MIN_NUM_MASKS
+                           Minimum number of time masks (or percentage per 100
+                           frames when enabled). (type: float, default: 1)
+     --model.feat_fuser.spec_augment.time-mask-max-num-masks TIME_MASK_MAX_NUM_MASKS
+                           Maximum number of time masks (or percentage per 100
+                           frames when enabled). (type: float, default: 2)
+     --model.feat_fuser.spec_augment.time-use-num-masks-percentage, --no_model.feat_fuser.spec_augment.time-use-num-masks-percentage
+                           If true, min/max time-mask counts are interpreted as
+                           percentages per 100 frames. (type: bool, default:
+                           False)
+     --model.feat_fuser.spec_augment.freq-mask-prob FREQ_MASK_PROB
+                           Probability of applying frequency masking. (type:
+                           float, default: 0.0)
+     --model.feat_fuser.spec_augment.freq-mask-min-width FREQ_MASK_MIN_WIDTH
+                           Minimum frequency-mask width (in bins). (type: int,
+                           default: 0)
+     --model.feat_fuser.spec_augment.freq-mask-max-width FREQ_MASK_MAX_WIDTH
+                           Maximum frequency-mask width (in bins). (type: int,
+                           default: 20)
+     --model.feat_fuser.spec_augment.freq-mask-min-num-masks FREQ_MASK_MIN_NUM_MASKS
+                           Minimum number of frequency masks. (type: int,
+                           default: 1)
+     --model.feat_fuser.spec_augment.freq-mask-max-num-masks FREQ_MASK_MAX_NUM_MASKS
+                           Maximum number of frequency masks. (type: int,
+                           default: 2)
+     --model.feat_fuser.spec_augment.mask-method {constant,min,mean}
+                           How to choose mask fill value: "constant", "min", or
+                           "mean". (default: constant)
+     --model.feat_fuser.spec_augment.mask-value MASK_VALUE
+                           Fill value used when "--mask-method=constant". (type:
+                           float, default: 0.0)
+
+     --model.xvector_sig_reg.num-slices NUM_SLICES
+                           Random projection count (type: int, default: 256)
+     --model.xvector_sig_reg.num-points NUM_POINTS
+                           Frequency-node count (type: int, default: 17)
+     --model.xvector_sig_reg.t-max T_MAX
+                           Symmetric frequency endpoint (type: float, default:
+                           5.0)
+     --model.xvector_sig_reg.seed SEED
+                           Dedicated generator base seed (type: int, default: 0)
+     --model.xvector_sig_reg.multi-view, --no_model.xvector_sig_reg.multi-view
+                           Leading axis indexes views (type: bool, default:
+                           False)
+     --model.xvector_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE
+                           Directions per checkpointed chunk (type: int, default:
+                           null)
+     --model.xvector_sig_reg.distributed-mode {local,global_data}
+                           Statistics aggregation mode (default: global_data)
+     --model.xvector_sig_reg.reduction {mean,sum,none}
+                           Reduction across views; directions are always averaged
+                           (default: mean)
+
+     --model.pooling.pool-type {avg,mean+stddev,mean+logvar,lde,scaled-dot-prod-att-v1,ch-wise-att-mean+stddev}
+                           Pooling methods: avg, mean+stddev, mean+logvar, lde,
+                           scaled-dot-prod-att-v1, ch-wise-att-mean+stddev (type:
+                           <method 'lower' of 'str' objects>, default:
+                           mean+stddev)
+     --model.pooling.dim DIM
+                           Pooling dimension (usually the time dimension) (type:
+                           int, default: -1)
+     --model.pooling.keepdim
+                           Keeps the pooled dimension as a singleton axis
+                           (default: False)
+     --model.pooling.in-feats IN_FEATS
+                           Input feature size for LDE/attention pooling (type:
+                           int, default: 0)
+     --model.pooling.inner-feats INNER_FEATS
+                           Hidden feature size for channel-wise attentive pooling
+                           (type: int, default: 0)
+     --model.pooling.num-comp NUM_COMP
+                           Number of components for LDE pooling (type: int,
+                           default: 8)
+     --model.pooling.dist-pow DIST_POW
+                           Distance power for LDE pooling (typically 1 or 2)
+                           (type: int, default: 2)
+     --model.pooling.wo-bias
+                           Disables bias in LDE pooling (default: False)
+     --model.pooling.num-heads NUM_HEADS
+                           Number of attention heads (type: int, default: 4)
+     --model.pooling.d-k D_K
+                           Key dimension for attention (type: int, default: 256)
+     --model.pooling.d-v D_V
+                           Value dimension for attention (type: int, default:
+                           256)
+     --model.pooling.bin-attn
+                           Uses binary attention (sigmoid instead of softmax)
+                           (default: False)
+
+     --model.head.head-type {classif,none}
+                           Type of Hydra head to instantiate. (default: classif)
+     --model.head.enable-loss, --no_model.head.enable-loss
+                           if true, the forward method computes the loss if
+                           targets are provided (type: bool, default: True)
+     --model.head.reduction {none,mean,sum}
+                           reduction method for the loss (default: mean)
+     --model.head.loss-type {softmax,cos-softmax,arc-softmax,subcenter-arc-softmax}
+                           loss type: softmax, arc-softmax, cos-softmax,
+                           subcenter-arc-softmax (default: arc-softmax)
+     --model.head.cos-scale COS_SCALE
+                           scale for arcface (type: float, default: 64)
+     --model.head.margin MARGIN
+                           margin for arcface, cosface,... (type: float, default:
+                           0.3)
+     --model.head.margin-warmup-steps MARGIN_WARMUP_STEPS
+                           number of steps until we set the final margin (type:
+                           int, default: 0)
+     --model.head.intertop-k INTERTOP_K
+                           K for InterTopK penalty (type: int, default: 5)
+     --model.head.intertop-margin INTERTOP_MARGIN
+                           margin for InterTopK penalty (type: float, default:
+                           0.0)
+     --model.head.num-subcenters NUM_SUBCENTERS
+                           number of subcenters in subcenter losses (type: int,
+                           default: 2)
+     --model.head.num-classes NUM_CLASSES
+                           number of output classes (type: int, default: null)
+     --model.head.label-smoothing LABEL_SMOOTHING
+                           label smoothing value for cross-entropy loss (type:
+                           float, default: 0.0)
+     --model.head.enable-prototype-code-rate, --no_model.head.enable-prototype-code-rate
+                           enable the computation of the prototype code rate
+                           (type: bool, default: False)
+     --model.head.prototype_code_rate CONFIG
+                           Path to a configuration file.
+     --model.head.enable-prototype-sig-reg, --no_model.head.enable-prototype-sig-reg
+                           compute SIGReg for unnormalized class prototypes
+                           (type: bool, default: False)
+     --model.head.prototype_sig_reg CONFIG
+                           Path to a configuration file.
+
+     --model.head.prototype_code_rate.eps EPS
+                           Distortion tolerance parameter in the coding-rate
+                           formula (type: float, default: 0.5)
+     --model.head.prototype_code_rate.jitter JITTER
+                           Diagonal stabilization added to the identity term
+                           (type: float, default: 1e-06)
+     --model.head.prototype_code_rate.gamma-1 GAMMA_1
+                           Denominator scaling factor in the final coding rate
+                           (type: float, default: 1.0)
+     --model.head.prototype_code_rate.gamma-2 GAMMA_2
+                           Numerator scaling factor applied inside the log-
+                           determinant (type: float, default: 1.0)
+     --model.head.prototype_code_rate.normalize, --no_model.head.prototype_code_rate.normalize
+                           Whether to L2-normalize the input vectors before
+                           computing the rate (type: bool, default: True)
+
+     --model.head.prototype_sig_reg.num-slices NUM_SLICES
+                           Random projection count (type: int, default: 256)
+     --model.head.prototype_sig_reg.num-points NUM_POINTS
+                           Frequency-node count (type: int, default: 17)
+     --model.head.prototype_sig_reg.t-max T_MAX
+                           Symmetric frequency endpoint (type: float, default:
+                           5.0)
+     --model.head.prototype_sig_reg.seed SEED
+                           Dedicated generator base seed (type: int, default: 0)
+     --model.head.prototype_sig_reg.multi-view, --no_model.head.prototype_sig_reg.multi-view
+                           Leading axis indexes views (type: bool, default:
+                           False)
+     --model.head.prototype_sig_reg.projection-chunk-size PROJECTION_CHUNK_SIZE
+                           Directions per checkpointed chunk (type: int, default:
+                           null)
+     --model.head.prototype_sig_reg.distributed-mode {local,global_data}
+                           Statistics aggregation mode (default: local)
+     --model.head.prototype_sig_reg.reduction {mean,sum,none}
+                           Reduction across views; directions are always averaged
+                           (default: mean)
+
+     --trainer.exp-path EXP_PATH
+                           Path to the experiment directory for logs and
+                           checkpoints. (default: null)
+     --trainer.grad-acc-steps GRAD_ACC_STEPS
+                           Number of batches to accumulate gradients before
+                           optimizer step. (type: int, default: 1)
+     --trainer.eff-batch-size EFF_BATCH_SIZE
+                           Target effective batch size. Overrides grad-acc-steps
+                           based on dataset and world size. (type: int, default:
+                           null)
+     --trainer.num-epochs NUM_EPOCHS
+                           Total number of training epochs. (type: int, default:
+                           200)
+     --trainer.max-steps MAX_STEPS
+                           Maximum number of optimization steps. Overrides num-
+                           epochs if set. (type: int, default: null)
+     --trainer.log-interval LOG_INTERVAL
+                           Number of steps between logging to stdout or loggers.
+                           (type: int, default: 1000)
+     --trainer.log-gpu-usage, --no_trainer.log-gpu-usage
+                           Enable GPU memory and utilization logging (e.g., in
+                           TensorBoard). (type: bool, default: False)
+     --trainer.save-steps SAVE_STEPS
+                           Interval (in steps) between saving model checkpoints.
+                           If None, saves at epoch end only. (type: int, default:
+                           null)
+     --trainer.val-steps VAL_STEPS
+                           Interval (in steps) between validation passes. If
+                           None, validates only at epoch end. (type: int,
+                           default: null)
+     --trainer.save-hours SAVE_HOURS
+                           Minimum hours between saving checkpoints based on
+                           wall-clock time. (type: float, default: null)
+     --trainer.val-hours VAL_HOURS
+                           Minimum hours between validation runs based on wall-
+                           clock time. (type: float, default: null)
+     --trainer.use-tensorboard, --no_trainer.use-tensorboard
+                           Enable TensorBoard logging. (type: bool, default:
+                           False)
+     --trainer.use-wandb, --no_trainer.use-wandb
+                           Enable Weights & Biases (W&B) experiment tracking.
+                           (type: bool, default: False)
+     --trainer.wandb.project PROJECT
+                           Name of the W&B project. (default: null)
+     --trainer.wandb.group GROUP
+                           W&B group name for multiple runs. (default: null)
+     --trainer.wandb.name NAME
+                           Run name to appear in the W&B dashboard. (default:
+                           null)
+     --trainer.wandb.mode {online,offline}
+                           W&B logging mode: 'online' to sync or 'offline' to log
+                           locally. (default: online)
+     --trainer.ddp-type {ddp,fsdp}
+                           Distributed backend: standard DDP or torch FSDP
+                           sharded/full. (default: ddp)
+     --trainer.fsdp-cpu-offload, --no_trainer.fsdp-cpu-offload
+                           Whether to offload parameters to CPU during training
+                           (used in FSDP). (type: bool, default: False)
+     --trainer.fsdp-reshard-after-forward FSDP_RESHARD_AFTER_FORWARD
+                           Control FSDP2 resharding after forward (None=default
+                           child=True/root=False, True/False override,
+                           int=reshard to smaller world size). (default: null)
+     --trainer.fsdp-state-dict-type {full,sharded,local}
+                           State dict format to use for saving/loading FSDP
+                           models. (default: full)
+     --trainer.fsdp-state-dict-cpu-offload, --no_trainer.fsdp-state-dict-cpu-offload
+                           Offload FSDP state dicts to CPU when saving/loading.
+                           (type: bool, default: True)
+     --trainer.fsdp-state-dict-rank0-only, --no_trainer.fsdp-state-dict-rank0-only
+                           Gather full FSDP state dict only on rank 0. (type:
+                           bool, default: True)
+     --trainer.fsdp-sync-module-states, --no_trainer.fsdp-sync-module-states
+                           Synchronize module states before the first FSDP
+                           forward pass. (type: bool, default: False)
+     --trainer.fsdp-mp-param-dtype {float16,bfloat16,float32,none}
+                           Override FSDP mixed-precision param dtype (default
+                           uses amp-dtype when AMP is enabled). Use 'none' to
+                           disable. (default: null)
+     --trainer.fsdp-mp-reduce-dtype {float16,bfloat16,float32,none}
+                           Override FSDP mixed-precision reduce dtype (default
+                           uses amp-dtype when AMP is enabled). Use 'none' to
+                           disable. (default: null)
+     --trainer.fsdp-mp-output-dtype {float16,bfloat16,float32,none}
+                           Override FSDP mixed-precision output dtype (default
+                           uses amp-dtype when AMP is enabled). Use 'none' to
+                           disable. (default: null)
+     --trainer.use-amp, --no_trainer.use-amp
+                           Enable automatic mixed precision (AMP) training.
+                           (type: bool, default: False)
+     --trainer.amp-dtype {float16,bfloat16}
+                           AMP data type. Choose 'float16' or 'bfloat16'.
+                           (default: float16)
+     --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
+                           Enable gradient scaling for bfloat16 (BF16) training.
+                           (type: bool, default: False)
+     --trainer.grad-clip GRAD_CLIP
+                           Maximum norm for gradient clipping. Set to 0 to
+                           disable clipping. (type: float, default: 0)
+     --trainer.grad-clip-norm {inf,1,2}
+                           Norm type used for gradient clipping (L1, L2, or L∞).
+                           (default: 2)
+     --trainer.swa-start SWA_START
+                           Step at which to start Stochastic Weight Averaging
+                           (SWA). Disabled if 0. (type: int, default: 0)
+     --trainer.swa-lr SWA_LR
+                           Learning rate for SWA optimization phase. (type:
+                           float, default: 0.001)
+     --trainer.swa-anneal-steps SWA_ANNEAL_STEPS
+                           Number of steps to anneal SWA learning rate. (type:
+                           int, default: 50000)
+     --trainer.swa-update-steps SWA_UPDATE_STEPS
+                           How frequently (in steps) to update SWA weights.
+                           (type: int, default: 5000)
+     --trainer.bn-update-steps BN_UPDATE_STEPS
+                           Steps used to update BatchNorm statistics after SWA
+                           finalization. (type: int, default: 5000)
+     --trainer.optim CONFIG
+                           Path to a configuration file.
+     --trainer.lrsched CONFIG
+                           Path to a configuration file.
+     --trainer.wdsched CONFIG
+                           Path to a configuration file.
+     --trainer.input-key INPUT_KEY
+                           Batch dictionary key that contains the tensor fed to
+                           the model. (default: audio_aug)
+     --trainer.target-key TARGET_KEY
+                           Batch dictionary key that contains the supervision
+                           targets. (default: speaker)
+     --trainer.train-mode {full,frozen,frozen-feat-extractor,pooling,proj-head,output-layer}
+                           Named train-mode to activate inside the model (full,
+                           frozen, frozen-feat-extractor, pooling, proj-head,
+                           output-layer). (default: full)
+     --trainer.xvector-sig-reg-weight XVECTOR_SIG_REG_WEIGHT
+                           Weight added for global x-vector SIGReg. (type: float,
+                           default: 0.0)
+     --trainer.prototype-sig-reg-weight PROTOTYPE_SIG_REG_WEIGHT
+                           Weight added for the prototype SIGReg regularizer.
+                           (type: float, default: 0.0)
+     --trainer.prototype-code-rate-weight PROTOTYPE_CODE_RATE_WEIGHT
+                           Weight applied to the prototype code-rate regularizer.
+                           (type: float, default: 0.0)
 
      --trainer.optim.opt-type {sgd,adam,adamw,radam,adadelta,adagrad,sparse_adam,adamax,asgd,lbfgs,rmsprop,rprop}
                            Optimizers: SGD, Adam, AdaDelta, AdaGrad, SparseAdam

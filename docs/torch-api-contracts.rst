@@ -4,8 +4,8 @@ PyTorch API Contracts
 This page is the contract-level companion to :doc:`torch-api` and
 :doc:`torch-extension-points`. It describes the stable PyTorch boundaries that
 callers and extension authors must preserve. Codec/DAC, VITS anonymization,
-transducer, and Q-vector model families remain experimental unless explicitly
-marked otherwise.
+transducer, Q-vector, and X-vector plus model families remain experimental
+unless explicitly marked otherwise.
 
 Model serialization and modes
 -----------------------------

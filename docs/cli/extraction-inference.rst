@@ -48,9 +48,10 @@ write the requested reports/artifacts according to parser options.
 Experimental inference
 ----------------------
 
-Transducer decoders and ``hyperion-infer-qvectors`` are experimental. They may
-need additional model assets and have no stable checkpoint/configuration
-guarantee; see :doc:`experimental`.
+Transducer decoders, ``hyperion-infer-qvectors``, and
+``hyperion-infer-xvectorps`` are experimental. They may need additional model
+assets and have no stable checkpoint/configuration guarantee; see
+:doc:`experimental`.
 
 See also
 --------

@@ -40,7 +40,7 @@ class HydraHeadFactory:
     @staticmethod
     def create(
         head_type: HydraHeadType | str | None = DEFAULT_TYPE, **kwargs: Any
-    ) -> HydraHead:
+    ) -> HydraHead | None:
         """Instantiate a Hydra head of the requested type.
 
         Args:
@@ -53,6 +53,9 @@ class HydraHeadFactory:
         """
         if head_type is None:
             head_type = HydraHeadFactory.DEFAULT_TYPE
+
+        if head_type == HydraHeadType.NONE:
+            return None
 
         if head_type not in _HYDRA_HEAD_REGISTRY:
             raise ValueError(
@@ -133,6 +136,7 @@ class HydraHeadFactory:
         HydraClassifHead.add_large_margin_loss_args(parser, skip=skip)
         HydraClassifHead.add_cross_entropy_loss_args(parser, skip=skip)
         HydraClassifHead.add_prototype_code_rate_args(parser, skip=skip)
+        HydraClassifHead.add_prototype_sig_reg_args(parser, skip=skip)
 
         if outer_parser is not None and prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

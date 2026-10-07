@@ -239,23 +239,31 @@ class SubspaceLikeGaussianCodeRateDistortionL2(nn.Module):
         )
 
     @staticmethod
-    def add_class_args(parser: ArgumentParser, prefix: str | None = None) -> None:
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: str | None = None,
+        skip: set[str] | None = None,
+    ) -> None:
         """Adds CLI arguments for this loss.
 
         Args:
             parser: Argument parser to extend.
             prefix: Optional nested prefix for grouped arguments.
+            skip: Constructor argument names to omit from the parser.
         """
+        if skip is None:
+            skip = set()
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument(
-            "--eps",
-            default=0.5,
-            type=float,
-            help="Distortion tolerance parameter in the coding-rate formula",
-        )
+        if "eps" not in skip:
+            parser.add_argument(
+                "--eps",
+                default=0.5,
+                type=float,
+                help="Distortion tolerance parameter in the coding-rate formula",
+            )
         # parser.add_argument(
         #     "--reduction",
         #     default="mean",
@@ -263,30 +271,34 @@ class SubspaceLikeGaussianCodeRateDistortionL2(nn.Module):
         #     choices=["mean", "sum", "none"],
         #     help="Reduction applied to the per-batch rates",
         # )
-        parser.add_argument(
-            "--jitter",
-            default=1e-6,
-            type=float,
-            help="Diagonal stabilization added to the identity term",
-        )
-        parser.add_argument(
-            "--gamma-1",
-            default=1.0,
-            type=float,
-            help="Denominator scaling factor in the final coding rate",
-        )
-        parser.add_argument(
-            "--gamma-2",
-            default=1.0,
-            type=float,
-            help="Numerator scaling factor applied inside the log-determinant",
-        )
-        parser.add_argument(
-            "--normalize",
-            default=True,
-            action=ActionYesNo,
-            help="Whether to L2-normalize the input vectors before computing the rate",
-        )
+        if "jitter" not in skip:
+            parser.add_argument(
+                "--jitter",
+                default=1e-6,
+                type=float,
+                help="Diagonal stabilization added to the identity term",
+            )
+        if "gamma_1" not in skip:
+            parser.add_argument(
+                "--gamma-1",
+                default=1.0,
+                type=float,
+                help="Denominator scaling factor in the final coding rate",
+            )
+        if "gamma_2" not in skip:
+            parser.add_argument(
+                "--gamma-2",
+                default=1.0,
+                type=float,
+                help="Numerator scaling factor applied inside the log-determinant",
+            )
+        if "normalize" not in skip:
+            parser.add_argument(
+                "--normalize",
+                default=True,
+                action=ActionYesNo,
+                help="Whether to L2-normalize the input vectors before computing the rate",
+            )
         # parser.add_argument(
         #     "--distributed-mode",
         #     default="local",
@@ -424,35 +436,45 @@ class CategoricalSubspaceLikeGaussianCodeRateDistortionL2(
         )
 
     @staticmethod
-    def add_class_args(parser: ArgumentParser, prefix: str | None = None) -> None:
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: str | None = None,
+        skip: set[str] | None = None,
+    ) -> None:
         """Adds CLI arguments for this loss.
 
         Args:
             parser: Argument parser to extend.
             prefix: Optional nested prefix for grouped arguments.
+            skip: Constructor argument names to omit from the parser.
         """
+        if skip is None:
+            skip = set()
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument(
-            "--eps",
-            default=0.5,
-            type=float,
-            help="Distortion tolerance parameter in the coding-rate formula",
-        )
-        parser.add_argument(
-            "--jitter",
-            default=1e-6,
-            type=float,
-            help="Diagonal stabilization added to the identity term",
-        )
-        parser.add_argument(
-            "--normalize",
-            default=True,
-            action=ActionYesNo,
-            help="Whether to L2-normalize the input vectors before computing class-wise rates",
-        )
+        if "eps" not in skip:
+            parser.add_argument(
+                "--eps",
+                default=0.5,
+                type=float,
+                help="Distortion tolerance parameter in the coding-rate formula",
+            )
+        if "jitter" not in skip:
+            parser.add_argument(
+                "--jitter",
+                default=1e-6,
+                type=float,
+                help="Diagonal stabilization added to the identity term",
+            )
+        if "normalize" not in skip:
+            parser.add_argument(
+                "--normalize",
+                default=True,
+                action=ActionYesNo,
+                help="Whether to L2-normalize the input vectors before computing class-wise rates",
+            )
         # parser.add_argument(
         #     "--distributed-mode",
         #     default="global_data",
@@ -563,47 +585,59 @@ class CategoricalSubspaceLikeGaussianCodeRateDistortionL2Reduction(nn.Module):
         )
 
     @staticmethod
-    def add_class_args(parser: ArgumentParser, prefix: str | None = None) -> None:
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: str | None = None,
+        skip: set[str] | None = None,
+    ) -> None:
         """Adds CLI arguments for this loss.
 
         Args:
             parser: Argument parser to extend.
             prefix: Optional nested prefix for grouped arguments.
+            skip: Constructor argument names to omit from the parser.
         """
+        if skip is None:
+            skip = set()
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument(
-            "--eps",
-            default=0.5,
-            type=float,
-            help="Distortion tolerance parameter in the coding-rate formula",
-        )
-        parser.add_argument(
-            "--jitter",
-            default=1e-6,
-            type=float,
-            help="Diagonal stabilization added to the identity term",
-        )
-        parser.add_argument(
-            "--gamma-1",
-            default=1.0,
-            type=float,
-            help="Denominator scaling factor in the overall coding-rate term",
-        )
-        parser.add_argument(
-            "--gamma-2",
-            default=1.0,
-            type=float,
-            help="Numerator scaling factor applied inside the overall log-determinant term",
-        )
-        parser.add_argument(
-            "--normalize",
-            default=True,
-            action=ActionYesNo,
-            help="Whether to L2-normalize the input vectors before computing the rate terms",
-        )
+        if "eps" not in skip:
+            parser.add_argument(
+                "--eps",
+                default=0.5,
+                type=float,
+                help="Distortion tolerance parameter in the coding-rate formula",
+            )
+        if "jitter" not in skip:
+            parser.add_argument(
+                "--jitter",
+                default=1e-6,
+                type=float,
+                help="Diagonal stabilization added to the identity term",
+            )
+        if "gamma_1" not in skip:
+            parser.add_argument(
+                "--gamma-1",
+                default=1.0,
+                type=float,
+                help="Denominator scaling factor in the overall coding-rate term",
+            )
+        if "gamma_2" not in skip:
+            parser.add_argument(
+                "--gamma-2",
+                default=1.0,
+                type=float,
+                help="Numerator scaling factor applied inside the overall log-determinant term",
+            )
+        if "normalize" not in skip:
+            parser.add_argument(
+                "--normalize",
+                default=True,
+                action=ActionYesNo,
+                help="Whether to L2-normalize the input vectors before computing the rate terms",
+            )
         # parser.add_argument(
         #     "--distributed-mode",
         #     default="global_data",

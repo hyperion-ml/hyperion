@@ -18,51 +18,43 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
 from ...hyper_torch_model import HyperTorchModel
-from ...losses.rate_distortion import (
-    SubspaceLikeGaussianCodeRateDistortionL2 as CodeRate,
-)
+from ...layers import GlobalPool1dFactory as PF
+from ...losses.sig_reg import SIGReg
 from ...narchs import (
     HydraClassifHeadOutput,
     HydraHead,
     HydraHeadFactory,
-    HydraHeadType,
     HydraRegressionHeadOutput,
-    QFormerV2,
-    QProjHead,
+    ProjHead,
 )
 
 
 @dataclass
-class QVectorOutput(HyperDataClass):
-    """Container for q-vector inference artifacts.
+class XVectorPOutput(HyperDataClass):
+    """Container for x-vector+ inference artifacts.
 
     Attributes:
-        qmatrix: Per-query embeddings returned by the output aggregation
-            Q-former.
-        qvector: Projected embedding for each input example.
+        xvector: Projected embedding for each input example.
+        xvector_sig_reg: Optional SIGReg statistic for the embeddings.
         head_output: Optional downstream Hydra head output.
-        backbone_output_feats: Optional list of backbone output features.
+        backbone_output_feats: Optional tensor of backbone output features.
         backbone_output_feats_lengths: Optional lengths for
             ``backbone_output_feats``.
         backbone_hidden_feats: Optional list of backbone hidden features.
         backbone_hidden_feats_lengths: Optional lengths for
             ``backbone_hidden_feats``.
-        qmatrix_code_rate: Optional code-rate value for the Q-matrix.
     """
 
-    qmatrix: torch.Tensor
-    """Per-query embeddings returned by the output aggregation Q-former (batch, num_queries, dim)."""
-
-    qvector: torch.Tensor
-    """Projected embedding for each input example (batch, qvector_dim)."""
+    xvector: torch.Tensor
+    """Projected embedding for each input example (batch, xvector_dim)."""
 
     head_output: Optional[Union[HydraClassifHeadOutput, HydraRegressionHeadOutput]] = (
         None
     )
     """Result produced by the downstream Hydra head (logits/loss or regression output)."""
 
-    backbone_output_feats: Optional[List[torch.Tensor]] = None
-    """Optional list of backbone output features that were returned for analysis."""
+    backbone_output_feats: Optional[torch.Tensor] = None
+    """Optional tensor of backbone output features that were returned for analysis."""
 
     backbone_output_feats_lengths: Optional[torch.Tensor] = None
     """Lengths corresponding to `backbone_output_feats` when variable-length inputs are used."""
@@ -73,24 +65,23 @@ class QVectorOutput(HyperDataClass):
     backbone_hidden_feats_lengths: Optional[Union[List[torch.Tensor], torch.Tensor]] = (
         None
     )
-
     """Lengths matching `backbone_hidden_feats` for variable-length inputs."""
 
-    qmatrix_code_rate: Optional[torch.Tensor] = None
-    """Code rate for the Q-matrix."""
+    xvector_sig_reg: Optional[torch.Tensor] = None
+    """Optional SIGReg statistic for the returned embeddings."""
 
     @classmethod
-    def concatenate(cls, outputs: List["QVectorOutput"]) -> "QVectorOutput":
+    def concatenate(cls, outputs: List["XVectorPOutput"]) -> "XVectorPOutput":
         """Concatenate multiple outputs along the batch dimension.
 
         Args:
             outputs: Sequence of chunk-level outputs to concatenate.
 
         Returns:
-            QVectorOutput: Single output covering the concatenated batch.
+            XVectorPOutput: Single output covering the concatenated batch.
         """
         if not outputs:
-            raise ValueError("Cannot concatenate an empty list of QVectorOutput.")
+            raise ValueError("Cannot concatenate an empty list of XVectorPOutput.")
 
         def _cat_optional_tensor(attr: str) -> Optional[torch.Tensor]:
             tensors = [getattr(out, attr) for out in outputs]
@@ -98,23 +89,15 @@ class QVectorOutput(HyperDataClass):
                 return None
             return torch.cat(tensors, dim=0)
 
-        def _avg_optional_scalar(attr: str) -> Optional[torch.Tensor]:
-            values = [getattr(out, attr) for out in outputs]
-            if any(v is None for v in values):
-                return None
-            weights = torch.tensor(
-                [out.qvector.size(0) for out in outputs],
-                device=values[0].device,
-                dtype=values[0].dtype,
-            )
-            stacked = torch.stack(values)
-            return torch.sum(stacked * weights) / torch.sum(weights)
-
         def _cat_optional_tensor_lists(attr: str) -> Optional[List[torch.Tensor]]:
             tensor_lists = [getattr(out, attr) for out in outputs]
             if any(t_list is None for t_list in tensor_lists):
                 return None
             num_entries = len(tensor_lists[0])
+            if any(len(t_list) != num_entries for t_list in tensor_lists):
+                raise ValueError(
+                    f"Inconsistent {attr} across outputs: list lengths differ."
+                )
             concatenated: List[torch.Tensor] = []
             for idx in range(num_entries):
                 concatenated.append(
@@ -170,7 +153,7 @@ class QVectorOutput(HyperDataClass):
             if isinstance(first_output, HydraClassifHeadOutput):
                 logits = torch.cat([h.logits for h in head_outputs], dim=0)
                 weights = torch.tensor(
-                    [out.qvector.size(0) for out in outputs],
+                    [out.xvector.size(0) for out in outputs],
                     device=logits.device,
                     dtype=logits.dtype,
                 )
@@ -186,26 +169,24 @@ class QVectorOutput(HyperDataClass):
                     prototype_code_rate = torch.sum(
                         prototype_rates * weights
                     ) / torch.sum(weights)
+                prototype_sig_reg = None
+                if all(h.prototype_sig_reg is not None for h in head_outputs):
+                    prototype_sig_reg = torch.sum(
+                        torch.stack([h.prototype_sig_reg for h in head_outputs])
+                        * weights
+                    ) / torch.sum(weights)
                 head_output = HydraClassifHeadOutput(
                     logits=logits,
+                    prototype_sig_reg=prototype_sig_reg,
                     loss=loss,
                     prototype_code_rate=prototype_code_rate,
-                    prototype_sig_reg=(
-                        (
-                            torch.stack([h.prototype_sig_reg for h in head_outputs])
-                            * weights
-                        ).sum()
-                        / weights.sum()
-                        if all(h.prototype_sig_reg is not None for h in head_outputs)
-                        else None
-                    ),
                 )
             elif isinstance(first_output, HydraRegressionHeadOutput):
                 preds = torch.cat([h.preds for h in head_outputs], dim=0)
                 loss = None
                 if all(h.loss is not None for h in head_outputs):
                     weights = torch.tensor(
-                        [out.qvector.size(0) for out in outputs],
+                        [out.xvector.size(0) for out in outputs],
                         device=preds.device,
                         dtype=preds.dtype,
                     )
@@ -214,10 +195,9 @@ class QVectorOutput(HyperDataClass):
                 head_output = HydraRegressionHeadOutput(preds=preds, loss=loss)
 
         return cls(
-            qmatrix=torch.cat([out.qmatrix for out in outputs], dim=0),
-            qvector=torch.cat([out.qvector for out in outputs], dim=0),
+            xvector=torch.cat([out.xvector for out in outputs], dim=0),
             head_output=head_output,
-            backbone_output_feats=_cat_optional_tensor_lists("backbone_output_feats"),
+            backbone_output_feats=_cat_optional_tensor("backbone_output_feats"),
             backbone_output_feats_lengths=_cat_optional_tensor(
                 "backbone_output_feats_lengths"
             ),
@@ -225,16 +205,15 @@ class QVectorOutput(HyperDataClass):
             backbone_hidden_feats_lengths=_cat_optional_tensor_or_tensor_lists(
                 "backbone_hidden_feats_lengths"
             ),
-            qmatrix_code_rate=_avg_optional_scalar("qmatrix_code_rate"),
         )
 
     @classmethod
     def weighted_average_by_index(
         cls,
-        concatenated_output: "QVectorOutput",
+        concatenated_output: "XVectorPOutput",
         audio_index: torch.Tensor,
         chunk_weights: Optional[torch.Tensor] = None,
-    ) -> "QVectorOutput":
+    ) -> "XVectorPOutput":
         """Aggregate chunk-level outputs into per-example averages.
 
         Args:
@@ -244,15 +223,17 @@ class QVectorOutput(HyperDataClass):
                 contributes equally.
 
         Returns:
-            QVectorOutput: Output averaged back to the original example level.
+            XVectorPOutput: Output averaged back to the original example level.
         """
-        if concatenated_output.qvector.size(0) != audio_index.size(0):
+        if audio_index.ndim != 1:
+            raise ValueError("audio_index must be one-dimensional")
+        if concatenated_output.xvector.size(0) != audio_index.size(0):
             raise ValueError(
                 "audio_index length must match the number of chunk outputs."
             )
 
-        device = concatenated_output.qvector.device
-        dtype = concatenated_output.qvector.dtype
+        device = concatenated_output.xvector.device
+        dtype = concatenated_output.xvector.dtype
         audio_index = audio_index.to(device=device, dtype=torch.long)
 
         if chunk_weights is None:
@@ -263,28 +244,28 @@ class QVectorOutput(HyperDataClass):
         if audio_index.numel() == 0:
             raise ValueError("audio_index must have at least one element.")
 
+        if torch.any(audio_index < 0):
+            raise ValueError("audio_index values must be nonnegative")
+        if chunk_weights.shape != audio_index.shape or not torch.all(
+            torch.isfinite(chunk_weights) & (chunk_weights >= 0)
+        ):
+            raise ValueError(
+                "chunk_weights must contain a finite nonnegative weight per chunk"
+            )
         num_examples = int(audio_index.max().item()) + 1
         weight_sums = torch.zeros(num_examples, device=device, dtype=dtype)
         weight_sums.index_add_(0, audio_index, chunk_weights)
-        assert torch.all(weight_sums > 0), "Weights must sum to positive values."
+        if not torch.all(weight_sums > 0):
+            raise ValueError("Weights must sum to a positive value for every example")
 
-        weighted_qvectors = concatenated_output.qvector * chunk_weights.unsqueeze(1)
-        qvector = torch.zeros(
-            (num_examples, concatenated_output.qvector.size(1)),
+        weighted_xvectors = concatenated_output.xvector * chunk_weights.unsqueeze(1)
+        xvector = torch.zeros(
+            (num_examples, concatenated_output.xvector.size(1)),
             device=device,
             dtype=dtype,
         )
-        qvector.index_add_(0, audio_index, weighted_qvectors)
-        qvector = qvector / weight_sums.unsqueeze(1)
-
-        weighted_qmatrices = concatenated_output.qmatrix * chunk_weights.view(-1, 1, 1)
-        qmatrix = torch.zeros(
-            (num_examples,) + concatenated_output.qmatrix.shape[1:],
-            device=concatenated_output.qmatrix.device,
-            dtype=concatenated_output.qmatrix.dtype,
-        )
-        qmatrix.index_add_(0, audio_index, weighted_qmatrices)
-        qmatrix = qmatrix / weight_sums.view(-1, 1, 1)
+        xvector.index_add_(0, audio_index, weighted_xvectors)
+        xvector = xvector / weight_sums.unsqueeze(1)
 
         input_head_output = concatenated_output.head_output
         aggregated_head_output: Optional[
@@ -327,26 +308,22 @@ class QVectorOutput(HyperDataClass):
             aggregated_head_output = None
 
         return cls(
-            qmatrix=qmatrix,
-            qvector=qvector,
+            xvector=xvector,
             head_output=aggregated_head_output,
             backbone_output_feats=None,
             backbone_output_feats_lengths=None,
             backbone_hidden_feats=None,
             backbone_hidden_feats_lengths=None,
-            qmatrix_code_rate=concatenated_output.qmatrix_code_rate,
         )
 
 
-class QVectorTrainMode(str, Enum):
-    """Training modes for the QVector model."""
+class XVectorPTrainMode(str, Enum):
+    """Training modes for the XVectorP model."""
 
     FULL = "full"
     FROZEN = "frozen"
     FROZEN_FEAT_EXTRACTOR = "frozen-feat-extractor"
-    ADAPTERS_QFORMERS = "adapters-qformers"
-    QFORMERS = "qformers"
-    OUTPUT_FEATS_QFORMER = "output-feats-qformer"
+    POOLING = "pooling"
     PROJ_HEAD = "proj-head"
     OUTPUT_LAYER = "output-layer"
 
@@ -357,188 +334,148 @@ class QVectorTrainMode(str, Enum):
         Returns:
             List of accepted training-mode values.
         """
-        return [o.value for o in QVectorTrainMode]
+        return [o.value for o in XVectorPTrainMode]
 
 
-class QVector(HyperTorchModel):
-    """Core implementation of the q-vector encoder/classifier.
+class XVectorP(HyperTorchModel):
+    """Base x-vector plus (x-vector+) model using pooling and projection.
+
+    Subclasses provide backbone features with shape ``(batch, time, features)``
+    and report their feature dimension through ``backbone_output_feats``.
 
     Attributes:
-        hidden_feats_queries: Learnable queries attending to hidden backbone layers.
-        hidden_feats_agg_qformer: Q-former aggregating hidden-layer features.
-        output_feats_queries: Learnable queries attending to output features.
-        output_feats_agg_qformer: Q-former aggregating output features.
-        proj_head: Projection head that flattens the Q-former output into a vector.
-        head: Classification or regression head operating on the q-vector.
-        num_hidden_feats_queries: Number of hidden-feature queries.
-        num_output_feats_queries: Number of output-feature queries.
-        qvector_dim: Dimensionality of the final q-vector embedding.
-        enable_qmatrix_code_rate: Whether to compute the q-matrix code rate in
-            ``forward``.
-        qmatrix_code_rate: Constructor arguments for the q-matrix code-rate
-            regularizer.
+        pooling: Global pooling module operating over backbone frames.
+        proj_head: Projection with optional normalization before or after it.
+        head: Optional classification or regression head operating on the embedding.
+        xvector_dim: Dimensionality of the projected embedding.
+        proj_use_norm: Whether projection normalization is enabled.
+        proj_norm_layer: Normalization type; ``None`` selects batch normalization when enabled.
+        proj_norm_before: Whether normalization precedes the projection.
+        pooling_weight_decay: Optional pooling weight decay.
+        proj_weight_decay: Optional projection weight decay.
+        head_weight_decay: Optional downstream head weight decay.
+        bias_weight_decay: Optional bias and normalization weight decay (inherited).
+        max_input_length: Buffer recording the longest training input in samples.
+        enable_xvector_sig_reg: Whether projected embeddings are regularized.
+        xvector_sig_reg: Optional SIGReg module using global statistics by default.
+        train_mode: Active training regime (inherited).
     """
 
     def __init__(
         self,
-        hidden_feats_agg_qformer: Union[Dict[str, Any], QFormerV2, None],
-        num_hidden_feats_queries: int,
-        output_feats_agg_qformer: Union[Dict[str, Any], None],
-        num_output_feats_queries: int,
-        qvector_dim: int,
-        head: Union[Dict[str, Any], HydraHead],
-        proj_bias: bool = True,
-        enable_qmatrix_code_rate: bool = False,
-        qmatrix_code_rate: Optional[Dict[str, Any]] = None,
-        qformer_weight_decay: Optional[float] = None,
+        pooling: Union[str, Dict[str, Any], nn.Module],
+        xvector_dim: int,
+        head: Optional[Union[Dict[str, Any], HydraHead]],
+        proj_norm_layer: Optional[str] = None,
+        proj_use_norm: bool = True,
+        proj_norm_before: bool = True,
+        enable_xvector_sig_reg: bool = False,
+        xvector_sig_reg: Optional[Dict[str, Any]] = None,
+        pooling_weight_decay: Optional[float] = None,
         proj_weight_decay: Optional[float] = None,
         head_weight_decay: Optional[float] = None,
         bias_weight_decay: Optional[float] = None,
-    ):
-        """Initialize the q-vector model components.
+    ) -> None:
+        """Initialize the x-vector+ model components.
 
         Args:
-            hidden_feats_agg_qformer: Configuration dictionary for the hidden-feature
-                aggregation Q-former, or ``None`` to disable hidden aggregation.
-            num_hidden_feats_queries: Number of learnable queries applied to hidden
-                backbone features.
-            output_feats_agg_qformer: Configuration dictionary for the output-feature
-                aggregation Q-former. The Q-former is skipped when its ``num_layers`` is
-                zero.
-            num_output_feats_queries: Number of learnable queries applied to the output
-                backbone features.
-            qvector_dim: Dimensionality of the projected q-vector embedding.
-            head: Keyword arguments used to instantiate the downstream Hydra head.
-            proj_bias: Whether the projection head linear layer includes a bias term.
-            enable_qmatrix_code_rate: When True, compute the q-matrix code rate
-                in ``forward``.
-            qmatrix_code_rate: Optional constructor arguments for
-                :class:`SubspaceLikeGaussianCodeRateDistortionL2`.
-            qformer_weight_decay: Optional weight-decay override applied to both
-                hidden/output Q-former parameters.
+            pooling: Configuration for the pooling layer.
+            xvector_dim: Dimensionality of the projected x-vector embedding.
+            head: Hydra head configuration or module, or ``None`` for an embedding-only model.
+            proj_norm_layer: Batch, layer, or RMS normalization; ``None`` uses batch norm when enabled.
+            proj_use_norm: Whether to normalize the projection input or output.
+            proj_norm_before: Whether normalization precedes projection. Projection
+                bias is disabled when normalization follows projection.
+            enable_xvector_sig_reg: Whether to calculate SIGReg on projected embeddings.
+            xvector_sig_reg: SIGReg constructor arguments; defaults to global statistics.
+            pooling_weight_decay: Optional weight-decay override for pooling parameters.
             proj_weight_decay: Optional weight-decay override applied to
                 projection-head parameters.
             head_weight_decay: Optional weight-decay override applied to downstream
                 head parameters.
-            bias_weight_decay: Optional weight-decay value applied only to bias
+            bias_weight_decay: Optional weight decay for biases and normalization
                 parameters when building optimizer parameter groups.
         """
         super().__init__(bias_weight_decay=bias_weight_decay)
+        self.pooling_weight_decay = pooling_weight_decay
+        self.proj_weight_decay = proj_weight_decay
+        self.head_weight_decay = head_weight_decay
 
-        assert num_hidden_feats_queries > 0 or num_output_feats_queries > 0
-        self.num_hidden_feats_queries = num_hidden_feats_queries
-        self.num_output_feats_queries = num_output_feats_queries
-        self.qvector_dim = qvector_dim
-        self.proj_bias = proj_bias
+        self.enable_xvector_sig_reg = enable_xvector_sig_reg
+        self.xvector_sig_reg_args = dict(xvector_sig_reg or {})
+        if enable_xvector_sig_reg:
+            sig_reg_args = dict(self.xvector_sig_reg_args)
+            sig_reg_args["distributed_mode"] = "global_data"
+            self.xvector_sig_reg = SIGReg(**sig_reg_args)
 
-        query_dim = None
-        if num_hidden_feats_queries > 0:
-            if isinstance(hidden_feats_agg_qformer, QFormerV2):
-                self.hidden_feats_agg_qformer = hidden_feats_agg_qformer
-            else:
-                logging.info("Building hidden_feats_agg_qformer from config dict")
-                hidden_feats_agg_qformer["multilayer_input"] = True
-                self.hidden_feats_agg_qformer = QFormerV2(**hidden_feats_agg_qformer)
+        self.xvector_dim = xvector_dim
+        self.proj_use_norm = proj_use_norm
+        self.proj_norm_layer = proj_norm_layer
+        self.proj_norm_before = proj_norm_before
 
-            query_dim = self.hidden_feats_agg_qformer.hidden_dim
-            self.hidden_feats_queries = nn.Parameter(
-                torch.zeros((num_hidden_feats_queries, query_dim))
-            )
-        else:
-            self.hidden_feats_queries = None
-            self.hidden_feats_agg_qformer = None
+        encoder_feats = self.backbone_output_feats()
 
-        if isinstance(output_feats_agg_qformer, QFormerV2):
-            self.output_feats_agg_qformer = output_feats_agg_qformer
-        elif isinstance(output_feats_agg_qformer, dict) and (
-            output_feats_agg_qformer.get("num_layers", 0) > 0
-        ):
-            logging.info("Building output_feats_agg_qformer from config dict")
-            output_feats_agg_qformer["multilayer_input"] = False
-            if "class_name" in output_feats_agg_qformer:
-                del output_feats_agg_qformer["class_name"]
-            self.output_feats_agg_qformer = QFormerV2(**output_feats_agg_qformer)
-        else:
-            self.output_feats_queries = None
-            self.output_feats_agg_qformer = None
+        self.pooling = self._make_pooling(pooling, encoder_feats)
+        pooling_feats = int(encoder_feats * self.pooling.size_multiplier)
 
-        if self.output_feats_agg_qformer is None and num_output_feats_queries > 0:
-            raise ValueError(
-                "num_output_feats_queries > 0 but no output_feats_agg_qformer provided"
-            )
-
-        if self.output_feats_agg_qformer is not None:
-            if query_dim is not None:
-                assert (
-                    query_dim == self.output_feats_agg_qformer.hidden_dim
-                ), "query_dim mismatch"
-            else:
-                query_dim = self.output_feats_agg_qformer.hidden_dim
-
-            self.output_feats_queries = nn.Parameter(
-                torch.zeros((num_output_feats_queries, query_dim))
-            )
-            proj_uses_norm = not self.output_feats_agg_qformer.output_is_normalized
-            proj_norm_layer = self.output_feats_agg_qformer.norm_layer
-            qformer_out_feats = self.output_feats_agg_qformer.out_dim()
-        else:
-            proj_uses_norm = not self.hidden_feats_agg_qformer.output_is_normalized
-            proj_norm_layer = self.hidden_feats_agg_qformer.norm_layer
-            qformer_out_feats = self.hidden_feats_agg_qformer.out_dim()
-
-        qmatrix_dim = (
-            num_hidden_feats_queries + num_output_feats_queries
-        ) * qformer_out_feats
         logging.info(
-            "Building proj_head from qmatrix_dim=%d to qvector_dim=%d uses_norm=%s",
-            qmatrix_dim,
-            qvector_dim,
-            proj_uses_norm,
+            "Building proj_head from pooling_dim=%d to xvector_dim=%d uses_norm=%s",
+            pooling_feats,
+            xvector_dim,
+            self.proj_use_norm,
         )
-        self.proj_head = QProjHead(
-            in_feats=qmatrix_dim,
-            out_feats=qvector_dim,
-            use_norm=proj_uses_norm,
-            norm_layer=proj_norm_layer,
-            bias=self.proj_bias,
+        self.proj_head = ProjHead(
+            in_feats=pooling_feats,
+            out_feats=xvector_dim,
+            norm_layer=self.proj_norm_layer,
+            use_norm=self.proj_use_norm,
+            norm_before=self.proj_norm_before,
         )
 
         if isinstance(head, HydraHead):
-            self.head = head
+            self.head: Optional[HydraHead] = head
+        elif head is None:
+            self.head = None
         else:
             logging.info("Building head from config dict")
-            head["in_feats"] = qvector_dim
-            self.head = HydraHeadFactory.create(**head)
+            self.head = HydraHeadFactory.create(**{**head, "in_feats": xvector_dim})
 
         self._backbone_context = contextlib.nullcontext()
         self._adapter_context = contextlib.nullcontext()
-        self._hidden_feats_agg_context = contextlib.nullcontext()
-        self._output_feats_agg_context = contextlib.nullcontext()
-        self._init_queries()
+        self._pooling_context = contextlib.nullcontext()
+        self._proj_context = contextlib.nullcontext()
         self.register_buffer("max_input_length", torch.tensor(0, dtype=torch.long))
 
-        self.head_weight_decay = head_weight_decay
-        self.proj_weight_decay = proj_weight_decay
-        self.qformer_weight_decay = qformer_weight_decay
+    def _make_pooling(
+        self,
+        pooling: Union[str, Dict[str, Any], nn.Module],
+        enc_feats: int,
+    ) -> nn.Module:
+        """Build the global pooling block.
 
-        self.enable_qmatrix_code_rate = enable_qmatrix_code_rate
-        self.qmatrix_code_rate_args = dict(qmatrix_code_rate or {})
-        if self.enable_qmatrix_code_rate:
-            code_rate_args = dict(self.qmatrix_code_rate_args)
-            code_rate_args["reduction"] = "mean"
-            code_rate_args["distributed_mode"] = "global_data"
-            logging.info("Q-matrix code rate enabled with args=%s", code_rate_args)
-            self.qmatrix_code_rate = CodeRate(**code_rate_args)
-        else:
-            self.qmatrix_code_rate = None
+        Args:
+            pooling: Pooling configuration string, dictionary, or module.
+            enc_feats: Input feature dimension from the encoder.
 
-    def _init_queries(self) -> None:
-        """Initialise the learnable query tensors using a truncated normal draw."""
-        if self.hidden_feats_queries is not None:
-            nn.init.trunc_normal_(self.hidden_feats_queries, std=0.02)
+        Returns:
+            Pooling module.
+        """
+        if isinstance(pooling, str):
+            pooling = {"pool_type": pooling}
 
-        if self.output_feats_queries is not None:
-            nn.init.trunc_normal_(self.output_feats_queries, std=0.02)
+        if isinstance(pooling, dict):
+            pooling = PF.create(**{**pooling, "in_feats": enc_feats})
+        if not isinstance(pooling, nn.Module):
+            raise TypeError(
+                "pooling must be a type string, configuration dictionary, or module"
+            )
+        if getattr(pooling, "dim", -1) not in (-1, 2) or getattr(
+            pooling, "keepdim", False
+        ):
+            raise ValueError(
+                "pooling must reduce the time dimension without keeping it"
+            )
+        return pooling
 
     @property
     def max_chunk_length(self) -> int:
@@ -548,21 +485,6 @@ class QVector(HyperTorchModel):
             Current maximum chunk length, measured in samples.
         """
         return int(self.max_input_length.item())
-
-    @property
-    def qmatrix_shape(self) -> Tuple[int, int]:
-        """Shape of the q-matrix output by the aggregation Q-formers.
-
-        Returns:
-            Tuple containing ``(num_queries, qformer_output_dim)``.
-        """
-        num_queries = self.num_hidden_feats_queries + self.num_output_feats_queries
-        qformer_out_feats = 0
-        if self.hidden_feats_agg_qformer is not None:
-            qformer_out_feats = self.hidden_feats_agg_qformer.out_dim()
-        elif self.output_feats_agg_qformer is not None:
-            qformer_out_feats = self.output_feats_agg_qformer.out_dim()
-        return (num_queries, qformer_out_feats)
 
     @property
     def num_classes(self) -> Optional[int]:
@@ -577,24 +499,6 @@ class QVector(HyperTorchModel):
             return None
 
     @property
-    def has_hidden_feats_agg(self) -> bool:
-        """Whether hidden-feature aggregation is enabled.
-
-        Returns:
-            ``True`` when hidden-feature aggregation is configured.
-        """
-        return self.hidden_feats_agg_qformer is not None
-
-    @property
-    def has_output_feats_agg(self) -> bool:
-        """Whether output-feature aggregation is enabled.
-
-        Returns:
-            ``True`` when output-feature aggregation is configured.
-        """
-        return self.output_feats_agg_qformer is not None
-
-    @property
     def requires_max_train_length(self) -> bool:
         """Whether training requires a maximum chunk length.
 
@@ -604,7 +508,7 @@ class QVector(HyperTorchModel):
         return False
 
     @property
-    def sample_frequency(self) -> int:
+    def sample_frequency(self) -> float:
         """Return the sample rate expected by the model.
 
         Returns:
@@ -612,9 +516,13 @@ class QVector(HyperTorchModel):
         """
         raise NotImplementedError()
 
-    def _infer_backbone_layers_indices(self) -> None:
-        """Infer which backbone layers should be returned by subclasses."""
-        raise NotImplementedError()
+    def backbone_output_feats(self) -> int:
+        """Return the feature dimension emitted by the backbone or adapter.
+
+        Returns:
+            Number of features per frame consumed by global pooling.
+        """
+        raise NotImplementedError("backbone_output_feats is not implemented")
 
     @property
     def cos_scale(self) -> Optional[float]:
@@ -708,7 +616,7 @@ class QVector(HyperTorchModel):
         """
         return (
             super().has_param_groups()
-            or self.qformer_weight_decay is not None
+            or self.pooling_weight_decay is not None
             or self.proj_weight_decay is not None
             or self.head_weight_decay is not None
         )
@@ -720,13 +628,13 @@ class QVector(HyperTorchModel):
             Parameter groups with optional component-specific weight decay.
         """
         if (
-            self.qformer_weight_decay is None
+            self.pooling_weight_decay is None
             and self.proj_weight_decay is None
             and self.head_weight_decay is None
         ):
             return super().trainable_param_groups()
 
-        qformer = []
+        pooling = []
         proj_head = []
         head = []
         other = []
@@ -738,11 +646,8 @@ class QVector(HyperTorchModel):
             ):
                 bias.append(param)
             else:
-                if self.qformer_weight_decay is not None and (
-                    name.startswith("hidden_feats_agg_qformer")
-                    or name.startswith("output_feats_agg_qformer")
-                ):
-                    qformer.append(param)
+                if self.pooling_weight_decay is not None and name.startswith("pooling"):
+                    pooling.append(param)
                 elif self.proj_weight_decay is not None and name.startswith(
                     "proj_head"
                 ):
@@ -755,9 +660,9 @@ class QVector(HyperTorchModel):
         trainable_params = []
         if other:
             trainable_params.append({"params": other})
-        if qformer:
+        if pooling:
             trainable_params.append(
-                {"params": qformer, "weight_decay": self.qformer_weight_decay}
+                {"params": pooling, "weight_decay": self.pooling_weight_decay}
             )
         if proj_head:
             trainable_params.append(
@@ -805,31 +710,12 @@ class QVector(HyperTorchModel):
         self.update_loss_margin(global_step)
 
     def init_from_xvector(self, xvector_model: HyperTorchModel) -> None:
-        """Initialize q-vector model backbone parameters from a pre-trained x-vector model.
+        """Initialize x-vector model backbone parameters from a pre-trained x-vector model.
 
         Args:
             xvector_model: Pre-trained x-vector model to use for initialization.
         """
         raise NotImplementedError()
-
-    # def _pre_enc(self, x):
-    #     if self.encoder_net.in_dim() == 4 and x.dim() == 3:
-    #         x = x.contiguous().view(x.size(0), 1, x.size(1), x.size(2))
-    #     return x
-
-    # def _post_enc(self, x, in_lengths=None, max_in_length=None):
-    #     if self.encoder_net.out_dim() == 4:
-    #         x = x.view(x.size(0), -1, x.size(-1))
-
-    #     if self.proj is not None:
-    #         x = self.proj(x)
-
-    #     if in_lengths is not None:
-    #         out_lengths = scale_seq_lengths(in_lengths, x.size(-1), max_in_length)
-    #     else:
-    #         out_lengths = None
-
-    #     return x, out_lengths
 
     def forward_backbone(
         self,
@@ -837,7 +723,7 @@ class QVector(HyperTorchModel):
         x_lengths: Optional[torch.Tensor] = None,
         return_hidden_feats: bool = False,
     ) -> Tuple[
-        Optional[torch.Tensor],
+        torch.Tensor,
         Optional[torch.Tensor],
         Optional[List[torch.Tensor]],
         Optional[Union[List[torch.Tensor], torch.Tensor]],
@@ -845,19 +731,20 @@ class QVector(HyperTorchModel):
         """Compute backbone features for the provided input signal.
 
         Args:
-            x: Input tensor with shape ``(batch, feats, time)``.
-            x_lengths: Optional sequence-length tensor describing valid frames.
+            x: Input waveform tensor with shape ``(batch, samples)``.
+            x_lengths: Optional integer tensor with valid waveform sample counts.
             return_hidden_feats: When ``True``, subclasses should also return hidden
                 feature maps from intermediate backbone layers.
 
         Returns:
-            Tuple containing the backbone output features, their lengths, the hidden
+            Tuple containing backbone output features shaped ``(batch, time, features)``,
+            their lengths, the hidden
             feature maps (if requested), and the corresponding lengths.
 
         Raises:
             NotImplementedError: Subclasses must supply a concrete implementation.
         """
-        raise NotImplementedError("forward_backbone_feats not implemented")
+        raise NotImplementedError("forward_backbone is not implemented")
 
     def forward_adapter(
         self,
@@ -868,15 +755,15 @@ class QVector(HyperTorchModel):
             Union[List[torch.Tensor], torch.Tensor]
         ] = None,
     ) -> Tuple[
-        Optional[torch.Tensor],
+        torch.Tensor,
         Optional[torch.Tensor],
         Optional[List[torch.Tensor]],
         Optional[Union[List[torch.Tensor], torch.Tensor]],
     ]:
-        """Adapt backbone outputs before they are consumed by the Q-formers.
+        """Adapt backbone outputs before global pooling.
 
         Args:
-            backbone_output_feats: Feature tensor emitted by the backbone front-end.
+            backbone_output_feats: Backbone features shaped ``(batch, time, features)``.
             backbone_output_feats_lengths: Optional sequence lengths associated with
                 ``backbone_output_feats``.
             backbone_hidden_feats: Optional list of hidden feature maps captured inside
@@ -903,24 +790,25 @@ class QVector(HyperTorchModel):
         target_mask: Optional[torch.Tensor] = None,
         return_backbone_feats: bool = False,
         return_head_output: bool = True,
-    ) -> QVectorOutput:
-        """Run a forward pass through the q-vector pipeline.
+        compute_xvector_sig_reg: bool = True,
+    ) -> XVectorPOutput:
+        """Run a forward pass through the x-vector pipeline.
 
         Args:
             audio: Input tensor with shape ``(batch, samples)``.
-            audio_lengths: Optional sequence-length tensor describing valid frames
-                in ``audio``.
+            audio_lengths: Optional integer tensor with valid sample counts in ``audio``.
             target: Optional class labels used when the head computes a loss.
             target_mask: Optional boolean tensor indicating which targets are valid.
             return_backbone_feats: When ``True``, include backbone features in the
                 returned payload.
             return_head_output: When ``True``, compute and return the Hydra head
                 output (logits/loss or regression predictions).
+            compute_xvector_sig_reg: Calculate the enabled embedding regularizer.
+                Chunked inference defers it until embeddings have been aggregated.
 
         Returns:
-            QVectorOutput: Structured output containing the q-matrix, q-vector, head
-            output, optional q-matrix code rate, and any requested backbone
-            features.
+            Structured output containing the embedding, optional head output, and
+            requested backbone features.
         """
         self.update_train_length(audio.size(-1))
         with self._backbone_context:
@@ -932,7 +820,7 @@ class QVector(HyperTorchModel):
             ) = self.forward_backbone(
                 audio,
                 audio_lengths,
-                return_hidden_feats=return_backbone_feats or self.has_hidden_feats_agg,
+                return_hidden_feats=return_backbone_feats,
             )
 
         with self._adapter_context:
@@ -948,67 +836,25 @@ class QVector(HyperTorchModel):
                 backbone_hidden_feats_lengths,
             )
 
-        if self.hidden_feats_agg_qformer is not None:
-            assert (
-                backbone_hidden_feats is not None
-            ), "backbone hidden features are None"
-            with self._hidden_feats_agg_context:
-                hidden_feats_queries = self.hidden_feats_queries.unsqueeze(0).expand(
-                    backbone_hidden_feats[0].size(0), -1, -1
-                )  # (batch, num_queries, dim)
-                hidden_feats_agg = self.hidden_feats_agg_qformer(
-                    hidden_feats_queries,
-                    backbone_hidden_feats,
-                    backbone_hidden_feats_lengths,
-                )  # (batch, num_queries, dim)
-                if self.output_feats_queries is not None:
-                    output_feats_queries = torch.cat(
-                        (
-                            hidden_feats_agg,
-                            self.output_feats_queries.unsqueeze(0).expand(
-                                hidden_feats_agg.size(0), -1, -1
-                            ),
-                        ),
-                        dim=1,
-                    )
-                else:
-                    qmatrix = hidden_feats_agg
+        with self._pooling_context:
+            pooled_feats = self.pooling(
+                backbone_output_feats.transpose(1, 2), backbone_output_feats_lengths
+            )
 
-            if not return_backbone_feats:
-                backbone_hidden_feats = None
-                backbone_hidden_feats_lengths = None
-        else:
-            output_feats_queries = self.output_feats_queries.unsqueeze(0).expand(
-                backbone_output_feats.size(0), -1, -1
-            )  # (batch, num_queries, dim)
-
-        if self.output_feats_agg_qformer is not None:
-            with self._output_feats_agg_context:
-                qmatrix = self.output_feats_agg_qformer(
-                    output_feats_queries,
-                    backbone_output_feats,
-                    backbone_output_feats_lengths,
-                )  # (batch, num_queries, dim)
-
-        if not return_backbone_feats:
-            backbone_output_feats = None
-            backbone_output_feats_lengths = None
-
-        if self.enable_qmatrix_code_rate and self.qmatrix_code_rate is not None:
-            qmatrix_code_rate = self.qmatrix_code_rate(qmatrix)
-        else:
-            qmatrix_code_rate = None
-
-        qmatrix_flat = qmatrix.view(qmatrix.size(0), -1)
-        qvector = self.proj_head(qmatrix_flat)
-        if return_head_output:
-            head_output = self.head(qvector, target, target_mask)
+        with self._proj_context:
+            xvector = self.proj_head(pooled_feats)
+        if return_head_output and self.head is not None:
+            head_output = self.head(xvector, target, target_mask)
         else:
             head_output = None
 
-        output = QVectorOutput(
-            qmatrix=qmatrix,
-            qvector=qvector,
+        output = XVectorPOutput(
+            xvector=xvector,
+            xvector_sig_reg=(
+                self.xvector_sig_reg(xvector)
+                if self.enable_xvector_sig_reg and compute_xvector_sig_reg
+                else None
+            ),
             head_output=head_output,
             backbone_hidden_feats=(
                 backbone_hidden_feats if return_backbone_feats else None
@@ -1022,7 +868,6 @@ class QVector(HyperTorchModel):
             backbone_output_feats_lengths=(
                 backbone_output_feats_lengths if return_backbone_feats else None
             ),
-            qmatrix_code_rate=qmatrix_code_rate,
         )
         return output
 
@@ -1033,7 +878,17 @@ class QVector(HyperTorchModel):
         chunk_length: int,
         max_batch_length: Optional[int],
     ) -> Tuple[List[torch.Tensor], Optional[List[torch.Tensor]]]:
-        """Split tensors into batches that satisfy duration constraints."""
+        """Split tensors into batches that satisfy duration constraints.
+
+        Args:
+            tensor: Chunked waveform tensor.
+            lengths_tensor: Optional valid sample counts per chunk.
+            chunk_length: Number of samples in each padded chunk.
+            max_batch_length: Optional maximum total samples per batch.
+
+        Returns:
+            Waveform batches and corresponding optional length batches.
+        """
         if tensor.size(0) == 0:
             if lengths_tensor is None:
                 return [], None
@@ -1071,7 +926,7 @@ class QVector(HyperTorchModel):
 
         Args:
             audio: Input tensor with shape ``(batch, time)``.
-            audio_lengths: Optional sequence-length tensor describing valid frames in
+            audio_lengths: Optional sequence-length tensor describing valid samples in
                 ``audio``.
             max_batch_duration: Optional maximum duration (in seconds) for batching.
             override_chunk_duration: Optional chunk duration (in seconds) to override
@@ -1083,12 +938,44 @@ class QVector(HyperTorchModel):
             adjusted lengths tensors aligned with each batch, and a mapping from every
             chunked element to its originating example.
         """
+        if audio.ndim != 2 or audio.size(0) == 0 or audio.size(1) == 0:
+            raise ValueError(
+                "audio must have shape (batch, samples) with nonempty dimensions"
+            )
+        if audio_lengths is not None:
+            if (
+                audio_lengths.dtype == torch.bool
+                or torch.is_floating_point(audio_lengths)
+                or torch.is_complex(audio_lengths)
+            ):
+                raise TypeError("audio_lengths must contain integer sample counts")
+            audio_lengths = audio_lengths.to(device=audio.device, dtype=torch.long)
+            if (
+                audio_lengths.shape != (audio.size(0),)
+                or torch.any(audio_lengths <= 0)
+                or torch.any(audio_lengths > audio.size(1))
+            ):
+                raise ValueError(
+                    "audio_lengths must contain a positive valid length per example"
+                )
+
         if max_batch_duration is not None:
+            if not math.isfinite(max_batch_duration) or max_batch_duration <= 0:
+                raise ValueError("max_batch_duration must be finite and positive")
             max_batch_length = int(max_batch_duration * self.sample_frequency)
+            if max_batch_length <= 0:
+                raise ValueError(
+                    "max_batch_duration must correspond to at least one sample"
+                )
         else:
             max_batch_length = None
 
         if override_chunk_duration is not None:
+            if (
+                not math.isfinite(override_chunk_duration)
+                or override_chunk_duration <= 0
+            ):
+                raise ValueError("override_chunk_duration must be finite and positive")
             chunk_length = int(override_chunk_duration * self.sample_frequency)
         else:
             if self.requires_max_train_length:
@@ -1112,7 +999,6 @@ class QVector(HyperTorchModel):
         num_chunks = max(1, math.ceil(time_dim / chunk_length))
         chunk_length = max(1, math.ceil(time_dim / num_chunks))
         padded_length = num_chunks * chunk_length
-        # print("a1", audio.shape, num_chunks, chunk_length, padded_length, flush=True)
         if padded_length > time_dim:
             audio = F.pad(audio, (0, padded_length - time_dim))
 
@@ -1123,10 +1009,9 @@ class QVector(HyperTorchModel):
         ).repeat_interleave(num_chunks)
 
         if audio_lengths is None:
-            audio_batches, _ = self._split_batches(
-                audio, None, chunk_length, max_batch_length
+            audio_lengths = torch.full(
+                (batch_size,), time_dim, device=audio.device, dtype=torch.long
             )
-            return audio_batches, None, audio_index
 
         lengths_list = [int(length) for length in audio_lengths.tolist()]
         keep_mask: List[bool] = []
@@ -1156,10 +1041,6 @@ class QVector(HyperTorchModel):
         audio_batches, audio_lengths_batches = self._split_batches(
             audio, new_audio_lengths, chunk_length, max_batch_length
         )
-        for i, (b, l) in enumerate(zip(audio_batches, audio_lengths_batches)):
-            # print("ab", i, b.shape, l)
-            pass
-        # print("ae", audio_index, flush=True)
         return audio_batches, audio_lengths_batches, audio_index
 
     def infer(
@@ -1169,22 +1050,22 @@ class QVector(HyperTorchModel):
         max_batch_duration: Optional[float] = None,
         override_chunk_duration: Optional[float] = None,
         return_head_output: bool = False,
-    ) -> QVectorOutput:
-        """Run inference through the q-vector pipeline.
+    ) -> XVectorPOutput:
+        """Run inference through the x-vector pipeline.
 
         Args:
             audio: Input tensor with shape ``(batch, time)``.
-            audio_lengths: Optional sequence-length tensor describing valid frames in
+            audio_lengths: Optional sequence-length tensor describing valid samples in
                 ``audio``.
             max_batch_duration: Optional limit (in seconds) for the aggregated batch
                 duration.
             override_chunk_duration: Optional override for the internal chunk length
                 (in seconds).
             return_head_output: When ``True``, include the head output in the
-                resulting :class:`QVectorOutput` structure.
+                resulting :class:`XVectorPOutput` structure.
 
         Returns:
-            QVectorOutput: Weighted-average q-vector output aggregating all chunked
+            XVectorPOutput: Weighted-average x-vector output aggregating all chunked
             batches for each original example.
         """
         audio_batches, audio_lengths_batches, audio_index = self._prepare_infer_input(
@@ -1197,7 +1078,7 @@ class QVector(HyperTorchModel):
         else:
             processed_lengths_batches = []
 
-        outputs: List[QVectorOutput] = []
+        outputs: List[XVectorPOutput] = []
         for idx, audio_batch in enumerate(audio_batches):
             audio_batch = audio_batch.to(device)
             batch_lengths = (
@@ -1212,327 +1093,186 @@ class QVector(HyperTorchModel):
                 batch_lengths,
                 return_backbone_feats=False,
                 return_head_output=return_head_output,
+                compute_xvector_sig_reg=False,
             )
             outputs.append(output)
 
         assert (
             len(outputs) > 0
         ), "_prepare_infer_input should always produce at least one batch"
-        concatenated_output = QVectorOutput.concatenate(outputs)
+        concatenated_output = XVectorPOutput.concatenate(outputs)
 
         if processed_lengths_batches is not None and processed_lengths_batches:
             chunk_weights = torch.cat(processed_lengths_batches, dim=0).to(
-                concatenated_output.qvector.device,
-                dtype=concatenated_output.qvector.dtype,
+                concatenated_output.xvector.device,
+                dtype=concatenated_output.xvector.dtype,
             )
         else:
             chunk_weights = None
 
-        aggregated_output = QVectorOutput.weighted_average_by_index(
+        aggregated_output = XVectorPOutput.weighted_average_by_index(
             concatenated_output,
-            audio_index.to(concatenated_output.qvector.device),
+            audio_index.to(concatenated_output.xvector.device),
             chunk_weights,
         )
+        if self.enable_xvector_sig_reg:
+            # SIGReg is nonlinear in the sample distribution: recompute for the
+            # returned embeddings rather than averaging per-chunk statistics.
+            aggregated_output.xvector_sig_reg = self.xvector_sig_reg(
+                aggregated_output.xvector
+            )
         return aggregated_output
 
-    # def forward_logits(self, x, x_lengths=None, y=None):
-    #     """Forward function
-
-    #     Args:
-    #       x: input features tensor with shape=(batch, in_feats, time).
-    #       x_lengths: time lengths of the features with shape=(batch,).
-    #       y: target classes torch.long tensor with shape=(batch,).
-
-    #     Returns:
-    #       class logits tensor with shape=(batch, num_classes).
-    #     """
-    #     max_in_length = x.size(-1)
-    #     x = self._pre_enc(x)
-    #     x = self.encoder_net(x)
-    #     if isinstance(x, tuple):
-    #         x = x[0]
-
-    #     if not torch.all(torch.isfinite(x)):
-    #         logging.warning("non-finite x-enc1-avg=%f", torch.mean(x))
-    #     x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
-    #     if not torch.all(torch.isfinite(x)):
-    #         logging.warning("non-finite x-enc1-avg=%f", torch.mean(x))
-    #     p = self.pool_net(x, x_lengths=x_lengths)
-    #     if not torch.all(torch.isfinite(p)):
-    #         logging.warning("non-finite p-avg=%f", torch.mean(p))
-    #     xvector = None
-    #     if self.proj_head_net is not None:
-    #         p = self.proj_head_net(p)
-    #         xvector = p
-
-    #     logits = self.classif_net(p, y)
-    #     if not torch.all(torch.isfinite(logits)):
-    #         logging.warning("non-finite y-avg=%f", torch.mean(logits))
-    #     # return logits
-    #     output = XVectorOutput(None, logits, xvector)
-    #     return output
-
-    # def forward_hid_feats(
-    #     self,
-    #     x,
-    #     x_lengths=None,
-    #     y=None,
-    #     return_enc_layers=None,
-    #     return_classif_layers=None,
-    #     return_logits=False,
-    # ):
-    #     """forwards hidden representations in the x-vector network
-
-    #     Args:
-    #       x: input features tensor with shape=(batch, in_feats, time).
-    #       x_lengths: time lengths of the features with shape=(batch,).
-    #       y: target classes torch.long tensor with shape=(batch,).
-    #       return_enc_layers: list of integers indicating, which encoder layers
-    #                          we should return. If None, no encoder layers are returned.
-    #       return_enc_layers: list of integers indicating, which classification head layers
-    #                          we should return. If None, no head layers are returned.
-    #       return_logits: if True, it adds the logits to the output dictionary.
-    #     Returns:
-    #       Dictionary with "logits", "h_enc" (list of hidden encoder layers),
-    #       "h_classif" (list hidden classification head layers).
-    #     """
-    #     max_in_length = x.size(-1)
-    #     x = self._pre_enc(x)
-    #     h_enc, x = self.encoder_net.forward_hid_feats(
-    #         x, return_enc_layers, return_output=True
-    #     )
-    #     output = {"h_enc": h_enc}
-    #     if not return_logits and return_classif_layers is None:
-    #         return output
-
-    #     x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
-    #     p = self.pool_net(x, x_lengths=x_lengths)
-    #     if self.proj_head_net is not None:
-    #         p = self.proj_head_net(p)
-    #     h_classif = self.classif_net.forward_hid_feats(
-    #         p, y, return_classif_layers, return_logits=return_logits
-    #     )
-    #     if return_logits:
-    #         h_classif, y_pred = h_classif
-    #     else:
-    #         y_pred = None
-
-    #     if h_classif is not None:
-    #         xvector = h_classif[0]
-    #     else:
-    #         xvector = None
-
-    #     output = XVectorOutput(None, y_pred, xvector, h_enc, h_classif)
-    #     return output
-
-    # def extract_embed_impl(
-    #     self, x, x_lengths=None, chunk_length=0, embed_layer=None, detach_chunks=False
-    # ):
-    #     if embed_layer is None:
-    #         embed_layer = self.embed_layer
-
-    #     max_in_length = x.size(-1)
-    #     x = self._pre_enc(x)
-    #     if max_in_length <= chunk_length or chunk_length == 0:
-    #         x = self.encoder_net(x, x_lengths=x_lengths)
-    #         if isinstance(x, tuple):
-    #             x = x[0]
-    #     else:
-    #         x = eval_nnet_by_chunks(
-    #             x, self.encoder_net, chunk_length, detach_chunks=detach_chunks
-    #         )
-
-    #         if x.device != self.device:
-    #             x = x.to(self.device)
-
-    #     x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
-    #     p = self.pool_net(x, x_lengths=x_lengths)
-    #     if self.proj_head_net is not None:
-    #         return self.proj_head_net(p)
-
-    #     y = self.classif_net.extract_embed(p, embed_layer)
-    #     return y
-
-    # def extract_embed(
-    #     self, x, x_lengths=None, chunk_length=0, embed_layer=None, detach_chunks=False
-    # ):
-
-    #     if x.size(-1) <= chunk_length or chunk_length == 0:
-    #         return self.extract_embed_impl(x, x_lengths, 0, embed_layer)
-    #     else:
-    #         e = []
-    #         for i in range(x.size(0)):
-    #             x_i = x[i : i + 1]
-    #             if x_lengths is not None:
-    #                 x_i = x_i[..., x_lengths[i]]
-
-    #             e_i = self.extract_embed_impl(
-    #                 x_i,
-    #                 chunk_length=chunk_length,
-    #                 embed_layer=embed_layer,
-    #                 detach_chunks=detach_chunks,
-    #             )
-    #             e.append(e_i)
-
-    #         return torch.cat(e, dim=0)
-
-    # def compute_slidwin_timestamps(
-    #     self,
-    #     num_windows,
-    #     win_length,
-    #     win_shift,
-    #     snip_edges=False,
-    #     feat_frame_length=25,
-    #     feat_frame_shift=10,
-    #     feat_snip_edges=False,
-    # ):
-    #     P = self.compute_slidwin_left_padding(
-    #         win_length,
-    #         win_shift,
-    #         snip_edges,
-    #         feat_frame_length,
-    #         feat_frame_shift,
-    #         feat_snip_edges,
-    #     )
-
-    #     tstamps = (
-    #         torch.as_tensor(
-    #             [
-    #                 [i * win_shift, i * win_shift + win_length]
-    #                 for i in range(num_windows)
-    #             ]
-    #         )
-    #         - P
-    #     )
-    #     tstamps[tstamps < 0] = 0
-    #     return tstamps
-
-    # def compute_slidwin_left_padding(
-    #     self,
-    #     win_length,
-    #     win_shift,
-    #     snip_edges=False,
-    #     feat_frame_length=25,
-    #     feat_frame_shift=10,
-    #     feat_snip_edges=False,
-    # ):
-    #     # pass feat times from msecs to secs
-    #     feat_frame_shift = feat_frame_shift / 1000
-    #     feat_frame_length = feat_frame_length / 1000
-
-    #     # get length and shift in number of feature frames
-    #     H = win_shift / feat_frame_shift
-    #     L = (win_length - feat_frame_length + feat_frame_shift) / feat_frame_shift
-    #     assert L > 0.5, "win-length should be longer than feat-frame-length"
-
-    #     # compute left padding in case of snip_edges is False
-    #     if snip_edges:
-    #         P1 = 0
-    #     else:
-    #         Q = (
-    #             L - H
-    #         ) / 2  # left padding in frames introduced by x-vector sliding window
-    #         P1 = (
-    #             Q * feat_frame_shift
-    #         )  # left padding in secs introduced by x-vector sliding window
-
-    #     if feat_snip_edges:
-    #         # left padding introduced when computing acoustic feats
-    #         P2 = 0
-    #     else:
-    #         P2 = (feat_frame_length - feat_frame_shift) / 2
-
-    #     # total left padding
-    #     return P1 + P2
-
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Return a JSON-serialisable snapshot of the constructor arguments.
+
+        Args:
+            no_class_name: Whether to omit the registered model class name.
 
         Returns:
             Dict[str, Any]: Configuration dictionary that can be fed back into the
             constructor (along with subclass-specific backbone parameters).
         """
-        head = self.head.get_config(no_class_name=True)
-        head["head_type"] = self.head.head_type
-        hidden_feats_agg_qformer = (
-            self.hidden_feats_agg_qformer.get_config(no_class_name=True)
-            if self.hidden_feats_agg_qformer is not None
-            else None
+        head = (
+            {
+                **self.head.get_config(no_class_name=True),
+                "head_type": self.head.head_type,
+            }
+            if self.head is not None
+            else {"head_type": "none"}
         )
-        output_feats_agg_qformer = (
-            self.output_feats_agg_qformer.get_config(no_class_name=True)
-            if self.output_feats_agg_qformer is not None
-            else None
-        )
-
         config = {
-            "hidden_feats_agg_qformer": hidden_feats_agg_qformer,
-            "num_hidden_feats_queries": self.num_hidden_feats_queries,
-            "output_feats_agg_qformer": output_feats_agg_qformer,
-            "num_output_feats_queries": self.num_output_feats_queries,
-            "qvector_dim": self.qvector_dim,
-            "proj_bias": self.proj_bias,
+            "pooling": PF.get_config(self.pooling),
+            "xvector_dim": self.xvector_dim,
+            "proj_use_norm": self.proj_use_norm,
+            "proj_norm_layer": self.proj_norm_layer,
+            "proj_norm_before": self.proj_norm_before,
+            "enable_xvector_sig_reg": self.enable_xvector_sig_reg,
+            "xvector_sig_reg": dict(self.xvector_sig_reg_args),
             "head": head,
-            "enable_qmatrix_code_rate": self.enable_qmatrix_code_rate,
-            "qmatrix_code_rate": dict(self.qmatrix_code_rate_args),
-            "qformer_weight_decay": self.qformer_weight_decay,
+            "pooling_weight_decay": self.pooling_weight_decay,
             "proj_weight_decay": self.proj_weight_decay,
             "head_weight_decay": self.head_weight_decay,
             "bias_weight_decay": self.bias_weight_decay,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         base_config.update(config)
         return base_config
 
     def change_config(
         self,
-        qvector_dim: Optional[int] = None,
+        xvector_dim: Optional[int] = None,
         override_head: bool = False,
         head: Optional[Union[Dict[str, Any], HydraHead]] = None,
-        qformer_weight_decay: Optional[float] = None,
+        override_sig_reg: bool = False,
+        enable_xvector_sig_reg: bool = False,
+        xvector_sig_reg: Optional[Dict[str, Any]] = None,
+        proj_use_norm: Optional[bool] = None,
+        proj_norm_layer: Optional[str] = None,
+        proj_norm_before: Optional[bool] = None,
+        pooling_weight_decay: Optional[float] = None,
         proj_weight_decay: Optional[float] = None,
         head_weight_decay: Optional[float] = None,
         bias_weight_decay: Optional[float] = None,
     ) -> None:
-        """Change the model configuration on the fly.
+        """Override embedding, projection, head, or optimizer settings for fine-tuning.
 
         Args:
-            qvector_dim: Optional new q-vector dimensionality.
-            override_head: When ``True``, rebuild or replace the head explicitly.
-            head: Optional head configuration or module used when overriding.
-            qformer_weight_decay: Optional weight-decay override for Q-formers.
-            proj_weight_decay: Optional weight-decay override for the
-                projection head.
-            head_weight_decay: Optional weight-decay override for the head.
-            bias_weight_decay: Optional bias-only weight decay override.
+            xvector_dim: New embedding dimension; rebuilds the projection and head.
+            override_head: Whether to replace or reconfigure the downstream head.
+            head: Head configuration or module required when overriding the head.
+            override_sig_reg: Replace or disable the embedding regularizer when true.
+            enable_xvector_sig_reg: Enable the replacement regularizer; otherwise disable it.
+            xvector_sig_reg: Constructor settings for the replacement SIGReg module.
+            proj_use_norm: Whether to enable projection normalization.
+            proj_norm_layer: New normalization type; ``None`` keeps the current type.
+            proj_norm_before: Whether normalization precedes projection.
+            pooling_weight_decay: New pooling weight decay.
+            proj_weight_decay: New projection weight decay.
+            head_weight_decay: New downstream head weight decay.
+            bias_weight_decay: New bias and normalization weight decay.
         """
-        if qvector_dim is not None and qvector_dim != self.qvector_dim:
-            logging.info(f"overriding qvector dim with new value: {qvector_dim}")
-            self.qvector_dim = qvector_dim
-            self.proj_head = QProjHead(
-                in_feats=self.qmatrix_shape[1] * self.qmatrix_shape[0],
-                out_feats=self.qvector_dim,
-                use_norm=self.proj_head.use_norm,
-                norm_layer=self.proj_head.norm_layer,
-                bias=self.proj_bias,
-            )
-            if not override_head:
-                logging.info("rebuilding head to accommodate new qvector dim")
-                head = self.head.get_config(no_class_name=True)
-                head["in_feats"] = self.qvector_dim
-                head_class = type(self.head)
-                self.head = head_class(**head)
+        if override_head and head is None:
+            raise ValueError("head must be provided when override_head=True")
+
+        if override_sig_reg:
+            sig_reg_args = dict(xvector_sig_reg or {})
+            if enable_xvector_sig_reg:
+                sig_reg_args["distributed_mode"] = "global_data"
+                regularizer = SIGReg(**sig_reg_args).to(
+                    device=self.proj_head.proj.weight.device
+                )
+                regularizer.train(self.training)
+                self.xvector_sig_reg = regularizer
+            elif hasattr(self, "xvector_sig_reg"):
+                del self.xvector_sig_reg
+            self.enable_xvector_sig_reg = enable_xvector_sig_reg
+            self.xvector_sig_reg_args = dict(xvector_sig_reg or {})
+
+        dim_changed = xvector_dim is not None and xvector_dim != self.xvector_dim
+        proj_options = {
+            "proj_use_norm": proj_use_norm,
+            "proj_norm_layer": proj_norm_layer,
+            "proj_norm_before": proj_norm_before,
+        }
+        proj_changed = any(
+            value is not None and value != getattr(self, name)
+            for name, value in proj_options.items()
+        )
+        if dim_changed or proj_changed:
+            old_proj = self.proj_head
+            for name, value in proj_options.items():
+                if value is not None:
+                    setattr(self, name, value)
+            if xvector_dim is not None:
+                self.xvector_dim = xvector_dim
+            self.proj_head = ProjHead(
+                in_feats=old_proj.in_feats,
+                out_feats=self.xvector_dim,
+                norm_layer=self.proj_norm_layer,
+                use_norm=self.proj_use_norm,
+                norm_before=self.proj_norm_before,
+            ).to(device=old_proj.proj.weight.device, dtype=old_proj.proj.weight.dtype)
+            if not dim_changed:
+                with torch.no_grad():
+                    self.proj_head.proj.weight.copy_(old_proj.proj.weight)
+                    if (
+                        self.proj_head.proj.bias is not None
+                        and old_proj.proj.bias is not None
+                    ):
+                        self.proj_head.proj.bias.copy_(old_proj.proj.bias)
+                if (
+                    self.proj_head.use_norm
+                    and old_proj.use_norm
+                    and self.proj_head.norm_layer == old_proj.norm_layer
+                    and self.proj_head.norm_before == old_proj.norm_before
+                ):
+                    self.proj_head._norm_layer.load_state_dict(
+                        old_proj._norm_layer.state_dict()
+                    )
+            if dim_changed and not override_head and self.head is not None:
+                head_config = self.head.get_config(no_class_name=True)
+                head_config["in_feats"] = self.xvector_dim
+                self.head = type(self.head)(**head_config).to(
+                    device=old_proj.proj.weight.device, dtype=old_proj.proj.weight.dtype
+                )
 
         if override_head:
-            if head is None:
-                raise ValueError("head must be provided when override_head=True")
-            logging.info("overriding head with new config")
             if isinstance(head, HydraHead):
                 self.head = head
             else:
-                head["in_feats"] = self.qvector_dim
-                self.head = HydraHeadFactory.reconfig_or_create(self.head, **head)
+                head_config = {**head, "in_feats": self.xvector_dim}
+                self.head = (
+                    HydraHeadFactory.create(**head_config)
+                    if self.head is None or head_config.get("head_type") == "none"
+                    else HydraHeadFactory.reconfig_or_create(self.head, **head_config)
+                )
+            if self.head is not None:
+                self.head.to(
+                    device=self.proj_head.proj.weight.device,
+                    dtype=self.proj_head.proj.weight.dtype,
+                )
 
         if bias_weight_decay is not None:
             logging.info(
@@ -1540,11 +1280,11 @@ class QVector(HyperTorchModel):
             )
             self.bias_weight_decay = bias_weight_decay
 
-        if qformer_weight_decay is not None:
+        if pooling_weight_decay is not None:
             logging.info(
-                f"overriding qformer weight decay with new value: {qformer_weight_decay}"
+                f"overriding pooling weight decay with new value: {pooling_weight_decay}"
             )
-            self.qformer_weight_decay = qformer_weight_decay
+            self.pooling_weight_decay = pooling_weight_decay
 
         if proj_weight_decay is not None:
             logging.info(
@@ -1558,140 +1298,80 @@ class QVector(HyperTorchModel):
             )
             self.head_weight_decay = head_weight_decay
 
-    def set_train_mode(self, mode: Union[str, QVectorTrainMode]) -> None:
-        """Switch between predefined training regimes.
+        if dim_changed or proj_changed or override_head:
+            # Rebuilt components must inherit the active freeze and eval settings.
+            train_mode = self._train_mode
+            training = self.training
+            self._train_mode = None
+            self.set_train_mode(train_mode)
+            self.train(training)
+
+    @staticmethod
+    def valid_train_modes() -> List[str]:
+        """Return supported training regimes.
+
+        Returns:
+            Training-mode strings for x-vector+ models.
+        """
+        return XVectorPTrainMode.choices()
+
+    def set_train_mode(self, mode: Union[str, XVectorPTrainMode]) -> None:
+        """Set which model components can receive gradients.
 
         Args:
-            mode: Target training mode as a string or ``QVectorTrainMode`` enum.
-
-        Raises:
-            ValueError: If the requested mode is not supported.
+            mode: Full, frozen, frozen feature extractor, pooling, projection,
+                or output head training mode.
         """
+        mode = XVectorPTrainMode(mode).value
         if mode == self._train_mode:
             return
-
         self._backbone_context = contextlib.nullcontext()
         self._adapter_context = contextlib.nullcontext()
-        self._hidden_feats_agg_context = contextlib.nullcontext()
-        self._output_feats_agg_context = contextlib.nullcontext()
-
-        if mode == QVectorTrainMode.FULL:
+        self._pooling_context = contextlib.nullcontext()
+        self._proj_context = contextlib.nullcontext()
+        if mode == XVectorPTrainMode.FULL:
             self.unfreeze()
-        elif mode == QVectorTrainMode.FROZEN:
+        elif mode == XVectorPTrainMode.FROZEN:
             self.freeze()
-        elif mode == QVectorTrainMode.FROZEN_FEAT_EXTRACTOR:
+        elif mode == XVectorPTrainMode.FROZEN_FEAT_EXTRACTOR:
             self.unfreeze()
             self.freeze_backbone_feat_extractor()
-        elif mode == QVectorTrainMode.ADAPTERS_QFORMERS:
-            self._backbone_context = torch.no_grad()
-            self.unfreeze()
-            self.freeze_backbone()
-        elif mode == QVectorTrainMode.QFORMERS:
-            self._backbone_context = torch.no_grad()
-            self._adapter_context = torch.no_grad()
-            self.unfreeze()
-            self.freeze_backbone()
-            self.freeze_adapters()
-        elif mode == QVectorTrainMode.OUTPUT_FEATS_QFORMER:
-            if self.output_feats_agg_qformer is None:
-                raise ValueError("output_feats_agg_qformer is not initialized")
-            self._backbone_context = torch.no_grad()
-            self._adapter_context = torch.no_grad()
-            self._hidden_feats_agg_context = torch.no_grad()
-            self.unfreeze()
-            self.freeze_backbone()
-            self.freeze_adapters()
-            if self.hidden_feats_agg_qformer is not None:
-                self.hidden_feats_agg_qformer.freeze()
-        elif mode == QVectorTrainMode.PROJ_HEAD:
-            self._backbone_context = torch.no_grad()
-            self._adapter_context = torch.no_grad()
-            self._hidden_feats_agg_context = torch.no_grad()
-            self._output_feats_agg_context = torch.no_grad()
-            self.freeze()
-            self.proj_head.unfreeze()
-            self.head.unfreeze()
-        elif mode == QVectorTrainMode.OUTPUT_LAYER:
-            self._backbone_context = torch.no_grad()
-            self._adapter_context = torch.no_grad()
-            self._hidden_feats_agg_context = torch.no_grad()
-            self._output_feats_agg_context = torch.no_grad()
-            self.freeze()
-            self.head.unfreeze()
         else:
-            raise ValueError(f"invalid train_mode={mode}")
-
+            self.freeze()
+            self._backbone_context = torch.no_grad()
+            self._adapter_context = torch.no_grad()
+            if mode == XVectorPTrainMode.POOLING:
+                for param in self.pooling.parameters():
+                    param.requires_grad_(True)
+            else:
+                self._pooling_context = torch.no_grad()
+            if mode != XVectorPTrainMode.OUTPUT_LAYER:
+                self.proj_head.unfreeze()
+            else:
+                self._proj_context = torch.no_grad()
+            if self.head is not None:
+                self.head.unfreeze()
         self._train_mode = mode
+        if self.training:
+            self.train()
 
-    def _train(self, train_mode: Union[str, QVectorTrainMode]) -> None:
-        """Override ``nn.Module.train`` to honour custom training regimes.
+    def _train(self, train_mode: Union[str, XVectorPTrainMode]) -> None:
+        """Apply component training/evaluation states for the active regime.
 
         Args:
-            train_mode: Target training mode.
-
-        Raises:
-            ValueError: If the training mode is unknown.
+            train_mode: Target x-vector+ training regime.
         """
-        if train_mode in [QVectorTrainMode.FULL, QVectorTrainMode.FROZEN]:
-            super()._train(str(train_mode))
-        elif train_mode == QVectorTrainMode.FROZEN_FEAT_EXTRACTOR:
-            self.set_backbone_in_train_mode()
-            self.set_adapters_in_train_mode()
-            if self.hidden_feats_agg_qformer is not None:
-                self.hidden_feats_agg_qformer.train()
-
-            if self.output_feats_agg_qformer is not None:
-                self.output_feats_agg_qformer.train()
-            self.proj_head.train()
-            self.head.train()
-        elif train_mode == QVectorTrainMode.ADAPTERS_QFORMERS:
-            self.set_backbone_in_eval_mode()
-            self.set_adapters_in_train_mode()
-            if self.hidden_feats_agg_qformer is not None:
-                self.hidden_feats_agg_qformer.train()
-
-            if self.output_feats_agg_qformer is not None:
-                self.output_feats_agg_qformer.train()
-            self.proj_head.train()
-            self.head.train()
-        elif train_mode == QVectorTrainMode.QFORMERS:
-            self.set_backbone_in_eval_mode()
-            self.set_adapters_in_eval_mode()
-            if self.hidden_feats_agg_qformer is not None:
-                self.hidden_feats_agg_qformer.train()
-            if self.output_feats_agg_qformer is not None:
-                self.output_feats_agg_qformer.train()
-            self.proj_head.train()
-            self.head.train()
-        elif train_mode == QVectorTrainMode.OUTPUT_FEATS_QFORMER:
-            self.set_backbone_in_eval_mode()
-            self.set_adapters_in_eval_mode()
-            if self.hidden_feats_agg_qformer is not None:
-                self.hidden_feats_agg_qformer.eval()
-            if self.output_feats_agg_qformer is not None:
-                self.output_feats_agg_qformer.train()
-            self.proj_head.train()
-            self.head.train()
-        elif train_mode == QVectorTrainMode.PROJ_HEAD:
-            self.set_backbone_in_eval_mode()
-            self.set_adapters_in_eval_mode()
-            if self.hidden_feats_agg_qformer is not None:
-                self.hidden_feats_agg_qformer.eval()
-            if self.output_feats_agg_qformer is not None:
-                self.output_feats_agg_qformer.eval()
-            self.proj_head.train()
-            self.head.train()
-        elif train_mode == QVectorTrainMode.OUTPUT_LAYER:
-            self.set_backbone_in_eval_mode()
-            self.set_adapters_in_eval_mode()
-            if self.hidden_feats_agg_qformer is not None:
-                self.hidden_feats_agg_qformer.eval()
-            if self.output_feats_agg_qformer is not None:
-                self.output_feats_agg_qformer.eval()
-            self.proj_head.eval()
-            self.head.train()
-        else:
-            raise ValueError(f"invalid train_mode={train_mode}")
+        train_mode = XVectorPTrainMode(train_mode).value
+        super()._train("frozen" if train_mode == "frozen" else "full")
+        if train_mode in ("full", "frozen"):
+            return
+        if train_mode == XVectorPTrainMode.FROZEN_FEAT_EXTRACTOR:
+            self.set_backbone_feat_extractor_in_eval_mode()
+            return
+        self.set_backbone_in_eval_mode()
+        self.set_adapters_in_eval_mode()
+        self.pooling.train(train_mode == XVectorPTrainMode.POOLING)
+        self.proj_head.train(train_mode != XVectorPTrainMode.OUTPUT_LAYER)
 
     def freeze_backbone_feat_extractor(self) -> None:
         """Freeze backbone feature extractor parameters."""
@@ -1699,11 +1379,11 @@ class QVector(HyperTorchModel):
 
     def freeze_backbone(self) -> None:
         """Freeze backbone parameters."""
-        raise NotImplementedError("set_freeze_backbone not implemented")
+        raise NotImplementedError("freeze_backbone is not implemented")
 
     def freeze_adapters(self) -> None:
         """Freeze adapter modules."""
-        raise NotImplementedError("set_freeze_adapters not implemented")
+        raise NotImplementedError("freeze_adapters is not implemented")
 
     def set_backbone_feat_extractor_in_train_mode(self) -> None:
         """Put the backbone feature extractor into training mode."""
@@ -1755,10 +1435,13 @@ class QVector(HyperTorchModel):
     def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """Return constructor-compatible keyword arguments.
 
+        Args:
+            **kwargs: Candidate model configuration values.
+
         Returns:
-            Keyword arguments accepted by ``QVector.__init__``.
+            Keyword arguments accepted by ``XVectorP.__init__``.
         """
-        return filter_func_args(QVector.__init__, kwargs)
+        return filter_func_args(XVectorP.__init__, kwargs)
 
     @staticmethod
     def add_class_args(
@@ -1766,7 +1449,7 @@ class QVector(HyperTorchModel):
         prefix: Optional[str] = None,
         skip: Optional[Set[str]] = None,
     ) -> None:
-        """Register CLI/configuration arguments for QVector models.
+        """Register CLI/configuration arguments for XVectorP models.
 
         Args:
             parser: Target parser where the options will be registered.
@@ -1781,60 +1464,59 @@ class QVector(HyperTorchModel):
 
         skip = set(skip) if skip is not None else set()
 
-        if "num_hidden_feats_queries" not in skip:
+        if "xvector_dim" not in skip:
             parser.add_argument(
-                "--num-hidden-feats-queries",
-                type=int,
-                default=0,
-                help="number of learned queries attending to hidden backbone features",
-            )
-
-        if "num_output_feats_queries" not in skip:
-            parser.add_argument(
-                "--num-output-feats-queries",
-                type=int,
-                default=0,
-                help="number of learned queries attending to output backbone features",
-            )
-
-        if "qvector_dim" not in skip:
-            parser.add_argument(
-                "--qvector-dim",
+                "--xvector-dim",
                 type=int,
                 default=256,
-                help="final q-vector embedding dimension",
+                help="final x-vector embedding dimension",
             )
-        if "proj_bias" not in skip:
+        if "proj_use_norm" not in skip:
             parser.add_argument(
-                "--proj-bias",
+                "--proj-use-norm",
                 default=True,
                 action=ActionYesNo,
-                help="whether the projection-head linear layer uses a bias term",
+                help="enable normalization of the projection input or output",
             )
-        if "enable_qmatrix_code_rate" not in skip:
+        if "proj_norm_layer" not in skip:
             parser.add_argument(
-                "--enable-qmatrix-code-rate",
-                default=False,
-                action=ActionYesNo,
-                help="enable the computation of the q-matrix code rate",
+                "--proj-norm-layer",
+                default=None,
+                type=str,
+                choices=["batch-norm", "layer-norm", "rms-norm"],
+                help="projection normalization type (batch-norm by default)",
             )
-        if "qmatrix_code_rate" not in skip:
-            CodeRate.add_class_args(parser, prefix="qmatrix_code_rate", skip=skip)
-
+        if "proj_norm_before" not in skip:
+            parser.add_argument(
+                "--proj-norm-before",
+                default=True,
+                action=ActionYesNo,
+                help="apply normalization before projection; false applies it after",
+            )
         if "bias_weight_decay" not in skip:
             parser.add_argument(
                 "--bias-weight-decay",
                 type=float,
                 default=None,
-                help="optional bias-only weight decay value",
+                help="optional weight decay override for biases and normalization parameters",
             )
-        if "qformer_weight_decay" not in skip:
+        if "pooling_weight_decay" not in skip:
             parser.add_argument(
-                "--qformer-weight-decay",
+                "--pooling-weight-decay",
                 type=float,
                 default=None,
-                help="optional weight decay override for hidden/output qformer parameters",
+                help="optional weight decay override for global pooling parameters",
             )
+        if "enable_xvector_sig_reg" not in skip:
+            parser.add_argument(
+                "--enable-xvector-sig-reg",
+                default=False,
+                action=ActionYesNo,
+                help="Calculate SIGReg on projected xvectors.",
+            )
+        if "xvector_sig_reg" not in skip:
+            SIGReg.add_class_args(parser, prefix="xvector_sig_reg", skip=skip)
+
         if "proj_weight_decay" not in skip:
             parser.add_argument(
                 "--proj-weight-decay",
@@ -1850,23 +1532,8 @@ class QVector(HyperTorchModel):
                 help="optional weight decay override for downstream head parameters",
             )
 
-        if "hidden_feats_agg_qformer" not in skip:
-            hidden_skip = {"multilayer_input"}
-            hidden_skip.update(skip)
-            QFormerV2.add_class_args(
-                parser,
-                prefix="hidden_feats_agg_qformer",
-                skip=hidden_skip,
-            )
-
-        if "output_feats_agg_qformer" not in skip:
-            output_skip = {"multilayer_input"}
-            output_skip.update(skip)
-            QFormerV2.add_class_args(
-                parser,
-                prefix="output_feats_agg_qformer",
-                skip=output_skip,
-            )
+        if "pooling" not in skip:
+            PF.add_class_args(parser, prefix="pooling")
 
         if "head" not in skip:
             HydraHeadFactory.add_class_args(
@@ -1882,10 +1549,13 @@ class QVector(HyperTorchModel):
     def filter_finetune_args(**kwargs: Any) -> Dict[str, Any]:
         """Return fine-tuning keyword arguments accepted by ``change_config``.
 
+        Args:
+            **kwargs: Candidate fine-tuning configuration values.
+
         Returns:
-            Keyword arguments accepted by ``QVector.change_config``.
+            Keyword arguments accepted by ``XVectorP.change_config``.
         """
-        args = filter_func_args(QVector.change_config, kwargs)
+        args = filter_func_args(XVectorP.change_config, kwargs)
         return args
 
     @staticmethod
@@ -1894,7 +1564,7 @@ class QVector(HyperTorchModel):
         prefix: Optional[str] = None,
         skip: Optional[Set[str]] = None,
     ) -> None:
-        """Register CLI/configuration arguments for QVector models.
+        """Register fine-tuning overrides for XVectorP models.
 
         Args:
             parser: Target parser where the options will be registered.
@@ -1909,27 +1579,66 @@ class QVector(HyperTorchModel):
 
         skip = set(skip) if skip is not None else set()
 
-        if "qvector_dim" not in skip:
+        if "override_sig_reg" not in skip:
             parser.add_argument(
-                "--qvector-dim",
+                "--override-sig-reg",
+                default=False,
+                action=ActionYesNo,
+                help="replace or disable the saved x-vector SIGReg configuration",
+            )
+        if "enable_xvector_sig_reg" not in skip:
+            parser.add_argument(
+                "--enable-xvector-sig-reg",
+                default=False,
+                action=ActionYesNo,
+                help="enable x-vector SIGReg when overriding its configuration",
+            )
+        if "xvector_sig_reg" not in skip:
+            SIGReg.add_class_args(parser, prefix="xvector_sig_reg", skip=skip)
+
+        if "xvector_dim" not in skip:
+            parser.add_argument(
+                "--xvector-dim",
                 type=int,
                 default=None,
-                help="final q-vector embedding dimension",
+                help="override embedding dimension, rebuilding the projection and downstream head",
             )
 
+        if "proj_use_norm" not in skip:
+            parser.add_argument(
+                "--proj-use-norm",
+                default=None,
+                action=ActionYesNo,
+                help="enable normalization of the projection input or output",
+            )
+        if "proj_norm_layer" not in skip:
+            parser.add_argument(
+                "--proj-norm-layer",
+                default=None,
+                type=str,
+                choices=["batch-norm", "layer-norm", "rms-norm"],
+                help="override projection normalization type (unchanged by default)",
+            )
+        if "proj_norm_before" not in skip:
+            parser.add_argument(
+                "--proj-norm-before",
+                default=None,
+                action=ActionYesNo,
+                help="apply normalization before projection; false applies it after",
+            )
         if "bias_weight_decay" not in skip:
             parser.add_argument(
                 "--bias-weight-decay",
                 type=float,
                 default=None,
-                help="optional bias-only weight decay value",
+                help="optional weight decay override for biases and normalization parameters",
             )
-        if "qformer_weight_decay" not in skip:
+        if "pooling_weight_decay" not in skip:
             parser.add_argument(
-                "--qformer-weight-decay",
+                "--pooling-weight-decay",
                 type=float,
                 default=None,
-                help="optional weight decay override for hidden/output qformer parameters",
+                help="optional weight decay override for global pooling parameters",
             )
         if "proj_weight_decay" not in skip:
             parser.add_argument(
@@ -1946,12 +1655,13 @@ class QVector(HyperTorchModel):
                 help="optional weight decay override for downstream head parameters",
             )
 
-        parser.add_argument(
-            "--override-head",
-            default=False,
-            action=ActionYesNo,
-            help="whether to override the head configuration (implies rebuilding the head with the new qvector_dim if it changes and override_head is False)",
-        )
+        if "override_head" not in skip:
+            parser.add_argument(
+                "--override-head",
+                default=False,
+                action=ActionYesNo,
+                help="replace or reconfigure the downstream head using the head options",
+            )
 
         if "head" not in skip:
             HydraHeadFactory.add_class_args(

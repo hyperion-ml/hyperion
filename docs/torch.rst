@@ -82,8 +82,8 @@ models.
 
 Stable x-vector and waveform x-vector models are documented through
 :doc:`torch-api` and :doc:`torch-api-contracts`. Codec/DAC, VITS/freevc,
-transducer, and Q-vector model families are experimental and are covered only
-in :doc:`experimental-components`.
+transducer, Q-vector, and X-vector plus model families are experimental and are
+covered only in :doc:`experimental-components`.
 
 Data pipeline and samplers
 --------------------------
@@ -139,6 +139,12 @@ flows.
 For now, other legacy trainers (for example transducer/VAE/DVAE legacy paths) are
 intentionally not documented here.
 
+Gaussian regularization
+-----------------------
+
+Gaussian regularization of embeddings and replicated class prototypes is
+documented in :doc:`sig-reg`.
+
 Torch metrics
 -------------
 
@@ -181,3 +187,26 @@ Combined example:
 .. code-block:: bash
 
    pip install -e .[torch29,voxprofile]
+
+.. _nn-init-doc:
+
+Parameter initialization
+------------------------
+
+PyTorch modules initialize their parameters during construction. To apply a
+custom initializer, use ``torch.nn.init`` helpers, normally under
+``torch.no_grad()``, and apply it only to the parameters you intend to reset.
+Calling ``module.apply(initializer)`` visits its child modules recursively;
+this differs from loading saved weights or moving a module to another device.
+
+.. _locally-disable-grad-doc:
+
+Evaluation and gradient recording
+---------------------------------
+
+``model.eval()`` switches module training behavior, including dropout and batch
+normalization, but does not disable gradient recording. Use ``torch.no_grad()``
+or ``torch.inference_mode()`` for inference without an autograd graph.
+``requires_grad_(False)`` freezes selected parameters; it does not change
+module training behavior. Hyperion training modes separately control which
+components are trainable and how their forward contexts are configured.

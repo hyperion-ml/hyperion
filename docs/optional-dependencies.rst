@@ -96,8 +96,9 @@ Command behavior
 ``hyperion-eval-voxprofile-metrics`` requires the VoxProfile extra and selected
 model paths. Wav2Vec2-family train, fine-tune, extraction, and logit commands
 need ``transformers`` and compatible pretrained assets. Experimental codec,
-VITS/FreeVC, transducer, and Q-vector commands additionally require matching
-version-coupled checkpoints; see :doc:`cli/experimental`.
+VITS/FreeVC, transducer, Q-vector, and X-vector plus commands additionally
+require matching version-coupled checkpoints; Wav2Vec2 X-vector plus models
+also need ``transformers``. See :doc:`cli/experimental`.
 
 Before relying on any such command, run its ``--help`` in the target runtime,
 then run a small local input through the complete workflow. A successful import

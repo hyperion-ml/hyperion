@@ -44,13 +44,15 @@ def add_ddp_args(parser: ArgumentParser) -> None:
 
 
 def filter_ddp_args(**kwargs: Any) -> Dict[str, Any]:
-    """Returns only keyword arguments relevant to DDP initialization."""
-    valid_args = ("master_port",)
+    """Return arguments relevant to distributed/device initialization."""
+    valid_args = ("num_gpus", "master_port")
     args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
     return args
 
 
-def ddp_init(master_port: Optional[int] = None) -> Tuple[torch.device, int, int]:
+def ddp_init(
+    master_port: Optional[int] = None, num_gpus: int = 1
+) -> Tuple[torch.device, int, int]:
     """Initializes torch distributed process group and returns local process info.
 
     This function expects torchrun-style environment variables
@@ -59,6 +61,9 @@ def ddp_init(master_port: Optional[int] = None) -> Tuple[torch.device, int, int]
 
     Args:
         master_port: Optional override for ``MASTER_PORT``.
+        num_gpus: Number of GPUs requested for single-process execution. Set to
+            zero to select CPU. In torchrun distributed execution, the device is
+            selected from ``LOCAL_RANK``.
 
     Returns:
         Tuple of ``(device, rank, world_size)``.
@@ -68,7 +73,7 @@ def ddp_init(master_port: Optional[int] = None) -> Tuple[torch.device, int, int]
 
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     if world_size == 1:
-        device = open_device(1)
+        device = open_device(num_gpus)
         return device, 0, 1
 
     required_vars = ("RANK", "LOCAL_RANK", "MASTER_ADDR", "MASTER_PORT")

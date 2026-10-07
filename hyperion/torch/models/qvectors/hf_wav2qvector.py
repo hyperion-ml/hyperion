@@ -78,7 +78,7 @@ class HFWav2QVector(QVector):
         head: Union[Dict[str, Any], HydraHead],
         proj_bias: bool = True,
         enable_qmatrix_code_rate: bool = False,
-        qmatrix_code_rate_eps: float = 0.5,
+        qmatrix_code_rate: Optional[Dict[str, Any]] = None,
         hidden_feats_fusion_start: int = 0,
         hidden_feats_agg_start: int = 0,
         hidden_feats_shared_adapters: bool = True,
@@ -89,7 +89,7 @@ class HFWav2QVector(QVector):
         adapter_lr: Optional[float] = None,
         adapter_weight_decay: Optional[float] = None,
         qformer_weight_decay: Optional[float] = None,
-        proj_head_weight_decay: Optional[float] = None,
+        proj_weight_decay: Optional[float] = None,
         head_weight_decay: Optional[float] = None,
         bias_weight_decay: Optional[float] = None,
     ) -> None:
@@ -109,8 +109,8 @@ class HFWav2QVector(QVector):
             proj_bias: Whether the projection head linear layer includes a bias term.
             enable_qmatrix_code_rate: When True, compute the q-matrix code rate
                 in ``forward``.
-            qmatrix_code_rate_eps: Epsilon parameter for the q-matrix code-rate
-                computation.
+            qmatrix_code_rate: Optional constructor arguments for the q-matrix
+                code-rate regularizer.
             hidden_feats_fusion_start: First hidden-state index used for output
                 feature fusion.
             hidden_feats_agg_start: First hidden-state index used for hidden
@@ -131,7 +131,7 @@ class HFWav2QVector(QVector):
                 parameters (``hidden_feats_adapter`` and ``output_feats_adapter``).
             qformer_weight_decay: Optional weight-decay override applied to both
                 hidden/output Q-former parameters.
-            proj_head_weight_decay: Optional weight-decay override applied to
+            proj_weight_decay: Optional weight-decay override applied to
                 projection-head parameters.
             head_weight_decay: Optional weight-decay override applied to downstream
                 head parameters.
@@ -147,9 +147,9 @@ class HFWav2QVector(QVector):
             head=head,
             proj_bias=proj_bias,
             enable_qmatrix_code_rate=enable_qmatrix_code_rate,
-            qmatrix_code_rate_eps=qmatrix_code_rate_eps,
+            qmatrix_code_rate=qmatrix_code_rate,
             qformer_weight_decay=qformer_weight_decay,
-            proj_head_weight_decay=proj_head_weight_decay,
+            proj_weight_decay=proj_weight_decay,
             head_weight_decay=head_weight_decay,
             bias_weight_decay=bias_weight_decay,
         )
@@ -258,7 +258,7 @@ class HFWav2QVector(QVector):
                     or name.startswith("output_feats_agg_qformer")
                 ):
                     qformer.append(param)
-                elif self.proj_head_weight_decay is not None and name.startswith(
+                elif self.proj_weight_decay is not None and name.startswith(
                     "proj_head"
                 ):
                     proj_head.append(param)
@@ -327,7 +327,7 @@ class HFWav2QVector(QVector):
             )
         if proj_head:
             trainable_params.append(
-                {"params": proj_head, "weight_decay": self.proj_head_weight_decay}
+                {"params": proj_head, "weight_decay": self.proj_weight_decay}
             )
         if head:
             trainable_params.append(

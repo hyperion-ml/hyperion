@@ -68,6 +68,8 @@ FreeVC
 VITS
 qvector
 qvectors
+xvectorp
+xvectorps
 anonymization
 anonymizer
 anonymizers

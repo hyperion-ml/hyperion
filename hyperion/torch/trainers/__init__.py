@@ -19,3 +19,4 @@ from .xvector_trainer import XVectorTrainer
 from .xvector_trainer_deep_feat_reg import XVectorTrainerDeepFeatReg
 from .xvector_trainer_deep_feat_reg_from_wav import XVectorTrainerDeepFeatRegFromWav
 from .xvector_trainer_from_wav import XVectorTrainerFromWav
+from .xvectorp_trainer import XVectorPTrainer

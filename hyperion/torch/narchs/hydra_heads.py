@@ -17,6 +17,7 @@ from torch.nn import Linear
 from ...utils.misc import filter_func_args
 from ..layers import ArcLossOutput, CosLossOutput, SubCenterArcLossOutput
 from ..losses.rate_distortion import SubspaceLikeGaussianCodeRateDistortionL2
+from ..losses.sig_reg import SIGReg
 from .net_arch import NetArch
 
 
@@ -28,6 +29,7 @@ class HydraHeadType(str, Enum):
     """
 
     CLASSIF = "classif"
+    NONE = "none"
 
     @staticmethod
     def choices() -> List[str]:
@@ -50,6 +52,8 @@ class HydraHeadType(str, Enum):
         """
         if value == HydraHeadType.CLASSIF:
             return HydraClassifHead
+        elif value == HydraHeadType.NONE:
+            return None
         else:
             raise ValueError(f"Unsupported Hydra head type: {value}")
 
@@ -65,6 +69,8 @@ class HydraHeadType(str, Enum):
         """
         if isinstance(head_instance, HydraClassifHead):
             return HydraHeadType.CLASSIF
+        elif head_instance == None:
+            return HydraHeadType.NONE
         else:
             raise ValueError(f"Unsupported Hydra head class: {type(head_instance)}")
 
@@ -103,11 +109,13 @@ class HydraClassifHeadOutput:
         loss: Optional cross-entropy loss value.
         prototype_code_rate: Optional code-rate regularizer value for the class
             prototypes.
+        prototype_sig_reg: Optional SIGReg value for the unnormalized class prototypes.
     """
 
     logits: torch.Tensor
     loss: Optional[torch.Tensor] = None
     prototype_code_rate: Optional[torch.Tensor] = None
+    prototype_sig_reg: Optional[torch.Tensor] = None
 
 
 @dataclass
@@ -217,7 +225,11 @@ class HydraClassifHead(HydraHead):
         reduction: Reduction applied by the cross-entropy loss.
         label_smoothing: Label smoothing factor for the cross-entropy loss.
         enable_prototype_code_rate: Whether to compute the prototype code rate in `forward`.
-        code_rate_eps: Epsilon parameter for the prototype code rate computation.
+        prototype_code_rate: Constructor arguments for the prototype code-rate loss.
+        prototype_sig_reg: Constructor arguments for the prototype SIGReg loss.
+        raw_prototypes: Unnormalized class centers used by SIGReg.
+        enable_prototype_sig_reg: Whether to compute the prototype sketched isotropic Gaussian Regularization loss
+
     """
 
     def __init__(
@@ -235,7 +247,9 @@ class HydraClassifHead(HydraHead):
         reduction: str = "mean",
         label_smoothing: float = 0.0,
         enable_prototype_code_rate: bool = False,
-        code_rate_eps: float = 0.5,
+        prototype_code_rate: Optional[Dict[str, Any]] = None,
+        enable_prototype_sig_reg: bool = False,
+        prototype_sig_reg: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Build the classification head and configure its loss module.
 
@@ -253,7 +267,10 @@ class HydraClassifHead(HydraHead):
             reduction: Reduction strategy for cross-entropy loss.
             label_smoothing: Label smoothing factor for cross-entropy loss.
             enable_prototype_code_rate: When True, compute the code rate of the prototypes in `forward`.
-            code_rate_eps: Epsilon parameter for the prototype code rate computation.
+            prototype_code_rate: Keyword arguments passed to
+                `SubspaceLikeGaussianCodeRateDistortionL2`.
+            enable_prototype_sig_reg: When True, compute SIGReg for raw prototypes.
+            prototype_sig_reg: Keyword arguments passed to `SIGReg`.
         """
         super().__init__(enable_loss, reduction)
         self.in_feats = in_feats
@@ -266,8 +283,10 @@ class HydraClassifHead(HydraHead):
         self.intertop_margin = intertop_margin
         self.num_subcenters = num_subcenters
         self.enable_prototype_code_rate = enable_prototype_code_rate
-        self.code_rate_eps = code_rate_eps
+        self.prototype_code_rate = dict(prototype_code_rate or {})
         self.label_smoothing = label_smoothing
+        self.enable_prototype_sig_reg = enable_prototype_sig_reg
+        self.prototype_sig_reg = dict(prototype_sig_reg or {})
 
         # output layer
         if loss_type == HydraClassifLossType.SOFTMAX:
@@ -315,11 +334,31 @@ class HydraClassifHead(HydraHead):
             )
 
         if self.enable_prototype_code_rate:
-            self.code_rate = SubspaceLikeGaussianCodeRateDistortionL2(
-                eps=code_rate_eps,
-                normalize=False,
-                distributed_mode="local",
-            )
+            self.code_rate = self._create_prototype_code_rate()
+
+        if self.enable_prototype_sig_reg:
+            self.sig_reg = self._create_prototype_sig_reg()
+
+    def _create_prototype_code_rate(self) -> SubspaceLikeGaussianCodeRateDistortionL2:
+        """Create the prototype code-rate loss from its nested configuration.
+
+        Returns:
+            Configured loss with normalized local prototype statistics.
+        """
+        kwargs = dict(self.prototype_code_rate)
+        kwargs["normalize"] = True
+        kwargs["distributed_mode"] = "local"
+        return SubspaceLikeGaussianCodeRateDistortionL2(**kwargs)
+
+    def _create_prototype_sig_reg(self) -> SIGReg:
+        """Create SIGReg for the replicated, unnormalized class prototypes.
+
+        Returns:
+            Configured regularizer using local statistics.
+        """
+        kwargs = dict(self.prototype_sig_reg)
+        kwargs["distributed_mode"] = "local"
+        return SIGReg(**kwargs).to(device=self.raw_prototypes.device)
 
     @property
     def head_type(self) -> HydraHeadType:
@@ -333,6 +372,13 @@ class HydraClassifHead(HydraHead):
             return self.output.weight
 
         return self.output.prototypes
+
+    @property
+    def raw_prototypes(self) -> torch.Tensor:
+        """Return unnormalized class centers with shape [num_classes, in_feats]."""
+        if self.loss_type == HydraClassifLossType.SOFTMAX:
+            return self.output.weight
+        return self.output.raw_prototypes
 
     @property
     def normalized_prototypes(self) -> torch.Tensor:
@@ -357,7 +403,9 @@ class HydraClassifHead(HydraHead):
         reduction: str = "mean",
         label_smoothing: float = 0.0,
         enable_prototype_code_rate: bool = False,
-        code_rate_eps: float = 0.5,
+        prototype_code_rate: Optional[Dict[str, Any]] = None,
+        enable_prototype_sig_reg: bool = False,
+        prototype_sig_reg: Optional[Dict[str, Any]] = None,
     ) -> "HydraClassifHead":
         """Reconfigure the head or create a new one when structural settings change.
 
@@ -375,7 +423,10 @@ class HydraClassifHead(HydraHead):
             reduction: Reduction strategy for cross-entropy loss.
             label_smoothing: Label smoothing factor for cross-entropy loss.
             enable_prototype_code_rate: When True, compute the prototype code rate in `forward`.
-            code_rate_eps: Epsilon parameter for the prototype code rate computation.
+            prototype_code_rate: Keyword arguments passed to
+                `SubspaceLikeGaussianCodeRateDistortionL2`.
+            enable_prototype_sig_reg: Whether to compute SIGReg for raw prototypes.
+            prototype_sig_reg: Keyword arguments passed to `SIGReg`.
         Returns:
             HydraClassifHead: Updated head instance.
         """
@@ -397,7 +448,9 @@ class HydraClassifHead(HydraHead):
             "reduction": reduction,
             "label_smoothing": label_smoothing,
             "enable_prototype_code_rate": enable_prototype_code_rate,
-            "code_rate_eps": code_rate_eps,
+            "prototype_code_rate": dict(prototype_code_rate or {}),
+            "enable_prototype_sig_reg": enable_prototype_sig_reg,
+            "prototype_sig_reg": dict(prototype_sig_reg or {}),
         }
 
         if (
@@ -425,7 +478,9 @@ class HydraClassifHead(HydraHead):
                 reduction=reduction,
                 label_smoothing=label_smoothing,
                 enable_prototype_code_rate=enable_prototype_code_rate,
-                code_rate_eps=code_rate_eps,
+                prototype_code_rate=prototype_code_rate,
+                enable_prototype_sig_reg=enable_prototype_sig_reg,
+                prototype_sig_reg=prototype_sig_reg,
             )
 
         logging.info(
@@ -452,20 +507,32 @@ class HydraClassifHead(HydraHead):
 
         if self.enable_prototype_code_rate:
             if enable_prototype_code_rate:
-                self.code_rate.eps = code_rate_eps
+                if self.prototype_code_rate != dict(prototype_code_rate or {}):
+                    self.prototype_code_rate = dict(prototype_code_rate or {})
+                    self.code_rate = self._create_prototype_code_rate()
             else:
                 del self.code_rate
         elif enable_prototype_code_rate:
-            self.code_rate = SubspaceLikeGaussianCodeRateDistortionL2(
-                eps=code_rate_eps,
-                normalize=False,
-                distributed_mode="local",
-            )
+            self.prototype_code_rate = dict(prototype_code_rate or {})
+            self.code_rate = self._create_prototype_code_rate()
+
+        sig_reg_args = dict(prototype_sig_reg or {})
+        if enable_prototype_sig_reg:
+            if (
+                not self.enable_prototype_sig_reg
+                or self.prototype_sig_reg != sig_reg_args
+            ):
+                self.prototype_sig_reg = sig_reg_args
+                self.sig_reg = self._create_prototype_sig_reg()
+        elif self.enable_prototype_sig_reg:
+            del self.sig_reg
+        self.enable_prototype_sig_reg = enable_prototype_sig_reg
+        self.prototype_sig_reg = sig_reg_args
 
         self.reduction = reduction
         self.enable_loss = enable_loss
         self.enable_prototype_code_rate = enable_prototype_code_rate
-        self.code_rate_eps = code_rate_eps
+        self.prototype_code_rate = dict(prototype_code_rate or {})
         self.label_smoothing = label_smoothing
         return self
 
@@ -586,12 +653,18 @@ class HydraClassifHead(HydraHead):
             loss = None
 
         if self.enable_prototype_code_rate:
-            code_rate = self.code_rate(self.normalized_prototypes)
+            code_rate = self.code_rate(self.raw_prototypes)
         else:
             code_rate = None
 
+        sig_reg = (
+            self.sig_reg(self.raw_prototypes) if self.enable_prototype_sig_reg else None
+        )
         output = HydraClassifHeadOutput(
-            logits=logits, loss=loss, prototype_code_rate=code_rate
+            logits=logits,
+            loss=loss,
+            prototype_code_rate=code_rate,
+            prototype_sig_reg=sig_reg,
         )
         return output
 
@@ -660,7 +733,9 @@ class HydraClassifHead(HydraHead):
             "num_subcenters": self.num_subcenters,
             "label_smoothing": self.label_smoothing,
             "enable_prototype_code_rate": self.enable_prototype_code_rate,
-            "code_rate_eps": self.code_rate_eps,
+            "prototype_code_rate": dict(self.prototype_code_rate),
+            "enable_prototype_sig_reg": self.enable_prototype_sig_reg,
+            "prototype_sig_reg": dict(self.prototype_sig_reg),
         }
 
         base_config = super().get_config(no_class_name=no_class_name)
@@ -775,13 +850,35 @@ class HydraClassifHead(HydraHead):
                 help="enable the computation of the prototype code rate",
             )
 
-        if "code_rate_eps" not in skip:
-            parser.add_argument(
-                "--code-rate-eps",
-                default=0.5,
-                type=float,
-                help="epsilon parameter for the prototype code rate computation",
+        if "prototype_code_rate" not in skip:
+            SubspaceLikeGaussianCodeRateDistortionL2.add_class_args(
+                parser,
+                prefix="prototype_code_rate",
+                skip=skip,
             )
+
+    @staticmethod
+    def add_prototype_sig_reg_args(
+        parser: ArgumentParser, skip: Optional[Set[str]] = None
+    ) -> None:
+        """Register prototype SIGReg configuration arguments.
+
+        Args:
+            parser: Argument parser to extend.
+            skip: Constructor argument names to omit.
+        """
+        skip = skip or set()
+        if "enable_prototype_sig_reg" not in skip:
+            parser.add_argument(
+                "--enable-prototype-sig-reg",
+                default=False,
+                action=ActionYesNo,
+                help="compute SIGReg for unnormalized class prototypes",
+            )
+        if "prototype_sig_reg" not in skip:
+            SIGReg.add_class_args(parser, prefix="prototype_sig_reg", skip=skip)
+            if "distributed_mode" not in skip:
+                parser.set_defaults({"prototype_sig_reg.distributed_mode": "local"})
 
     @staticmethod
     def add_class_args(
@@ -812,6 +909,7 @@ class HydraClassifHead(HydraHead):
         HydraClassifHead.add_large_margin_loss_args(parser, skip=skip)
         HydraClassifHead.add_cross_entropy_loss_args(parser, skip=skip)
         HydraClassifHead.add_prototype_code_rate_args(parser, skip=skip)
+        HydraClassifHead.add_prototype_sig_reg_args(parser, skip=skip)
         HydraHead.add_class_args(parser, prefix=None, skip=skip)
 
         if prefix is not None:

@@ -73,6 +73,7 @@ including:
    torch-extension-points
    torch-layers-and-architectures
    torch-training-support
+   sig-reg
    torch-integrations-and-robustness
    experimental-components
    numpy

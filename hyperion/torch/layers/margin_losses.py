@@ -11,6 +11,7 @@ from typing import Optional
 
 import torch
 import torch.amp as amp
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -106,6 +107,15 @@ class ArcLossOutput(nn.Module):
         self.kernel = nn.Parameter(torch.Tensor(in_feats, num_classes))
         # we normalize prototypes to have l2 norm = 1
         self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
+
+    @property
+    def raw_prototypes(self) -> torch.Tensor:
+        """Return unnormalized class prototypes.
+
+        Returns:
+            Class centers with shape ``(num_classes, in_feats)``.
+        """
+        return self.kernel.transpose(0, 1)
 
     @property
     def prototypes(self) -> torch.Tensor:
@@ -313,6 +323,15 @@ class CosLossOutput(nn.Module):
         self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
 
     @property
+    def raw_prototypes(self) -> torch.Tensor:
+        """Return unnormalized class prototypes.
+
+        Returns:
+            Class centers with shape ``(num_classes, in_feats)``.
+        """
+        return self.kernel.transpose(0, 1)
+
+    @property
     def prototypes(self) -> torch.Tensor:
         """Returns the class prototypes.
 
@@ -490,6 +509,15 @@ class SubCenterArcLossOutput(ArcLossOutput):
         )
 
     @property
+    def raw_prototypes(self) -> torch.Tensor:
+        """Return unnormalized class prototypes.
+
+        Returns:
+            Class centers with shape ``(num_classes, in_feats)``; only main subcenters.
+        """
+        return self.get_main_prototype_kernel().transpose(0, 1)
+
+    @property
     def prototypes(self) -> torch.Tensor:
         """Returns the class prototypes.
 
@@ -516,7 +544,10 @@ class SubCenterArcLossOutput(ArcLossOutput):
         return s
 
     def _update_counts(self, y: torch.Tensor, proto_idx: torch.Tensor) -> None:
-        """Updates class-wise usage counts for selected subcenters.
+        """Update globally shared usage counts for selected subcenters.
+
+        Distributed ranks sum batch increments before updating the shared history.
+        All ranks must call this method during labeled training forwards.
 
         Args:
           y: Ground-truth class indices.
@@ -527,11 +558,17 @@ class SubCenterArcLossOutput(ArcLossOutput):
         """
         idx1 = torch.arange(y.size(0), device=y.device, dtype=torch.long)
         proto_idx = proto_idx[idx1, y]
-        self.subcenter_counts.index_put_(
+        # Reduce only this batch's increments; reducing accumulated counts would
+        # multiply the shared history by the world size on every update.
+        increments = torch.zeros_like(self.subcenter_counts)
+        increments.index_put_(
             (y, proto_idx),
             torch.ones_like(y, dtype=self.subcenter_counts.dtype),
             accumulate=True,
         )
+        if dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1:
+            dist.all_reduce(increments, op=dist.ReduceOp.SUM)
+        self.subcenter_counts.add_(increments)
         # we make counts relative to avoid risk of overflowing the integers
         min_counts, _ = torch.min(self.subcenter_counts, dim=1, keepdim=True)
         self.subcenter_counts -= min_counts

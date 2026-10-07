@@ -39,6 +39,7 @@
     {"name": "VITS anonymization", "reference": "hyperion.torch.models.freevc", "status": "experimental", "docs": ["experimental-components.rst", "public-surface.rst"]},
     {"name": "transducer models", "reference": "hyperion.torch.models.transducer", "status": "experimental", "docs": ["experimental-components.rst", "public-surface.rst"]},
     {"name": "Q-vector models", "reference": "hyperion.torch.models.qvectors", "status": "experimental", "docs": ["experimental-components.rst", "public-surface.rst"]},
+    {"name": "X-vector plus models", "reference": "hyperion.torch.models.xvectorps", "status": "experimental", "docs": ["experimental-components.rst", "public-surface.rst"]},
     {"name": "compatibility helpers", "reference": "hyperion.helpers", "status": "excluded", "docs": ["public-surface.rst", "api-contract-coverage.rst"]}
   ]
 }

@@ -72,6 +72,9 @@ Experimental package areas
 ``hyperion.torch.models.qvectors``
   Q-vector models, wrappers, trainers, and inference workflows.
 
+``hyperion.torch.models.xvectorps``
+  X-vector plus models, Hugging Face wrappers, trainers, and inference workflows.
+
 The associated commands remain part of ``hyperion.bin`` but will be labelled
 experimental in the CLI reference.
 

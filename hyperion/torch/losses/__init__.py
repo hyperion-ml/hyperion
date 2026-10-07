@@ -18,4 +18,5 @@ from .rate_distortion import (
     SubspaceLikeGaussianCodeRateDistortionL2,
 )
 from .si_sdr_loss import SISDRLoss
+from .sig_reg import SIGReg
 from .sim_clr_loss import SimCLRLoss

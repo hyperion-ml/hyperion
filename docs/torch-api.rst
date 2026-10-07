@@ -68,8 +68,8 @@ scheduler behavior are documented in :doc:`torch-training-support`.
 Experimental model families
 ---------------------------
 
-Codec/DAC, VITS anonymization, transducer, and q-vector models are
-experimental. TPM wrappers and adversarial modules are stable but may require
+Codec/DAC, VITS anonymization, transducer, q-vector, and X-vector plus models
+are experimental. TPM wrappers and adversarial modules are stable but may require
 external model packages. See :doc:`documentation-policy` before choosing an
 extension or deployment target.
 

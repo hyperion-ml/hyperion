@@ -62,8 +62,9 @@ Stable contracts
 Experimental or intentionally excluded surfaces
 ------------------------------------------------
 
-``hyperion.torch.models.dac``, VITS/freevc anonymization, transducers, and
-Q-vector models are documented as experimental in :doc:`experimental-components`.
+``hyperion.torch.models.dac``, VITS/freevc anonymization, transducers, Q-vector
+models, and X-vector plus models are documented as experimental in
+:doc:`experimental-components`.
 Their APIs may be described for evaluation, but they are not a stable extension
 contract.
 

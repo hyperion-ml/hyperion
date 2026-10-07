@@ -74,9 +74,9 @@ class SingleModelTrainer(TorchTrainerBase):
     def __init__(
         self,
         model: HyperTorchModel,
-        optim: torch.optim.Optimizer,
-        lrsched: Optional[LRS] = None,
-        wdsched: Optional[WDS] = None,
+        optim: Union[torch.optim.Optimizer, Dict[str, Any]],
+        lrsched: Optional[Union[LRS, Dict[str, Any]]] = None,
+        wdsched: Optional[Union[WDS, Dict[str, Any]]] = None,
         train_mode: str = "full",
         loss: Optional[nn.Module] = None,
         exp_path: PathLike = "./train",
@@ -123,9 +123,12 @@ class SingleModelTrainer(TorchTrainerBase):
 
         Args:
             model (HyperTorchModel): Model instance to optimize.
-            optim (torch.optim.Optimizer): Optimizer already constructed for the model.
-            lrsched (Optional[LRS]): Learning-rate scheduler or configuration dict.
-            wdsched (Optional[WDS]): Weight-decay scheduler or configuration dict.
+            optim (torch.optim.Optimizer or Dict[str, Any]): Optimizer instance
+                or configuration.
+            lrsched (Optional[LRS or Dict[str, Any]]): Scheduler instance or
+                configuration.
+            wdsched (Optional[WDS or Dict[str, Any]]): Scheduler instance or
+                configuration.
             train_mode (str): Name of the train-mode to activate inside the model.
             loss (Optional[nn.Module]): Criterion applied to model outputs.
             exp_path (PathLike): Directory used to save checkpoints and logs.

@@ -3,22 +3,22 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Any, Dict, Optional
+from argparse import ArgumentError
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-from torch.nn import Linear
 
 from ...utils.misc import filter_func_args
-from ..layer_blocks import FCBlock
-from ..layers import ActivationFactory as AF
 from ..layers import NormLayer1dFactory as NLF
 from .net_arch import NetArch
 
 
 class ProjHead(NetArch):
     """Projection head for x-vector style networks.
+
+    The linear layer uses bias unless normalization follows the projection.
 
     Attributes:
        in_feats: Input feature dimension.
@@ -45,7 +45,7 @@ class ProjHead(NetArch):
             in_feats: Input feature dimension.
             out_feats: Output projection dimension.
             norm_layer: Normalization-layer specification passed to
-                ``NormLayer1dFactory.create``.
+                ``NormLayer1dFactory.create``; supports batch, layer, and RMS norm.
             use_norm: Whether to apply normalization.
             norm_before: Whether normalization is applied before the projection.
         """
@@ -72,6 +72,27 @@ class ProjHead(NetArch):
             self._norm_layer = None
 
         self.proj = nn.Linear(in_feats, out_feats, bias=use_bias)
+
+    def in_shape(self) -> Tuple[Optional[int], int]:
+        """Return the expected pooled input shape.
+
+        Returns:
+            Batch and input feature dimensions.
+        """
+        return (None, self.in_feats)
+
+    def out_shape(
+        self, in_shape: Optional[Sequence[Optional[int]]] = None
+    ) -> Tuple[Optional[int], int]:
+        """Return the projected embedding shape.
+
+        Args:
+            in_shape: Optional pooled input shape including batch size.
+
+        Returns:
+            Batch and output feature dimensions.
+        """
+        return (None if in_shape is None else in_shape[0], self.out_feats)
 
     def forward(
         self, x: torch.Tensor, y: Optional[torch.Tensor] = None
@@ -150,10 +171,11 @@ class ProjHead(NetArch):
                     "instance-norm",
                     "instance-norm-affine",
                     "layer-norm",
+                    "rms-norm",
                 ],
                 help="type of normalization layer",
             )
-        except:
+        except (ArgumentError, ValueError):
             pass
 
         parser.add_argument(
@@ -167,7 +189,7 @@ class ProjHead(NetArch):
             "--norm-before",
             default=True,
             action=ActionYesNo,
-            help="apply normalization before the projection",
+            help="normalize before projection with bias; false normalizes after projection without bias",
         )
 
         if prefix is not None:

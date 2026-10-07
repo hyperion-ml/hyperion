@@ -15,11 +15,8 @@ from ..hyper_torch_model import HyperTorchModel
 from ..loggers import LoggerList
 from ..lr_schedulers import LRScheduler as LRS
 from ..metrics import CategoricalAccuracy
-from ..models.qvectors import QVectorTrainMode
-from ..narchs.hydra_heads import (
-    HydraClassifHeadOutput,
-    HydraRegressionHeadOutput,
-)
+from ..models.xvectorps import XVectorPTrainMode
+from ..narchs.hydra_heads import HydraClassifHeadOutput, HydraRegressionHeadOutput
 from ..wd_schedulers import WDScheduler as WDS
 from .single_model_trainer import SingleModelTrainer
 from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
@@ -27,8 +24,8 @@ from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
 # from torch.distributed.elastic.multiprocessing.errors import record
 
 
-class QVectorTrainer(SingleModelTrainer):
-    """Trainer for Q-vector models with classification or regression heads.
+class XVectorPTrainer(SingleModelTrainer):
+    """Trainer specialized for X-vector+ models with categorical accuracy and prototype code-rate tracking.
 
     Attributes (including inherited members):
 
@@ -38,7 +35,7 @@ class QVectorTrainer(SingleModelTrainer):
         configuration.
       wdsched (Optional[WDS or Dict[str, Any]]): Weight-decay scheduler or its
         configuration.
-      train_mode (str): Name of the model training mode, for example ``"full"``.
+      train_mode (str): Name of the model training mode to activate, for example ``"full"``.
       exp_path (PathLike): Directory for checkpoints and logs.
       num_epochs (int): Total number of epochs to run.
       cur_epoch (int): Epoch index from which to resume.
@@ -54,8 +51,7 @@ class QVectorTrainer(SingleModelTrainer):
       loggers (LoggerList): Active logger instances.
       ddp (bool): Whether DistributedDataParallel is enabled.
       ddp_type (DDPType): Selected distributed-data-parallel backend flavor.
-      fsdp_reshard_after_forward (bool, int, or None): FSDP2 reshard policy
-        after the forward pass.
+      fsdp_reshard_after_forward (bool, int, or None): FSDP2 reshard policy after the forward pass.
       fsdp_mp_param_dtype (FSDPMPDType or None): FSDP2 mixed-precision parameter dtype.
       fsdp_mp_reduce_dtype (FSDPMPDType or None): FSDP2 mixed-precision reduction dtype.
       fsdp_mp_output_dtype (FSDPMPDType or None): FSDP2 mixed-precision output dtype.
@@ -78,8 +74,7 @@ class QVectorTrainer(SingleModelTrainer):
       compile_dynamic (bool): Enables dynamic-shape compilation.
       input_key (str): Key for the audio tensor in dataloader batches.
       target_key (str): Key for supervision labels in dataloader batches.
-      qmatrix_code_rate_weight (float): Weight applied to the q-matrix
-        code-rate regularizer in the total loss.
+      xvector_sig_reg_weight: Weight added for global x-vector SIGReg.
       prototype_sig_reg_weight (float): Weight added for prototype SIGReg.
       prototype_code_rate_weight (float): Weight applied to the prototype
         code-rate regularizer in the total loss.
@@ -132,14 +127,14 @@ class QVectorTrainer(SingleModelTrainer):
         compile_dynamic: bool = False,
         input_key: str = "audio",
         target_key: str = "speaker",
-        qmatrix_code_rate_weight: float = 0.0,
         prototype_code_rate_weight: float = 0.0,
         prototype_sig_reg_weight: float = 0.0,
+        xvector_sig_reg_weight: float = 0.0,
     ) -> None:
         """
-        Initializes the Q-vector trainer, forwarding most configuration to
+        Initializes the X-vector+ trainer, forwarding most configuration to
         :class:`SingleModelTrainer` while setting the default IO keys and
-        attaching a categorical-accuracy metric for classification heads.
+        attaching a categorical-accuracy metric and optional prototype code-rate loss.
 
         Args:
             model (HyperTorchModel): Model instance to optimize.
@@ -149,7 +144,7 @@ class QVectorTrainer(SingleModelTrainer):
                 configuration.
             wdsched (Optional[WDS or Dict[str, Any]]): Scheduler instance or
                 configuration.
-            train_mode (str): Model train-mode to activate (see ``QVectorTrainMode``).
+            train_mode (str): Model train-mode to activate (see ``XVectorPTrainMode``).
             exp_path (PathLike): Directory for checkpoints/logs.
             num_epochs (int): Maximum number of epochs to run.
             cur_epoch (int): Epoch to resume from.
@@ -165,8 +160,7 @@ class QVectorTrainer(SingleModelTrainer):
             loggers (Optional[LoggerList]): Logger collection.
             ddp (bool): Enables DDP training when True.
             ddp_type (DDPType): DDP backend flavor.
-            fsdp_reshard_after_forward (bool|int|None): FSDP2 reshard policy
-                after forward.
+            fsdp_reshard_after_forward (bool|int|None): FSDP2 reshard policy after forward.
             fsdp_mp_param_dtype (FSDPMPDType|None): FSDP2 mixed-precision param dtype.
             fsdp_mp_reduce_dtype (FSDPMPDType|None): FSDP2 mixed-precision reduce dtype.
             fsdp_mp_output_dtype (FSDPMPDType|None): FSDP2 mixed-precision output dtype.
@@ -189,9 +183,8 @@ class QVectorTrainer(SingleModelTrainer):
             compile_dynamic (bool): Enables dynamic-shape compilation when compiling.
             input_key (str): Batch key used for the audio tensor.
             target_key (str): Batch key used for label tensors.
-            qmatrix_code_rate_weight (float): Weight applied to the q-matrix
-                code-rate regularizer.
             prototype_sig_reg_weight (float): Weight added for prototype SIGReg.
+            xvector_sig_reg_weight: Weight added for global x-vector SIGReg.
             prototype_code_rate_weight (float): Weight applied to the prototype
                 code-rate regularizer.
 
@@ -200,18 +193,18 @@ class QVectorTrainer(SingleModelTrainer):
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
 
-        self.qmatrix_code_rate_weight = qmatrix_code_rate_weight
         self.prototype_code_rate_weight = prototype_code_rate_weight
         self.prototype_sig_reg_weight = prototype_sig_reg_weight
+        self.xvector_sig_reg_weight = xvector_sig_reg_weight
         self.categorical_acc_metric = CategoricalAccuracy()
 
     def preprocess_data(self, batch_data: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
         """
-        Normalize dataloader batches to the ``audio``/``target`` interface
-        expected by :class:`SingleModelTrainer`, preserving optional lengths.
+        Normalizes dataloader batches to the ``audio``/``target`` interface
+        expected by :class:`SingleModelTrainer`, preserving optional audio lengths.
 
         Args:
-            batch_data (Dict[str, Any]): Raw batch emitted by the q-vector dataloader.
+            batch_data (Dict[str, Any]): Raw batch emitted by the XVectorP dataloader.
 
         Returns:
             Tuple[int, Dict[str, Any]]: Batch size and the processed batch dict.
@@ -228,7 +221,8 @@ class QVectorTrainer(SingleModelTrainer):
 
     def compute_forward(self, batch_data: Dict[str, Any]) -> Tuple[torch.Tensor, Any]:
         """
-        Run the model and combine its head loss with code-rate and SIGReg terms.
+        Runs the model forward pass and composes the total optimization loss from
+        the head loss and optional code-rate and SIGReg regularizers.
 
         Args:
             batch_data (Dict[str, Any]): Preprocessed batch from ``preprocess_data``.
@@ -243,20 +237,20 @@ class QVectorTrainer(SingleModelTrainer):
             head_output, (HydraClassifHeadOutput, HydraRegressionHeadOutput)
         ):
             raise ValueError(
-                "QVectorTrainer requires a classification or regression head"
+                "XVectorPTrainer requires a classification or regression head"
             )
         loss = head_output.loss
         if loss is None:
-            raise ValueError("QVectorTrainer requires a head that returns a loss")
+            raise ValueError("XVectorPTrainer requires a head that returns a loss")
 
-        qmatrix_code_rate = batch_output.qmatrix_code_rate
-        if qmatrix_code_rate is not None and self.qmatrix_code_rate_weight != 0:
-            loss = loss - self.qmatrix_code_rate_weight * qmatrix_code_rate
-
-        if isinstance(head_output, HydraClassifHeadOutput):
-            prototype_code_rate = head_output.prototype_code_rate
-            if prototype_code_rate is not None and self.prototype_code_rate_weight != 0:
-                loss = loss - self.prototype_code_rate_weight * prototype_code_rate
+        if (
+            isinstance(head_output, HydraClassifHeadOutput)
+            and head_output.prototype_code_rate is not None
+            and self.prototype_code_rate_weight != 0
+        ):
+            loss = (
+                loss - self.prototype_code_rate_weight * head_output.prototype_code_rate
+            )
 
         if (
             isinstance(head_output, HydraClassifHeadOutput)
@@ -264,6 +258,12 @@ class QVectorTrainer(SingleModelTrainer):
             and self.prototype_sig_reg_weight != 0
         ):
             loss = loss + self.prototype_sig_reg_weight * head_output.prototype_sig_reg
+
+        if (
+            batch_output.xvector_sig_reg is not None
+            and self.xvector_sig_reg_weight != 0
+        ):
+            loss = loss + self.xvector_sig_reg_weight * batch_output.xvector_sig_reg
 
         return loss, batch_output
 
@@ -282,35 +282,37 @@ class QVectorTrainer(SingleModelTrainer):
             OrderedDict: Metrics keyed by descriptive names (e.g., ``categorical_acc``).
         """
         batch_metrics = ODict()
-        head_output = batch_output.head_output
-        if isinstance(head_output, HydraClassifHeadOutput):
+        if isinstance(batch_output.head_output, HydraClassifHeadOutput):
             categorical_acc = self.categorical_acc_metric(
-                head_output.logits, batch_data["target"]
+                batch_output.head_output.logits, batch_data["target"]
             )
 
             batch_metrics["categorical_acc"] = categorical_acc
-            if head_output.loss is not None:
-                batch_metrics["classification_loss"] = head_output.loss.item()
-            if head_output.prototype_code_rate is not None:
+            if batch_output.head_output.loss is not None:
+                batch_metrics["classification_loss"] = (
+                    batch_output.head_output.loss.item()
+                )
+            if batch_output.head_output.prototype_code_rate is not None:
                 batch_metrics["prototype_code_rate"] = (
-                    head_output.prototype_code_rate.item()
+                    batch_output.head_output.prototype_code_rate.item()
                 )
-            if head_output.prototype_sig_reg is not None:
+            if batch_output.head_output.prototype_sig_reg is not None:
                 batch_metrics["prototype_sig_reg"] = (
-                    head_output.prototype_sig_reg.item()
+                    batch_output.head_output.prototype_sig_reg.item()
                 )
-        elif isinstance(head_output, HydraRegressionHeadOutput):
-            if head_output.loss is not None:
-                batch_metrics["regression_loss"] = head_output.loss.item()
-        else:
+        elif isinstance(batch_output.head_output, HydraRegressionHeadOutput):
+            if batch_output.head_output.loss is not None:
+                batch_metrics["regression_loss"] = batch_output.head_output.loss.item()
+        elif batch_output.head_output is not None:
             logging.warning(
-                "QVectorTrainer: compute_metrics: Unknown head_output type %s",
-                type(head_output),
+                "XVectorPTrainer: compute_metrics: Unknown head_output type %s",
+                type(batch_output.head_output),
             )
 
-        if batch_output.qmatrix_code_rate is not None:
-            batch_metrics["qmatrix_code_rate"] = batch_output.qmatrix_code_rate.item()
-
+        if batch_output.xvector_sig_reg is not None:
+            batch_metrics["xvector_sig_reg"] = (
+                batch_output.xvector_sig_reg.detach().item()
+            )
         return batch_metrics
 
     @staticmethod
@@ -323,9 +325,9 @@ class QVectorTrainer(SingleModelTrainer):
             **kwargs: Arbitrary keyword arguments.
 
         Returns:
-            Dict[str, Any]: Subset compatible with :class:`QVectorTrainer`.
+            Dict[str, Any]: Subset compatible with :class:`XVectorPTrainer`.
         """
-        args = filter_func_args(QVectorTrainer.__init__, kwargs)
+        args = filter_func_args(XVectorPTrainer.__init__, kwargs)
         return args
 
     @staticmethod
@@ -335,7 +337,7 @@ class QVectorTrainer(SingleModelTrainer):
         skip: Optional[Set[str]] = None,
     ) -> None:
         """
-        Registers CLI arguments required to construct a :class:`QVectorTrainer`,
+        Registers CLI arguments required to construct a :class:`XVectorPTrainer`,
         reusing the helper builders defined on :class:`SingleModelTrainer`.
 
         Args:
@@ -355,17 +357,17 @@ class QVectorTrainer(SingleModelTrainer):
         TorchTrainerBase.add_class_args(parser, skip=skip)
         SingleModelTrainer.add_optim_args(parser, skip=skip)
         SingleModelTrainer.add_io_keys_args(parser, skip=skip)
-        train_modes = QVectorTrainMode.choices()
+        train_modes = XVectorPTrainMode.choices()
         SingleModelTrainer.add_train_modes_args(
             parser, train_modes=train_modes, skip=skip
         )
 
-        if "qmatrix_code_rate_weight" not in skip:
+        if "xvector_sig_reg_weight" not in skip:
             parser.add_argument(
-                "--qmatrix-code-rate-weight",
+                "--xvector-sig-reg-weight",
                 type=float,
                 default=0.0,
-                help="Weight applied to the q-matrix code-rate regularizer.",
+                help="Weight added for global x-vector SIGReg.",
             )
 
         if "prototype_sig_reg_weight" not in skip:

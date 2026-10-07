@@ -43,6 +43,14 @@ from .wav2xvectors import (
     Wav2ResNetXVector,
     Wav2TransformerV2XVector,
 )
+from .xvectorps import (
+    HFWav2Vec2XVectorP,
+    HFWav2XVectorP,
+    ResNetXVectorP,
+    XVectorP,
+    XVectorPOutput,
+    XVectorPTrainMode,
+)
 from .xvectors import (
     ConformerV1XVector,
     ConvNext1dXVector,

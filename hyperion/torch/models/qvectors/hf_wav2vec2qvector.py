@@ -74,7 +74,7 @@ class HFWav2Vec2QVector(HFWav2QVector):
         head: Union[Dict[str, Any], HydraHead],
         proj_bias: bool = True,
         enable_qmatrix_code_rate: bool = False,
-        qmatrix_code_rate_eps: float = 0.5,
+        qmatrix_code_rate: Optional[Dict[str, Any]] = None,
         hidden_feats_fusion_start: int = 0,
         hidden_feats_agg_start: int = 0,
         hidden_feats_shared_adapters: bool = True,
@@ -85,7 +85,7 @@ class HFWav2Vec2QVector(HFWav2QVector):
         adapter_lr: Optional[float] = None,
         adapter_weight_decay: Optional[float] = None,
         qformer_weight_decay: Optional[float] = None,
-        proj_head_weight_decay: Optional[float] = None,
+        proj_weight_decay: Optional[float] = None,
         head_weight_decay: Optional[float] = None,
         bias_weight_decay: Optional[float] = None,
     ) -> None:
@@ -105,8 +105,8 @@ class HFWav2Vec2QVector(HFWav2QVector):
             proj_bias: Whether the projection head linear layer includes a bias term.
             enable_qmatrix_code_rate: When True, compute the q-matrix code rate
                 in ``forward``.
-            qmatrix_code_rate_eps: Epsilon parameter for the q-matrix code-rate
-                computation.
+            qmatrix_code_rate: Optional constructor arguments for the q-matrix
+                code-rate regularizer.
             hidden_feats_fusion_start: First hidden-state index used for output
                 feature fusion.
             hidden_feats_agg_start: First hidden-state index used for hidden
@@ -127,7 +127,7 @@ class HFWav2Vec2QVector(HFWav2QVector):
                 parameters (``hidden_feats_adapter`` and ``output_feats_adapter``).
             qformer_weight_decay: Optional weight-decay override applied to both
                 hidden/output Q-former parameters.
-            proj_head_weight_decay: Optional weight-decay override applied to
+            proj_weight_decay: Optional weight-decay override applied to
                 projection-head parameters.
             head_weight_decay: Optional weight-decay override applied to downstream
                 head parameters.

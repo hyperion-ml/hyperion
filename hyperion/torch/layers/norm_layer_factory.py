@@ -7,6 +7,7 @@ from typing import Optional, Protocol, TypeVar
 
 import torch.nn as nn
 
+from .norm_layers import RMSNorm
 
 class NormLayerCtor(Protocol):
     """Callable protocol for normalization layer constructors."""
@@ -163,7 +164,9 @@ class NormLayer1dFactory:
             )
 
         if norm_name == "layer-norm":
-            # it is equivalent to groupnorm with 1 group
             return lambda x, momentum=momentum, eps=eps: nn.LayerNorm(x, eps=eps)
+
+        if norm_name == "rms-norm":
+            return lambda x, momentum=momentum, eps=eps: RMSNorm(x, eps=eps)
 
         raise ValueError(f"unknown normalization layer '{norm_name}'")

@@ -31,6 +31,7 @@ Experimental commands:
 * ``hyperion-train-wav2rnn-transducer`` Conditional runtime requirements: k2, PyTorch, transducer training data.
 * ``hyperion-train-wav2vec2rnn-transducer`` Conditional runtime requirements: k2, PyTorch, transformers, transducer training data.
 * ``hyperion-train-wav2vec2transducer`` Conditional runtime requirements: k2, PyTorch, transformers, transducer training data.
+* ``hyperion-train-xvectorp`` Conditional runtime requirements: PyTorch, transformers for the wav2vec2 subcommand.
 
 Fine-tuning and adaptation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -74,6 +75,7 @@ Stable commands:
 Experimental commands:
 
 * ``hyperion-infer-qvectors`` Conditional runtime requirements: PyTorch, Q-vector checkpoint.
+* ``hyperion-infer-xvectorps`` Conditional runtime requirements: PyTorch, XVectorP checkpoint, transformers for Wav2Vec2 backbones.
 
 Backends, scoring, and evaluation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

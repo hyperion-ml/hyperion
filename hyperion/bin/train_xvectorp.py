@@ -22,16 +22,16 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.hyper_torch_model import HyperTorchModel
-from hyperion.torch.models import HFWav2Vec2QVector as W2V2QVec
-from hyperion.torch.models import ResNetQVector as RQVec
-from hyperion.torch.models.qvectors.qvector import QVector
+from hyperion.torch.models import HFWav2Vec2XVectorP as W2V2XVecP
+from hyperion.torch.models import ResNetXVectorP as RXVecP
+from hyperion.torch.models import XVectorP
 from hyperion.torch.narchs import HydraHeadType
-from hyperion.torch.trainers import QVectorTrainer as Trainer
+from hyperion.torch.trainers import XVectorPTrainer as Trainer
 from hyperion.torch.utils import ddp
 
-qvec_dict = {
-    "resnet": RQVec,
-    "wav2vec2": W2V2QVec,
+xvecp_dict = {
+    "resnet": RXVecP,
+    "wav2vec2": W2V2XVecP,
 }
 
 
@@ -82,31 +82,39 @@ def init_data(
     return data_loader
 
 
-def init_qvector(
-    num_classes: int, rank: int, qvec_class: Type[QVector], **kwargs: Any
-) -> QVector:
-    """Initialize q-vector model.
+def init_xvectorp(
+    num_classes: int, rank: int, xvecp_class: Type[XVectorP], **kwargs: Any
+) -> XVectorP:
+    """Initialize XVectorP model.
 
     Args:
         num_classes: Number of classes for classification head (if applicable).
         rank: Process rank in distributed training.
-        qvec_class: Q-vector model class to instantiate.
+        xvecp_class: XVectorP model class to instantiate.
         **kwargs: Parsed configuration dictionary.
     """
-    qvec_args = qvec_class.filter_args(**kwargs["model"])
+    xvecp_args = xvecp_class.filter_args(**kwargs["model"])
     if rank == 0:
-        logging.info("QVector network args=%s", qvec_args)
+        logging.info("XVectorP network args=%s", xvecp_args)
 
-    if qvec_args["head"]["head_type"] == HydraHeadType.CLASSIF:
-        qvec_args["head"]["num_classes"] = num_classes
-    model = qvec_class(**qvec_args)
+    head_args = xvecp_args.get("head")
+    if (
+        isinstance(head_args, dict)
+        and head_args.get("head_type") == HydraHeadType.CLASSIF
+    ):
+        xvecp_args["head"]["num_classes"] = num_classes
+    model = xvecp_class(**xvecp_args)
+    if model.head is None:
+        raise ValueError(
+            "XVectorP training requires a classification or regression head"
+        )
     if rank == 0:
-        logging.info("QVector model=%s", model)
+        logging.info("XVectorP model=%s", model)
     return model
 
 
-def train_qvector(args: Any) -> None:
-    """Run distributed q-vector training.
+def train_xvectorp(args: Any) -> None:
+    """Run distributed XVectorP training.
 
     Args:
         args: Parsed subcommand arguments.
@@ -122,18 +130,17 @@ def train_qvector(args: Any) -> None:
     ddp_args = ddp.filter_ddp_args(**kwargs)
     device, rank, world_size = ddp.ddp_init(**ddp_args)
     kwargs["rank"] = rank
-
     try:
         train_loader = init_data(partition="train", **kwargs)
         val_loader = init_data(partition="val", **kwargs)
 
         num_classes = list(train_loader.dataset.num_classes.values())[0]
-        model = init_qvector(num_classes, **kwargs)
+        model = init_xvectorp(num_classes, **kwargs)
         if kwargs["init_from_xvector_model_file"] is not None:
             xvec_path = kwargs["init_from_xvector_model_file"]
             if rank == 0:
                 logging.info(
-                    "Initializing QVector model from x-vector model %s", xvec_path
+                    "Initializing XVectorP model from x-vector model %s", xvec_path
                 )
 
             xvector_model = HyperTorchModel.auto_load(xvec_path)
@@ -155,11 +162,11 @@ def train_qvector(args: Any) -> None:
         ddp.ddp_cleanup()
 
 
-def make_parser(qvec_class: Type[QVector]) -> ArgumentParser:
-    """Create parser for one q-vector model subcommand.
+def make_parser(xvecp_class: Type[XVectorP]) -> ArgumentParser:
+    """Create parser for one XVectorP model subcommand.
 
     Args:
-        qvec_class: Q-vector model class whose args should be exposed.
+        xvecp_class: XVectorP model class whose args should be exposed.
     """
     parser = ArgumentParser()
 
@@ -211,12 +218,12 @@ def make_parser(qvec_class: Type[QVector]) -> ArgumentParser:
     #     "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
     # )
 
-    qvec_class.add_class_args(parser, prefix="model")
+    xvecp_class.add_class_args(parser, prefix="model")
     parser.add_argument(
         "--init-from-xvector-model-file",
         type=str,
         default=None,
-        help="Optional x-vector checkpoint used to initialize the QVector backbone.",
+        help="Optional x-vector checkpoint used to initialize the XVectorP backbone.",
     )
     Trainer.add_class_args(
         parser,
@@ -240,8 +247,8 @@ def make_parser(qvec_class: Type[QVector]) -> ArgumentParser:
 
 
 def main() -> None:
-    """Parse CLI arguments and launch q-vector training."""
-    parser = ArgumentParser(description="Train a QVector model from audio files")
+    """Parse CLI arguments and launch XVectorP training."""
+    parser = ArgumentParser(description="Train an XVectorP model from audio files")
     parser.add_argument(
         "--cfg",
         action=ActionConfigFile,
@@ -249,7 +256,7 @@ def main() -> None:
     )
 
     subcommands = parser.add_subcommands()
-    for k, v in qvec_dict.items():
+    for k, v in xvecp_dict.items():
         parser_k = make_parser(v)
         subcommands.add_subcommand(k, parser_k)
 
@@ -257,24 +264,24 @@ def main() -> None:
     # os MKL_SERVICE_FORCE_INTEL=1
     args = parser.parse_args()
     try:
-        local_rank = int(os.environ["LOCAL_RANK"])
+        gpu_id = int(os.environ["LOCAL_RANK"])
     except (KeyError, ValueError):
-        local_rank = 0
+        gpu_id = 0
 
-    qvec_type = args.subcommand
-    args_sc = vars(args)[qvec_type]
+    xvecp_type = args.subcommand
+    args_sc = vars(args)[xvecp_type]
 
-    if local_rank == 0:
+    if gpu_id == 0:
         try:
             config_file = Path(args_sc.trainer.exp_path) / "config.yaml"
             parser.save(args, str(config_file), format="yaml", overwrite=True)
         except Exception:
             logging.warning("Failed saving training configuration", exc_info=True)
 
-    args_sc.qvec_class = qvec_dict[qvec_type]
+    args_sc.xvecp_class = xvecp_dict[xvecp_type]
     # torch docs recommend using forkserver
     multiprocessing.set_start_method("forkserver")
-    train_qvector(args_sc)
+    train_xvectorp(args_sc)
 
 
 if __name__ == "__main__":

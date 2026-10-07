@@ -53,6 +53,7 @@ optional dependencies or hardware requirements.
   ``hyperion.torch.models.transducer`` and
   ``hyperion.torch.models.wav2transducer``
 * q-vector models and commands, including ``hyperion.torch.models.qvectors``
+* x-vector plus models and commands, including ``hyperion.torch.models.xvectorps``
 
 Internal and legacy
 ~~~~~~~~~~~~~~~~~~~
