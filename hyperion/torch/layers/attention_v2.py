@@ -4,7 +4,6 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-import math
 from enum import Enum
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
@@ -13,6 +12,7 @@ import torch.nn as nn
 from torch.nn.attention import SDPBackend, sdpa_kernel
 from transformers.modeling_flash_attention_utils import _flash_attention_forward
 
+from .norm_layers import RMSNorm
 from .pos_encoder import RotaryPosEncoder
 from .tensor_parallel import (
     ColumnParallelLinear,
@@ -108,6 +108,11 @@ class ScaledDotProdAttV2(nn.Module):
         num_local_heads (int): Number of heads handled by the local rank in model-parallel mode.
         num_local_kv_heads (int): Number of kv heads handled by the local rank.
         num_rep (int): Replication factor between attention heads and kv heads.
+        enable_qk_norm (bool): Normalize queries and keys per head before RoPE.
+        qk_norm_eps (float): Epsilon used by query/key RMS normalization.
+        q_norm (Optional[RMSNorm]): Learned query normalization over head dimensions.
+        k_norm (Optional[RMSNorm]): Learned key normalization over head dimensions.
+        att_scale (float): Attention score multiplier; one when QK normalization is enabled.
     """
 
     def __init__(
@@ -122,6 +127,8 @@ class ScaledDotProdAttV2(nn.Module):
         is_causal: bool = False,
         sliding_window: Optional[int] = None,
         model_parallel: bool = False,
+        enable_qk_norm: bool = False,
+        qk_norm_eps: float = 1e-6,
         **kwargs,
     ):
         """Construct a multi-head attention module.
@@ -137,9 +144,8 @@ class ScaledDotProdAttV2(nn.Module):
             is_causal (bool): Whether the module should behave causally (see class docstring for details).
             sliding_window (Optional[int]): Sliding-window size for Flash Attention kernels.
             model_parallel (bool): If `True`, use tensor-parallel linear layers built on PyTorch collectives.
-
-        Returns:
-            None: This constructor initializes the module in place.
+            enable_qk_norm (bool): Enable learned per-head RMSNorm for Q and K and unit attention scaling.
+            qk_norm_eps (float): Epsilon for query/key RMSNorm. Defaults to `1e-6`.
         """
         super().__init__()
         self.num_heads = num_heads
@@ -152,6 +158,11 @@ class ScaledDotProdAttV2(nn.Module):
         self.rope = rope
         self.is_causal = is_causal
         self.sliding_window = sliding_window
+        self.enable_qk_norm = enable_qk_norm
+        self.qk_norm_eps = qk_norm_eps
+        self.q_norm = RMSNorm(self.head_dim, eps=qk_norm_eps) if enable_qk_norm else None
+        self.k_norm = RMSNorm(self.head_dim, eps=qk_norm_eps) if enable_qk_norm else None
+        self.att_scale = 1.0 if enable_qk_norm else self.head_dim**-0.5
         self._warned_qkv_cast_from_fp32 = False
 
         if model_parallel:
@@ -342,7 +353,7 @@ class ScaledDotProdAttV2(nn.Module):
         value = value.transpose(1, 2)  # (bs, kv_heads, key_len, head_dim)
 
         if num_heads == kv_heads:
-            scores = torch.matmul(query, key.transpose(2, 3)) / math.sqrt(self.head_dim)
+            scores = torch.matmul(query, key.transpose(2, 3)) * self.att_scale
             if attn_mask is not None:
                 scores = scores + attn_mask
             scores = nn.functional.softmax(scores.float(), dim=-1).type_as(query)
@@ -361,8 +372,8 @@ class ScaledDotProdAttV2(nn.Module):
             # scores = torch.einsum("bgrqd,bgkd->bgrqk", query, key) / math.sqrt(
             #     self.head_dim
             # )
-            scores = torch.matmul(query, key.transpose(2, 3).unsqueeze(2)) / math.sqrt(
-                self.head_dim
+            scores = (
+                torch.matmul(query, key.transpose(2, 3).unsqueeze(2)) * self.att_scale
             )
             # scores = (bsz, kv_heads, num_rep, query_len, key_len)
             if attn_mask is not None:
@@ -418,6 +429,9 @@ class ScaledDotProdAttV2(nn.Module):
         query = query.view(bsz, q_length, self.num_local_heads, self.head_dim)
         key = key.view(bsz, k_length, self.num_local_kv_heads, self.head_dim)
         value = value.view(bsz, k_length, self.num_local_kv_heads, self.head_dim)
+        if self.enable_qk_norm:
+            query = self.q_norm(query).type_as(query)
+            key = self.k_norm(key).type_as(key)
         # xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
         if self.rope is not None:
             query = self.rope(query, query_start_pos)
@@ -674,6 +688,7 @@ class TorchScaledDotProdAttV2(ScaledDotProdAttV2):
                 dropout_p=self.dropout_rate if self.training else 0.0,
                 is_causal=is_causal,
                 enable_gqa=(num_heads != kv_heads),
+                scale=self.att_scale,
             )
         return output.transpose(1, 2).contiguous().view(bsz, q_length, -1)
 
@@ -754,6 +769,7 @@ class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
             attn_mask,
             q_length,
             dropout=dropout_rate,
+            softmax_scale=self.att_scale,
             sliding_window=self.sliding_window,
             use_top_left_mask=False,
             is_causal=self.is_causal,
