@@ -99,6 +99,21 @@ All architecture classes derive from the shape-reporting contract described in
 and classification head should document the intermediate layout at each
 boundary, especially when it exposes embedding extraction.
 
+QK normalization in V2 Transformers
+----------------------------------
+
+``TransformerEncoderV2`` and ``QFormerV2`` accept ``enable_qk_norm=True``
+(default: ``False``), also exposed as ``--enable-qk-norm`` in their argument
+parsers. The option is saved in the architecture configuration.
+
+When enabled, separate learned RMSNorm layers normalize projected queries and
+keys over each head's feature dimension before rotary positional encoding.
+They use the architecture's ``norm_eps``, independently of its ``norm_layer``
+selection. Attention scores use a multiplier of one instead of
+``1 / sqrt(head_dim)`` across all V2 attention backends. Values are unchanged.
+In ``QFormerV2`` this applies to both self-attention and cross-attention,
+including tied layers.
+
 Factories and selection
 -----------------------
 

@@ -233,6 +233,7 @@ class TransformerEncoderV2(NetArch):
         num_kv_heads (Optional[int]): Number of key/value heads when using grouped-query attention.
         att_dropout_rate (float): Dropout applied to attention weights.
         att_bias (bool): Whether attention projections include biases.
+        enable_qk_norm (bool): Enable per-head Q/K RMSNorm before RoPE and unit attention scaling.
         att_sliding_window (Optional[int]): Sliding window constraint for local attention.
         ff_type (TransformerV2FeedForwardType): Feed-forward module implementation.
         ff_dim_multiplier (float): Factor multiplying ``hidden_dim`` to obtain the feed-forward width.
@@ -280,6 +281,7 @@ class TransformerEncoderV2(NetArch):
         num_kv_heads: Optional[int] = None,
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
+        enable_qk_norm: bool = False,
         att_sliding_window: Optional[int] = None,
         ff_type: TransformerV2FeedForwardType = TransformerV2FeedForwardType.MLP,
         ff_dim_multiplier: float = 4,
@@ -327,6 +329,7 @@ class TransformerEncoderV2(NetArch):
             num_kv_heads (Optional[int], optional): Number of key/value heads for grouped-query attention. Defaults to ``None``.
             att_dropout_rate (float, optional): Attention dropout probability. Defaults to ``0.0``.
             att_bias (bool, optional): Whether attention projections include biases. Defaults to ``False``.
+            enable_qk_norm (bool, optional): Enable per-head Q/K RMSNorm and unit attention scaling. Defaults to ``False``.
             att_sliding_window (Optional[int], optional): Sliding-window size for local attention. Defaults to ``None``.
             ff_type (TransformerV2FeedForwardType, optional): Feed-forward module implementation. Defaults to ``MLP``.
             ff_dim_multiplier (float, optional): Scales ``hidden_dim`` to obtain the feed-forward width. Defaults to ``4``.
@@ -403,6 +406,7 @@ class TransformerEncoderV2(NetArch):
         self.att_type = att_type
         self.att_dropout_rate = att_dropout_rate
         self.att_bias = att_bias
+        self.enable_qk_norm = enable_qk_norm
 
         self.ff_type = ff_type
         self.ff_dim_multiplier = ff_dim_multiplier
@@ -500,6 +504,7 @@ class TransformerEncoderV2(NetArch):
                     ff_multiple_of=self.ff_multiple_of,
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
+                    enable_qk_norm=self.enable_qk_norm,
                     rope=self.rope,
                     is_causal=self.is_causal,
                     att_sliding_window=self.att_sliding_window,
@@ -962,6 +967,7 @@ class TransformerEncoderV2(NetArch):
             "num_kv_heads": self.num_kv_heads,
             "att_dropout_rate": self.att_dropout_rate,
             "att_bias": self.att_bias,
+            "enable_qk_norm": self.enable_qk_norm,
             "ff_type": self.ff_type,
             "ff_dim_multiplier": self.ff_dim_multiplier,
             "ff_multiple_of": self.ff_multiple_of,
@@ -1165,6 +1171,12 @@ class TransformerEncoderV2(NetArch):
                 default=False,
                 action=ActionYesNo,
                 help="use bias in Linear layers of attention blocks",
+            )
+            parser.add_argument(
+                "--enable-qk-norm",
+                default=False,
+                action=ActionYesNo,
+                help="enable per-head Q/K RMSNorm and unit attention scaling",
             )
             parser.add_argument(
                 "--ff-type",

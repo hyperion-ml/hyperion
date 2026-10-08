@@ -40,6 +40,7 @@ class QFormerV2(NetArch):
         cross_att_freq: Frequency of cross-attention layers.
         att_dropout_rate: Attention dropout probability.
         att_bias: Whether attention projections use bias terms.
+        enable_qk_norm: Enable per-head Q/K RMSNorm before RoPE and unit attention scaling.
         ff_type: Feed-forward implementation used in the transformer blocks.
         ff_dim_multiplier: Multiplier used to derive the feed-forward bottleneck size.
         ff_multiple_of: Bottleneck size is rounded to a multiple of this value.
@@ -80,6 +81,7 @@ class QFormerV2(NetArch):
         cross_att_freq: int = 1,
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
+        enable_qk_norm: bool = False,
         ff_type: TransformerV2FeedForwardType = TransformerV2FeedForwardType.MLP,
         ff_dim_multiplier: int = 4,
         ff_multiple_of: int = 256,
@@ -114,6 +116,7 @@ class QFormerV2(NetArch):
             att_type: Attention implementation used in the transformer blocks.
             num_layers: Number of transformer layers.
             hidden_dim: Hidden dimension of the query stream.
+            enable_qk_norm: Enable per-head Q/K RMSNorm and unit attention scaling.
             cross_att_freq: Frequency of cross-attention layers.
             out_feats: Optional output projection dimension.
             multilayer_input: Enable the multi-layer feature-input path.
@@ -137,6 +140,7 @@ class QFormerV2(NetArch):
         self.att_type = att_type
         self.att_dropout_rate = att_dropout_rate
         self.att_bias = att_bias
+        self.enable_qk_norm = enable_qk_norm
         self.cross_att_freq = cross_att_freq
 
         if cross_att_freq < 1:
@@ -221,6 +225,7 @@ class QFormerV2(NetArch):
                     ff_multiple_of=self.ff_multiple_of,
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
+                    enable_qk_norm=self.enable_qk_norm,
                     rope=self.rope,
                     rope_in_self_att=rope_in_self_att,
                     rope_in_cross_att=rope_in_cross_att,
@@ -245,6 +250,7 @@ class QFormerV2(NetArch):
                     ff_multiple_of=self.ff_multiple_of,
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
+                    enable_qk_norm=self.enable_qk_norm,
                     rope=self.rope,
                     sdp_backend=sdp_backend,
                     norm_layer=self._norm_layer,
@@ -677,6 +683,7 @@ class QFormerV2(NetArch):
             "cross_att_freq": self.cross_att_freq,
             "att_dropout_rate": self.att_dropout_rate,
             "att_bias": self.att_bias,
+            "enable_qk_norm": self.enable_qk_norm,
             "ff_type": self.ff_type,
             "ff_dim_multiplier": self.ff_dim_multiplier,
             "ff_multiple_of": self.ff_multiple_of,
@@ -854,6 +861,13 @@ class QFormerV2(NetArch):
             default=False,
             action=ActionYesNo,
             help="use bias in Linear layers of attention blocks",
+        )
+        add_argument(
+            "enable_qk_norm",
+            "--enable-qk-norm",
+            default=False,
+            action=ActionYesNo,
+            help="enable per-head Q/K RMSNorm and unit attention scaling",
         )
         add_argument(
             "ff_type",

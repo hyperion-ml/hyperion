@@ -869,6 +869,7 @@ class TransformerV2SelfAttBlock(nn.Module):
         ff_multiple_of: int = 256,
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
+        enable_qk_norm: bool = False,
         rope: Optional[RotaryPosEncoder] = None,
         is_causal: bool = False,
         att_sliding_window: Optional[int] = None,
@@ -894,6 +895,7 @@ class TransformerV2SelfAttBlock(nn.Module):
             ff_multiple_of (int, optional): Rounds ``ff_intermediate_feats`` up to the nearest multiple. Defaults to ``256``.
             att_dropout_rate (float, optional): Dropout probability applied to attention weights. Defaults to ``0.0``.
             att_bias (bool, optional): Whether attention projection layers include biases. Defaults to ``False``.
+            enable_qk_norm (bool, optional): Apply per-head Q/K RMSNorm before RoPE and use unit attention scaling. Defaults to ``False``.
             rope (Optional[RotaryPosEncoder], optional): Rotary position encoder applied to attention logits.
             is_causal (bool, optional): If ``True``, enables causal masking within the attention module. Defaults to ``False``.
             att_sliding_window (Optional[int], optional): Optional sliding-window constraint for attention. Defaults to ``None``.
@@ -918,6 +920,8 @@ class TransformerV2SelfAttBlock(nn.Module):
             num_kv_heads=num_kv_heads,
             dropout_rate=att_dropout_rate,
             att_bias=att_bias,
+            enable_qk_norm=enable_qk_norm,
+            qk_norm_eps=norm_eps,
             rope=rope,
             is_causal=is_causal,
             sliding_window=att_sliding_window,
@@ -1039,6 +1043,7 @@ class TransformerV2CrossAttBlock(nn.Module):
         ff_multiple_of: int = 256,
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
+        enable_qk_norm: bool = False,
         rope: Optional[RotaryPosEncoder] = None,
         rope_in_self_att: bool = True,
         rope_in_cross_att: bool = True,
@@ -1065,6 +1070,7 @@ class TransformerV2CrossAttBlock(nn.Module):
             ff_multiple_of (int, optional): Rounds ``ff_intermediate_feats`` up to the nearest multiple. Defaults to ``256``.
             att_dropout_rate (float, optional): Dropout probability applied to attention weights. Defaults to ``0.0``.
             att_bias (bool, optional): Whether attention projection layers include biases. Defaults to ``False``.
+            enable_qk_norm (bool, optional): Apply per-head Q/K RMSNorm before RoPE and use unit attention scaling. Defaults to ``False``.
             rope (Optional[RotaryPosEncoder], optional): Shared rotary position encoder instance.
             rope_in_self_att (bool, optional): If ``True``, applies the shared RoPE to self-attention. Defaults to ``True``.
             rope_in_cross_att (bool, optional): If ``True``, applies the shared RoPE to cross-attention. Defaults to ``True``.
@@ -1091,6 +1097,8 @@ class TransformerV2CrossAttBlock(nn.Module):
             num_kv_heads=num_kv_heads,
             dropout_rate=att_dropout_rate,
             att_bias=att_bias,
+            enable_qk_norm=enable_qk_norm,
+            qk_norm_eps=norm_eps,
             rope=rope if rope_in_self_att else None,
             sdp_backend=sdp_backend,
             model_parallel=model_parallel,
@@ -1103,6 +1111,8 @@ class TransformerV2CrossAttBlock(nn.Module):
             num_kv_heads=num_kv_heads,
             dropout_rate=att_dropout_rate,
             att_bias=att_bias,
+            enable_qk_norm=enable_qk_norm,
+            qk_norm_eps=norm_eps,
             rope=rope if rope_in_cross_att else None,
             sdp_backend=sdp_backend,
             model_parallel=model_parallel,
