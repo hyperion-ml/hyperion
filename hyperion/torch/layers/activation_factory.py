@@ -5,6 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 #
 
+from functools import partial
 from typing import Any, Callable, Dict, Mapping, Optional, Union
 
 import torch.nn as nn
@@ -46,6 +47,7 @@ act_dict: Dict[str, ActivationCtor] = {
     "swish6": Swish6,
     "double_swish6": DoubleSwish6,
     "gelu": nn.GELU,
+    "gelu-tanh": partial(nn.GELU, approximate="tanh"),
     "silu": nn.SiLU,
     "snake1d": Snake1d,
 }
