@@ -296,11 +296,12 @@ class ScaledDotProdAttV2(nn.Module):
         device: Optional[torch.device] = None,
         dtype: Optional[torch.dtype] = None,
     ) -> CacheState:
-        """Allocate zero-initialized caches for streaming/key-value reuse.
+        """Initialize empty dynamic caches and their maximum retention length.
 
         Args:
-            batch_size (int): Maximum batch size the cache should support.
-            max_cache_length (int): Maximum number of cached timesteps.
+            batch_size (int): Batch dimension of the initial empty cache tensors.
+            max_cache_length (int): Maximum number of cached timesteps, capped at
+                sliding_window when the layer has a finite attention window.
             device (Optional[torch.device]): Target device. Defaults to projection weight device.
             dtype (Optional[torch.dtype]): Target dtype. Defaults to projection weight dtype.
 
@@ -310,9 +311,11 @@ class ScaledDotProdAttV2(nn.Module):
                 - ``value``: value cache tensor
                 - ``cache_length``: cached valid length
                 - ``cache_offset``: absolute position for cache index 0
+                - ``max_cache_length``: maximum retained history, including the window cap
 
         Raises:
-            ValueError: Shared-KV layers use the source cache and cannot allocate their own.
+            ValueError: Shared-KV layers cannot allocate their own cache, or the
+                requested retention limit is negative.
         """
 
         if self.shared_kv:
@@ -324,19 +327,24 @@ class ScaledDotProdAttV2(nn.Module):
         if dtype is None:
             dtype = self.q_proj.weight.dtype
 
+        if self.sliding_window is not None:
+            max_cache_length = min(max_cache_length, self.sliding_window)
+        if max_cache_length < 0:
+            raise ValueError("max_cache_length must be non-negative")
         cache_shape = (
             batch_size,
-            max_cache_length,
+            0,
             self.num_local_kv_heads,
             self.head_dim,
         )
-        cache_k = torch.zeros(cache_shape, device=device, dtype=dtype)
-        cache_v = torch.zeros(cache_shape, device=device, dtype=dtype)
+        cache_k = torch.empty(cache_shape, device=device, dtype=dtype)
+        cache_v = torch.empty(cache_shape, device=device, dtype=dtype)
         return {
             "key": cache_k,
             "value": cache_v,
             "cache_length": 0,
             "cache_offset": 0,
+            "max_cache_length": max_cache_length,
         }
 
     def _repeat_kv(self, x: torch.Tensor) -> torch.Tensor:
@@ -485,11 +493,12 @@ class ScaledDotProdAttV2(nn.Module):
             key_start_pos (int, optional): Starting offset for key rope rotation. Defaults to 0.
                 Ignored in shared mode because source keys are already rotated.
             state (Optional[CacheState]): External cache with ``key``, ``value``,
-                ``cache_length``, and ``cache_offset``. Must be None in shared mode;
+                ``cache_length``, ``cache_offset``, and ``max_cache_length``. Must be None in shared mode;
                 source layers own cache updates. Callers supply masks for source cache offsets.
 
-            return_kv: Return processed K/V for consumers, including visible cached
-                keys and values when state is supplied. Defaults to False.
+            return_kv: Return the full processed K/V used for attention, including
+                cached history and the entire current chunk before retention.
+                Defaults to False.
 
         Returns:
             torch.Tensor or Tuple[torch.Tensor, CacheState]: Attention output and
@@ -513,6 +522,13 @@ class ScaledDotProdAttV2(nn.Module):
 
         output = self.compute_attention(query, key, value, mask)
         output = self.o_proj(output)
+        if new_state is not None:
+            cache_start = (
+                min(int(new_state["cache_offset"]), key_start_pos)
+                if int(new_state["cache_length"]) > 0
+                else key_start_pos
+            )
+            self._update_cache(key, value, new_state, cache_start)
         if return_kv:
             return output, key, value, new_state
         if new_state is not None:
@@ -528,7 +544,7 @@ class ScaledDotProdAttV2(nn.Module):
         key_start_pos: int,
         state: Optional[CacheState],
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[CacheState]]:
-        """Prepare independent Q/K/V and optionally update the source cache.
+        """Prepare independent Q/K/V with cached history and the full current chunk.
 
         Args:
             query: Query hidden states (batch, query_time, num_feats).
@@ -539,7 +555,7 @@ class ScaledDotProdAttV2(nn.Module):
             state: Optional cache owned by this layer.
 
         Returns:
-            Prepared Q/K/V and updated cache, or None when caching is disabled.
+            Prepared Q/K/V and source cache to update after attention, or None.
         """
         bsz, q_length, _ = query.size()
         _, k_length, _ = key.size()
@@ -563,12 +579,8 @@ class ScaledDotProdAttV2(nn.Module):
 
         new_state: Optional[CacheState] = None
         if state is not None:
-            key, value, new_state = self._update_cache(
-                key,
-                value,
-                state,
-                start_pos=key_start_pos,
-            )
+            key, value = self._prepare_cached_kv(key, value, state, key_start_pos)
+            new_state = state
 
         return query, key, value, new_state
 
@@ -652,106 +664,73 @@ class ScaledDotProdAttV2(nn.Module):
             self._warned_qkv_cast_from_fp32 = True
         return query.to(target_dtype), key.to(target_dtype), value.to(target_dtype)
 
+    def _prepare_cached_kv(
+        self,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        state: CacheState,
+        start_pos: int,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Merge cached history and the full chunk without modifying the cache.
+
+        Args:
+            key: Current processed keys (batch, time, kv_heads, head_dim).
+            value: Current processed values with the same shape as key.
+            state: Source cache before this call.
+            start_pos: Absolute position of the first current key.
+
+        Returns:
+            Full attention K/V, including any cached suffix after an overwrite.
+        """
+        cache_offset = int(state["cache_offset"])
+        cache_length = int(state["cache_length"])
+        cache_end = cache_offset + cache_length
+        end_pos = start_pos + key.size(1)
+        if start_pos > cache_end or (cache_length > 0 and end_pos < cache_offset):
+            raise ValueError(
+                "Non-contiguous cache update: current chunk and cached keys must "
+                "overlap or be adjacent"
+            )
+        if cache_length == 0:
+            return key, value
+
+        prefix_length = max(0, start_pos - cache_offset)
+        suffix_start = max(0, end_pos - cache_offset)
+        batch_size = key.size(0)
+        cache_k = state["key"][:batch_size, :cache_length].to(key)
+        cache_v = state["value"][:batch_size, :cache_length].to(value)
+        key = torch.cat(
+            [cache_k[:, :prefix_length], key, cache_k[:, suffix_start:]], dim=1
+        )
+        value = torch.cat(
+            [cache_v[:, :prefix_length], value, cache_v[:, suffix_start:]], dim=1
+        )
+        return key, value
+
     def _update_cache(
         self,
         key: torch.Tensor,
         value: torch.Tensor,
         state: CacheState,
         start_pos: int,
-    ) -> Tuple[torch.Tensor, torch.Tensor, CacheState]:
-        """Align device/dtype and write projections into the external cache.
+    ) -> None:
+        """Retain suffix views of the full K/V after attention has completed.
 
         Args:
-            key (torch.Tensor): Incoming key tensor `(batch, seq_len, kv_heads, head_dim)`.
-            value (torch.Tensor): Incoming value tensor `(batch, seq_len, kv_heads, head_dim)`.
-            state (CacheState): Cache dictionary with tensors and scalar metadata.
-            start_pos (int): Absolute write start position of the incoming chunk.
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor, CacheState]: Visible cached key/value tensors and updated cache state.
+            key: Full keys used for this attention call.
+            value: Full values used for this attention call.
+            state: Cache dictionary containing a separate max_cache_length limit.
+            start_pos: Absolute position of the first full-attention key.
         """
-
-        batch_size = key.size(0)
-        cache_k = state["key"]
-        cache_v = state["value"]
-        cache_length = int(state["cache_length"])
-        cache_offset = int(state["cache_offset"])
-
-        if cache_k.device != key.device or cache_k.dtype != key.dtype:
-            cache_k = cache_k.to(device=key.device, dtype=key.dtype)
-            state["key"] = cache_k
-        if cache_v.device != value.device or cache_v.dtype != value.dtype:
-            cache_v = cache_v.to(device=value.device, dtype=value.dtype)
-            state["value"] = cache_v
-
-        cache_capacity = cache_k.size(1)
-        seq_len = key.size(1)
-        end_pos = start_pos + seq_len
-
-        current_offset = cache_offset
-        current_length = cache_length
-        current_end = current_offset + current_length
-
-        # Enforce contiguous updates based on the original incoming start position.
-        # This check must happen before we drop tokens that fall outside the cache window.
-        if start_pos > current_end:
-            raise ValueError(
-                "Non-contiguous cache update: "
-                f"start_pos ({start_pos}) exceeds current KV cache end "
-                f"({current_end})."
-            )
-
-        # Determine the absolute window to keep (last `cache_capacity` positions) without rewinding.
-        new_offset = max(current_offset, end_pos - cache_capacity)
-        drop_from_new = max(0, new_offset - start_pos)
-        if drop_from_new > 0:
-            key = key[:, drop_from_new:]
-            value = value[:, drop_from_new:]
-            start_pos = start_pos + drop_from_new
-
-        write_len = key.size(1)
-        write_start = start_pos - new_offset
-
-        # Shift existing cache contents to discard old entries.
-        shift = max(0, new_offset - current_offset)
-        if shift > current_length:
-            shift = current_length
-        if shift > 0 and current_length > 0:
-            keep = max(0, current_length - shift)
-            if keep > 0:
-                cache_k[:batch_size, :keep] = cache_k[:batch_size, shift : shift + keep]
-                cache_v[:batch_size, :keep] = cache_v[:batch_size, shift : shift + keep]
-            cache_length = keep
-        elif shift > 0:
-            keep = 0
-            cache_length = 0
-        else:
-            keep = current_length
-
-        if write_len > 0:
-            write_end = write_start + write_len
-            if write_end > cache_capacity:
-                raise ValueError(
-                    f"Attempting to write beyond cache capacity ({write_end}>{cache_capacity})."
-                )
-            cache_k[:batch_size, write_start:write_end] = key
-            cache_v[:batch_size, write_start:write_end] = value
-            cache_length = max(keep, write_end)
-        else:
-            cache_length = keep
-
-        cache_offset = new_offset
-
-        max_length = cache_length
-        key = cache_k[:batch_size, :max_length]
-        value = cache_v[:batch_size, :max_length]
-
-        state["key"] = cache_k
-        state["value"] = cache_v
-        state["cache_length"] = cache_length
+        end_pos = start_pos + key.size(1)
+        cache_offset = max(
+            int(state["cache_offset"]), end_pos - int(state["max_cache_length"])
+        )
+        keep_start = cache_offset - start_pos
+        state["key"] = key[:, keep_start:]
+        state["value"] = value[:, keep_start:]
+        state["cache_length"] = end_pos - cache_offset
         state["cache_offset"] = cache_offset
-
-        return key, value, state
 
 
 class TorchScaledDotProdAttV2(ScaledDotProdAttV2):

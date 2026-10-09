@@ -328,6 +328,7 @@ class LegacyTorchTrainer:
                 model,
                 device_ids=[device],
                 output_device=device,
+                find_unused_parameters=model.requires_ddp_find_unused_parameters(),
             )
 
         else:

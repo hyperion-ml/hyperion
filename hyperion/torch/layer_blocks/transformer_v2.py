@@ -5,13 +5,13 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 from copy import deepcopy
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
-from ..layers import DropPath1d, GRN1d, Interpolate, RMSNorm
+from ..layers import DropPath1d, GRN1d, Interpolate, RMSNorm, StreamingCausalConv1d
 from ..layers.attention_v2 import (
     HFFlashScaledDotProdAttV2,
     ScaledDotProdAttV2,
@@ -197,6 +197,9 @@ class Conv1dStemLayer(nn.Module):
         stride (int): Temporal downsampling factor applied by the convolution.
     """
 
+    _conv_class = nn.Conv1d
+    _is_causal = False
+
     def __init__(
         self,
         in_channels: int,
@@ -223,8 +226,8 @@ class Conv1dStemLayer(nn.Module):
         super().__init__()
 
         kernel_size = max(kernel_size, stride)
-        padding = (kernel_size - 1) // 2
-        self.conv = nn.Conv1d(
+        padding = 0 if self._is_causal else (kernel_size - 1) // 2
+        self.conv = self._conv_class(
             in_channels,
             out_channels,
             kernel_size=kernel_size,
@@ -234,7 +237,7 @@ class Conv1dStemLayer(nn.Module):
         )
         self.norm = norm_layer(out_channels, eps=norm_eps)
         self.act = AF.create(activation)
-        self.context = (kernel_size - 1) // 2
+        self.context = kernel_size - 1 if self._is_causal else (kernel_size - 1) // 2
         self.stride = stride
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -385,6 +388,8 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
         downsample_factor (int): Recorded cumulative downsampling factor of the stem.
     """
 
+    _layer_class = Conv1dStemLayer
+
     def __init__(
         self,
         in_feats: int,
@@ -419,7 +424,7 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
         else:
             conv_bias = False
 
-        conv_i = Conv1dStemLayer(
+        conv_i = self._layer_class(
             in_feats,
             hidden_channels[0],
             kernel_size=kernel_sizes[0],
@@ -434,7 +439,7 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
         self.context = conv_i.context
         self.downsample_factor = strides[0]
         for i in range(1, len(hidden_channels)):
-            conv_i = Conv1dStemLayer(
+            conv_i = self._layer_class(
                 hidden_channels[i - 1],
                 hidden_channels[i],
                 kernel_size=kernel_sizes[i],
@@ -482,6 +487,179 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
             x_proj = x_proj.masked_fill(x_mask, 0.0)
 
         return x.type_as(x_proj), x_proj, x_lengths
+
+
+class TransformerV2StreamingConv1dStemLayer(Conv1dStemLayer):
+    """Causal stem layer with the normalization and activation of Conv1dStemLayer.
+
+    Attributes:
+        conv (StreamingCausalConv1d): Causal convolution with external history and stride phase.
+        norm (nn.Module): Per-frame channel normalization inherited from the base layer.
+        act (nn.Module): Activation inherited from the base layer.
+        context (int): Left context in input frames; right context is zero.
+        stride (int): Temporal downsampling factor.
+    """
+
+    _conv_class = StreamingCausalConv1d
+    _is_causal = True
+
+    @torch.no_grad()
+    def init_state(
+        self,
+        batch_size: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> Dict[str, Any]:
+        """Initialize convolution history and stride phase.
+
+        Args:
+            batch_size: Number of sequences in the stream.
+            device: Optional state device.
+            dtype: Optional state dtype.
+
+        Returns:
+            External convolution state.
+        """
+        return self.conv.init_state(batch_size, device=device, dtype=dtype)
+
+    @torch.no_grad()
+    def stream(
+        self,
+        x: torch.Tensor,
+        state: Dict[str, Any],
+    ) -> Tuple[torch.Tensor, Dict[str, Any]]:
+        """Convolve the next chunk using retained input history.
+
+        Args:
+            x: Features shaped (batch, channels, time).
+            state: State returned by init_state or the previous stream call.
+
+        Returns:
+            Normalized, activated features and updated convolution state.
+        """
+        x, state = self.conv.stream(x, state)
+        x = self.act(self.norm(x.transpose(1, 2)))
+        return x.transpose(1, 2), state
+
+
+class TransformerEncoderV2StreamingConv1dStemBlock(TransfomerV2Conv1dStemBlock):
+    """Causal 1-D stem supporting full-sequence training and streaming inference.
+
+    Attributes:
+        conv_layers (nn.Sequential): Causal stem layers with external convolution state.
+        norm_layer (nn.Module): Per-frame normalization after the convolutions.
+        projection (nn.Linear): Projection to out_feats, inherited from the base stem.
+        dropout (nn.Dropout): Output dropout inherited from the base stem.
+        context (int): Total left context in input frames; right context is zero.
+        downsample_factor (int): Product of the temporal convolution strides.
+    """
+
+    _layer_class = TransformerV2StreamingConv1dStemLayer
+
+    @torch.no_grad()
+    def init_state(
+        self,
+        batch_size: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> List[Dict[str, Any]]:
+        """Initialize one streaming state per convolution.
+
+        Args:
+            batch_size: Number of sequences in the stream.
+            device: Optional state device.
+            dtype: Optional state dtype.
+
+        Returns:
+            Convolution states in layer order.
+        """
+        return [
+            layer.init_state(batch_size, device, dtype) for layer in self.conv_layers
+        ]
+
+    def _forward(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor],
+        state: Optional[List[Dict[str, Any]]],
+    ) -> Tuple[
+        torch.Tensor, torch.Tensor, Optional[torch.Tensor], List[Dict[str, Any]]
+    ]:
+        """Apply the stem with exact output lengths for each convolution phase.
+
+        Args:
+            x: Features shaped (batch, time, channels).
+            x_lengths: Valid lengths in the current input.
+            state: Convolution states, or None for a full-sequence pass.
+
+        Returns:
+            Normalized features, projected features, valid lengths and new states.
+        """
+        if state is not None and len(state) != len(self.conv_layers):
+            raise ValueError("Stem state must contain one entry per convolution")
+        x = x.transpose(1, 2)
+        new_states = []
+        for i, layer in enumerate(self.conv_layers):
+            phase = 0 if state is None else int(state[i]["phase"])
+            offset = (layer.stride - phase) % layer.stride
+            if state is None:
+                x = layer(x)
+            else:
+                x, layer_state = layer.stream(x, state[i])
+                new_states.append(layer_state)
+            if x_lengths is not None:
+                x_lengths = torch.div(
+                    x_lengths - offset + layer.stride - 1,
+                    layer.stride,
+                    rounding_mode="floor",
+                ).clamp_min(0)
+        x = self.norm_layer(x.transpose(1, 2))
+        mask = None
+        if x_lengths is not None:
+            mask = ~seq_lengths_to_mask(x_lengths, x.size(1)).unsqueeze(-1)
+            x = x.masked_fill(mask, 0.0)
+        x_proj = self.dropout(self.projection(x))
+        if mask is not None:
+            x_proj = x_proj.masked_fill(mask, 0.0)
+        return x.type_as(x_proj), x_proj, x_lengths, new_states
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+        """Encode a complete sequence with causal padding and gradients enabled.
+
+        Args:
+            x: Features shaped (batch, time, channels).
+            x_lengths: Valid sequence lengths.
+
+        Returns:
+            Normalized features, projected features and downsampled valid lengths.
+        """
+        features, projected, lengths, _ = self._forward(x, x_lengths, None)
+        return features, projected, lengths
+
+    @torch.no_grad()
+    def stream(
+        self,
+        x: torch.Tensor,
+        state: List[Dict[str, Any]],
+        x_lengths: Optional[torch.Tensor] = None,
+    ) -> Tuple[
+        torch.Tensor, torch.Tensor, Optional[torch.Tensor], List[Dict[str, Any]]
+    ]:
+        """Encode the next chunk using external convolution states.
+
+        Args:
+            x: Features shaped (batch, time, channels).
+            state: State returned by init_state or the previous stream call.
+            x_lengths: Valid lengths in this chunk; a partial chunk must be final.
+
+        Returns:
+            Normalized features, projected features, valid lengths and new states.
+        """
+        return self._forward(x, x_lengths, state)
 
 
 class TransformerV2MLPBlock(nn.Module):
@@ -1001,6 +1179,8 @@ class TransformerV2ConvEndpoint(nn.Module):
         Returns:
             torch.Tensor: Tensor with shape ``(batch, out_time, out_channels)``.
         """
+        if x.size(1) == 0:
+            return x.new_empty(x.size(0), 0, self.out_channels)
         x = self.norm(x).permute(0, 2, 1).contiguous()
         x = self.resample(x).permute(0, 2, 1).contiguous()
         return x
@@ -1015,6 +1195,9 @@ class TransformerV2ConvDownsampleBlock(nn.Module):
         context (int): Additional temporal context introduced by the convolution.
         stride (int): Downsampling factor applied along the time axis.
     """
+
+    _conv_class = nn.Conv1d
+    _is_causal = False
 
     def __init__(
         self,
@@ -1040,29 +1223,105 @@ class TransformerV2ConvDownsampleBlock(nn.Module):
             norm_layer = nn.LayerNorm
 
         kernel_size = max(kernel_size, stride)
-        padding = (kernel_size - 1) // 2
+        padding = 0 if self._is_causal else (kernel_size - 1) // 2
         self.norm = norm_layer(in_channels, eps=norm_eps)
-        self.conv = nn.Conv1d(
+        self.conv = self._conv_class(
             in_channels,
             out_channels,
             kernel_size=kernel_size,
             stride=stride,
             padding=padding,
         )
-        self.context = (kernel_size - 1) // 2
+        self.context = kernel_size - 1 if self._is_causal else (kernel_size - 1) // 2
         self.stride = stride
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Downsample the temporal resolution via grouped convolution.
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Downsample features and their valid sequence lengths.
 
         Args:
-            x (torch.Tensor): Input tensor with shape ``(batch, time, channels)``.
+            x: Features shaped (batch, time, channels).
+            x_lengths: Optional valid sequence lengths.
 
         Returns:
-            torch.Tensor: Downsampled tensor with shape ``(batch, ceil(time / stride), out_channels)``.
+            Downsampled features and valid lengths, or None when lengths are absent.
         """
+        input_length = x.size(1)
         x = self.norm(x)
-        return self.conv(x.permute(0, 2, 1).contiguous()).permute(0, 2, 1).contiguous()
+        x = self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2).contiguous()
+        if self._is_causal:
+            if x_lengths is not None:
+                x_lengths = torch.div(
+                    x_lengths + self.stride - 1, self.stride, rounding_mode="floor"
+                )
+        else:
+            x_lengths = scale_seq_lengths(
+                x_lengths, max_out_length=x.size(1), max_in_length=input_length
+            )
+        return x, x_lengths
+
+
+class TransformerV2StreamingConvDownsampleBlock(TransformerV2ConvDownsampleBlock):
+    """Causal downsampling with external convolution history and stride phase.
+
+    Attributes:
+        norm (nn.Module): Per-frame channel normalization inherited from the base block.
+        conv (StreamingCausalConv1d): Causal strided convolution.
+        context (int): Left context in input frames; right context is zero.
+        stride (int): Temporal downsampling factor.
+    """
+
+    _conv_class = StreamingCausalConv1d
+    _is_causal = True
+
+    @torch.no_grad()
+    def init_state(
+        self,
+        batch_size: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> Dict[str, Any]:
+        """Initialize convolution history and stride phase.
+
+        Args:
+            batch_size: Number of sequences in the stream.
+            device: Optional state device.
+            dtype: Optional state dtype.
+
+        Returns:
+            External convolution state.
+        """
+        return self.conv.init_state(batch_size, device=device, dtype=dtype)
+
+    @torch.no_grad()
+    def stream(
+        self,
+        x: torch.Tensor,
+        state: Dict[str, Any],
+        x_lengths: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Dict[str, Any]]:
+        """Downsample a chunk while preserving stride alignment across calls.
+
+        Args:
+            x: Features shaped (batch, time, channels).
+            state: State returned by init_state or the previous stream call.
+            x_lengths: Valid lengths in the current chunk.
+
+        Returns:
+            Downsampled features, valid lengths and updated convolution state.
+        """
+        offset = (self.stride - int(state["phase"])) % self.stride
+        x, state = self.conv.stream(self.norm(x).transpose(1, 2), state)
+        if x_lengths is not None:
+            x_lengths = torch.div(
+                x_lengths - offset + self.stride - 1,
+                self.stride,
+                rounding_mode="floor",
+            ).clamp_min(0)
+        return x.transpose(1, 2).contiguous(), x_lengths, state
 
 
 class TransformerV2SelfAttBlock(nn.Module):
@@ -1148,6 +1407,8 @@ class TransformerV2SelfAttBlock(nn.Module):
         """
         super().__init__()
         att_class = TransformerV2AttType.to_class(att_type)
+        if is_causal and ff_type == TransformerV2FeedForwardType.CONVNEXT:
+            raise ValueError("ConvNeXt feed-forward blocks do not support causal mode")
         ff_class = TransformerV2FeedForwardType.to_class(ff_type)
         if norm_layer is None:
             norm_layer = nn.LayerNorm
@@ -1217,14 +1478,16 @@ class TransformerV2SelfAttBlock(nn.Module):
         """Initialize the key/value cache dictionary required for streaming attention.
 
         Args:
-            batch_size (int): Maximum batch size the cache must support.
-            max_cache_length (int): Maximum number of cached timesteps.
+            batch_size (int): Batch dimension of the initial empty cache tensors.
+            max_cache_length (int): Maximum number of cached timesteps. A finite
+                attention sliding window additionally caps this allocation.
             device (Optional[torch.device]): Device where the cache is allocated. Defaults to the attention weight device.
             dtype (Optional[torch.dtype]): Tensor dtype to use for the cache. Defaults to the attention weight dtype.
 
         Returns:
             Dict[str, torch.Tensor]: Cache dictionary with keys ``"key"``, ``"value"``,
-                ``"cache_length"``, and ``"cache_offset"``. Shared blocks use their source cache.
+                ``"cache_length"``, ``"cache_offset"``, and ``"max_cache_length"``.
+                K/V start empty and grow dynamically. Shared blocks use their source cache.
 
         Raises:
             ValueError: Shared-KV blocks cannot allocate their own caches.

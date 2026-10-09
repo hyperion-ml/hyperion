@@ -450,6 +450,7 @@ class TorchTrainerBase:
                     model,
                     device_ids=[device],
                     output_device=device,
+                    find_unused_parameters=model.requires_ddp_find_unused_parameters(),
                 )
             elif ddp_type == DDPType.FSDP:
                 if self.rank == 0:

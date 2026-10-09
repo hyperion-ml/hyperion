@@ -738,6 +738,14 @@ class QFormerV2(NetArch):
             logging.warning("non-finite x-out-avg=%f", torch.mean(out_feats))
         return out_feats
 
+    def requires_ddp_find_unused_parameters(self) -> bool:
+        """Return whether expert routing requires DDP unused-parameter detection.
+
+        Returns:
+            ``True`` when the feed-forward blocks use G4MoE.
+        """
+        return self.ff_type == TransformerV2FeedForwardType.G4MoE
+
     def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Return a JSON-serializable snapshot of the constructor arguments.
 

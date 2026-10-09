@@ -19,17 +19,19 @@ from ...utils.misc import filter_func_args
 from ..layer_blocks.transformer_v2 import (
     SDPBackendType,
     TransformerEncoderV2StemType,
+    TransformerEncoderV2StreamingConv1dStemBlock,
     TransformerV2AttType,
     TransformerV2ConvDownsampleBlock,
     TransformerV2ConvEndpoint,
     TransformerV2FeedForwardType,
     TransformerV2NormLayerType,
     TransformerV2SelfAttBlock,
+    TransformerV2StreamingConvDownsampleBlock,
 )
 from ..layers import RotaryPosEncoder
 from ..layers.attention_v2 import ScaledDotProdAttV2
 from ..layers.tensor_parallel import ColumnParallelLinear
-from ..utils import scale_seq_lengths, seq_lengths_to_mask
+from ..utils import seq_lengths_to_mask
 from .net_arch import NetArch
 
 
@@ -52,9 +54,13 @@ class TransformerEncoderState(HyperDataClass):
 
     Attributes:
         block_states: List of per-block cache states mirroring the encoder layout.
+        stem_state: Per-convolution states for a causal 1-D stem, or None.
+        downsample_states: Per-stage causal downsampling states; identity stages use None.
     """
 
     block_states: List[TransformerBlockState] = field(default_factory=list)
+    stem_state: Optional[List[Dict[str, Any]]] = None
+    downsample_states: List[Optional[Dict[str, Any]]] = field(default_factory=list)
 
     def __len__(self) -> int:
         """Return the number of block cache entries.
@@ -273,7 +279,8 @@ class TransformerEncoderV2(NetArch):
         norm_layer (TransformerV2NormLayerType): Normalization layer family used throughout the encoder.
         norm_eps (float): Epsilon passed to normalization layers.
         pre_post_norm: Add branch post-norms before residual addition using norm_layer.
-        is_causal (bool): Enables causal masking inside the attention layers.
+        is_causal (bool): Enables causal attention and streaming 1-D convolutions;
+            Conv2D stems and ConvNeXt feed-forward blocks are unsupported.
         sdp_backend (SDPBackendType): Preferred backend for PyTorch scaled dot-product attention.
         multilayer (bool): Whether to enable multi-layer feature aggregation (MFA).
         multilayer_concat (bool): Whether MFA concatenates features instead of summing them.
@@ -401,7 +408,8 @@ class TransformerEncoderV2(NetArch):
             norm_layer (TransformerV2NormLayerType, optional): Normalization layer family. Defaults to ``LAYERNORM``.
             norm_eps (float, optional): Epsilon used in normalization layers. Defaults to ``1e-5``.
             pre_post_norm: Add branch post-norms before residual addition using norm_layer. Defaults to False.
-            is_causal (bool, optional): Whether to apply causal masking inside attention. Defaults to ``False``.
+            is_causal (bool, optional): Whether to use causal attention and 1-D convolutions. Conv2D stems and
+                ConvNeXt feed-forward blocks are rejected. Defaults to ``False``.
             sdp_backend (SDPBackendType, optional): Preferred PyTorch scaled dot-product backend. Defaults to ``SDPBackendType.default()``.
             multilayer (bool, optional): Enables multi-layer feature aggregation (MFA). Defaults to ``False``.
             multilayer_concat (bool, optional): If ``True``, MFA concatenates endpoints before projection. Defaults to ``False``.
@@ -476,6 +484,10 @@ class TransformerEncoderV2(NetArch):
         self._norm_layer = TransformerV2NormLayerType.to_class(norm_layer)
 
         self.is_causal = is_causal
+        if is_causal and stem_type != TransformerEncoderV2StemType.CONV1D:
+            raise ValueError("Causal TransformerEncoderV2 requires a conv1d stem")
+        if is_causal and ff_type == TransformerV2FeedForwardType.CONVNEXT:
+            raise ValueError("ConvNeXt feed-forward blocks do not support causal mode")
         self.local_attention_sliding_window = local_attention_sliding_window
         self.global_attention_sliding_window = global_attention_sliding_window
         self.local_to_global_ratio = local_to_global_ratio
@@ -613,7 +625,11 @@ class TransformerEncoderV2(NetArch):
         )
 
         # stem block
-        stem_class = TransformerEncoderV2StemType.to_class(self.stem_type)
+        stem_class = (
+            TransformerEncoderV2StreamingConv1dStemBlock
+            if self.is_causal
+            else TransformerEncoderV2StemType.to_class(self.stem_type)
+        )
         stem_block = stem_class(
             in_feats,
             self.hidden_dims[0],
@@ -636,7 +652,12 @@ class TransformerEncoderV2(NetArch):
         for i in range(num_superblocks - 1):
             stride_i = self.downb_strides[i]
             if stride_i > 1 or self.hidden_dims[i] != self.hidden_dims[i + 1]:
-                block_i = TransformerV2ConvDownsampleBlock(
+                downsample_class = (
+                    TransformerV2StreamingConvDownsampleBlock
+                    if self.is_causal
+                    else TransformerV2ConvDownsampleBlock
+                )
+                block_i = downsample_class(
                     self.hidden_dims[i],
                     self.hidden_dims[i + 1],
                     stride=stride_i,
@@ -756,6 +777,11 @@ class TransformerEncoderV2(NetArch):
             in_concat_channels = 0
             for i in range(num_superblocks):
                 if self.is_endpoint[i]:
+                    if self.is_causal and self.convb_scales[i] != endpoint_scale:
+                        raise ValueError(
+                            "Causal multilayer endpoints must use the same temporal scale; "
+                            "endpoint resampling does not support streaming"
+                        )
                     if multilayer_concat:
                         out_channels = self.hidden_dims[i]
                         if self.convb_scales[i] != endpoint_scale:
@@ -880,9 +906,10 @@ class TransformerEncoderV2(NetArch):
         """Return the encoder receptive-field context.
 
         Returns:
-            Tuple[int, int]: Symmetric left/right context in frames.
+            Tuple[int, int]: Left/right convolution context in frames; causal encoders
+            have zero right context.
         """
-        return (self._context, self._context)
+        return (self._context, 0 if self.is_causal else self._context)
 
     def in_shape(self) -> Tuple[Optional[int], Optional[int], int]:
         """Return the expected input tensor shape.
@@ -918,30 +945,67 @@ class TransformerEncoderV2(NetArch):
 
         return (in_shape[0], T, out_channels)
 
-    @staticmethod
-    def _update_mask(
+    def _make_attention_mask(
+        self,
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor],
-        x_mask: Optional[torch.Tensor] = None,
+        start_pos: int,
+        cache: Optional[Dict[str, Any]],
     ) -> Optional[torch.Tensor]:
-        """Refresh a time mask for the current sequence length.
+        """Combine chunk padding with the visible cache window and causality.
 
         Args:
-            x: Current tensor shaped ``(batch, time, features)``.
-            x_lengths: Valid sequence lengths for the current tensor.
-            x_mask: Optional mask already matching the current time dimension.
+            x: Current stage features shaped (batch, query_time, features).
+            x_lengths: Valid lengths in the current stage chunk, shaped (batch,).
+            start_pos: Absolute query/chunk start in this stage's time base.
+            cache: Independent source cache before the current update, or None.
 
         Returns:
-            Optional[torch.Tensor]: Mask aligned with ``x`` or ``None`` when
-            lengths are unavailable.
+            Boolean (batch, key_time) padding mask for HF Flash/non-causal
+            attention, or (batch, 1, query_time, key_time) combined mask for
+            causal manual/Torch attention. None permits an unmasked backend
+            call, including Torch's uncached causal shortcut.
+
+        Historical keys are assumed valid for active sequences: a partially
+        valid chunk must be final, finished sequences must not resume, and
+        outputs with zero valid query length must be ignored.
         """
-        if x_lengths is None:
+        query_length = x.size(1)
+        padding_mask = seq_lengths_to_mask(x_lengths, query_length, time_dim=1)
+        end_pos = start_pos + query_length
+        key_offset = start_pos
+        key_length = query_length
+        if cache is not None:
+            old_offset = int(cache["cache_offset"])
+            old_end = old_offset + int(cache["cache_length"])
+            # Attention sees the old history plus the entire current chunk;
+            # cache capacity only limits what is retained for the next call.
+            if int(cache["cache_length"]) > 0:
+                key_offset = min(old_offset, start_pos)
+                key_length = max(old_end, end_pos) - key_offset
+
+        key_positions = torch.arange(key_length, device=x.device) + key_offset
+        key_valid = None
+        if padding_mask is not None:
+            key_valid = torch.ones(
+                x.size(0), key_length, dtype=torch.bool, device=x.device
+            )
+            current = (key_positions >= start_pos) & (key_positions < end_pos)
+            chunk_indices = key_positions[current] - start_pos
+            key_valid[:, current] = padding_mask[:, chunk_indices]
+
+        if not self.is_causal or self.att_type == TransformerV2AttType.HF_FLASH_SDP:
+            return key_valid
+        if (
+            self.att_type == TransformerV2AttType.TORCH_SDP
+            and cache is None
+            and padding_mask is None
+        ):
             return None
-
-        if x_mask is not None and x.size(1) == x_mask.size(1):
-            return x_mask
-
-        return seq_lengths_to_mask(x_lengths, x.size(1), time_dim=1)
+        query_positions = torch.arange(query_length, device=x.device) + start_pos
+        causal = key_positions[None, :] <= query_positions[:, None]
+        causal = causal[None, None, :, :]
+        return causal if key_valid is None else causal & key_valid[:, None, None, :]
 
     @staticmethod
     def _match_lens(endpoints: List[torch.Tensor]) -> List[torch.Tensor]:
@@ -999,14 +1063,18 @@ class TransformerEncoderV2(NetArch):
         """Initialize the per-block caches used for streaming inference.
 
         Args:
-            batch_size (int): Maximum batch size supported by the cache buffers.
-            max_cache_length (int): Maximum number of time steps stored before the first transformer block.
+            batch_size (int): Batch size for convolution streams and initial empty
+                attention cache tensors.
+            max_cache_length (int): Maximum retained history in the first stage's time base.
+                Later stages scale this limit by their downsampling strides. Each layer's
+                cache is additionally capped at its finite attention sliding window.
             device (Optional[torch.device]): Device on which to allocate the caches.
             dtype (Optional[torch.dtype]): Tensor dtype for the caches.
 
         Returns:
-            TransformerEncoderState: Container with one cache entry per transformer block.
-                Shared layers have self_att=None; source layers own their K/V cache.
+            TransformerEncoderState: Attention caches and, for causal encoders,
+                stem and downsampling convolution states. Shared layers have
+                self_att=None; source layers own their K/V cache.
         """
 
         block_states: List[TransformerBlockState] = []
@@ -1032,7 +1100,25 @@ class TransformerEncoderV2(NetArch):
                 )
                 block_states.append(TransformerBlockState(self_att=block_state))
 
-        return TransformerEncoderState(block_states=block_states)
+        stem_state = None
+        downsample_states = []
+        if self.is_causal:
+            stem_state = self.stem_block.init_state(
+                batch_size, device=device, dtype=dtype
+            )
+            downsample_states = [
+                (
+                    block.init_state(batch_size, device=device, dtype=dtype)
+                    if isinstance(block, TransformerV2StreamingConvDownsampleBlock)
+                    else None
+                )
+                for block in self.downsample_blocks
+            ]
+        return TransformerEncoderState(
+            block_states=block_states,
+            stem_state=stem_state,
+            downsample_states=downsample_states,
+        )
 
     def forward(
         self,
@@ -1052,21 +1138,37 @@ class TransformerEncoderV2(NetArch):
             start_pos (int, optional): Global starting position in the input-frame time base;
                 it is rescaled as the sequence is downsampled before cache writes.
             state (Optional[TransformerEncoderState]): Optional cache state returned by :meth:`init_state`.
+                Causal encoders use convolution stream methods when state is supplied;
+                without state they use full-sequence causal forwards. Streaming is for
+                inference in eval mode. start_pos must count consumed input frames.
 
         Returns:
             Either `(output, output_lengths)` when `state` is ``None`` or
             `(output, output_lengths, new_state)` when cache updates are requested.
         """
 
-        x_mask = None
-        if not torch.all(torch.isfinite(x)):
-            logging.warning("non-finite x-in-avg=%f", torch.mean(x))
-
-        _, x, x_lengths = self.stem_block(x, x_lengths)
-        x_mask = self._update_mask(x, x_lengths, x_mask)
+        stem_state = None
+        downsample_states = []
+        if state is not None and self.is_causal:
+            if (
+                state.stem_state is None
+                or len(state.downsample_states) != self.num_superblocks
+            ):
+                raise ValueError(
+                    "Causal streaming requires stem and downsampling states from init_state"
+                )
+            _, x, x_lengths, stem_state = self.stem_block.stream(
+                x, state.stem_state, x_lengths
+            )
+        else:
+            _, x, x_lengths = self.stem_block(x, x_lengths)
         for stride in self.stem_strides:
             if stride > 1:
-                start_pos = start_pos // stride
+                start_pos = (
+                    (start_pos + stride - 1) // stride
+                    if self.is_causal
+                    else start_pos // stride
+                )
         endpoints = []
         if not torch.all(torch.isfinite(x)):
             logging.warning("non-finite x-stem-avg=%f", torch.mean(x))
@@ -1081,22 +1183,67 @@ class TransformerEncoderV2(NetArch):
 
         for i in range(self.num_superblocks):
             prepared_kv: Dict[int, Tuple[torch.Tensor, torch.Tensor]] = {}
-            prev_length = x.size(1)
-            x = self.downsample_blocks[i](x)
-            x_lengths = scale_seq_lengths(
-                x_lengths, max_out_length=x.size(1), max_in_length=prev_length
-            )
-            x_mask = self._update_mask(x, x_lengths, x_mask)
+            downsample_block = self.downsample_blocks[i]
+            downsample_state = None
+            if not isinstance(downsample_block, nn.Identity):
+                if self.is_causal and state is not None:
+                    downsample_state = state.downsample_states[i]
+                    if downsample_state is None:
+                        raise ValueError("Missing causal downsampling state")
+                    x, x_lengths, downsample_state = downsample_block.stream(
+                        x, downsample_state, x_lengths
+                    )
+                else:
+                    x, x_lengths = downsample_block(x, x_lengths)
+            if self.is_causal:
+                downsample_states.append(downsample_state)
             if i > 0:
                 stride_i = self.downb_strides[i - 1]
                 if stride_i > 1:
-                    start_pos = start_pos // stride_i
+                    start_pos = (
+                        (start_pos + stride_i - 1) // stride_i
+                        if self.is_causal
+                        else start_pos // stride_i
+                    )
+
+            # Local/global caches may retain different histories. Build each
+            # type's mask before source updates, reusing masks for equal histories.
+            attention_masks: Dict[str, Optional[torch.Tensor]] = {}
+            masks_by_history: Dict[
+                Optional[Tuple[int, int]], Optional[torch.Tensor]
+            ] = {}
+            for j, block in enumerate(self.trans_blocks[i]):
+                layer_type = self.layer_types[block_idx + j]
+                if block.attention.shared_kv or layer_type in attention_masks:
+                    continue
+                cache = (
+                    state_blocks[block_idx + j].self_att if state is not None else None
+                )
+                history = (
+                    (int(cache["cache_offset"]), int(cache["cache_length"]))
+                    if cache is not None
+                    else None
+                )
+                if history not in masks_by_history:
+                    masks_by_history[history] = self._make_attention_mask(
+                        x, x_lengths, start_pos, cache
+                    )
+                attention_masks[layer_type] = masks_by_history[history]
 
             for j in range(self.encb_repeats[i]):
                 current_state = (
                     state_blocks[block_idx].self_att if state is not None else None
                 )
                 block = self.trans_blocks[i][j]
+                # A strided convolution may emit no frames for a short chunk.
+                # Preserve attention caches until this stage emits its next frame.
+                if x.size(1) == 0:
+                    if state is not None:
+                        updated_states.append(
+                            TransformerBlockState(self_att=current_state)
+                        )
+                    block_idx += 1
+                    continue
                 source_idx = self.kv_source_layers[block_idx]
                 if source_idx is not None and current_state is not None:
                     raise ValueError(
@@ -1105,7 +1252,7 @@ class TransformerEncoderV2(NetArch):
                 export_kv = block_idx in self._kv_export_layers
                 att_out = block(
                     x,
-                    x_mask=x_mask,
+                    x_mask=attention_masks[self.layer_types[block_idx]],
                     start_pos=start_pos,
                     state=current_state,
                     shared_kv=None if source_idx is None else prepared_kv[source_idx],
@@ -1151,8 +1298,24 @@ class TransformerEncoderV2(NetArch):
         if not torch.all(torch.isfinite(x)):
             logging.warning("non-finite x-out-%d-%d-avg=%f", i, j, torch.mean(x))
         if state is not None:
-            return x, x_lengths, TransformerEncoderState(block_states=updated_states)
+            return (
+                x,
+                x_lengths,
+                TransformerEncoderState(
+                    block_states=updated_states,
+                    stem_state=stem_state,
+                    downsample_states=downsample_states,
+                ),
+            )
         return x, x_lengths
+
+    def requires_ddp_find_unused_parameters(self) -> bool:
+        """Return whether expert routing requires DDP unused-parameter detection.
+
+        Returns:
+            ``True`` when the feed-forward blocks use G4MoE.
+        """
+        return self.ff_type == TransformerV2FeedForwardType.G4MoE
 
     def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Return a serializable configuration dictionary.
@@ -1620,7 +1783,7 @@ class TransformerEncoderV2(NetArch):
                 "--is-causal",
                 default=False,
                 action=ActionYesNo,
-                help="attention mask is causal",
+                help="use causal attention and streaming 1-D convolutions; rejects conv2d stems and ConvNeXt",
             )
 
             parser.add_argument(

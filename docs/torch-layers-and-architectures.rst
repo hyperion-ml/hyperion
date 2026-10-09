@@ -262,6 +262,62 @@ local tensor references, so gradients reach the source during training and no
 source tensors are stored on the model between forward calls. QFormerV2 does
 not configure shared suffixes.
 
+Encoder attention masks and streaming
+------------------------------------
+
+``TransformerEncoderV2(is_causal=True)`` combines key padding with causality
+for manual and Torch attention. Explicit masks use boolean keep semantics and
+shape ``(batch, 1, query_time, key_time)``; causal comparisons use absolute
+query/key positions, including the visible cache offset. Torch's native causal
+shortcut is retained for uncached calls without a padding mask. HF Flash uses
+its usual two-dimensional padding mask and separate causal flag.
+
+For cached calls, historical keys are treated as valid for active sequences,
+and padding is applied to the current chunk. A partially valid chunk must be
+final: subsequent calls use zero length for that batch element, its outputs
+are ignored, and it must not resume. This contract requires no extra cache
+fields or persistent historical masks. Masks account for cache rollover and
+stage downsampling. Each superblock builds masks for local and global histories
+before source caches update, and reuses a mask when the histories match.
+Shared consumers use the mask built for their source's attention type.
+Independent caches of the same type within a superblock must have matching
+lengths, offsets, and capacities.
+
+Cache capacity is ``min(stage_cache_length, sliding_window)`` for layers with
+a finite attention window, including global layers when a global window is
+configured. Layers without a window use ``stage_cache_length``. The stage
+limit is derived from ``init_state(max_cache_length=...)`` and inter-stage
+downsampling. Windows stay in each stage's token units; they are not rescaled.
+Shared layers allocate no separate cache. Attention K/V tensors start empty;
+``CacheState["max_cache_length"]`` records the retention limit separately from
+their current size. Each update concatenates retained history with current
+K/V, then stores suffix views without copying into preallocated buffers.
+A retained view keeps the full attention allocation alive until replaced by
+the next update and all other references have been released.
+Cached attention uses the previous history and the entire current chunk, even
+when the chunk exceeds cache capacity. After attention, only the last
+capacity-sized suffix is retained for the next call. Shared layers consume
+the full K/V used by their source layer, including the entire current chunk.
+Causal encoders use ``TransformerEncoderV2StreamingConv1dStemBlock`` and
+``TransformerV2StreamingConvDownsampleBlock`` in place of ordinary temporal
+convolutions. Downsampling blocks accept optional ``x_lengths`` in both paths:
+``forward`` returns ``(x, x_lengths)``, while ``stream`` additionally returns
+the updated convolution state. Full-sequence calls without state use causal ``forward`` methods
+with gradients enabled. Calls with state use convolution ``stream`` methods
+for inference, carrying input history and stride phase alongside attention
+caches in ``TransformerEncoderState.stem_state`` and ``downsample_states``.
+Use ``eval()`` and ``torch.no_grad()`` for streaming inference, and advance
+``start_pos`` by the number of input frames consumed, including chunks that
+emit no output. Stride phase determines exact output lengths and positions;
+chunks need not be multiples of the downsampling factor. A stage emitting
+no frames leaves its attention caches unchanged. Causal convolution right
+context is zero.
+
+Conv2D stems and ConvNeXt feed-forward blocks are rejected when
+``is_causal=True``. Multilayer endpoints must already have the target temporal
+scale; endpoint resampling is not supported for causal streaming. Ordinary
+stems, downsampling and endpoints remain available for non-causal encoders.
+
 Value normalization in V2 Transformers
 -------------------------------------
 

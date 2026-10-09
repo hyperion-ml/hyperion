@@ -320,7 +320,9 @@ class StreamingCausalConv1d(nn.Conv1d):
         else:
             new_tail = tail
 
-        if new_tail.size(-1) > self._Rp:
+        if self._Rp == 0:
+            new_tail = new_tail[..., :0]
+        elif new_tail.size(-1) > self._Rp:
             new_tail = new_tail[..., -self._Rp :]
 
         if flush:

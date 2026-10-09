@@ -171,6 +171,15 @@ class HyperTorchModel(nn.Module):
         for n, p in self.named_buffers():
             logging.info("buffers: %s", n)
 
+    def requires_ddp_find_unused_parameters(self) -> bool:
+        """Return whether DDP must detect unused parameters during backward.
+
+        Returns:
+            ``False`` by default; subclasses with conditional parameter usage
+            can override this method.
+        """
+        return False
+
     def has_param_groups(self) -> bool:
         """Return whether model exposes custom optimizer parameter groups.
 
