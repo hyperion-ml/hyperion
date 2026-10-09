@@ -7,6 +7,34 @@ from typing import Literal, Optional, Tuple, Union, overload
 
 import torch
 import torch.amp as amp
+import torch.nn as nn
+
+
+def conv_output_lengths(
+    lengths: torch.Tensor, conv: Union[nn.Conv1d, nn.Conv2d]
+) -> torch.Tensor:
+    """Compute valid temporal lengths using the convolution's exact parameters.
+
+    Args:
+        lengths: Valid input lengths for each batch element.
+        conv: Convolution whose final spatial axis is time.
+
+    Returns:
+        Nonnegative output lengths, preserving zero-length sequences.
+    """
+    kernel = conv.kernel_size[-1]
+    stride = conv.stride[-1]
+    padding = conv.padding[-1]
+    dilation = conv.dilation[-1]
+    output_lengths = (
+        torch.div(
+            lengths + 2 * padding - dilation * (kernel - 1) - 1,
+            stride,
+            rounding_mode="floor",
+        )
+        + 1
+    )
+    return output_lengths.clamp_min(0).masked_fill(lengths == 0, 0)
 
 
 def l2_norm(x: torch.Tensor, dim: int = 1, axis: Optional[int] = None) -> torch.Tensor:

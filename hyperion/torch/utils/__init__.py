@@ -33,4 +33,5 @@ from .masking import (
     seq_lengths_to_self_attn_mask,
 )
 from .metric_acc import MetricAcc
+from .misc import conv_output_lengths
 from .vad_utils import remove_silence

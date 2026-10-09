@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
+from packaging.version import Version
 from torch.nn.attention import SDPBackend, sdpa_kernel
 from transformers.modeling_flash_attention_utils import _flash_attention_forward
 
@@ -736,6 +737,45 @@ class ScaledDotProdAttV2(nn.Module):
 class TorchScaledDotProdAttV2(ScaledDotProdAttV2):
     """Scaled dot-product attention backed by PyTorch's fused implementation."""
 
+    @staticmethod
+    def set_flash_attention_version(flash_attention_version: int = 2) -> None:
+        """Select the process-wide native SDPA Flash Attention implementation.
+
+        Args:
+            flash_attention_version: Requested version (2, 3, or 4). FA2 is
+                unchanged on PyTorch <= 2.9.1; newer versions use the registry.
+                Other SDPA backends are unaffected.
+        """
+        if (
+            isinstance(flash_attention_version, bool)
+            or not isinstance(flash_attention_version, int)
+            or flash_attention_version not in (2, 3, 4)
+        ):
+            raise ValueError("flash_attention_version must be 2, 3, or 4")
+        if Version(torch.__version__.split("+")[0]) <= Version("2.9.1"):
+            if flash_attention_version != 2:
+                raise RuntimeError("Native FA3/FA4 selection requires PyTorch > 2.9.1")
+            return
+        attention = torch.nn.attention
+        if not hasattr(attention, "activate_flash_attention_impl"):
+            raise RuntimeError(
+                "This PyTorch build lacks Flash Attention implementation selection"
+            )
+        current = attention.current_flash_attention_impl()
+        requested = (
+            None if flash_attention_version == 2 else f"FA{flash_attention_version}"
+        )
+        if current == requested:
+            return
+        if requested is None:
+            if not hasattr(attention, "restore_flash_attention_impl"):
+                raise RuntimeError("Restoring native FA2 requires PyTorch >= 2.11")
+            attention.restore_flash_attention_impl()
+        else:
+            if requested not in attention.list_flash_attention_impls():
+                raise RuntimeError(f"{requested} is unavailable in this PyTorch build")
+            attention.activate_flash_attention_impl(requested)
+
     def __init__(
         self,
         *args,
@@ -841,18 +881,31 @@ class TorchScaledDotProdAttV2(ScaledDotProdAttV2):
 
 
 class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
-    """Scaled dot-product attention dispatched to Flash Attention kernels."""
+    """Scaled dot-product attention dispatched to Flash Attention kernels.
 
-    def __init__(self, *args, **kwargs):
+    Attributes:
+        flash_attention_version: Requested Flash Attention version (2, 3, or 4).
+        attn_implementation: HuggingFace implementation name.
+        is_causal: Whether to apply causal attention, inherited from the base.
+        sliding_window: Optional local attention window, inherited from the base.
+    """
+
+    def __init__(self, *args, flash_attention_version: int = 4, **kwargs):
         """Create a HuggingFace Flash Attention-backed layer.
 
         Args:
             *args: Positional arguments forwarded to `ScaledDotProdAttV2`.
+            flash_attention_version: Flash Attention version, one of 2, 3, or 4.
             **kwargs: Keyword arguments forwarded to `ScaledDotProdAttV2`.
-
-        Returns:
-            None: This constructor initializes the module in place.
         """
+        if (
+            isinstance(flash_attention_version, bool)
+            or not isinstance(flash_attention_version, int)
+            or flash_attention_version not in (2, 3, 4)
+        ):
+            raise ValueError("flash_attention_version must be 2, 3, or 4")
+        self.flash_attention_version = flash_attention_version
+        self.attn_implementation = f"flash_attention_{flash_attention_version}"
         super().__init__(*args, **kwargs)
 
     def _assert_args(self):
@@ -879,7 +932,9 @@ class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
             value (torch.Tensor): Value tensor of shape `(batch, k_len, kv_heads, head_dim)`.
             mask (Optional[torch.Tensor]): Optional key-padding mask with shape `(batch, k_len)`
                 where boolean masks are interpreted as keep masks, and numeric masks
-                use non-negative values as valid tokens.
+                use non-negative values as valid tokens. Non-causal cross-attention
+                also accepts a (batch, 1, query_len, key_len) padding-only mask
+                whose rows are identical; arbitrary pairwise masks are unsupported.
 
         Returns:
             torch.Tensor: Attention output of shape `(batch, q_len, local_heads * head_dim)`.
@@ -894,6 +949,21 @@ class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
                 f"num_heads ({num_heads}) must be divisible by kv_heads ({kv_heads})"
             )
         attn_mask = None
+        cross_padding_mask = mask is not None and mask.dim() == 4
+        if cross_padding_mask:
+            if self.is_causal or mask.size(1) != 1 or mask.size(2) < q_length:
+                raise ValueError(
+                    "Cross-attention masks must have shape (batch, 1, query_len, key_len) and be non-causal"
+                )
+            keep_mask = mask if mask.dtype == torch.bool else mask >= 0
+            if not torch.equal(
+                keep_mask[:, :, :q_length],
+                keep_mask[:, :, :1].expand(-1, -1, q_length, -1),
+            ):
+                raise ValueError(
+                    "Flash cross-attention supports only key-padding masks shared by all queries"
+                )
+            mask = keep_mask[:, 0, 0]
         if mask is not None:
             assert (
                 mask.dim() == 2
@@ -909,6 +979,14 @@ class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
                 attn_mask = attn_mask >= 0
 
         dropout_rate = self.dropout_rate if self.training else 0.0
+        if (
+            attn_mask is not None
+            and not self.is_causal
+            and (cross_padding_mask or q_length != k_length)
+        ):
+            return self._compute_cross_attention(
+                query, key, value, attn_mask, dropout_rate
+            )
         output = _flash_attention_forward(
             query,
             key,
@@ -920,5 +998,68 @@ class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
             sliding_window=self.sliding_window,
             use_top_left_mask=False,
             is_causal=self.is_causal,
+            attn_implementation=self.attn_implementation,
         )
         return output.reshape(bsz, q_length, -1).contiguous()
+
+    def _compute_cross_attention(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        key_mask: torch.Tensor,
+        dropout_rate: float,
+    ) -> torch.Tensor:
+        """Attend from fully valid queries to independently padded keys.
+
+        Args:
+            query: Query states shaped (batch, query_len, heads, head_dim).
+            key: Key states shaped (batch, key_len, kv_heads, head_dim).
+            value: Value states with the same layout as key.
+            key_mask: Boolean key validity shaped (batch, key_len).
+            dropout_rate: Attention dropout probability.
+
+        Returns:
+            Attention output shaped (batch, query_len, heads * head_dim).
+        """
+        batch_size, query_length, num_heads, head_dim = query.shape
+        lengths = key_mask.sum(-1, dtype=torch.int32)
+        active = lengths > 0
+        output = torch.zeros_like(query)
+        if query_length == 0 or not active.any():
+            return output.reshape(batch_size, query_length, num_heads * head_dim)
+        active_lengths = lengths[active]
+        active_batch = active_lengths.numel()
+        cu_q = (
+            torch.arange(active_batch + 1, device=query.device, dtype=torch.int32)
+            * query_length
+        )
+        cu_k = torch.cat(
+            (active_lengths.new_zeros(1), active_lengths.cumsum(0, dtype=torch.int32))
+        )
+        # HF reshapes outputs using the input batch dimension. Pack into one
+        # outer batch and retain the actual example boundaries in cu_q/cu_k.
+        packed_output = _flash_attention_forward(
+            query[active].reshape(1, -1, num_heads, head_dim),
+            key[key_mask].unsqueeze(0),
+            value[key_mask].unsqueeze(0),
+            attention_mask=None,
+            query_length=query_length,
+            is_causal=False,
+            dropout=dropout_rate,
+            softmax_scale=self.att_scale,
+            cu_seq_lens_q=cu_q,
+            cu_seq_lens_k=cu_k,
+            sliding_window=self.sliding_window,
+            max_length_q=query_length,
+            max_length_k=int(active_lengths.max().item()),
+            attn_implementation=self.attn_implementation,
+        )
+        output = output.index_copy(
+            0,
+            active.nonzero(as_tuple=True)[0],
+            packed_output.reshape(active_batch, query_length, num_heads, head_dim),
+        )
+        return output.reshape(
+            batch_size, query_length, num_heads * head_dim
+        ).contiguous()

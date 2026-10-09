@@ -24,7 +24,7 @@ from ..layers.tensor_parallel import (
     RowParallelLinear,
     get_tensor_parallel_world_size,
 )
-from ..utils import scale_seq_lengths, seq_lengths_to_mask
+from ..utils import conv_output_lengths, seq_lengths_to_mask
 
 
 class TransformerEncoderV2StemType(str, Enum):
@@ -114,6 +114,31 @@ class TransformerV2FeedForwardType(str, Enum):
             return TransformerV2G4MoEBlock
         else:
             raise ValueError(f"invalid {value=}")
+
+
+def _frame_validity_mask(
+    mask: Optional[torch.Tensor], length: int
+) -> Optional[torch.Tensor]:
+    """Extract current-frame validity from padding or self-attention masks.
+
+    Args:
+        mask: Boolean keep mask or additive mask shaped (B, K) or (B, 1, Q, K).
+            Cached history precedes the current frames on the key axis.
+        length: Number of current frames; zero produces an empty mask.
+
+    Returns:
+        Boolean validity mask shaped (B, length), or None.
+    """
+    if mask is None:
+        return None
+    keep = mask if mask.dtype == torch.bool else mask >= 0
+    if keep.dim() == 4:
+        keep = keep.any(dim=1).any(dim=1)
+    elif keep.dim() != 2:
+        raise ValueError("Expected a (B, K) or (B, 1, Q, K) mask")
+    if keep.size(-1) < length:
+        raise ValueError("Mask key length is shorter than the current frames")
+    return keep[:, keep.size(-1) - length :]
 
 
 class Conv2dStemLayer(nn.Module):
@@ -359,12 +384,18 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
         """
         bs, t_in, f_in = x.size()
         x = x.view(bs, 1, t_in, f_in).permute(0, 1, 3, 2).contiguous()
-        x = self.conv_layers(x)
+        for layer in self.conv_layers:
+            if x_lengths is not None:
+                valid = seq_lengths_to_mask(x_lengths, x.size(-1))
+                shape = (x.size(0),) + (1,) * (x.dim() - 2) + (x.size(-1),)
+                x = x.masked_fill(~valid.reshape(shape), 0.0)
+            x = layer(x)
+            if x_lengths is not None:
+                x_lengths = conv_output_lengths(x_lengths, layer.conv)
         bs, c, f_out, t_out = x.size()
         x = x.permute(0, 3, 1, 2).reshape(bs, t_out, -1)
         x = self.norm_layer(x)
         if x_lengths is not None:
-            x_lengths = scale_seq_lengths(x_lengths, t_out, t_in)
             x_mask = ~seq_lengths_to_mask(x_lengths, t_out).unsqueeze(-1)
             x = x.masked_fill(x_mask, 0.0)
 
@@ -473,11 +504,17 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
         """
         bs, t_in, c = x.size()
         x = x.permute(0, 2, 1).contiguous()
-        x = self.conv_layers(x)
+        for layer in self.conv_layers:
+            if x_lengths is not None:
+                valid = seq_lengths_to_mask(x_lengths, x.size(-1))
+                shape = (x.size(0),) + (1,) * (x.dim() - 2) + (x.size(-1),)
+                x = x.masked_fill(~valid.reshape(shape), 0.0)
+            x = layer(x)
+            if x_lengths is not None:
+                x_lengths = conv_output_lengths(x_lengths, layer.conv)
         x = x.permute(0, 2, 1).contiguous()
         x = self.norm_layer(x)
         if x_lengths is not None:
-            x_lengths = scale_seq_lengths(x_lengths, x.size(1), t_in)
             x_mask = ~seq_lengths_to_mask(x_lengths, x.size(1)).unsqueeze(-1)
             x = x.masked_fill(x_mask, 0.0)
 
@@ -600,6 +637,9 @@ class TransformerEncoderV2StreamingConv1dStemBlock(TransfomerV2Conv1dStemBlock):
         x = x.transpose(1, 2)
         new_states = []
         for i, layer in enumerate(self.conv_layers):
+            if x_lengths is not None:
+                valid = seq_lengths_to_mask(x_lengths, x.size(-1))
+                x = x.masked_fill(~valid[:, None, :], 0.0)
             phase = 0 if state is None else int(state[i]["phase"])
             offset = (layer.stride - phase) % layer.stride
             if state is None:
@@ -769,7 +809,7 @@ class TransformerV2MLPBlock(nn.Module):
 
         Args:
             x (torch.Tensor): Input tensor of shape `(batch, time, hidden_dim)`.
-            x_mask (Optional[torch.Tensor]): Unused placeholder for API symmetry.
+            x_mask (Optional[torch.Tensor]): Optional 2-D padding or 4-D attention mask; unused by this pointwise block.
 
         Returns:
             torch.Tensor: Projected tensor with shape `(batch, time, hidden_dim)`.
@@ -938,7 +978,7 @@ class TransformerV2G4MoEBlock(nn.Module):
 
         Args:
             x: Input tensor shaped (batch, time, hidden_dim).
-            x_mask: Unused placeholder; routing is independent for each token.
+            x_mask: Optional 2-D padding or 4-D attention mask; routing is independent for each token.
 
         Returns:
             Tensor with the same shape and dtype as x.
@@ -999,7 +1039,8 @@ class TransformerV2ConvNextBlock(nn.Module):
         Args:
             hidden_dim (int): Dimension of the incoming sequence representation.
             intermediate_dim (int): Target width of the intermediate projections before rounding.
-            kernel_size (int, optional): Depthwise convolution kernel size. Defaults to ``7``.
+            kernel_size (int, optional): Positive odd depthwise convolution kernel size,
+                preserving the input sequence length. Defaults to ``7``.
             dilation (int, optional): Dilation applied to the depthwise kernel. Defaults to ``1``.
             activation (Union[str, nn.Module], optional): Activation applied to the gated branch. Defaults to ``"silu"``.
             norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
@@ -1012,6 +1053,13 @@ class TransformerV2ConvNextBlock(nn.Module):
         super().__init__()
         self.pre_post_norm = pre_post_norm
         assert model_parallel is False
+        if (
+            isinstance(kernel_size, bool)
+            or not isinstance(kernel_size, int)
+            or kernel_size <= 0
+            or kernel_size % 2 == 0
+        ):
+            raise ValueError("ConvNeXt kernel_size must be a positive odd integer")
         # mimics LLama 3 readjustemnt of intermediate_dim
         intermediate_dim = ff_multiple_of * (
             (intermediate_dim + ff_multiple_of - 1) // ff_multiple_of
@@ -1059,20 +1107,25 @@ class TransformerV2ConvNextBlock(nn.Module):
 
         Args:
             x (torch.Tensor): Input tensor of shape ``(batch, time, hidden_dim)``.
-            x_mask (Optional[torch.Tensor]): Optional mask passed to :class:`GRN1d`.
+            x_mask (Optional[torch.Tensor]): Boolean keep or additive mask shaped (B, T) or (B, 1, Q, K). Padding is excluded from the convolution and GRN.
 
         Returns:
             torch.Tensor: Tensor with shape ``(batch, time, hidden_dim)`` after the ConvNeXt transformation.
         """
-        # input = x
+        valid = _frame_validity_mask(x_mask, x.size(1))
+        if valid is not None:
+            x = x.masked_fill(~valid[:, :, None], 0.0)
         x = x.permute(0, 2, 1).contiguous()  # (N, T, C) -> (N, C, T)
         x = self.dwconv(x)
         x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
         x = self.norm(x)
         x = self.act(self.gate_proj(x)) * self.up_proj(x)
-        x = self.grn(x, x_mask)
+        if valid is not None:
+            x = x.masked_fill(~valid[:, :, None], 0.0)
+        x = self.grn(x, None if valid is None else valid[:, :, None])
         x = self.down_proj(x)
-        return self.post_norm(x).type_as(x)
+        x = self.post_norm(x).type_as(x)
+        return x if valid is None else x.masked_fill(~valid[:, :, None], 0.0)
 
 
 class TransformerV2ConvEndpoint(nn.Module):
@@ -1239,18 +1292,25 @@ class TransformerV2ConvDownsampleBlock(nn.Module):
         self,
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor] = None,
+        x_mask: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Downsample features and their valid sequence lengths.
 
         Args:
             x: Features shaped (batch, time, channels).
             x_lengths: Optional valid sequence lengths.
+            x_mask: Optional 2-D padding or 4-D self-attention mask.
 
         Returns:
             Downsampled features and valid lengths, or None when lengths are absent.
         """
-        input_length = x.size(1)
         x = self.norm(x)
+        valid = _frame_validity_mask(x_mask, x.size(1))
+        if x_lengths is not None:
+            length_valid = seq_lengths_to_mask(x_lengths, x.size(1))
+            valid = length_valid if valid is None else valid & length_valid
+        if valid is not None:
+            x = x.masked_fill(~valid[:, :, None], 0.0)
         x = self.conv(x.transpose(1, 2).contiguous()).transpose(1, 2).contiguous()
         if self._is_causal:
             if x_lengths is not None:
@@ -1258,9 +1318,8 @@ class TransformerV2ConvDownsampleBlock(nn.Module):
                     x_lengths + self.stride - 1, self.stride, rounding_mode="floor"
                 )
         else:
-            x_lengths = scale_seq_lengths(
-                x_lengths, max_out_length=x.size(1), max_in_length=input_length
-            )
+            if x_lengths is not None:
+                x_lengths = conv_output_lengths(x_lengths, self.conv)
         return x, x_lengths
 
 
@@ -1302,6 +1361,7 @@ class TransformerV2StreamingConvDownsampleBlock(TransformerV2ConvDownsampleBlock
         x: torch.Tensor,
         state: Dict[str, Any],
         x_lengths: Optional[torch.Tensor] = None,
+        x_mask: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Dict[str, Any]]:
         """Downsample a chunk while preserving stride alignment across calls.
 
@@ -1309,12 +1369,20 @@ class TransformerV2StreamingConvDownsampleBlock(TransformerV2ConvDownsampleBlock
             x: Features shaped (batch, time, channels).
             state: State returned by init_state or the previous stream call.
             x_lengths: Valid lengths in the current chunk.
+            x_mask: Optional 2-D padding or 4-D self-attention mask.
 
         Returns:
             Downsampled features, valid lengths and updated convolution state.
         """
         offset = (self.stride - int(state["phase"])) % self.stride
-        x, state = self.conv.stream(self.norm(x).transpose(1, 2), state)
+        x = self.norm(x)
+        valid = _frame_validity_mask(x_mask, x.size(1))
+        if x_lengths is not None:
+            length_valid = seq_lengths_to_mask(x_lengths, x.size(1))
+            valid = length_valid if valid is None else valid & length_valid
+        if valid is not None:
+            x = x.masked_fill(~valid[:, :, None], 0.0)
+        x, state = self.conv.stream(x.transpose(1, 2), state)
         if x_lengths is not None:
             x_lengths = torch.div(
                 x_lengths - offset + self.stride - 1,
@@ -1403,7 +1471,7 @@ class TransformerV2SelfAttBlock(nn.Module):
             drop_path_rate (float, optional): Stochastic depth rate applied to the residual branch. Defaults to ``0.0``.
             norm_eps (float, optional): Epsilon for the normalization layers. Defaults to ``1e-5``.
             pre_post_norm: Normalize attention and feed-forward outputs before residual addition. Defaults to False.
-            model_parallel (bool, optional): Whether to use tensor model-parallel attention projections. Defaults to ``False``.
+            model_parallel (bool, optional): Whether to use tensor model-parallel attention and feed-forward projections. Defaults to ``False``.
         """
         super().__init__()
         att_class = TransformerV2AttType.to_class(att_type)
@@ -1447,7 +1515,6 @@ class TransformerV2SelfAttBlock(nn.Module):
                 num_experts=ff_num_experts,
                 top_k_experts=ff_top_k_experts,
                 moe_intermediate_dim=ff_moe_intermediate_dim,
-                model_parallel=model_parallel,
             )
             if ff_type == TransformerV2FeedForwardType.G4MoE
             else {}
@@ -1463,6 +1530,7 @@ class TransformerV2SelfAttBlock(nn.Module):
             norm_layer=norm_layer,
             norm_eps=norm_eps,
             pre_post_norm=pre_post_norm,
+            model_parallel=model_parallel,
             **moe_kwargs,
         )
 
@@ -1562,7 +1630,7 @@ class TransformerV2SelfAttBlock(nn.Module):
             att_value = att_out
             new_state = None
         h = x + self.att_post_norm(att_value).type_as(att_value)
-        out = h + self.feed_forward(self.ff_norm(h))
+        out = h + self.feed_forward(self.ff_norm(h), x_mask=x_mask)
         if self.drop_path is not None and self.training:
             out = x + self.drop_path(out - x)
         if return_kv:
@@ -1656,7 +1724,7 @@ class TransformerV2CrossAttBlock(nn.Module):
             drop_path_rate (float, optional): Stochastic depth rate applied to the residual branch. Defaults to ``0.0``.
             norm_eps (float, optional): Epsilon for the normalization layers. Defaults to ``1e-5``.
             pre_post_norm: Normalize attention and feed-forward outputs before residual addition. Defaults to False.
-            model_parallel (bool, optional): Whether to use tensor model-parallel attention projections. Defaults to ``False``.
+            model_parallel (bool, optional): Whether to use tensor model-parallel attention and feed-forward projections. Defaults to ``False``.
         """
         super().__init__()
         att_class = TransformerV2AttType.to_class(att_type)
@@ -1718,7 +1786,6 @@ class TransformerV2CrossAttBlock(nn.Module):
                 num_experts=ff_num_experts,
                 top_k_experts=ff_top_k_experts,
                 moe_intermediate_dim=ff_moe_intermediate_dim,
-                model_parallel=model_parallel,
             )
             if ff_type == TransformerV2FeedForwardType.G4MoE
             else {}
@@ -1734,6 +1801,7 @@ class TransformerV2CrossAttBlock(nn.Module):
             norm_layer=norm_layer,
             norm_eps=norm_eps,
             pre_post_norm=pre_post_norm,
+            model_parallel=model_parallel,
             **moe_kwargs,
         )
 
@@ -1853,7 +1921,7 @@ class TransformerV2CrossAttBlock(nn.Module):
                 cross_value = cross_out
             h = h + self.cross_att_post_norm(cross_value).type_as(cross_value)
 
-        out = h + self.feed_forward(self.ff_norm(h))
+        out = h + self.feed_forward(self.ff_norm(h), x_mask=x_mask)
         if self.drop_path is not None and self.training:
             out = x + self.drop_path(out - x)
         if new_state is not None:

@@ -29,7 +29,7 @@ from ..layer_blocks.transformer_v2 import (
     TransformerV2StreamingConvDownsampleBlock,
 )
 from ..layers import RotaryPosEncoder
-from ..layers.attention_v2 import ScaledDotProdAttV2
+from ..layers.attention_v2 import ScaledDotProdAttV2, TorchScaledDotProdAttV2
 from ..layers.tensor_parallel import ColumnParallelLinear
 from ..utils import seq_lengths_to_mask
 from .net_arch import NetArch
@@ -281,6 +281,7 @@ class TransformerEncoderV2(NetArch):
         pre_post_norm: Add branch post-norms before residual addition using norm_layer.
         is_causal (bool): Enables causal attention and streaming 1-D convolutions;
             Conv2D stems and ConvNeXt feed-forward blocks are unsupported.
+        flash_attention_version: Process-wide native Torch Flash Attention version (2, 3, or 4).
         sdp_backend (SDPBackendType): Preferred backend for PyTorch scaled dot-product attention.
         multilayer (bool): Whether to enable multi-layer feature aggregation (MFA).
         multilayer_concat (bool): Whether MFA concatenates features instead of summing them.
@@ -345,6 +346,7 @@ class TransformerEncoderV2(NetArch):
         pre_post_norm: bool = False,
         is_causal: bool = False,
         sdp_backend: SDPBackendType = SDPBackendType.default(),
+        flash_attention_version: int = 2,
         multilayer: bool = False,
         multilayer_concat: bool = False,
         endpoint_channels: Optional[int] = None,
@@ -410,6 +412,7 @@ class TransformerEncoderV2(NetArch):
             pre_post_norm: Add branch post-norms before residual addition using norm_layer. Defaults to False.
             is_causal (bool, optional): Whether to use causal attention and 1-D convolutions. Conv2D stems and
                 ConvNeXt feed-forward blocks are rejected. Defaults to ``False``.
+            flash_attention_version: Process-wide native Torch Flash Attention version; defaults to 2.
             sdp_backend (SDPBackendType, optional): Preferred PyTorch scaled dot-product backend. Defaults to ``SDPBackendType.default()``.
             multilayer (bool, optional): Enables multi-layer feature aggregation (MFA). Defaults to ``False``.
             multilayer_concat (bool, optional): If ``True``, MFA concatenates endpoints before projection. Defaults to ``False``.
@@ -495,6 +498,9 @@ class TransformerEncoderV2(NetArch):
         self.global_head_dim = global_head_dim
         self.global_k_eq_v = global_k_eq_v
         self.sdp_backend = sdp_backend
+        self.flash_attention_version = flash_attention_version
+        if self.att_type == TransformerV2AttType.TORCH_SDP:
+            TorchScaledDotProdAttV2.set_flash_attention_version(flash_attention_version)
 
         self.local_rope_theta = local_rope_theta
         self.global_rope_theta = global_rope_theta
@@ -1381,6 +1387,7 @@ class TransformerEncoderV2(NetArch):
             "pre_post_norm": self.pre_post_norm,
             "is_causal": self.is_causal,
             "sdp_backend": self.sdp_backend,
+            "flash_attention_version": self.flash_attention_version,
             "multilayer": self.multilayer,
             "multilayer_concat": self.multilayer_concat,
             "endpoint_channels": self.endpoint_channels,
@@ -1786,6 +1793,13 @@ class TransformerEncoderV2(NetArch):
                 help="use causal attention and streaming 1-D convolutions; rejects conv2d stems and ConvNeXt",
             )
 
+            parser.add_argument(
+                "--flash-attention-version",
+                default=2,
+                type=int,
+                choices=[2, 3, 4],
+                help="process-wide native Torch Flash Attention version; FA3/FA4 require newer PyTorch and kernel support",
+            )
             parser.add_argument(
                 "--sdp-backend",
                 default=SDPBackendType.default().value,

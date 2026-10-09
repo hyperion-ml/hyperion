@@ -21,7 +21,7 @@ from ..layer_blocks.transformer_v2 import (
     TransformerV2SelfAttBlock,
 )
 from ..layers import RotaryPosEncoder
-from ..layers.attention_v2 import ScaledDotProdAttV2
+from ..layers.attention_v2 import ScaledDotProdAttV2, TorchScaledDotProdAttV2
 from ..layers.tensor_parallel import ColumnParallelLinear
 from ..utils import seq_lengths_to_cross_attn_mask
 from .net_arch import NetArch
@@ -66,6 +66,7 @@ class QFormerV2(NetArch):
         rope_high_freq_factor: High-frequency RoPE scaling threshold.
         out_feats: Optional output projection dimension.
         drop_path_rate: Global stochastic-depth rate.
+        flash_attention_version: Process-wide native Torch Flash Attention version (2, 3, or 4).
         sdp_backend: Preferred scaled dot-product attention backend.
         norm_layer: Normalization layer type.
         norm_eps: Epsilon used by normalization layers.
@@ -116,6 +117,7 @@ class QFormerV2(NetArch):
         out_feats: Optional[int] = None,
         drop_path_rate: float = 0.0,
         sdp_backend: SDPBackendType = SDPBackendType.default(),
+        flash_attention_version: int = 2,
         norm_layer: TransformerV2NormLayerType = TransformerV2NormLayerType.LAYERNORM,
         norm_eps: float = 1e-5,
         pre_post_norm: bool = False,
@@ -163,6 +165,7 @@ class QFormerV2(NetArch):
             rope_high_freq_factor: High-frequency threshold for RoPE scaling.
             out_feats: Optional output projection dimension; None or a nonpositive value disables it.
             drop_path_rate: Maximum stochastic-depth probability.
+            flash_attention_version: Process-wide native Torch Flash Attention version; defaults to 2.
             sdp_backend: Preferred PyTorch scaled dot-product attention kernels.
             norm_layer: Branch normalization type; independent of pre_post_norm. QK/router norms remain RMS.
             norm_eps: Epsilon for branch, Q/K/V, and MoE router normalization.
@@ -190,6 +193,9 @@ class QFormerV2(NetArch):
 
         self.att_type = att_type
         self.sdp_backend = sdp_backend
+        self.flash_attention_version = flash_attention_version
+        if self.att_type == TransformerV2AttType.TORCH_SDP:
+            TorchScaledDotProdAttV2.set_flash_attention_version(flash_attention_version)
         self.att_dropout_rate = att_dropout_rate
         self.att_bias = att_bias
         self.enable_qk_norm = enable_qk_norm
@@ -324,7 +330,7 @@ class QFormerV2(NetArch):
                     att_bias=self.att_bias,
                     enable_qk_norm=self.enable_qk_norm,
                     enable_v_norm=self.enable_v_norm,
-                    rope=self.rope,
+                    rope=self.rope if rope_in_self_att else None,
                     sdp_backend=self.sdp_backend,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
@@ -759,6 +765,7 @@ class QFormerV2(NetArch):
             "in_feats": self.in_feats,
             "att_type": self.att_type,
             "sdp_backend": self.sdp_backend,
+            "flash_attention_version": self.flash_attention_version,
             "num_layers": self.num_layers,
             "hidden_dim": self.hidden_dim,
             "num_heads": self.num_heads,
@@ -1161,6 +1168,14 @@ class QFormerV2(NetArch):
             default=0.0,
             type=float,
             help="drop path rate",
+        )
+        add_argument(
+            "flash_attention_version",
+            "--flash-attention-version",
+            default=2,
+            type=int,
+            choices=[2, 3, 4],
+            help="process-wide native Torch Flash Attention version; FA3/FA4 require newer PyTorch and kernel support",
         )
         add_argument(
             "sdp_backend",
