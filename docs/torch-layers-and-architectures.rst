@@ -99,6 +99,76 @@ All architecture classes derive from the shape-reporting contract described in
 and classification head should document the intermediate layout at each
 boundary, especially when it exposes embedding extraction.
 
+Local/global attention in TransformerEncoderV2
+----------------------------------------------
+
+``TransformerEncoderV2`` generates a local/global schedule using
+``local_to_global_ratio`` (default ``0``, all global). A ratio of ``5`` repeats
+five local layers followed by one global layer. The schedule continues across
+superblocks, and the final transformer layer is always global.
+
+``local_attention_sliding_window`` and ``global_attention_sliding_window`` both
+default to ``None`` (unrestricted attention). Finite windows require
+``att_type="hf_flash_sdp"``; when both are finite and local layers are enabled,
+the global window must exceed the local window. Window sizes are measured in
+stage tokens. The same window covers more audio after downsampling.
+
+Each stage has separate local and global ``RotaryPosEncoder`` instances, so
+caches do not mix head dimensions or temporal resolutions. Defaults are:
+
+* ``local_rope_theta=10000.0`` and ``global_rope_theta=1000000.0``;
+* ``local_rope_partial_rotary_factor=1.0`` and
+  ``global_rope_partial_rotary_factor=1.0``; and
+* ``local_rope_scale_freqs=True`` and ``global_rope_scale_freqs=True``.
+
+Partial rotation retains full-head frequency spacing. For head dimension
+``d``, pair ``i`` has frequency ``theta ** (-2*i/d)``; only the first
+``floor(partial_rotary_factor*d/2)`` pairs rotate. At least one pair must
+rotate. Unrotated pairs pass through unchanged. To select Gemma-style
+positional encoding, use global fraction ``0.25`` and disable both frequency
+scaling flags. The global theta alone does not reproduce all Gemma settings.
+
+The remaining RoPE arguments are shared: ``rope_update_max_seq_length=True``,
+``rope_original_max_seq_length=None`` (initial reference length ``8192``),
+``rope_scaling_factor=8``, ``rope_low_freq_factor=1``, and
+``rope_high_freq_factor=4``. Scaling is applied in training and evaluation when
+enabled, regardless of current sequence length. Training can grow each
+stage/type's reference length; that rebuilds its rotation cache. For fixed
+frequency behavior, including incremental attention with cached keys, disable
+reference-length updates. Previously, training with updates enabled bypassed
+frequency scaling; this behavior is corrected in the shared positional layer,
+including QFormerV2.
+
+These encoder options replace ``att_sliding_window``, ``rope_theta``, and
+``rope_scale_freqs`` in its config and CLI. QFormerV2 retains its existing
+architecture options. All new options are serialized and exposed by the
+encoder argument parser.
+
+Pre/post normalization in V2 Transformers
+----------------------------------------
+
+``TransformerEncoderV2`` and ``QFormerV2`` accept ``pre_post_norm=False``
+(default), also exposed as ``--pre-post-norm``. This flag controls normalization
+placement; ``norm_layer`` independently selects LayerNorm or RMSNorm.
+The flag and normalization type are saved in the architecture configuration.
+
+With ``pre_post_norm=False``, attention and feed-forward branches use pre-norm.
+With ``True``, the projected self-attention output is normalized before residual
+addition. QFormer cross-attention outputs are normalized in the same position.
+Dense MLP and ConvNeXt feed-forward outputs are normalized after the final
+projection and before residual addition. The ConvNeXt internal normalization is retained and uses the configured
+``norm_eps``.
+
+For example, a dense branch follows these equations when the flag is enabled::
+
+    h = x + att_post_norm(attention(att_norm(x)))
+    y = h + ff_post_norm(feed_forward_without_post_norm(ff_norm(h)))
+
+Each pre/post norm has independent learned parameters and uses the configured
+``norm_layer``. The normalization placement matches Gemma 4; choosing RMSNorm
+also matches its normalization type. ``pre_post_norm=True`` does not override
+``norm_layer``, enable QK normalization, or change the activation.
+
 QK normalization in V2 Transformers
 ----------------------------------
 
@@ -113,6 +183,61 @@ selection. Attention scores use a multiplier of one instead of
 ``1 / sqrt(head_dim)`` across all V2 attention backends. Values are unchanged.
 In ``QFormerV2`` this applies to both self-attention and cross-attention,
 including tied layers.
+
+Gemma 4 mixture of experts
+--------------------------
+
+``TransformerV2G4MoEBlock`` combines an always-active dense gated MLP with
+sparse routed gated-MLP experts. Select it in ``TransformerEncoderV2`` or
+``QFormerV2`` with ``ff_type="g4moe"`` and provide:
+
+* ``ff_num_experts``: total number of routed experts;
+* ``ff_top_k_experts``: experts selected per token; and
+* ``ff_moe_intermediate_dim``: intermediate width of each expert.
+
+The existing ``ff_dim_multiplier`` controls the dense MLP width. Both widths
+are rounded using ``ff_multiple_of``. Set ``ff_act="gelu-tanh"`` to match Gemma
+4; the architecture-level default activation remains ``"silu"``. Standalone
+``TransformerV2G4MoEBlock`` instances default to ``"gelu-tanh"``.
+
+For example, the following options configure either architecture::
+
+    ff_type="g4moe"
+    ff_num_experts=8
+    ff_top_k_experts=2
+    ff_moe_intermediate_dim=512
+    ff_act="gelu-tanh"
+
+The corresponding parser options are ``--ff-type``, ``--ff-num-experts``,
+``--ff-top-k-experts``, ``--ff-moe-intermediate-dim``, and ``--ff-act``.
+These options are included in the saved architecture configuration.
+
+The router applies unscaled RMS normalization, a learned feature scale, and
+``1 / sqrt(hidden_dim)`` before a bias-free projection. It selects experts
+from float32 softmax probabilities, renormalizes the selected probabilities,
+and applies learned per-expert scales. Only selected tokens are evaluated by
+each expert; tokens are not dropped.
+
+The dense and expert branches have separate pre-norms. The MoE class defaults
+to ``pre_post_norm=False``; setting it to ``True`` adds separate branch
+post-norms and a final norm on their sum. Architecture wrappers forward their
+``pre_post_norm`` and ``norm_layer`` settings to the MoE, so all branch norms
+use the selected normalization type and ``norm_eps``. Standalone MoE instances
+default to RMSNorm. Router normalization remains unscaled RMS normalization,
+independently of the branch normalization type. Transformer wrappers bypass their
+usual feed-forward pre-norm so that the MoE receives the residual stream
+before normalization. The standalone feed-forward module returns the branch
+output; the wrapper adds the residual.
+
+``model_parallel=True`` shards the dense/expert MLP intermediate projections
+using the existing tensor-parallel layers. The router is replicated; experts
+are not distributed to separate devices by expert parallelism.
+
+Sparse routing can leave some expert parameters unused in a training step.
+DDP training therefore requires unused-parameter detection, for example
+``DistributedDataParallel(..., find_unused_parameters=True)``. The standard
+``TorchTrainerBase`` DDP path currently does not enable this option; using
+``g4moe`` there requires additional trainer integration.
 
 Factories and selection
 -----------------------

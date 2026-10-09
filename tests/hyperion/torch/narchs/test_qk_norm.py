@@ -28,11 +28,12 @@ def _make_architecture(name: str, enabled: bool) -> TransformerEncoderV2 | QForm
         enable_qk_norm=enabled,
         norm_eps=2e-6,
         rope_original_max_seq_length=32,
-        rope_scale_freqs=False,
     )
     if name == "encoder":
         return TransformerEncoderV2(
             **common,
+            local_rope_scale_freqs=False,
+            global_rope_scale_freqs=False,
             stem_type="conv1d",
             stem_hidden_channels=[16],
             stem_kernel_sizes=[3],
@@ -43,6 +44,7 @@ def _make_architecture(name: str, enabled: bool) -> TransformerEncoderV2 | QForm
         )
     return QFormerV2(
         **common,
+        rope_scale_freqs=False,
         num_layers=4,
         hidden_dim=16,
         cross_att_freq=2,

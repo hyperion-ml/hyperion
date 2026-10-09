@@ -233,27 +233,40 @@ class TransformerEncoderV2(NetArch):
         num_kv_heads (Optional[int]): Number of key/value heads when using grouped-query attention.
         att_dropout_rate (float): Dropout applied to attention weights.
         att_bias (bool): Whether attention projections include biases.
+        local_attention_sliding_window (Optional[int]): Local attention window in stage tokens; None is unrestricted.
+        global_attention_sliding_window (Optional[int]): Global attention window in stage tokens; None is unrestricted.
+        layer_types (List[str]): Derived local/global schedule in execution order.
+        local_rope (nn.ModuleList): Local positional encoders with independent stage caches.
+        global_rope (nn.ModuleList): Global positional encoders with independent stage caches.
+        local_to_global_ratio (int): Local layers per global layer across stages; 0 means all global. The final layer is global.
+        local_rope_theta (float): Local RoPE frequency base.
+        global_rope_theta (float): Global RoPE frequency base.
+        local_rope_partial_rotary_factor (float): Fraction of local head dimensions rotated using full-head frequency spacing.
+        global_rope_partial_rotary_factor (float): Fraction of global head dimensions rotated using full-head frequency spacing.
+        local_rope_scale_freqs (bool): Apply wavelength-based frequency scaling to local RoPE.
+        global_rope_scale_freqs (bool): Apply wavelength-based frequency scaling to global RoPE.
         enable_qk_norm (bool): Enable per-head Q/K RMSNorm before RoPE and unit attention scaling.
-        att_sliding_window (Optional[int]): Sliding window constraint for local attention.
         ff_type (TransformerV2FeedForwardType): Feed-forward module implementation.
-        ff_dim_multiplier (float): Factor multiplying ``hidden_dim`` to obtain the feed-forward width.
+        ff_dim_multiplier (float): Factor multiplying hidden_dim to obtain the dense feed-forward width, including g4moe.
         ff_multiple_of (int): Rounds the feed-forward width up to this multiple.
+        ff_num_experts: Total routed experts when ff_type is g4moe.
+        ff_top_k_experts: Experts selected per token when ff_type is g4moe.
+        ff_moe_intermediate_dim: Intermediate width per routed expert before rounding by ff_multiple_of.
         ff_kernel_sizes (List[int]): Kernel sizes used by convolutional feed-forward modules.
         ff_dilations (List[int]): Dilations used by convolutional feed-forward modules.
         ff_act (str): Activation function used inside feed-forward blocks.
         ff_bias (bool): Whether feed-forward projections include biases.
         downb_strides (List[int]): Strides applied by the inter-stage downsampling blocks.
-        rope_theta (float): Base theta parameter for rotary positional embeddings.
-        rope_scale_freqs (bool): Whether to scale RoPE frequencies beyond the training context.
         rope_update_max_seq_length (bool): Whether to update the cached RoPE maximum sequence length.
-        rope_original_max_seq_length (Optional[int]): Manual override for the original RoPE maximum sequence length.
+        rope_original_max_seq_length (Optional[int]): Original RoPE context length override; None uses the positional encoder default.
         rope_scaling_factor (float): Global scaling applied to RoPE frequencies.
-        rope_low_freq_factor (float): Lower bound on wavelengths exempt from RoPE scaling.
-        rope_high_freq_factor (float): Upper bound on wavelengths subject to full RoPE scaling.
+        rope_low_freq_factor (float): Long-wavelength threshold factor for full frequency scaling.
+        rope_high_freq_factor (float): Short-wavelength threshold factor for unchanged frequencies.
         out_feats (Optional[int]): Output projection size; when ``None`` the projection is skipped.
         drop_path_rate (float): Stochastic depth rate across transformer layers.
         norm_layer (TransformerV2NormLayerType): Normalization layer family used throughout the encoder.
         norm_eps (float): Epsilon passed to normalization layers.
+        pre_post_norm: Add branch post-norms before residual addition using norm_layer.
         is_causal (bool): Enables causal masking inside the attention layers.
         sdp_backend (SDPBackendType): Preferred backend for PyTorch scaled dot-product attention.
         multilayer (bool): Whether to enable multi-layer feature aggregation (MFA).
@@ -261,7 +274,7 @@ class TransformerEncoderV2(NetArch):
         endpoint_channels (Optional[int]): Target channel size for MFA endpoints.
         endpoint_layers (Optional[List[int]]): Zero-based indices of encoder stages used as MFA endpoints.
         endpoint_scale_layer (int): Stage index defining the temporal scale for MFA.
-        model_parallel (bool): Enables FairScale tensor model parallelism for projections.
+        model_parallel (bool): Enables built-in tensor-parallel projections.
     """
 
     def __init__(
@@ -282,17 +295,26 @@ class TransformerEncoderV2(NetArch):
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
         enable_qk_norm: bool = False,
-        att_sliding_window: Optional[int] = None,
+        local_attention_sliding_window: Optional[int] = None,
+        global_attention_sliding_window: Optional[int] = None,
+        local_to_global_ratio: int = 0,
         ff_type: TransformerV2FeedForwardType = TransformerV2FeedForwardType.MLP,
         ff_dim_multiplier: float = 4,
         ff_multiple_of: int = 256,
+        ff_num_experts: Optional[int] = None,
+        ff_top_k_experts: Optional[int] = None,
+        ff_moe_intermediate_dim: Optional[int] = None,
         ff_kernel_sizes: List[int] = [7],
         ff_dilations: List[int] = [1],
         ff_act: str = "silu",
         ff_bias: bool = False,
         downb_strides: List[int] = [1],
-        rope_theta: float = 50000,
-        rope_scale_freqs: bool = True,
+        local_rope_theta: float = 10000.0,
+        global_rope_theta: float = 1000000.0,
+        local_rope_partial_rotary_factor: float = 1.0,
+        global_rope_partial_rotary_factor: float = 1.0,
+        local_rope_scale_freqs: bool = True,
+        global_rope_scale_freqs: bool = True,
         rope_update_max_seq_length: bool = True,
         rope_original_max_seq_length: Optional[int] = None,
         rope_scaling_factor: float = 8,
@@ -302,6 +324,7 @@ class TransformerEncoderV2(NetArch):
         drop_path_rate: float = 0.0,
         norm_layer: TransformerV2NormLayerType = TransformerV2NormLayerType.LAYERNORM,
         norm_eps: float = 1e-5,
+        pre_post_norm: bool = False,
         is_causal: bool = False,
         sdp_backend: SDPBackendType = SDPBackendType.default(),
         multilayer: bool = False,
@@ -329,20 +352,29 @@ class TransformerEncoderV2(NetArch):
             num_kv_heads (Optional[int], optional): Number of key/value heads for grouped-query attention. Defaults to ``None``.
             att_dropout_rate (float, optional): Attention dropout probability. Defaults to ``0.0``.
             att_bias (bool, optional): Whether attention projections include biases. Defaults to ``False``.
+            local_attention_sliding_window (Optional[int], optional): Local attention window in stage tokens; None is unrestricted. Defaults to ``None``.
+            global_attention_sliding_window (Optional[int], optional): Global attention window in stage tokens; None is unrestricted. Defaults to ``None``.
+            local_to_global_ratio (int, optional): Local layers per global layer across stages; 0 means all global. The final layer is global. Defaults to ``0``.
+            local_rope_theta (float, optional): Local RoPE frequency base. Defaults to ``10000.0``.
+            global_rope_theta (float, optional): Global RoPE frequency base. Defaults to ``1000000.0``.
+            local_rope_partial_rotary_factor (float, optional): Fraction of local head dimensions rotated using full-head frequency spacing. Defaults to ``1.0``.
+            global_rope_partial_rotary_factor (float, optional): Fraction of global head dimensions rotated using full-head frequency spacing. Defaults to ``1.0``.
+            local_rope_scale_freqs (bool, optional): Apply wavelength-based frequency scaling to local RoPE. Defaults to ``True``.
+            global_rope_scale_freqs (bool, optional): Apply wavelength-based frequency scaling to global RoPE. Defaults to ``True``.
             enable_qk_norm (bool, optional): Enable per-head Q/K RMSNorm and unit attention scaling. Defaults to ``False``.
-            att_sliding_window (Optional[int], optional): Sliding-window size for local attention. Defaults to ``None``.
             ff_type (TransformerV2FeedForwardType, optional): Feed-forward module implementation. Defaults to ``MLP``.
             ff_dim_multiplier (float, optional): Scales ``hidden_dim`` to obtain the feed-forward width. Defaults to ``4``.
             ff_multiple_of (int, optional): Rounds the feed-forward width to a multiple. Defaults to ``256``.
+            ff_num_experts: Positive number of routed experts, required for g4moe.
+            ff_top_k_experts: Experts selected per token in [1, ff_num_experts], required for g4moe.
+            ff_moe_intermediate_dim: Positive expert width before rounding by ff_multiple_of, required for g4moe.
             ff_kernel_sizes (List[int], optional): Kernel sizes for convolutional feed-forward blocks. Defaults to ``[7]``.
             ff_dilations (List[int], optional): Dilations for convolutional feed-forward blocks. Defaults to ``[1]``.
             ff_act (str, optional): Activation applied inside feed-forward modules. Defaults to ``"silu"``.
             ff_bias (bool, optional): Whether feed-forward projections include biases. Defaults to ``False``.
             downb_strides (List[int], optional): Strides for inter-stage downsampling blocks. Defaults to ``[1]``.
-            rope_theta (float, optional): Base theta parameter for rotary positional embeddings. Defaults to ``50000``.
-            rope_scale_freqs (bool, optional): Whether to scale RoPE frequencies beyond the training context. Defaults to ``True``.
             rope_update_max_seq_length (bool, optional): Whether to update the cached RoPE maximum sequence length. Defaults to ``True``.
-            rope_original_max_seq_length (Optional[int], optional): Manual override for the original RoPE maximum sequence length. Defaults to ``None``.
+            rope_original_max_seq_length (Optional[int], optional): Original RoPE context length override; None uses the positional encoder default. Defaults to ``None``.
             rope_scaling_factor (float, optional): Global scaling factor for RoPE. Defaults to ``8``.
             rope_low_freq_factor (float, optional): Wavelength threshold exempt from RoPE scaling. Defaults to ``1``.
             rope_high_freq_factor (float, optional): Wavelength threshold subject to full RoPE scaling. Defaults to ``4``.
@@ -350,6 +382,7 @@ class TransformerEncoderV2(NetArch):
             drop_path_rate (float, optional): Stochastic depth rate across transformer layers. Defaults to ``0.0``.
             norm_layer (TransformerV2NormLayerType, optional): Normalization layer family. Defaults to ``LAYERNORM``.
             norm_eps (float, optional): Epsilon used in normalization layers. Defaults to ``1e-5``.
+            pre_post_norm: Add branch post-norms before residual addition using norm_layer. Defaults to False.
             is_causal (bool, optional): Whether to apply causal masking inside attention. Defaults to ``False``.
             sdp_backend (SDPBackendType, optional): Preferred PyTorch scaled dot-product backend. Defaults to ``SDPBackendType.default()``.
             multilayer (bool, optional): Enables multi-layer feature aggregation (MFA). Defaults to ``False``.
@@ -411,33 +444,108 @@ class TransformerEncoderV2(NetArch):
         self.ff_type = ff_type
         self.ff_dim_multiplier = ff_dim_multiplier
         self.ff_multiple_of = ff_multiple_of
+        self.ff_num_experts = ff_num_experts
+        self.ff_top_k_experts = ff_top_k_experts
+        self.ff_moe_intermediate_dim = ff_moe_intermediate_dim
         self.ff_act = ff_act
         self.ff_bias = ff_bias
 
         self.drop_path_rate = drop_path_rate
         self.norm_layer = norm_layer
         self.norm_eps = norm_eps
+        self.pre_post_norm = pre_post_norm
         self._norm_layer = TransformerV2NormLayerType.to_class(norm_layer)
 
         self.is_causal = is_causal
-        self.att_sliding_window = att_sliding_window
+        self.local_attention_sliding_window = local_attention_sliding_window
+        self.global_attention_sliding_window = global_attention_sliding_window
+        self.local_to_global_ratio = local_to_global_ratio
         self.sdp_backend = sdp_backend
 
-        self.rope_theta = rope_theta
-        self.rope_scale_freqs = rope_scale_freqs
+        self.local_rope_theta = local_rope_theta
+        self.global_rope_theta = global_rope_theta
+        self.local_rope_partial_rotary_factor = local_rope_partial_rotary_factor
+        self.global_rope_partial_rotary_factor = global_rope_partial_rotary_factor
+        self.local_rope_scale_freqs = local_rope_scale_freqs
+        self.global_rope_scale_freqs = global_rope_scale_freqs
         self.rope_update_max_seq_length = rope_update_max_seq_length
         self.rope_original_max_seq_length = rope_original_max_seq_length
         self.rope_scaling_factor = rope_scaling_factor
         self.rope_low_freq_factor = rope_low_freq_factor
         self.rope_high_freq_factor = rope_high_freq_factor
-        self.rope = RotaryPosEncoder(
-            theta=rope_theta,
-            scale_freqs=rope_scale_freqs,
+        rope_kwargs: Dict[str, Any] = dict(
             update_max_seq_length=rope_update_max_seq_length,
-            original_max_seq_length=rope_original_max_seq_length,
             scaling_factor=rope_scaling_factor,
             low_freq_factor=rope_low_freq_factor,
             high_freq_factor=rope_high_freq_factor,
+        )
+        if rope_original_max_seq_length is not None:
+            rope_kwargs["original_max_seq_length"] = rope_original_max_seq_length
+        if (
+            isinstance(local_to_global_ratio, bool)
+            or not isinstance(local_to_global_ratio, int)
+            or local_to_global_ratio < 0
+        ):
+            raise ValueError("local_to_global_ratio must be a nonnegative integer")
+        for name, window in (
+            ("local_attention_sliding_window", local_attention_sliding_window),
+            ("global_attention_sliding_window", global_attention_sliding_window),
+        ):
+            if window is not None and (
+                isinstance(window, bool) or not isinstance(window, int) or window <= 0
+            ):
+                raise ValueError(f"{name} must be a positive integer or None")
+        if (
+            local_to_global_ratio > 0
+            and local_attention_sliding_window is not None
+            and global_attention_sliding_window is not None
+            and global_attention_sliding_window <= local_attention_sliding_window
+        ):
+            raise ValueError(
+                "global_attention_sliding_window must exceed the local window"
+            )
+        total_layers = sum(self.encb_repeats)
+        self.layer_types = [
+            (
+                "global"
+                if local_to_global_ratio == 0
+                or (idx + 1) % (local_to_global_ratio + 1) == 0
+                or idx == total_layers - 1
+                else "local"
+            )
+            for idx in range(total_layers)
+        ]
+        windows = {
+            "local": local_attention_sliding_window,
+            "global": global_attention_sliding_window,
+        }
+        if self.att_type != TransformerV2AttType.HF_FLASH_SDP and any(
+            windows[kind] is not None for kind in self.layer_types
+        ):
+            raise ValueError("Finite attention windows require att_type='hf_flash_sdp'")
+        # Separate caches per stage avoid sharing dimensions and tracked lengths
+        # between stages with different widths or temporal resolutions.
+        self.local_rope = nn.ModuleList(
+            [
+                RotaryPosEncoder(
+                    theta=local_rope_theta,
+                    scale_freqs=local_rope_scale_freqs,
+                    partial_rotary_factor=local_rope_partial_rotary_factor,
+                    **rope_kwargs,
+                )
+                for _ in range(num_superblocks)
+            ]
+        )
+        self.global_rope = nn.ModuleList(
+            [
+                RotaryPosEncoder(
+                    theta=global_rope_theta,
+                    scale_freqs=global_rope_scale_freqs,
+                    partial_rotary_factor=global_rope_partial_rotary_factor,
+                    **rope_kwargs,
+                )
+                for _ in range(num_superblocks)
+            ]
         )
 
         # stem block
@@ -469,6 +577,7 @@ class TransformerEncoderV2(NetArch):
                     self.hidden_dims[i + 1],
                     stride=stride_i,
                     norm_layer=self._norm_layer,
+                    norm_eps=self.norm_eps,
                 )
                 self._context += block_i.context * self._downsample_factor
                 self._downsample_factor *= block_i.stride
@@ -490,6 +599,7 @@ class TransformerEncoderV2(NetArch):
             ff_dilation_i = self.ff_dilations[i]
             trans_block_i = nn.ModuleList()
             for j in range(repeats_i):
+                layer_type = self.layer_types[count]
                 block_ij = TransformerV2SelfAttBlock(
                     att_type=self.att_type,
                     ff_type=self.ff_type,
@@ -502,15 +612,23 @@ class TransformerEncoderV2(NetArch):
                     ff_activation=self.ff_act,
                     ff_bias=self.ff_bias,
                     ff_multiple_of=self.ff_multiple_of,
+                    ff_num_experts=self.ff_num_experts,
+                    ff_top_k_experts=self.ff_top_k_experts,
+                    ff_moe_intermediate_dim=self.ff_moe_intermediate_dim,
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
                     enable_qk_norm=self.enable_qk_norm,
-                    rope=self.rope,
+                    rope=(
+                        self.local_rope[i]
+                        if layer_type == "local"
+                        else self.global_rope[i]
+                    ),
                     is_causal=self.is_causal,
-                    att_sliding_window=self.att_sliding_window,
+                    att_sliding_window=windows[layer_type],
                     sdp_backend=self.sdp_backend,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
+                    pre_post_norm=self.pre_post_norm,
                     drop_path_rate=drop_rates[count],
                     model_parallel=model_parallel,
                 )
@@ -583,6 +701,7 @@ class TransformerEncoderV2(NetArch):
                             in_scale=self.convb_scales[i],
                             out_scale=endpoint_scale,
                             norm_layer=self._norm_layer,
+                            norm_eps=self.norm_eps,
                         )
                         self.endpoint_block_idx[i] = cur_endpoint
                         endpoint_blocks.append(endpoint_i)
@@ -596,6 +715,7 @@ class TransformerEncoderV2(NetArch):
                     in_scale=1,
                     out_scale=1,
                     norm_layer=self._norm_layer,
+                    norm_eps=self.norm_eps,
                 )
         else:
             endpoint_channels = self.hidden_dims[-1]
@@ -971,13 +1091,23 @@ class TransformerEncoderV2(NetArch):
             "ff_type": self.ff_type,
             "ff_dim_multiplier": self.ff_dim_multiplier,
             "ff_multiple_of": self.ff_multiple_of,
+            "ff_num_experts": self.ff_num_experts,
+            "ff_top_k_experts": self.ff_top_k_experts,
+            "ff_moe_intermediate_dim": self.ff_moe_intermediate_dim,
             "ff_kernel_sizes": self.ff_kernel_sizes,
             "ff_dilations": self.ff_dilations,
             "ff_act": self.ff_act,
             "ff_bias": self.ff_bias,
             "downb_strides": self.downb_strides,
-            "rope_theta": self.rope_theta,
-            "rope_scale_freqs": self.rope_scale_freqs,
+            "local_attention_sliding_window": self.local_attention_sliding_window,
+            "global_attention_sliding_window": self.global_attention_sliding_window,
+            "local_to_global_ratio": self.local_to_global_ratio,
+            "local_rope_theta": self.local_rope_theta,
+            "global_rope_theta": self.global_rope_theta,
+            "local_rope_partial_rotary_factor": self.local_rope_partial_rotary_factor,
+            "global_rope_partial_rotary_factor": self.global_rope_partial_rotary_factor,
+            "local_rope_scale_freqs": self.local_rope_scale_freqs,
+            "global_rope_scale_freqs": self.global_rope_scale_freqs,
             "rope_update_max_seq_length": self.rope_update_max_seq_length,
             "rope_original_max_seq_length": self.rope_original_max_seq_length,
             "rope_scaling_factor": self.rope_scaling_factor,
@@ -987,8 +1117,8 @@ class TransformerEncoderV2(NetArch):
             "drop_path_rate": self.drop_path_rate,
             "norm_layer": self.norm_layer,
             "norm_eps": self.norm_eps,
+            "pre_post_norm": self.pre_post_norm,
             "is_causal": self.is_causal,
-            "att_sliding_window": self.att_sliding_window,
             "sdp_backend": self.sdp_backend,
             "multilayer": self.multilayer,
             "multilayer_concat": self.multilayer_concat,
@@ -1182,19 +1312,37 @@ class TransformerEncoderV2(NetArch):
                 "--ff-type",
                 default=TransformerV2FeedForwardType.MLP.value,
                 choices=TransformerV2FeedForwardType.choices(),
-                help="type of feed forward layer in [mlp, convnext]",
+                help="type of feed forward layer in [mlp, convnext, g4moe]",
             )
             parser.add_argument(
                 "--ff-dim-multiplier",
                 default=4,
                 type=float,
-                help="number that multiplies the hidden dimension to get the inv. bottleneck dimension",
+                help="hidden dimension multiplier for the dense feed-forward width (dense branch for g4moe)",
             )
             parser.add_argument(
                 "--ff-multiple-of",
                 default=256,
                 type=int,
-                help="the inv bottleneck dim has to be a multiple of this",
+                help="round dense and expert intermediate widths up to this multiple",
+            )
+            parser.add_argument(
+                "--ff-num-experts",
+                default=None,
+                type=int,
+                help="positive number of routed experts; required for g4moe",
+            )
+            parser.add_argument(
+                "--ff-top-k-experts",
+                default=None,
+                type=int,
+                help="experts selected per token in [1, ff_num_experts]; required for g4moe",
+            )
+            parser.add_argument(
+                "--ff-moe-intermediate-dim",
+                default=None,
+                type=int,
+                help="positive expert width before rounding by ff_multiple_of; required for g4moe",
             )
             parser.add_argument(
                 "--ff-kernel-sizes",
@@ -1211,7 +1359,9 @@ class TransformerEncoderV2(NetArch):
                 help="dilations when using convnext feedforward layers",
             )
             parser.add_argument(
-                "--ff-act", default="silu", help="activation of feedforward layers"
+                "--ff-act",
+                default="silu",
+                help="gated feed-forward activation (use gelu-tanh to match Gemma 4)",
             )
             parser.add_argument(
                 "--ff-bias",
@@ -1226,26 +1376,72 @@ class TransformerEncoderV2(NetArch):
                 nargs="+",
                 help="strides to be downsample feature maps before each encoder stage",
             )
+
             parser.add_argument(
-                "--rope-theta", default=50000, type=float, help="ROPE base theta"
+                "--local-attention-sliding-window",
+                default=None,
+                type=int,
+                help="Local attention window in stage tokens; None is unrestricted.",
             )
             parser.add_argument(
-                "--rope-scale-freqs",
+                "--global-attention-sliding-window",
+                default=None,
+                type=int,
+                help="Global attention window in stage tokens; None is unrestricted.",
+            )
+            parser.add_argument(
+                "--local-to-global-ratio",
+                default=0,
+                type=int,
+                help="Local layers per global layer across stages; 0 means all global. The final layer is global.",
+            )
+            parser.add_argument(
+                "--local-rope-theta",
+                default=10000.0,
+                type=float,
+                help="Local RoPE frequency base.",
+            )
+            parser.add_argument(
+                "--global-rope-theta",
+                default=1000000.0,
+                type=float,
+                help="Global RoPE frequency base.",
+            )
+            parser.add_argument(
+                "--local-rope-partial-rotary-factor",
+                default=1.0,
+                type=float,
+                help="Fraction of local head dimensions rotated using full-head frequency spacing.",
+            )
+            parser.add_argument(
+                "--global-rope-partial-rotary-factor",
+                default=1.0,
+                type=float,
+                help="Fraction of global head dimensions rotated using full-head frequency spacing.",
+            )
+            parser.add_argument(
+                "--local-rope-scale-freqs",
                 default=True,
                 action=ActionYesNo,
-                help="scale ROPE frequencies when seq lenght is larger than the maximmum length of the original training sequences",
+                help="Apply wavelength-based frequency scaling to local RoPE.",
+            )
+            parser.add_argument(
+                "--global-rope-scale-freqs",
+                default=True,
+                action=ActionYesNo,
+                help="Apply wavelength-based frequency scaling to global RoPE.",
             )
             parser.add_argument(
                 "--rope-update-max-seq-length",
                 default=True,
                 action=ActionYesNo,
-                help="update the invernal ROPE variable that keeps track of the max seq length seen on training",
+                help="grow each stage/type RoPE scaling reference length during training",
             )
             parser.add_argument(
                 "--rope-original-max-seq-length",
                 default=None,
                 type=int,
-                help="sets manually the max seq length seen in training for ROPE",
+                help="original RoPE context length override; None uses the positional encoder default",
             )
             parser.add_argument(
                 "--rope-scaling-factor",
@@ -1257,13 +1453,13 @@ class TransformerEncoderV2(NetArch):
                 "--rope-low-freq-factor",
                 default=1,
                 type=float,
-                help="ROPE frequencies are not scaled for wavelengths < max_seq_length / self.low_freq_factor",
+                help="low-frequency threshold: wavelengths above reference length / low_freq_factor are fully scaled",
             )
             parser.add_argument(
                 "--rope-high-freq-factor",
                 default=4,
                 type=float,
-                help="ROPE frequencies are scaled by scaling for wavelengths > max_seq_length / self.high_freq_factor",
+                help="high-frequency threshold: wavelengths below reference length / high_freq_factor are unchanged",
             )
             parser.add_argument(
                 "--out-feats",
@@ -1278,10 +1474,19 @@ class TransformerEncoderV2(NetArch):
                 "--norm-layer",
                 default=TransformerV2NormLayerType.LAYERNORM.value,
                 choices=TransformerV2NormLayerType.choices(),
-                help="type of norm layer in [layer-norm, rms-norm]",
+                help="branch norm type in [layer-norm, rms-norm]; independent of pre_post_norm",
             )
             parser.add_argument(
-                "--norm-eps", default=1e-5, type=float, help="eps for layer norms"
+                "--pre-post-norm",
+                default=False,
+                action=ActionYesNo,
+                help="add branch post-norms before residual addition using norm_layer (default: pre-norm only)",
+            )
+            parser.add_argument(
+                "--norm-eps",
+                default=1e-5,
+                type=float,
+                help="epsilon for branch, QK, and MoE router normalization",
             )
             parser.add_argument(
                 "--is-causal",
@@ -1289,12 +1494,7 @@ class TransformerEncoderV2(NetArch):
                 action=ActionYesNo,
                 help="attention mask is causal",
             )
-            parser.add_argument(
-                "--att-sliding-window",
-                default=None,
-                type=int,
-                help="sliding window size for attention when using local attention",
-            )
+
             parser.add_argument(
                 "--sdp-backend",
                 default=SDPBackendType.default().value,
@@ -1305,7 +1505,7 @@ class TransformerEncoderV2(NetArch):
                 "--model-parallel",
                 default=False,
                 action=ActionYesNo,
-                help="train with model parallel using external tools (no built-in support)",
+                help="use tensor-parallel projections with an externally initialized process group",
             )
             parser.add_argument(
                 "--multilayer",

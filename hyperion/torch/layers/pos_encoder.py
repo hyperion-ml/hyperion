@@ -210,11 +210,13 @@ class RotaryPosEncoder(PosEncoderBase):
     """Rotary positional encoder with optional frequency scaling for context extension.
 
     Attributes:
+        partial_rotary_factor (float): Fraction of head dimensions rotated; frequencies retain full-head spacing.
+        training (bool): Training mode inherited from the positional encoder base class.
         theta (float): Base value controlling the geometric progression of inverse frequencies.
         scale_freqs (bool): Whether to apply LLaMA-style frequency interpolation.
         update_max_seq_length (bool): Allow dynamic growth of the cached maximum sequence length while training.
-        low_freq_factor (float): Lower wavelength factor used during frequency interpolation.
-        high_freq_factor (float): Upper wavelength factor used during frequency interpolation.
+        low_freq_factor (float): Long-wavelength threshold factor for full frequency scaling.
+        high_freq_factor (float): Short-wavelength threshold factor for unchanged frequencies.
         scaling_factor (float): Scaling divisor applied to low-frequency components.
         freqs_cis (Optional[torch.Tensor]): Cached complex sinusoid buffer.
         max_seq_length (torch.Tensor): Tracked maximum sequence length observed so far.
@@ -229,8 +231,43 @@ class RotaryPosEncoder(PosEncoderBase):
         scaling_factor: float = 8,
         low_freq_factor: float = 1,
         high_freq_factor: float = 4,
-    ):
+        partial_rotary_factor: float = 1.0,
+    ) -> None:
+        """Create full or proportional partial RoPE with optional frequency scaling.
+
+        Args:
+            theta: Positive frequency base.
+            scale_freqs: Apply wavelength-based scaling in training and evaluation.
+            update_max_seq_length: Grow the scaling reference length during training.
+            original_max_seq_length: Initial scaling reference length in tokens.
+            scaling_factor: Positive divisor for low frequencies.
+            low_freq_factor: Positive low-frequency threshold factor.
+            high_freq_factor: Threshold factor greater than low_freq_factor.
+            partial_rotary_factor: Fraction in (0, 1] of head dimensions to rotate;
+                the number of rotated pairs is rounded down.
+        """
         super().__init__()
+        if not math.isfinite(theta) or theta <= 0:
+            raise ValueError("theta must be finite and positive")
+        if (
+            not math.isfinite(partial_rotary_factor)
+            or not 0 < partial_rotary_factor <= 1
+        ):
+            raise ValueError("partial_rotary_factor must be in (0, 1]")
+        if scale_freqs and (
+            not all(
+                math.isfinite(value)
+                for value in (scaling_factor, low_freq_factor, high_freq_factor)
+            )
+            or scaling_factor <= 0
+            or low_freq_factor <= 0
+            or high_freq_factor <= low_freq_factor
+        ):
+            raise ValueError(
+                "Scaling requires scaling_factor > 0 and 0 < low_freq_factor < high_freq_factor"
+            )
+        self.partial_rotary_factor = partial_rotary_factor
+        self._freqs_cache_key: Optional[Tuple] = None
         self.theta = theta
         self.low_freq_factor = low_freq_factor
         self.high_freq_factor = high_freq_factor
@@ -260,21 +297,12 @@ class RotaryPosEncoder(PosEncoderBase):
         Returns:
             torch.Tensor: Adjusted angular frequencies after interpolation.
         """
-        if self.training and self.update_max_seq_length:
-            # if we are updating the max seq length, we don't do scaling
-            # since we are just growing the max_seq_length
-            # we just scale in inference or if we are training keeping
-            # the max seq length fixed.
-            return freqs
-
         max_seq_length = self.max_seq_length
         low_freq_wavelength = max_seq_length / self.low_freq_factor
         high_freq_wavelength = max_seq_length / self.high_freq_factor
 
         wavelength = 2 * math.pi / freqs
 
-        # wavelength < high_freq_wavelength: do nothing
-        # wavelength > low_freq_wavelength: divide by factor
         scaled_freqs = torch.where(
             wavelength > low_freq_wavelength, freqs / self.scaling_factor, freqs
         )
@@ -290,18 +318,6 @@ class RotaryPosEncoder(PosEncoderBase):
         scaled_freqs = torch.where(is_medium_freq, smoothed_freqs, scaled_freqs)
         return scaled_freqs
 
-    #     high_freq_wavelen = old_context_len / high_freq_factor
-
-    #     wavelen = 2 * math.pi / inv_freq
-    #     # wavelen < high_freq_wavelen: do nothing
-    #     # wavelen > low_freq_wavelen: divide by factor
-    #     inv_freq_llama = torch.where(wavelen > low_freq_wavelen, inv_freq / factor, inv_freq)
-    #     # otherwise: interpolate between the two, using a smooth factor
-    #     smooth_factor = (old_context_len / wavelen - low_freq_factor) / (high_freq_factor - low_freq_factor)
-    #     smoothed_inv_freq = (1 - smooth_factor) * inv_freq_llama / factor + smooth_factor * inv_freq_llama
-    #     is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(wavelen > low_freq_wavelen)
-    #     inv_freq_llama = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
-
     @torch.no_grad
     def _compute_freqs_cis(self, x: torch.Tensor, start_pos: int) -> torch.Tensor:
         """Compute and cache the complex exponentials used for RoPE rotation.
@@ -314,19 +330,30 @@ class RotaryPosEncoder(PosEncoderBase):
             torch.Tensor: Complex frequencies slice broadcastable to `x`.
         """
         length = x.size(1) + start_pos
-        if self.freqs_cis is not None:
-            freq_length = self.freqs_cis.shape[1]
-            if length <= freq_length:
-                return self.freqs_cis[:, start_pos:length]
-
         if (
             self.training
             and self.update_max_seq_length
             and length > self.max_seq_length
         ):
-            self.max_seq_length += length - self.max_seq_length
-
+            self.max_seq_length.fill_(length)
         num_feats = 2 * x.size(-1)
+        # Rebuild after changing the scaling reference, head width, or settings.
+        # The reference buffer may also change when a checkpoint is restored.
+        cache_key = (
+            num_feats,
+            x.device,
+            self.theta,
+            self.partial_rotary_factor,
+            self.scale_freqs,
+            int(self.max_seq_length.item()),
+            self.scaling_factor,
+            self.low_freq_factor,
+            self.high_freq_factor,
+        )
+        if self.freqs_cis is not None and self._freqs_cache_key == cache_key:
+            if length <= self.freqs_cis.shape[1]:
+                return self.freqs_cis[:, start_pos:length]
+
         freqs = 1.0 / (
             self.theta
             ** (
@@ -337,47 +364,25 @@ class RotaryPosEncoder(PosEncoderBase):
         if self.scale_freqs:
             freqs = self._scale_freqs(freqs)
 
+        num_rotated_pairs = int(self.partial_rotary_factor * num_feats // 2)
+        if num_rotated_pairs == 0:
+            raise ValueError(
+                "partial_rotary_factor must rotate at least one dimension pair"
+            )
+        # Zero frequency gives identity rotations for the unrotated pairs.
+        freqs = torch.where(
+            torch.arange(num_feats // 2, device=x.device) < num_rotated_pairs,
+            freqs,
+            torch.zeros_like(freqs),
+        )
+        self._freqs_cache_key = cache_key
         t = torch.arange(length, device=freqs.device, dtype=torch.float32)
         freqs = torch.outer(t, freqs)
         freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
 
-        # shape = [d if i == 1 or i == x.dim() - 1 else 1 for i, d in enumerate(x.shape)]
         shape = (1, length, 1, x.size(-1))
-        # print(
-        #     freqs_cis.shape,
-        #     x.shape,
-        #     freqs.shape,
-        #     t.shape,
-        #     shape,
-        #     freqs_cis.view(*shape).shape,
-        #     flush=True,
-        # )
         self.freqs_cis = freqs_cis.view(*shape)
         return self.freqs_cis[:, start_pos:length]
-
-    # def apply_rotary_emb(
-    #     xq: torch.Tensor,
-    #     xk: torch.Tensor,
-    #     freqs_cis: torch.Tensor,
-    # ) -> Tuple[torch.Tensor, torch.Tensor]:
-    #     xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
-    #     xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
-    #     freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
-    #     xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
-    #     xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
-    #     return xq_out.type_as(xq), xk_out.type_as(xk)
-
-    # def forward(self, query:torch.Tensor, key:torch.Tensor):
-    #     query_out = torch.view_as_complex(query.float().reshape(*query.shape[:-1], -1, 2))
-    #     key_out = torch.view_as_complex(key.float().reshape(*key.shape[:-1], -1, 2))
-
-    #     freqs_cis = self._compute_freqs_cis(query_out)
-    #     query_out = torch.view_as_real(query_out * freqs_cis).flatten(3)
-    #     if query.shape[1] != key.shape[1]:
-    #         freqs_cis = self._compute_freqs_cis(key_out)
-
-    #     key_out = torch.view_as_real(key_out * freqs_cis).flatten(3)
-    #     return query_out.type_as(query), key_out.type_as(key)
 
     def forward(self, x: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         """Rotate the final tensor dimension in complex space to inject positional phase.
@@ -389,13 +394,14 @@ class RotaryPosEncoder(PosEncoderBase):
         Returns:
             torch.Tensor: Tensor of identical shape with rotary positional embeddings applied.
         """
+        if start_pos < 0:
+            raise ValueError("start_pos must be nonnegative")
         if x.size(-1) % 2 != 0:
             raise ValueError(
                 f"{self.__class__.__name__} requires an even last dimension, got {x.size(-1)}"
             )
         x_out = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
         freqs_cis = self._compute_freqs_cis(x_out, start_pos)
-        # print(x_out.shape, freqs_cis.shape, flush=True)
         x_out = torch.view_as_real(x_out * freqs_cis).flatten(3)
         return x_out.type_as(x)
 

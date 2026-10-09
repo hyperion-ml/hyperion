@@ -3,6 +3,7 @@ Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from copy import deepcopy
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Type, Union
 
@@ -95,6 +96,7 @@ class TransformerV2AttType(str, Enum):
 class TransformerV2FeedForwardType(str, Enum):
     MLP = "mlp"
     CONVNEXT = "convnext"
+    G4MoE = "g4moe"
 
     @staticmethod
     def choices() -> List[str]:
@@ -108,6 +110,8 @@ class TransformerV2FeedForwardType(str, Enum):
             return TransformerV2MLPBlock
         elif value == TransformerV2FeedForwardType.CONVNEXT:
             return TransformerV2ConvNextBlock
+        elif value == TransformerV2FeedForwardType.G4MoE:
+            return TransformerV2G4MoEBlock
         else:
             raise ValueError(f"invalid {value=}")
 
@@ -488,6 +492,8 @@ class TransformerV2MLPBlock(nn.Module):
         up_proj (nn.Module): Parallel projection combined with ``gate_proj`` to build the gated product.
         down_proj (nn.Module): Projection returning activations to ``hidden_dim``.
         act (nn.Module): Activation applied to the gated branch.
+        pre_post_norm (bool): Enable output normalization before residual addition.
+        post_norm (nn.Module): Output normalization, or Identity in pre-norm mode.
         context (int): Effective receptive field size (``1`` for point-wise operations).
     """
 
@@ -499,6 +505,9 @@ class TransformerV2MLPBlock(nn.Module):
         ff_bias: bool = False,
         ff_multiple_of: int = 256,
         model_parallel: bool = False,
+        norm_layer: Optional[Type[nn.Module]] = None,
+        norm_eps: float = 1e-5,
+        pre_post_norm: bool = False,
         **kwargs,
     ):
         """Initialize the gated MLP block.
@@ -510,6 +519,9 @@ class TransformerV2MLPBlock(nn.Module):
             ff_bias (bool, optional): Whether linear layers include bias terms. Defaults to ``False``.
             ff_multiple_of (int, optional): Rounds ``intermediate_dim`` up to the nearest multiple. Defaults to ``256``.
             model_parallel (bool, optional): If ``True``, uses tensor model-parallel linear layers. Defaults to ``False``.
+            norm_layer: Output norm constructor; defaults to LayerNorm.
+            norm_eps: Epsilon for the output normalization.
+            pre_post_norm: Normalize the output before residual addition. Defaults to False.
             **kwargs: Ignored keyword arguments kept for API compatibility.
         """
         super().__init__()
@@ -534,13 +546,13 @@ class TransformerV2MLPBlock(nn.Module):
             self.up_proj = ColumnParallelLinear(
                 hidden_dim,
                 intermediate_dim,
-                bias=False,
+                bias=ff_bias,
                 gather_output=False,
             )
             self.down_proj = RowParallelLinear(
                 intermediate_dim,
                 hidden_dim,
-                bias=False,
+                bias=ff_bias,
                 input_is_parallel=True,
             )
         else:
@@ -560,7 +572,16 @@ class TransformerV2MLPBlock(nn.Module):
                 bias=ff_bias,
             )
 
-        self.act = AF.create(activation)
+        self.act = (
+            deepcopy(activation)
+            if isinstance(activation, nn.Module)
+            else AF.create(activation)
+        )
+        self.pre_post_norm = pre_post_norm
+        norm_layer = nn.LayerNorm if norm_layer is None else norm_layer
+        self.post_norm = (
+            norm_layer(hidden_dim, eps=norm_eps) if pre_post_norm else nn.Identity()
+        )
         self.context = 1
 
     def forward(
@@ -575,7 +596,194 @@ class TransformerV2MLPBlock(nn.Module):
         Returns:
             torch.Tensor: Projected tensor with shape `(batch, time, hidden_dim)`.
         """
-        return self.down_proj(self.act(self.gate_proj(x)) * self.up_proj(x))
+        output = self.down_proj(self.act(self.gate_proj(x)) * self.up_proj(x))
+        return self.post_norm(output).type_as(output)
+
+
+class TransformerV2G4MoEBlock(nn.Module):
+    """Gemma 4 feed-forward block with a dense MLP and sparse routed experts.
+
+    Inputs are taken before feed-forward normalization. Each branch has its own
+    pre-norm. When pre_post_norm is enabled, each branch also has post-norm
+    and their sum receives a final norm. The router uses
+    unscaled RMS normalization, learned input scales, and learned expert scales.
+
+    Attributes:
+        hidden_dim: Input and output feature dimension.
+        intermediate_dim: Rounded intermediate width of the dense MLP.
+        moe_intermediate_dim: Rounded intermediate width of each expert.
+        num_experts: Total number of routed experts.
+        top_k_experts: Experts selected per token.
+        norm_eps: Epsilon for branch norms and router RMS normalization.
+        norm_layer: Normalization constructor for feed-forward branch norms.
+        pre_post_norm: Enable branch and final post-normalization in addition to pre-norm.
+        dense_mlp: Gated MLP evaluated for every token.
+        experts: Gated MLPs evaluated only for their selected tokens.
+        router_proj: Bias-free projection producing routing logits.
+        router_scale: Learned per-feature router input scale.
+        per_expert_scale: Learned scale applied after top-k weight normalization.
+        dense_pre_norm: Normalization before the dense MLP.
+        dense_post_norm: Normalization after the dense MLP, or Identity.
+        expert_pre_norm: Normalization before the routed experts.
+        expert_post_norm: Normalization after combining expert outputs, or Identity.
+        out_norm: Normalization after adding the dense and expert branches, or Identity.
+        context: Effective receptive field size, one for point-wise operations.
+    """
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        intermediate_dim: int,
+        num_experts: int,
+        top_k_experts: int,
+        moe_intermediate_dim: int,
+        activation: Union[str, nn.Module] = "gelu-tanh",
+        ff_bias: bool = False,
+        ff_multiple_of: int = 256,
+        norm_eps: float = 1e-6,
+        norm_layer: Optional[Type[nn.Module]] = None,
+        pre_post_norm: bool = False,
+        model_parallel: bool = False,
+        **kwargs,
+    ) -> None:
+        """Initialize the dense branch, routed experts, and Gemma 4 router.
+
+        Args:
+            hidden_dim: Input and output feature dimension.
+            intermediate_dim: Dense MLP intermediate width before rounding.
+            num_experts: Positive number of routed experts.
+            top_k_experts: Number of selected experts, between one and num_experts.
+            moe_intermediate_dim: Expert intermediate width before rounding.
+            activation: Gated MLP activation, defaulting to tanh GELU.
+            ff_bias: Enable dense/expert projection biases; the router has no bias.
+            ff_multiple_of: Positive rounding multiple for both MLP widths.
+            norm_eps: Positive epsilon for branch norms and router RMS normalization.
+            norm_layer: Branch normalization constructor; defaults to RMSNorm.
+            pre_post_norm: Enable branch and final post-norms. Defaults to False,
+                which applies only pre-norm to the feed-forward branches.
+            model_parallel: Use tensor-parallel projections within each MLP.
+            **kwargs: Unused common feed-forward arguments.
+        """
+        super().__init__()
+        for name, value in (
+            ("hidden_dim", hidden_dim),
+            ("intermediate_dim", intermediate_dim),
+            ("num_experts", num_experts),
+            ("top_k_experts", top_k_experts),
+            ("moe_intermediate_dim", moe_intermediate_dim),
+            ("ff_multiple_of", ff_multiple_of),
+        ):
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer, got {value}")
+        if top_k_experts > num_experts:
+            raise ValueError("top_k_experts must be <= num_experts")
+        if norm_eps <= 0:
+            raise ValueError(f"norm_eps must be > 0, got {norm_eps}")
+        self.hidden_dim = hidden_dim
+        self.num_experts = num_experts
+        self.top_k_experts = top_k_experts
+        self.norm_eps = norm_eps
+        self.norm_layer = RMSNorm if norm_layer is None else norm_layer
+        self.pre_post_norm = pre_post_norm
+        self.intermediate_dim = ff_multiple_of * (
+            (intermediate_dim + ff_multiple_of - 1) // ff_multiple_of
+        )
+        self.moe_intermediate_dim = ff_multiple_of * (
+            (moe_intermediate_dim + ff_multiple_of - 1) // ff_multiple_of
+        )
+        self.dense_pre_norm = self.norm_layer(hidden_dim, eps=norm_eps)
+        self.expert_pre_norm = self.norm_layer(hidden_dim, eps=norm_eps)
+        self.dense_post_norm = (
+            self.norm_layer(hidden_dim, eps=norm_eps)
+            if pre_post_norm
+            else nn.Identity()
+        )
+        self.expert_post_norm = (
+            self.norm_layer(hidden_dim, eps=norm_eps)
+            if pre_post_norm
+            else nn.Identity()
+        )
+        self.out_norm = (
+            self.norm_layer(hidden_dim, eps=norm_eps)
+            if pre_post_norm
+            else nn.Identity()
+        )
+        self.dense_mlp = TransformerV2MLPBlock(
+            hidden_dim,
+            self.intermediate_dim,
+            activation=activation,
+            ff_bias=ff_bias,
+            ff_multiple_of=ff_multiple_of,
+            model_parallel=model_parallel,
+        )
+        self.experts = nn.ModuleList(
+            TransformerV2MLPBlock(
+                hidden_dim,
+                self.moe_intermediate_dim,
+                activation=activation,
+                ff_bias=ff_bias,
+                ff_multiple_of=ff_multiple_of,
+                model_parallel=model_parallel,
+            )
+            for _ in range(num_experts)
+        )
+        self.router_proj = nn.Linear(hidden_dim, num_experts, bias=False)
+        self.router_scale = nn.Parameter(torch.ones(hidden_dim))
+        self.per_expert_scale = nn.Parameter(torch.ones(num_experts))
+        self.context = 1
+
+    def _route(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Select experts and compute scaled, normalized top-k routing weights.
+
+        Args:
+            x: Token features shaped (num_tokens, hidden_dim), before branch norms.
+
+        Returns:
+            Selected weights and expert indices, each shaped (num_tokens, top_k).
+        """
+        router_input = x.float()
+        router_input = router_input * torch.rsqrt(
+            router_input.square().mean(dim=-1, keepdim=True) + self.norm_eps
+        )
+        router_input = router_input * self.router_scale.float() * self.hidden_dim**-0.5
+        logits = self.router_proj(router_input.type_as(x))
+        probabilities = nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
+        weights, indices = probabilities.topk(self.top_k_experts, dim=-1)
+        weights = weights / weights.sum(dim=-1, keepdim=True)
+        weights = weights * self.per_expert_scale[indices].float()
+        return weights, indices
+
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Combine pre-normalized branches with optional branch and final post-norm.
+
+        Args:
+            x: Input tensor shaped (batch, time, hidden_dim).
+            x_mask: Unused placeholder; routing is independent for each token.
+
+        Returns:
+            Tensor with the same shape and dtype as x.
+        """
+        dense_input = self.dense_pre_norm(x).type_as(x)
+        dense_output = self.dense_post_norm(self.dense_mlp(dense_input)).type_as(x)
+        flat_input = x.reshape(-1, self.hidden_dim)
+        weights, indices = self._route(flat_input)
+        expert_input = self.expert_pre_norm(flat_input).type_as(x)
+        expert_output = torch.zeros_like(flat_input)
+        for expert_idx, expert in enumerate(self.experts):
+            token_indices, top_k_positions = torch.where(indices == expert_idx)
+            if token_indices.numel() == 0:
+                continue
+            selected_output = expert(expert_input[token_indices])
+            selected_output = (
+                selected_output * weights[token_indices, top_k_positions, None]
+            )
+            expert_output = expert_output.index_add(
+                0, token_indices, selected_output.type_as(expert_output)
+            )
+        expert_output = self.expert_post_norm(expert_output.reshape_as(x)).type_as(x)
+        return self.out_norm(dense_output + expert_output).type_as(x)
 
 
 class TransformerV2ConvNextBlock(nn.Module):
@@ -589,6 +797,8 @@ class TransformerV2ConvNextBlock(nn.Module):
         down_proj (nn.Linear): Projection returning activations to ``hidden_dim``.
         act (nn.Module): Activation function applied to the gated branch.
         grn (GRN1d): Global response normalization applied to the intermediate representation.
+        pre_post_norm (bool): Enable output normalization before residual addition.
+        post_norm (nn.Module): Output normalization, or Identity in pre-norm mode.
         context (int): Effective receptive field contributed by the depthwise convolution.
     """
 
@@ -603,6 +813,8 @@ class TransformerV2ConvNextBlock(nn.Module):
         ff_bias: bool = False,
         ff_multiple_of: int = 256,
         model_parallel: bool = False,
+        norm_eps: float = 1e-5,
+        pre_post_norm: bool = False,
     ):
         """Initialize the ConvNeXt-style feed-forward block.
 
@@ -616,8 +828,11 @@ class TransformerV2ConvNextBlock(nn.Module):
             ff_bias (bool, optional): Whether linear projections include bias terms. Defaults to ``False``.
             ff_multiple_of (int, optional): Rounds ``intermediate_dim`` up to the nearest multiple. Defaults to ``256``.
             model_parallel (bool, optional): Placeholder for parity with :class:`TransformerV2MLPBlock`; must be ``False``.
+            norm_eps: Epsilon for output normalization.
+            pre_post_norm: Normalize the output before residual addition. Defaults to False.
         """
         super().__init__()
+        self.pre_post_norm = pre_post_norm
         assert model_parallel is False
         # mimics LLama 3 readjustemnt of intermediate_dim
         intermediate_dim = ff_multiple_of * (
@@ -636,7 +851,10 @@ class TransformerV2ConvNextBlock(nn.Module):
         if norm_layer is None:
             norm_layer = nn.LayerNorm
 
-        self.norm = norm_layer(hidden_dim, eps=1e-6)
+        self.norm = norm_layer(hidden_dim, eps=norm_eps)
+        self.post_norm = (
+            norm_layer(hidden_dim, eps=norm_eps) if pre_post_norm else nn.Identity()
+        )
         self.gate_proj = nn.Linear(
             hidden_dim,
             intermediate_dim,
@@ -676,7 +894,7 @@ class TransformerV2ConvNextBlock(nn.Module):
         x = self.act(self.gate_proj(x)) * self.up_proj(x)
         x = self.grn(x, x_mask)
         x = self.down_proj(x)
-        return x
+        return self.post_norm(x).type_as(x)
 
 
 class TransformerV2ConvEndpoint(nn.Module):
@@ -697,6 +915,7 @@ class TransformerV2ConvEndpoint(nn.Module):
         in_scale: int,
         out_scale: int,
         norm_layer: Optional[Type[nn.Module]] = None,
+        norm_eps: float = 1e-5,
     ):
         """Create the resampling endpoint used for multiscale aggregation.
 
@@ -706,6 +925,7 @@ class TransformerV2ConvEndpoint(nn.Module):
             in_scale (int): Temporal resolution of the incoming features.
             out_scale (int): Target temporal resolution for the resampled features.
             norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
+            norm_eps (float, optional): Epsilon for normalization. Defaults to ``1e-5``.
         """
         super().__init__()
         if norm_layer is None:
@@ -713,7 +933,7 @@ class TransformerV2ConvEndpoint(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.rel_scale = in_scale / out_scale
-        self.norm = norm_layer(in_channels, eps=1e-6)
+        self.norm = norm_layer(in_channels, eps=norm_eps)
         if out_scale >= in_scale:
             stride = int(out_scale / in_scale)
             self.resample = self._make_downsample(in_channels, out_channels, stride)
@@ -803,6 +1023,7 @@ class TransformerV2ConvDownsampleBlock(nn.Module):
         kernel_size: int = 2,
         stride: int = 2,
         norm_layer: Optional[Type[nn.Module]] = None,
+        norm_eps: float = 1e-5,
     ):
         """Initialize the downsampling block.
 
@@ -812,6 +1033,7 @@ class TransformerV2ConvDownsampleBlock(nn.Module):
             kernel_size (int, optional): Convolution kernel size; at least ``stride``. Defaults to ``2``.
             stride (int, optional): Temporal stride applied by the convolution. Defaults to ``2``.
             norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
+            norm_eps (float, optional): Epsilon for normalization. Defaults to ``1e-5``.
         """
         super().__init__()
         if norm_layer is None:
@@ -819,7 +1041,7 @@ class TransformerV2ConvDownsampleBlock(nn.Module):
 
         kernel_size = max(kernel_size, stride)
         padding = (kernel_size - 1) // 2
-        self.norm = norm_layer(in_channels, eps=1e-6)
+        self.norm = norm_layer(in_channels, eps=norm_eps)
         self.conv = nn.Conv1d(
             in_channels,
             out_channels,
@@ -850,7 +1072,9 @@ class TransformerV2SelfAttBlock(nn.Module):
         attention (ScaledDotProdAttV2): Self-attention module handling rotary embeddings and caches.
         feed_forward (nn.Module): Feed-forward stack applied after attention.
         att_norm (nn.Module): Normalization layer applied before self-attention.
-        ff_norm (nn.Module): Normalization layer applied before the feed-forward stack.
+        pre_post_norm (bool): Enable attention and feed-forward output norms.
+        att_post_norm (nn.Module): Self-attention output norm, or Identity.
+        ff_norm (nn.Module): Feed-forward input norm, or Identity when g4moe handles pre-norm internally.
         drop_path (Optional[DropPath1d]): Stochastic depth module applied to the residual output.
     """
 
@@ -867,6 +1091,9 @@ class TransformerV2SelfAttBlock(nn.Module):
         ff_activation: Union[str, nn.Module] = "silu",
         ff_bias: bool = False,
         ff_multiple_of: int = 256,
+        ff_num_experts: Optional[int] = None,
+        ff_top_k_experts: Optional[int] = None,
+        ff_moe_intermediate_dim: Optional[int] = None,
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
         enable_qk_norm: bool = False,
@@ -877,6 +1104,7 @@ class TransformerV2SelfAttBlock(nn.Module):
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
         norm_eps: float = 1e-5,
+        pre_post_norm: bool = False,
         model_parallel: bool = False,
     ):
         """Configure the self-attention transformer block.
@@ -893,16 +1121,20 @@ class TransformerV2SelfAttBlock(nn.Module):
             ff_activation (Union[str, nn.Module], optional): Feed-forward activation identifier. Defaults to ``"silu"``.
             ff_bias (bool, optional): Whether feed-forward linear layers include bias terms. Defaults to ``False``.
             ff_multiple_of (int, optional): Rounds ``ff_intermediate_feats`` up to the nearest multiple. Defaults to ``256``.
+            ff_num_experts: Number of routed experts, required for g4moe.
+            ff_top_k_experts: Experts selected per token, required for g4moe.
+            ff_moe_intermediate_dim: Expert intermediate width, required for g4moe.
             att_dropout_rate (float, optional): Dropout probability applied to attention weights. Defaults to ``0.0``.
             att_bias (bool, optional): Whether attention projection layers include biases. Defaults to ``False``.
             enable_qk_norm (bool, optional): Apply per-head Q/K RMSNorm before RoPE and use unit attention scaling. Defaults to ``False``.
-            rope (Optional[RotaryPosEncoder], optional): Rotary position encoder applied to attention logits.
+            rope (Optional[RotaryPosEncoder], optional): Rotary position encoder applied to projected queries and keys before attention.
             is_causal (bool, optional): If ``True``, enables causal masking within the attention module. Defaults to ``False``.
             att_sliding_window (Optional[int], optional): Optional sliding-window constraint for attention. Defaults to ``None``.
             sdp_backend (SDPBackendType, optional): Preferred scaled dot-product backend. Defaults to ``SDPBackendType.default()``.
             norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
             drop_path_rate (float, optional): Stochastic depth rate applied to the residual branch. Defaults to ``0.0``.
             norm_eps (float, optional): Epsilon for the normalization layers. Defaults to ``1e-5``.
+            pre_post_norm: Normalize attention and feed-forward outputs before residual addition. Defaults to False.
             model_parallel (bool, optional): Whether to use tensor model-parallel attention projections. Defaults to ``False``.
         """
         super().__init__()
@@ -911,8 +1143,16 @@ class TransformerV2SelfAttBlock(nn.Module):
         if norm_layer is None:
             norm_layer = nn.LayerNorm
 
+        self.pre_post_norm = pre_post_norm
         self.att_norm = norm_layer(num_feats, norm_eps)
-        self.ff_norm = norm_layer(num_feats, norm_eps)
+        self.att_post_norm = (
+            norm_layer(num_feats, eps=norm_eps) if pre_post_norm else nn.Identity()
+        )
+        self.ff_norm = (
+            nn.Identity()
+            if ff_type == TransformerV2FeedForwardType.G4MoE
+            else norm_layer(num_feats, norm_eps)
+        )
 
         self.attention = att_class(
             num_feats=num_feats,
@@ -928,6 +1168,16 @@ class TransformerV2SelfAttBlock(nn.Module):
             sdp_backend=sdp_backend,
             model_parallel=model_parallel,
         )
+        moe_kwargs = (
+            dict(
+                num_experts=ff_num_experts,
+                top_k_experts=ff_top_k_experts,
+                moe_intermediate_dim=ff_moe_intermediate_dim,
+                model_parallel=model_parallel,
+            )
+            if ff_type == TransformerV2FeedForwardType.G4MoE
+            else {}
+        )
         self.feed_forward = ff_class(
             num_feats,
             ff_intermediate_feats,
@@ -937,6 +1187,9 @@ class TransformerV2SelfAttBlock(nn.Module):
             ff_bias=ff_bias,
             ff_multiple_of=ff_multiple_of,
             norm_layer=norm_layer,
+            norm_eps=norm_eps,
+            pre_post_norm=pre_post_norm,
+            **moe_kwargs,
         )
 
         self.drop_path = DropPath1d(drop_path_rate) if drop_path_rate > 0.0 else None
@@ -1005,7 +1258,7 @@ class TransformerV2SelfAttBlock(nn.Module):
         else:
             att_value = att_out
             new_state = None
-        h = x + att_value
+        h = x + self.att_post_norm(att_value).type_as(att_value)
         out = h + self.feed_forward(self.ff_norm(h))
         if self.drop_path is not None and self.training:
             out = x + self.drop_path(out - x)
@@ -1021,6 +1274,10 @@ class TransformerV2CrossAttBlock(nn.Module):
         attention (ScaledDotProdAttV2): Self-attention module operating on the query stream.
         cross_attention (ScaledDotProdAttV2): Cross-attention module operating on key/value streams.
         att_norm (nn.Module): Normalization layer applied before self-attention.
+        pre_post_norm (bool): Enable attention and feed-forward output norms.
+        att_post_norm (nn.Module): Self-attention output norm, or Identity.
+        cross_att_post_norm (nn.Module): Cross-attention output norm, or Identity.
+        ff_norm (nn.Module): Feed-forward input norm, or Identity for g4moe.
         cross_att_q_norm (nn.Module): Normalization applied to queries before cross-attention.
         cross_att_kv_norm (nn.Module): Normalization applied to keys/values before cross-attention.
         feed_forward (nn.Module): Feed-forward stack applied after attention.
@@ -1041,6 +1298,9 @@ class TransformerV2CrossAttBlock(nn.Module):
         ff_activation: Union[str, nn.Module] = "silu",
         ff_bias: bool = False,
         ff_multiple_of: int = 256,
+        ff_num_experts: Optional[int] = None,
+        ff_top_k_experts: Optional[int] = None,
+        ff_moe_intermediate_dim: Optional[int] = None,
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
         enable_qk_norm: bool = False,
@@ -1051,6 +1311,7 @@ class TransformerV2CrossAttBlock(nn.Module):
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
         norm_eps: float = 1e-5,
+        pre_post_norm: bool = False,
         model_parallel: bool = False,
     ):
         """Configure the cross-attention transformer block.
@@ -1068,6 +1329,9 @@ class TransformerV2CrossAttBlock(nn.Module):
             ff_activation (Union[str, nn.Module], optional): Feed-forward activation identifier. Defaults to ``"silu"``.
             ff_bias (bool, optional): Whether feed-forward linear layers include bias terms. Defaults to ``False``.
             ff_multiple_of (int, optional): Rounds ``ff_intermediate_feats`` up to the nearest multiple. Defaults to ``256``.
+            ff_num_experts: Number of routed experts, required for g4moe.
+            ff_top_k_experts: Experts selected per token, required for g4moe.
+            ff_moe_intermediate_dim: Expert intermediate width, required for g4moe.
             att_dropout_rate (float, optional): Dropout probability applied to attention weights. Defaults to ``0.0``.
             att_bias (bool, optional): Whether attention projection layers include biases. Defaults to ``False``.
             enable_qk_norm (bool, optional): Apply per-head Q/K RMSNorm before RoPE and use unit attention scaling. Defaults to ``False``.
@@ -1078,6 +1342,7 @@ class TransformerV2CrossAttBlock(nn.Module):
             norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
             drop_path_rate (float, optional): Stochastic depth rate applied to the residual branch. Defaults to ``0.0``.
             norm_eps (float, optional): Epsilon for the normalization layers. Defaults to ``1e-5``.
+            pre_post_norm: Normalize attention and feed-forward outputs before residual addition. Defaults to False.
             model_parallel (bool, optional): Whether to use tensor model-parallel attention projections. Defaults to ``False``.
         """
         super().__init__()
@@ -1086,10 +1351,21 @@ class TransformerV2CrossAttBlock(nn.Module):
         if norm_layer is None:
             norm_layer = nn.LayerNorm
 
+        self.pre_post_norm = pre_post_norm
         self.att_norm = norm_layer(num_feats, norm_eps)
+        self.att_post_norm = (
+            norm_layer(num_feats, eps=norm_eps) if pre_post_norm else nn.Identity()
+        )
+        self.cross_att_post_norm = (
+            norm_layer(num_feats, eps=norm_eps) if pre_post_norm else nn.Identity()
+        )
         self.cross_att_q_norm = norm_layer(num_feats, norm_eps)
         self.cross_att_kv_norm = norm_layer(num_kv_feats, norm_eps)
-        self.ff_norm = norm_layer(num_feats, norm_eps)
+        self.ff_norm = (
+            nn.Identity()
+            if ff_type == TransformerV2FeedForwardType.G4MoE
+            else norm_layer(num_feats, norm_eps)
+        )
 
         self.attention = att_class(
             num_feats=num_feats,
@@ -1118,6 +1394,16 @@ class TransformerV2CrossAttBlock(nn.Module):
             model_parallel=model_parallel,
         )
 
+        moe_kwargs = (
+            dict(
+                num_experts=ff_num_experts,
+                top_k_experts=ff_top_k_experts,
+                moe_intermediate_dim=ff_moe_intermediate_dim,
+                model_parallel=model_parallel,
+            )
+            if ff_type == TransformerV2FeedForwardType.G4MoE
+            else {}
+        )
         self.feed_forward = ff_class(
             num_feats,
             ff_intermediate_feats,
@@ -1127,6 +1413,9 @@ class TransformerV2CrossAttBlock(nn.Module):
             ff_bias=ff_bias,
             ff_multiple_of=ff_multiple_of,
             norm_layer=norm_layer,
+            norm_eps=norm_eps,
+            pre_post_norm=pre_post_norm,
+            **moe_kwargs,
         )
 
         self.drop_path = DropPath1d(drop_path_rate) if drop_path_rate > 0.0 else None
@@ -1220,7 +1509,7 @@ class TransformerV2CrossAttBlock(nn.Module):
             new_state = {"self_att": updated_self_state}
         else:
             att_value = att_out
-        h = x + att_value
+        h = x + self.att_post_norm(att_value).type_as(att_value)
         if x_kv is not None:
             h_norm = self.cross_att_q_norm(h)
             x_kv_norm = self.cross_att_kv_norm(x_kv)
@@ -1243,7 +1532,7 @@ class TransformerV2CrossAttBlock(nn.Module):
                 new_state["cross_att"] = updated_cross_state
             else:
                 cross_value = cross_out
-            h = h + cross_value
+            h = h + self.cross_att_post_norm(cross_value).type_as(cross_value)
 
         out = h + self.feed_forward(self.ff_norm(h))
         if self.drop_path is not None and self.training:

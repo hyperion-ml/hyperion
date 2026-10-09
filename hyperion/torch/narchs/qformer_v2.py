@@ -42,8 +42,11 @@ class QFormerV2(NetArch):
         att_bias: Whether attention projections use bias terms.
         enable_qk_norm: Enable per-head Q/K RMSNorm before RoPE and unit attention scaling.
         ff_type: Feed-forward implementation used in the transformer blocks.
-        ff_dim_multiplier: Multiplier used to derive the feed-forward bottleneck size.
+        ff_dim_multiplier: Multiplier for the dense feed-forward width, including the dense g4moe branch.
         ff_multiple_of: Bottleneck size is rounded to a multiple of this value.
+        ff_num_experts: Total routed experts when ff_type is g4moe.
+        ff_top_k_experts: Experts selected per token when ff_type is g4moe.
+        ff_moe_intermediate_dim: Intermediate width per routed expert before rounding by ff_multiple_of.
         ff_kernel_size: Kernel size used by convolutional feed-forward blocks.
         ff_dilation: Dilation used by convolutional feed-forward blocks.
         ff_act: Feed-forward activation name.
@@ -62,11 +65,12 @@ class QFormerV2(NetArch):
         sdp_backend: Preferred scaled dot-product attention backend.
         norm_layer: Normalization layer type.
         norm_eps: Epsilon used by normalization layers.
+        pre_post_norm: Add branch post-norms before residual addition using norm_layer.
         tied_layers: Share transformer blocks across layers when enabled.
         multilayer_input: Consume a list of encoder-layer feature tensors.
         distribute_query_across_layers: Split queries across cross-attention groups.
         use_layer_idx_encoder: Add a learned source-layer embedding to cross-attention inputs.
-        model_parallel: Build the module for external model-parallel execution.
+        model_parallel: Use built-in tensor-parallel projections with an externally initialized process group.
 
     """
 
@@ -85,6 +89,9 @@ class QFormerV2(NetArch):
         ff_type: TransformerV2FeedForwardType = TransformerV2FeedForwardType.MLP,
         ff_dim_multiplier: int = 4,
         ff_multiple_of: int = 256,
+        ff_num_experts: Optional[int] = None,
+        ff_top_k_experts: Optional[int] = None,
+        ff_moe_intermediate_dim: Optional[int] = None,
         ff_kernel_size: int = 7,
         ff_dilation: int = 1,
         ff_act: str = "silu",
@@ -103,6 +110,7 @@ class QFormerV2(NetArch):
         sdp_backend: SDPBackendType = SDPBackendType.default(),
         norm_layer: TransformerV2NormLayerType = TransformerV2NormLayerType.LAYERNORM,
         norm_eps: float = 1e-5,
+        pre_post_norm: bool = False,
         tied_layers: bool = False,
         multilayer_input: bool = False,
         distribute_query_across_layers: bool = False,
@@ -112,18 +120,46 @@ class QFormerV2(NetArch):
         """Initialize the Q-Former module.
 
         Args:
-            in_feats: Input feature dimension.
-            att_type: Attention implementation used in the transformer blocks.
-            num_layers: Number of transformer layers.
+            in_feats: Input feature dimension of the encoder stream.
+            att_type: Attention backend implementation.
+            num_layers: Number of query-stream transformer layers.
             hidden_dim: Hidden dimension of the query stream.
-            enable_qk_norm: Enable per-head Q/K RMSNorm and unit attention scaling.
-            cross_att_freq: Frequency of cross-attention layers.
-            out_feats: Optional output projection dimension.
-            multilayer_input: Enable the multi-layer feature-input path.
-            distribute_query_across_layers: Split queries across cross-attention groups.
-            use_layer_idx_encoder: Add a learned source-layer embedding to cross-attention inputs.
-            model_parallel: Build the module for external model-parallel execution.
-
+            num_heads: Number of query attention heads.
+            num_kv_heads: Number of key/value heads; None uses num_heads.
+            cross_att_freq: Cross-attention period; must be positive and divide num_layers.
+            att_dropout_rate: Attention weight dropout probability.
+            att_bias: Enable bias in attention projections.
+            enable_qk_norm: Enable per-head Q/K RMSNorm before RoPE and unit attention scaling.
+            ff_type: Feed-forward variant: mlp, convnext, or g4moe.
+            ff_dim_multiplier: Multiplier for the dense MLP width, including the dense g4moe branch.
+            ff_multiple_of: Rounding multiple for dense and routed expert intermediate widths.
+            ff_num_experts: Positive routed expert count, required when ff_type is g4moe.
+            ff_top_k_experts: Experts selected per token; must be in [1, ff_num_experts] for g4moe.
+            ff_moe_intermediate_dim: Positive width of each routed expert before rounding; required for g4moe.
+            ff_kernel_size: Depthwise convolution kernel size for convnext.
+            ff_dilation: Depthwise convolution dilation for convnext.
+            ff_act: Gated MLP activation. Defaults to silu; use gelu-tanh to match Gemma 4.
+            ff_bias: Enable bias in feed-forward projections; the MoE router remains bias-free.
+            rope_in_self_att: Apply rotary positional encoding in self-attention.
+            rope_in_cross_att: Apply rotary positional encoding in cross-attention.
+            rope_theta: Base frequency parameter for rotary positional encoding.
+            rope_scale_freqs: Enable long-context RoPE frequency scaling.
+            rope_update_max_seq_length: Update the original RoPE context length during training.
+            rope_original_max_seq_length: Original RoPE context length; None uses RotaryPosEncoder's built-in default.
+            rope_scaling_factor: Scaling factor for low-frequency RoPE components.
+            rope_low_freq_factor: Low-frequency threshold for RoPE scaling.
+            rope_high_freq_factor: High-frequency threshold for RoPE scaling.
+            out_feats: Optional output projection dimension; None or a nonpositive value disables it.
+            drop_path_rate: Maximum stochastic-depth probability.
+            sdp_backend: Preferred PyTorch scaled dot-product attention kernels.
+            norm_layer: Branch normalization type; independent of pre_post_norm. QK/router norms remain RMS.
+            norm_eps: Epsilon for branch, QK, and MoE router normalization.
+            pre_post_norm: Add attention and feed-forward post-norms before residual addition; default False.
+            tied_layers: Reuse one cross_att_freq-sized group of blocks throughout the query stream.
+            multilayer_input: Consume encoder features from multiple source layers.
+            distribute_query_across_layers: Split queries into groups introduced at successive cross-attention layers.
+            use_layer_idx_encoder: Add a learned source-layer embedding; requires tied_layers=True.
+            model_parallel: Use built-in tensor-parallel projections with an externally initialized process group.
         """
         super().__init__()
         self.multilayer_input = multilayer_input
@@ -138,6 +174,7 @@ class QFormerV2(NetArch):
         self.num_kv_heads = num_kv_heads
 
         self.att_type = att_type
+        self.sdp_backend = sdp_backend
         self.att_dropout_rate = att_dropout_rate
         self.att_bias = att_bias
         self.enable_qk_norm = enable_qk_norm
@@ -152,6 +189,9 @@ class QFormerV2(NetArch):
         self.ff_type = ff_type
         self.ff_dim_multiplier = ff_dim_multiplier
         self.ff_multiple_of = ff_multiple_of
+        self.ff_num_experts = ff_num_experts
+        self.ff_top_k_experts = ff_top_k_experts
+        self.ff_moe_intermediate_dim = ff_moe_intermediate_dim
         self.ff_kernel_size = ff_kernel_size
         self.ff_dilation = ff_dilation
         self.ff_act = ff_act
@@ -160,6 +200,7 @@ class QFormerV2(NetArch):
         self.drop_path_rate = drop_path_rate
         self.norm_layer = norm_layer
         self.norm_eps = norm_eps
+        self.pre_post_norm = pre_post_norm
         self._norm_layer = TransformerV2NormLayerType.to_class(norm_layer)
 
         self.tied_layers = tied_layers
@@ -180,15 +221,17 @@ class QFormerV2(NetArch):
         self.rope_high_freq_factor = rope_high_freq_factor
 
         if rope_in_self_att or rope_in_cross_att:
-            self.rope = RotaryPosEncoder(
+            rope_kwargs: Dict[str, Any] = dict(
                 theta=rope_theta,
                 scale_freqs=rope_scale_freqs,
                 update_max_seq_length=rope_update_max_seq_length,
-                original_max_seq_length=rope_original_max_seq_length,
                 scaling_factor=rope_scaling_factor,
                 low_freq_factor=rope_low_freq_factor,
                 high_freq_factor=rope_high_freq_factor,
             )
+            if rope_original_max_seq_length is not None:
+                rope_kwargs["original_max_seq_length"] = rope_original_max_seq_length
+            self.rope = RotaryPosEncoder(**rope_kwargs)
         else:
             self.rope = None
 
@@ -223,15 +266,19 @@ class QFormerV2(NetArch):
                     ff_activation=self.ff_act,
                     ff_bias=self.ff_bias,
                     ff_multiple_of=self.ff_multiple_of,
+                    ff_num_experts=self.ff_num_experts,
+                    ff_top_k_experts=self.ff_top_k_experts,
+                    ff_moe_intermediate_dim=self.ff_moe_intermediate_dim,
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
                     enable_qk_norm=self.enable_qk_norm,
                     rope=self.rope,
                     rope_in_self_att=rope_in_self_att,
                     rope_in_cross_att=rope_in_cross_att,
-                    sdp_backend=sdp_backend,
+                    sdp_backend=self.sdp_backend,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
+                    pre_post_norm=self.pre_post_norm,
                     drop_path_rate=drop_rate,
                     model_parallel=model_parallel,
                 )
@@ -248,13 +295,17 @@ class QFormerV2(NetArch):
                     ff_activation=self.ff_act,
                     ff_bias=self.ff_bias,
                     ff_multiple_of=self.ff_multiple_of,
+                    ff_num_experts=self.ff_num_experts,
+                    ff_top_k_experts=self.ff_top_k_experts,
+                    ff_moe_intermediate_dim=self.ff_moe_intermediate_dim,
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
                     enable_qk_norm=self.enable_qk_norm,
                     rope=self.rope,
-                    sdp_backend=sdp_backend,
+                    sdp_backend=self.sdp_backend,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
+                    pre_post_norm=self.pre_post_norm,
                     drop_path_rate=drop_rate,
                     model_parallel=model_parallel,
                 )
@@ -676,6 +727,7 @@ class QFormerV2(NetArch):
         config = {
             "in_feats": self.in_feats,
             "att_type": self.att_type,
+            "sdp_backend": self.sdp_backend,
             "num_layers": self.num_layers,
             "hidden_dim": self.hidden_dim,
             "num_heads": self.num_heads,
@@ -687,6 +739,9 @@ class QFormerV2(NetArch):
             "ff_type": self.ff_type,
             "ff_dim_multiplier": self.ff_dim_multiplier,
             "ff_multiple_of": self.ff_multiple_of,
+            "ff_num_experts": self.ff_num_experts,
+            "ff_top_k_experts": self.ff_top_k_experts,
+            "ff_moe_intermediate_dim": self.ff_moe_intermediate_dim,
             "ff_kernel_size": self.ff_kernel_size,
             "ff_dilation": self.ff_dilation,
             "ff_act": self.ff_act,
@@ -702,6 +757,7 @@ class QFormerV2(NetArch):
             "rope_high_freq_factor": self.rope_high_freq_factor,
             "out_feats": self.out_feats,
             "norm_eps": self.norm_eps,
+            "pre_post_norm": self.pre_post_norm,
             "drop_path_rate": self.drop_path_rate,
             "norm_layer": self.norm_layer,
             "tied_layers": self.tied_layers,
@@ -811,7 +867,7 @@ class QFormerV2(NetArch):
             "--att-type",
             default=TransformerV2AttType.TORCH_SDP.value,
             choices=TransformerV2AttType.choices(),
-            help="type of attention layer in [sdp, torch_sdp, flash_sdp]",
+            help="type of attention layer in [sdp, torch_sdp, hf_flash_sdp]",
         )
         add_argument(
             "num_layers",
@@ -874,21 +930,42 @@ class QFormerV2(NetArch):
             "--ff-type",
             default=TransformerV2FeedForwardType.MLP.value,
             choices=TransformerV2FeedForwardType.choices(),
-            help="type of feed forward layer in [mlp, convnext]",
+            help="type of feed forward layer in [mlp, convnext, g4moe]",
         )
         add_argument(
             "ff_dim_multiplier",
             "--ff-dim-multiplier",
             default=4,
             type=int,
-            help="number that multiplies the hidden dimension to get the inv. bottleneck dimension",
+            help="hidden dimension multiplier for the dense feed-forward width (dense branch for g4moe)",
         )
         add_argument(
             "ff_multiple_of",
             "--ff-multiple-of",
             default=256,
             type=int,
-            help="the inv bottleneck dim has to be a multiple of this",
+            help="round dense and expert intermediate widths up to this multiple",
+        )
+        add_argument(
+            "ff_num_experts",
+            "--ff-num-experts",
+            default=None,
+            type=int,
+            help="positive number of routed experts; required for g4moe",
+        )
+        add_argument(
+            "ff_top_k_experts",
+            "--ff-top-k-experts",
+            default=None,
+            type=int,
+            help="experts selected per token in [1, ff_num_experts]; required for g4moe",
+        )
+        add_argument(
+            "ff_moe_intermediate_dim",
+            "--ff-moe-intermediate-dim",
+            default=None,
+            type=int,
+            help="positive expert width before rounding by ff_multiple_of; required for g4moe",
         )
         add_argument(
             "ff_kernel_size",
@@ -908,7 +985,7 @@ class QFormerV2(NetArch):
             "ff_act",
             "--ff-act",
             default="silu",
-            help="activation of feedforward layers",
+            help="gated feed-forward activation (use gelu-tanh to match Gemma 4)",
         )
         add_argument(
             "ff_bias",
@@ -943,7 +1020,7 @@ class QFormerV2(NetArch):
             "--rope-original-max-seq-length",
             default=None,
             type=int,
-            help="sets manually the max seq length seen in training for ROPE",
+            help="original RoPE context length override; None uses the positional encoder default",
         )
         add_argument(
             "rope_scaling_factor",
@@ -985,23 +1062,21 @@ class QFormerV2(NetArch):
             "--distribute-query-across-layers",
             default=False,
             action=ActionYesNo,
-            help="""splits the query into num_layers / num_cross_attention layers groups, 
-                    the first group is used as input to the first cross-attention layer,
-                    the nth group is concantenated to input of the nth cross-attention layer""",
+            help="split queries into num_layers / cross_att_freq groups and introduce one group per cross-attention layer",
         )
         add_argument(
             "tied_layers",
             "--tied-layers",
             default=False,
             action=ActionYesNo,
-            help="whether the encoder encoder layers are tied or not.",
+            help="reuse one group of query-stream transformer blocks across layers",
         )
         add_argument(
             "multilayer_input",
             "--multilayer-input",
             default=False,
             action=ActionYesNo,
-            help="Input are hidden featues from several encoder layers",
+            help="consume hidden features from multiple encoder layers",
         )
         add_argument(
             "use_layer_idx_encoder",
@@ -1015,7 +1090,7 @@ class QFormerV2(NetArch):
             "--out-feats",
             default=None,
             type=int,
-            help="features for ouptut projection, if None, no output proj is done",
+            help="output projection dimension; None or a nonpositive value disables projection",
         )
         add_argument(
             "drop_path_rate",
@@ -1036,21 +1111,28 @@ class QFormerV2(NetArch):
             "--norm-layer",
             default=TransformerV2NormLayerType.LAYERNORM.value,
             choices=TransformerV2NormLayerType.choices(),
-            help="type of norm layer in [layer-norm, rms-norm]",
+            help="branch norm type in [layer-norm, rms-norm]; independent of pre_post_norm",
+        )
+        add_argument(
+            "pre_post_norm",
+            "--pre-post-norm",
+            default=False,
+            action=ActionYesNo,
+            help="add branch post-norms before residual addition using norm_layer (default: pre-norm only)",
         )
         add_argument(
             "norm_eps",
             "--norm-eps",
             default=1e-5,
             type=float,
-            help="eps for layer norms",
+            help="epsilon for branch, QK, and MoE router normalization",
         )
         add_argument(
             "model_parallel",
             "--model-parallel",
             default=False,
             action=ActionYesNo,
-            help="train with model parallel using external tools (no built-in support)",
+            help="use tensor-parallel projections with an externally initialized process group",
         )
 
         if prefix is not None:
