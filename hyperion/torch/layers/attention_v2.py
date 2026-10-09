@@ -97,6 +97,7 @@ class ScaledDotProdAttV2(nn.Module):
         num_heads (int): Number of query attention heads.
         num_kv_feats (int): Key/value feature dimension.
         num_kv_heads (int): Number of key/value heads (can differ from `num_heads`).
+        shared_kv (bool): Consume processed K/V supplied by a source layer; compute only Q.
         k_eq_v (bool): Reuse the raw key projection as values; omit the separate value projection.
         head_dim (int): Dimension per head after projection.
         dropout_rate (float): Dropout probability applied to attention weights.
@@ -135,6 +136,7 @@ class ScaledDotProdAttV2(nn.Module):
         norm_eps: float = 1e-6,
         head_dim: Optional[int] = None,
         k_eq_v: bool = False,
+        shared_kv: bool = False,
         **kwargs,
     ):
         """Construct a multi-head attention module.
@@ -142,6 +144,8 @@ class ScaledDotProdAttV2(nn.Module):
         Args:
             num_feats (int): Input feature dimension (`d_model`).
             num_heads (int): Number of query heads.
+            shared_kv (bool): Consume processed K/V without K/V projections, norms,
+                RoPE, or cache writes. Query preparation remains enabled.
             k_eq_v (bool): Reuse the raw key projection for V; the value input is ignored when enabled.
             head_dim (Optional[int]): Positive head width; None derives num_feats / num_heads.
             num_kv_feats (Optional[int]): Feature dimension for key/value projections. Defaults to `num_feats`.
@@ -176,6 +180,7 @@ class ScaledDotProdAttV2(nn.Module):
         if rope is not None and head_dim % 2:
             raise ValueError("head_dim must be even when using RoPE")
         self.head_dim = head_dim
+        self.shared_kv = shared_kv
         self.k_eq_v = k_eq_v
         self.num_feats = num_feats
         self.num_kv_feats = num_feats if num_kv_feats is None else num_kv_feats
@@ -186,13 +191,17 @@ class ScaledDotProdAttV2(nn.Module):
         self.enable_v_norm = enable_v_norm
         self.v_norm = (
             RMSNorm(self.head_dim, eps=norm_eps, with_scale=False)
-            if enable_v_norm
+            if enable_v_norm and not shared_kv
             else None
         )
         self.enable_qk_norm = enable_qk_norm
         self.norm_eps = norm_eps
         self.q_norm = RMSNorm(self.head_dim, eps=norm_eps) if enable_qk_norm else None
-        self.k_norm = RMSNorm(self.head_dim, eps=norm_eps) if enable_qk_norm else None
+        self.k_norm = (
+            RMSNorm(self.head_dim, eps=norm_eps)
+            if enable_qk_norm and not shared_kv
+            else None
+        )
         self.att_scale = 1.0 if enable_qk_norm else self.head_dim**-0.5
         self._warned_qkv_cast_from_fp32 = False
 
@@ -208,15 +217,19 @@ class ScaledDotProdAttV2(nn.Module):
                 bias=att_bias,
                 gather_output=False,
             )
-            self.k_proj = ColumnParallelLinear(
-                self.num_kv_feats,
-                self.num_kv_heads * self.head_dim,
-                bias=att_bias,
-                gather_output=False,
+            self.k_proj = (
+                None
+                if shared_kv
+                else ColumnParallelLinear(
+                    self.num_kv_feats,
+                    self.num_kv_heads * self.head_dim,
+                    bias=att_bias,
+                    gather_output=False,
+                )
             )
             self.v_proj = (
                 None
-                if k_eq_v
+                if shared_kv or k_eq_v
                 else ColumnParallelLinear(
                     self.num_kv_feats,
                     self.num_kv_heads * self.head_dim,
@@ -241,14 +254,18 @@ class ScaledDotProdAttV2(nn.Module):
                 self.num_heads * self.head_dim,
                 bias=att_bias,
             )
-            self.k_proj = nn.Linear(
-                self.num_kv_feats,
-                self.num_kv_heads * self.head_dim,
-                bias=att_bias,
+            self.k_proj = (
+                None
+                if shared_kv
+                else nn.Linear(
+                    self.num_kv_feats,
+                    self.num_kv_heads * self.head_dim,
+                    bias=att_bias,
+                )
             )
             self.v_proj = (
                 None
-                if k_eq_v
+                if shared_kv or k_eq_v
                 else nn.Linear(
                     self.num_kv_feats,
                     self.num_kv_heads * self.head_dim,
@@ -293,8 +310,15 @@ class ScaledDotProdAttV2(nn.Module):
                 - ``value``: value cache tensor
                 - ``cache_length``: cached valid length
                 - ``cache_offset``: absolute position for cache index 0
+
+        Raises:
+            ValueError: Shared-KV layers use the source cache and cannot allocate their own.
         """
 
+        if self.shared_kv:
+            raise ValueError(
+                "Shared-KV attention uses its source layer cache; it cannot allocate its own cache"
+            )
         if device is None:
             device = self.q_proj.weight.device
         if dtype is None:
@@ -441,23 +465,81 @@ class ScaledDotProdAttV2(nn.Module):
         query_start_pos: int = 0,
         key_start_pos: int = 0,
         state: Optional[CacheState] = None,
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, CacheState]]:
+        return_kv: bool = False,
+    ) -> Union[
+        torch.Tensor,
+        Tuple[torch.Tensor, CacheState],
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[CacheState]],
+    ]:
         """Project inputs, optionally apply RoPE, and compute attention.
 
         Args:
             query (torch.Tensor): Query states `(batch, seq_len_q, num_feats)`.
-            key (torch.Tensor): Key states `(batch, seq_len_k, num_feats or num_kv_feats)`.
-            value (torch.Tensor): Value states sharing shape with `key`; ignored when k_eq_v=True.
+            key (torch.Tensor): Hidden states `(batch, seq_len_k, num_kv_feats)`, or processed
+                keys `(batch, seq_len_k, local_kv_heads, head_dim)` in shared mode.
+            value (torch.Tensor): Same shape as key. In shared mode these are processed values.
+                Ignored when k_eq_v=True only in independent mode.
             mask (Optional[torch.Tensor]): Optional mask forwarded to `compute_attention`.
                 Supports additive float masks and boolean keep masks.
             query_start_pos (int, optional): Starting offset for query rope rotation. Defaults to 0.
             key_start_pos (int, optional): Starting offset for key rope rotation. Defaults to 0.
+                Ignored in shared mode because source keys are already rotated.
             state (Optional[CacheState]): External cache with ``key``, ``value``,
-                ``cache_length``, and ``cache_offset``.
+                ``cache_length``, and ``cache_offset``. Must be None in shared mode;
+                source layers own cache updates. Callers supply masks for source cache offsets.
+
+            return_kv: Return processed K/V for consumers, including visible cached
+                keys and values when state is supplied. Defaults to False.
 
         Returns:
             torch.Tensor or Tuple[torch.Tensor, CacheState]: Attention output and
-                updated cache when ``state`` is provided.
+                updated cache when ``state`` is provided. With return_kv=True,
+                returns (output, key, value, updated_state), where updated_state
+                is None when caching is disabled.
+        """
+        if self.shared_kv:
+            if state is not None:
+                raise ValueError(
+                    "Shared-KV attention cannot update a cache; pass source K/V directly"
+                )
+            query, key, value = self._prepare_shared_qkv(
+                query, key, value, query_start_pos
+            )
+            new_state = None
+        else:
+            query, key, value, new_state = self._prepare_qkv(
+                query, key, value, query_start_pos, key_start_pos, state
+            )
+
+        output = self.compute_attention(query, key, value, mask)
+        output = self.o_proj(output)
+        if return_kv:
+            return output, key, value, new_state
+        if new_state is not None:
+            return output, new_state
+        return output
+
+    def _prepare_qkv(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        query_start_pos: int,
+        key_start_pos: int,
+        state: Optional[CacheState],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[CacheState]]:
+        """Prepare independent Q/K/V and optionally update the source cache.
+
+        Args:
+            query: Query hidden states (batch, query_time, num_feats).
+            key: Key hidden states (batch, key_time, num_kv_feats).
+            value: Value hidden states; ignored when k_eq_v is enabled.
+            query_start_pos: Absolute query position for RoPE.
+            key_start_pos: Absolute key position for RoPE and cache writes.
+            state: Optional cache owned by this layer.
+
+        Returns:
+            Prepared Q/K/V and updated cache, or None when caching is disabled.
         """
         bsz, q_length, _ = query.size()
         _, k_length, _ = key.size()
@@ -473,7 +555,6 @@ class ScaledDotProdAttV2(nn.Module):
         if self.enable_qk_norm:
             query = self.q_norm(query).type_as(query)
             key = self.k_norm(key).type_as(key)
-        # xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
         if self.rope is not None:
             query = self.rope(query, query_start_pos)
             key = self.rope(key, key_start_pos)
@@ -489,11 +570,57 @@ class ScaledDotProdAttV2(nn.Module):
                 start_pos=key_start_pos,
             )
 
-        output = self.compute_attention(query, key, value, mask)
-        output = self.o_proj(output)
-        if new_state is not None:
-            return output, new_state
-        return output
+        return query, key, value, new_state
+
+    def _prepare_shared_qkv(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        query_start_pos: int,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Prepare Q and consume source K/V without reprocessing or cache writes.
+
+        Args:
+            query: Query hidden states (batch, query_time, num_feats).
+            key: Processed source keys (batch, key_time, local_kv_heads, head_dim).
+            value: Processed source values with the same shape as key.
+            query_start_pos: Absolute query position for RoPE.
+
+        Returns:
+            Prepared Q and source K/V in the attention compute dtype.
+        """
+        if query.ndim != 3:
+            raise ValueError("Shared-KV query must have shape (batch, time, num_feats)")
+        if key.ndim != 4 or value.shape != key.shape:
+            raise ValueError(
+                "Shared K/V must have matching (batch, time, kv_heads, head_dim) shapes"
+            )
+        if key.shape[0] != query.shape[0] or key.shape[2:] != (
+            self.num_local_kv_heads,
+            self.head_dim,
+        ):
+            raise ValueError(
+                "Shared K/V batch size, KV head count, or head dimension does not match this layer"
+            )
+        if not torch.is_floating_point(key) or not torch.is_floating_point(value):
+            raise ValueError("Shared K/V must be floating-point tensors")
+        bsz, q_length, _ = query.shape
+        query = self.q_proj(query).view(
+            bsz, q_length, self.num_local_heads, self.head_dim
+        )
+        if self.q_norm is not None:
+            query = self.q_norm(query).type_as(query)
+        if self.rope is not None:
+            query = self.rope(query, query_start_pos)
+        query, key, value = self._cast_qkv_for_attention(query, key, value)
+        if any(
+            t.device != query.device or t.dtype != query.dtype for t in (key, value)
+        ):
+            raise ValueError(
+                "Shared K/V must match the query attention device and dtype"
+            )
+        return query, key, value
 
     def _cast_qkv_for_attention(
         self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor

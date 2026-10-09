@@ -219,6 +219,49 @@ differ and retain separate inference caches. This option shares projection
 work within a layer; it does not share K/V across layers. To match Gemma's
 normalization alongside projection reuse, enable QK and value normalization.
 
+Shared K/V inputs in V2 attention
+--------------------------------
+
+``ScaledDotProdAttV2``, ``TorchScaledDotProdAttV2``, and
+``HFFlashScaledDotProdAttV2`` accept ``shared_kv=False``. With ``shared_kv=True``,
+the existing ``key`` and ``value`` forward inputs must contain processed source
+tensors shaped ``(batch, key_time, local_kv_heads, head_dim)``. Keys must already
+include source normalization and RoPE; values must already include any source
+value normalization. The consumer projects, normalizes, and rotates only Q,
+then runs its usual attention backend and output projection. It has no K/V
+projections or normalization modules, even when ``k_eq_v`` or value normalization
+is enabled. Those operations belong to the source layer.
+
+Shared layers cannot allocate or update their own cache. Pass the valid source
+cache slices as K/V, leave ``state=None``, and provide any mask needed for cache
+offsets or causal constraints. ``query_start_pos`` controls query RoPE;
+``key_start_pos`` is ignored for shared inputs. Gradients flow through source
+K/V during training. ``return_kv=True`` exports
+``(output, processed_key, processed_value, updated_state)`` from attention;
+without caching, ``updated_state`` is None. The self-attention block similarly
+exports ``(output, (processed_key, processed_value), updated_state)``.
+
+``TransformerEncoderV2(num_kv_shared_layers=0)`` configures shared suffixes
+within its superblocks. An integer applies the same suffix count to every
+superblock; a list provides one count per superblock. Each consumer reuses the
+last non-shared layer of its own local/global attention type in that superblock.
+Sources remain fixed throughout the shared suffix. Counts must leave at least
+one independent layer and an independent source for each consumed attention
+type. Sharing never crosses superblock boundaries, including dimension changes
+or downsampling. The local/global attention schedule itself remains unchanged.
+
+For example, six layers with a 1:1 local/global schedule and
+``num_kv_shared_layers=2`` share the final local/global layers with layers 2/3
+(zero-based). Consumers keep their own Q and output projections, attention
+pre/post norms, and feed-forward branches. ``global_k_eq_v`` and K/V norms are
+applied by the global source. The CLI accepts ``--num-kv-shared-layers=2`` or
+``--num-kv-shared-layers='[0, 2]'``; configuration serializes per-superblock counts.
+Cache state retains one entry per layer, with ``self_att=None`` for consumers;
+only independent layers allocate and update K/V buffers. Forward sharing uses
+local tensor references, so gradients reach the source during training and no
+source tensors are stored on the model between forward calls. QFormerV2 does
+not configure shared suffixes.
+
 Value normalization in V2 Transformers
 -------------------------------------
 
@@ -234,8 +277,20 @@ layers.
 
 ``RMSNorm(dim, eps=1e-6, with_scale=True)`` retains its existing learned scale
 by default. ``with_scale=False`` computes RMS normalization without parameters,
-using FP32 statistics and returning the input dtype. It does not register a
+using FP32 statistics for FP16/BF16 inputs. Scaling is applied before the final
+cast, so FP32 weights do not promote low-precision outputs outside autocast.
+Like native LayerNorm, it preserves the input dtype on CPU and outside
+autocast, but returns FP32 for non-FP64 inputs under CUDA/MPS/XPU autocast.
+FP64 inputs use FP64 computation. Without scaling, it does not register a
 weight tensor in the state dictionary.
+
+V2 attention and branch post-norms cast normalized outputs back to their
+incoming dtype before attention or residual addition. Encoder and QFormer
+final norms do the same when no output projection follows; otherwise the
+projection determines the compute dtype under autocast. Both convolutional
+stems return unprojected normalized features in the projected feature dtype.
+Pre-norms followed by linear or convolutional projections rely on those
+projections' autocast behavior.
 
 Gemma 4 mixture of experts
 --------------------------

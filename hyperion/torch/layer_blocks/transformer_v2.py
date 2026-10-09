@@ -370,7 +370,7 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
         if x_lengths is not None:
             x_proj = x_proj.masked_fill(x_mask, 0.0)
 
-        return x, x_proj, x_lengths
+        return x.type_as(x_proj), x_proj, x_lengths
 
 
 class TransfomerV2Conv1dStemBlock(nn.Module):
@@ -481,7 +481,7 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
         if x_lengths is not None:
             x_proj = x_proj.masked_fill(x_mask, 0.0)
 
-        return x, x_proj, x_lengths
+        return x.type_as(x_proj), x_proj, x_lengths
 
 
 class TransformerV2MLPBlock(nn.Module):
@@ -1069,7 +1069,8 @@ class TransformerV2SelfAttBlock(nn.Module):
     """Transformer block comprising self-attention and feed-forward sublayers with optional caching.
 
     Attributes:
-        attention (ScaledDotProdAttV2): Self-attention module handling rotary embeddings and caches.
+        attention (ScaledDotProdAttV2): Self-attention module handling rotary embeddings,
+            caches, and optional source K/V consumption through shared_kv.
         feed_forward (nn.Module): Feed-forward stack applied after attention.
         att_norm (nn.Module): Normalization layer applied before self-attention.
         pre_post_norm (bool): Enable attention and feed-forward output norms.
@@ -1100,6 +1101,7 @@ class TransformerV2SelfAttBlock(nn.Module):
         enable_v_norm: bool = False,
         head_dim: Optional[int] = None,
         k_eq_v: bool = False,
+        shared_kv: bool = False,
         rope: Optional[RotaryPosEncoder] = None,
         is_causal: bool = False,
         att_sliding_window: Optional[int] = None,
@@ -1130,6 +1132,7 @@ class TransformerV2SelfAttBlock(nn.Module):
             att_dropout_rate (float, optional): Dropout probability applied to attention weights. Defaults to ``0.0``.
             att_bias (bool, optional): Whether attention projection layers include biases. Defaults to ``False``.
             k_eq_v (bool, optional): Reuse the raw key projection for values. Defaults to ``False``.
+            shared_kv: Consume processed K/V supplied by a source block. Defaults to False.
             head_dim (Optional[int], optional): Attention head width; None derives num_feats / num_heads.
             enable_v_norm (bool, optional): Apply per-head value RMSNorm without learned scaling. Defaults to ``False``.
             enable_qk_norm (bool, optional): Apply per-head Q/K RMSNorm before RoPE and use unit attention scaling. Defaults to ``False``.
@@ -1170,6 +1173,7 @@ class TransformerV2SelfAttBlock(nn.Module):
             enable_v_norm=enable_v_norm,
             head_dim=head_dim,
             k_eq_v=k_eq_v,
+            shared_kv=shared_kv,
             norm_eps=norm_eps,
             rope=rope,
             is_causal=is_causal,
@@ -1219,7 +1223,11 @@ class TransformerV2SelfAttBlock(nn.Module):
             dtype (Optional[torch.dtype]): Tensor dtype to use for the cache. Defaults to the attention weight dtype.
 
         Returns:
-            Dict[str, torch.Tensor]: Cache dictionary with keys ``"k"``, ``"v"``, and ``"cache_length"``.
+            Dict[str, torch.Tensor]: Cache dictionary with keys ``"key"``, ``"value"``,
+                ``"cache_length"``, and ``"cache_offset"``. Shared blocks use their source cache.
+
+        Raises:
+            ValueError: Shared-KV blocks cannot allocate their own caches.
         """
 
         if not hasattr(self.attention, "init_state"):
@@ -1239,7 +1247,17 @@ class TransformerV2SelfAttBlock(nn.Module):
         x_mask: Optional[torch.Tensor] = None,
         start_pos: int = 0,
         state: Optional[Dict[str, torch.Tensor]] = None,
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
+        shared_kv: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        return_kv: bool = False,
+    ) -> Union[
+        torch.Tensor,
+        Tuple[torch.Tensor, Dict[str, torch.Tensor]],
+        Tuple[
+            torch.Tensor,
+            Tuple[torch.Tensor, torch.Tensor],
+            Optional[Dict[str, torch.Tensor]],
+        ],
+    ]:
         """Run self-attention and feed-forward sublayers with residual connections.
 
         Args:
@@ -1248,21 +1266,34 @@ class TransformerV2SelfAttBlock(nn.Module):
             start_pos (int, optional): Starting position for rotary embeddings / cache writes. Defaults to 0.
             state (Optional[Dict[str, torch.Tensor]]): Optional cache dictionary produced by :meth:`init_state`.
 
+            shared_kv: Processed source keys and values; required in shared mode.
+            return_kv: Export processed K/V for other blocks. Defaults to False.
+
         Returns:
+            With return_kv=True, (output, (key, value), updated_state), where
+            updated_state is None without caching. Otherwise:
             Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]: Output tensor and, if ``state`` is
             provided, the updated cache dictionary.
         """
+        if self.attention.shared_kv != (shared_kv is not None):
+            raise ValueError(
+                "shared_kv inputs must be provided only for shared-KV blocks"
+            )
         x_norm = self.att_norm(x)
+        key, value = (x_norm, x_norm) if shared_kv is None else shared_kv
         att_out = self.attention(
             x_norm,
-            x_norm,
-            x_norm,
+            key,
+            value,
             x_mask,
             start_pos,
             start_pos,
             state=state,
+            return_kv=return_kv,
         )
-        if isinstance(att_out, tuple):
+        if return_kv:
+            att_value, key, value, new_state = att_out
+        elif isinstance(att_out, tuple):
             att_value, new_state = att_out
         else:
             att_value = att_out
@@ -1271,6 +1302,8 @@ class TransformerV2SelfAttBlock(nn.Module):
         out = h + self.feed_forward(self.ff_norm(h))
         if self.drop_path is not None and self.training:
             out = x + self.drop_path(out - x)
+        if return_kv:
+            return out, (key, value), new_state
         if new_state is not None:
             return out, new_state
         return out

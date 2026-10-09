@@ -27,6 +27,12 @@ class RMSNorm(torch.nn.Module):
     Shape:
         - Input: ``(..., dim)``
         - Output: ``(..., dim)``
+
+    Dtype behavior follows native LayerNorm for CPU, CUDA, MPS, and XPU:
+        FP16/BF16 inputs use FP32 computation, including the learned scale.
+        Outputs retain the input dtype, even with FP32 weights, except under
+        CUDA/MPS/XPU autocast, where non-FP64 inputs produce FP32 outputs.
+        FP64 inputs retain FP64 computation and output.
     """
 
     def __init__(self, dim: int, eps: float = 1e-6, with_scale: bool = True) -> None:
@@ -69,9 +75,22 @@ class RMSNorm(torch.nn.Module):
             x: Input tensor with last dimension equal to dim.
 
         Returns:
-            Normalized tensor with optional per-dimension scaling.
+            Normalized tensor with optional per-dimension scaling and the
+            LayerNorm output dtype described in the class docstring.
         """
         if x.size(-1) != self.dim:
             raise ValueError(f"expected last dimension {self.dim}, got {x.size(-1)}")
-        output = self._norm(x.float()).type_as(x)
-        return output if self.weight is None else output * self.weight
+        if not torch.is_floating_point(x):
+            raise TypeError("RMSNorm expects a floating-point input")
+        compute_dtype = torch.float64 if x.dtype == torch.float64 else torch.float32
+        output_dtype = x.dtype
+        if (
+            x.dtype != torch.float64
+            and x.device.type in ("cuda", "mps", "xpu")
+            and torch.is_autocast_enabled(x.device.type)
+        ):
+            output_dtype = torch.float32
+        output = self._norm(x.to(dtype=compute_dtype))
+        if self.weight is not None:
+            output = output * self.weight.to(dtype=compute_dtype)
+        return output.to(dtype=output_dtype)

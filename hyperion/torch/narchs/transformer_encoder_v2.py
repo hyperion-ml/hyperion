@@ -235,6 +235,8 @@ class TransformerEncoderV2(NetArch):
         att_bias (bool): Whether attention projections include biases.
         local_attention_sliding_window (Optional[int]): Local attention window in stage tokens; None is unrestricted.
         global_attention_sliding_window (Optional[int]): Global attention window in stage tokens; None is unrestricted.
+        num_kv_shared_layers (List[int]): Number of shared suffix layers in each superblock.
+        kv_source_layers (List[Optional[int]]): Flat source indices for consumers; None for independent layers.
         layer_types (List[str]): Derived local/global schedule in execution order.
         local_rope (nn.ModuleList): Local positional encoders with independent stage caches.
         global_rope (nn.ModuleList): Global positional encoders with independent stage caches.
@@ -306,6 +308,7 @@ class TransformerEncoderV2(NetArch):
         local_head_dim: Optional[int] = None,
         global_head_dim: Optional[int] = None,
         global_k_eq_v: bool = False,
+        num_kv_shared_layers: Union[int, List[int]] = 0,
         ff_type: TransformerV2FeedForwardType = TransformerV2FeedForwardType.MLP,
         ff_dim_multiplier: float = 4,
         ff_multiple_of: int = 256,
@@ -363,6 +366,9 @@ class TransformerEncoderV2(NetArch):
             local_attention_sliding_window (Optional[int], optional): Local attention window in stage tokens; None is unrestricted. Defaults to ``None``.
             global_attention_sliding_window (Optional[int], optional): Global attention window in stage tokens; None is unrestricted. Defaults to ``None``.
             local_head_dim (Optional[int], optional): Local head width; None derives hidden_dims[i] / num_heads. Defaults to ``None``.
+            num_kv_shared_layers: Shared suffix length per superblock; an integer applies
+                to every superblock, or a list supplies one count per superblock. Defaults to 0.
+                Each shared attention type needs an earlier non-shared source in its superblock.
             global_k_eq_v (bool, optional): Reuse the raw key projection for V in global layers; independent of value normalization. Defaults to ``False``.
             global_head_dim (Optional[int], optional): Global head width; None derives hidden_dims[i] / num_heads. Defaults to ``None``.
             local_to_global_ratio (int, optional): Local layers per global layer across stages; 0 means all global. The final layer is global. Defaults to ``0``.
@@ -531,6 +537,48 @@ class TransformerEncoderV2(NetArch):
             )
             for idx in range(total_layers)
         ]
+        counts = (
+            [num_kv_shared_layers] * num_superblocks
+            if isinstance(num_kv_shared_layers, int)
+            else num_kv_shared_layers
+        )
+        if not isinstance(counts, list) or len(counts) != num_superblocks:
+            raise ValueError(
+                "num_kv_shared_layers must be an integer or one count per superblock"
+            )
+        self.num_kv_shared_layers = list(counts)
+        self.kv_source_layers: List[Optional[int]] = []
+        layer_idx = 0
+        for stage_idx, (repeats, shared_count) in enumerate(
+            zip(self.encb_repeats, counts)
+        ):
+            if (
+                isinstance(shared_count, bool)
+                or not isinstance(shared_count, int)
+                or shared_count < 0
+                or shared_count >= repeats
+            ):
+                raise ValueError(
+                    f"num_kv_shared_layers[{stage_idx}] must be in [0, {repeats - 1}]"
+                )
+            sources: Dict[str, int] = {}
+            for j in range(repeats):
+                kind = self.layer_types[layer_idx]
+                if j < repeats - shared_count:
+                    sources[kind] = layer_idx
+                    self.kv_source_layers.append(None)
+                else:
+                    if kind not in sources:
+                        raise ValueError(
+                            f"Shared {kind} layer {layer_idx} has no non-shared {kind} "
+                            f"source in superblock {stage_idx}; reduce num_kv_shared_layers"
+                        )
+                    self.kv_source_layers.append(sources[kind])
+                layer_idx += 1
+        self._kv_export_layers = {
+            idx for idx in self.kv_source_layers if idx is not None
+        }
+
         windows = {
             "local": local_attention_sliding_window,
             "global": global_attention_sliding_window,
@@ -636,6 +684,7 @@ class TransformerEncoderV2(NetArch):
                     enable_qk_norm=self.enable_qk_norm,
                     enable_v_norm=self.enable_v_norm,
                     k_eq_v=self.global_k_eq_v and layer_type == "global",
+                    shared_kv=self.kv_source_layers[count] is not None,
                     head_dim=(
                         self.local_head_dim
                         if layer_type == "local"
@@ -957,6 +1006,7 @@ class TransformerEncoderV2(NetArch):
 
         Returns:
             TransformerEncoderState: Container with one cache entry per transformer block.
+                Shared layers have self_att=None; source layers own their K/V cache.
         """
 
         block_states: List[TransformerBlockState] = []
@@ -970,11 +1020,15 @@ class TransformerEncoderV2(NetArch):
                         1, int(math.ceil(current_cache_length / stride))
                     )
             for block in blocks:
-                block_state = block.init_state(
-                    batch_size=batch_size,
-                    max_cache_length=current_cache_length,
-                    device=device,
-                    dtype=dtype,
+                block_state = (
+                    None
+                    if block.attention.shared_kv
+                    else block.init_state(
+                        batch_size=batch_size,
+                        max_cache_length=current_cache_length,
+                        device=device,
+                        dtype=dtype,
+                    )
                 )
                 block_states.append(TransformerBlockState(self_att=block_state))
 
@@ -1022,8 +1076,11 @@ class TransformerEncoderV2(NetArch):
             state.block_states if state is not None else [None] * sum(self.encb_repeats)
         )
         block_idx = 0
+        if state is not None and len(state_blocks) != sum(self.encb_repeats):
+            raise ValueError("Cache state must contain one entry per transformer layer")
 
         for i in range(self.num_superblocks):
+            prepared_kv: Dict[int, Tuple[torch.Tensor, torch.Tensor]] = {}
             prev_length = x.size(1)
             x = self.downsample_blocks[i](x)
             x_lengths = scale_seq_lengths(
@@ -1040,20 +1097,33 @@ class TransformerEncoderV2(NetArch):
                     state_blocks[block_idx].self_att if state is not None else None
                 )
                 block = self.trans_blocks[i][j]
+                source_idx = self.kv_source_layers[block_idx]
+                if source_idx is not None and current_state is not None:
+                    raise ValueError(
+                        "Shared layers must have self_att=None in cache state"
+                    )
+                export_kv = block_idx in self._kv_export_layers
                 att_out = block(
                     x,
                     x_mask=x_mask,
                     start_pos=start_pos,
                     state=current_state,
+                    shared_kv=None if source_idx is None else prepared_kv[source_idx],
+                    return_kv=export_kv,
                 )
 
-                if state is not None:
+                if export_kv:
+                    x, kv, new_block_state = att_out
+                    prepared_kv[block_idx] = kv
+                elif state is not None and source_idx is None:
                     x, new_block_state = att_out
+                else:
+                    x = att_out
+                    new_block_state = None
+                if state is not None:
                     updated_states.append(
                         TransformerBlockState(self_att=new_block_state)
                     )
-                else:
-                    x = att_out
 
                 block_idx += 1
                 if not torch.all(torch.isfinite(x)):
@@ -1073,10 +1143,10 @@ class TransformerEncoderV2(NetArch):
             x = self._merge_endpoints(endpoints)
 
         x = x.contiguous()
-        x = self.out_norm(x)
-
         if self.out_feats is not None:
-            x = self.out_proj(x)
+            x = self.out_proj(self.out_norm(x))
+        else:
+            x = self.out_norm(x).type_as(x)
 
         if not torch.all(torch.isfinite(x)):
             logging.warning("non-finite x-out-%d-%d-avg=%f", i, j, torch.mean(x))
@@ -1129,6 +1199,7 @@ class TransformerEncoderV2(NetArch):
             "local_head_dim": self.local_head_dim,
             "global_head_dim": self.global_head_dim,
             "global_k_eq_v": self.global_k_eq_v,
+            "num_kv_shared_layers": self.num_kv_shared_layers,
             "local_rope_theta": self.local_rope_theta,
             "global_rope_theta": self.global_rope_theta,
             "local_rope_partial_rotary_factor": self.local_rope_partial_rotary_factor,
@@ -1328,6 +1399,12 @@ class TransformerEncoderV2(NetArch):
                 default=False,
                 action=ActionYesNo,
                 help="use bias in Linear layers of attention blocks",
+            )
+            parser.add_argument(
+                "--num-kv-shared-layers",
+                default=0,
+                type=Union[int, List[int]],
+                help="shared suffix layers per superblock; integer for all stages or a list of counts (default: 0)",
             )
             parser.add_argument(
                 "--enable-qk-norm",

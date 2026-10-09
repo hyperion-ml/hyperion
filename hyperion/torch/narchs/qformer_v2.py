@@ -589,10 +589,10 @@ class QFormerV2(NetArch):
                     "non-finite x-enc-%d-avg=%f", i, torch.mean(hidden_feats)
                 )
 
-        out_feats = self.out_norm(hidden_feats)
-
         if self.out_feats is not None:
-            out_feats = self.out_proj(out_feats)
+            out_feats = self.out_proj(self.out_norm(hidden_feats))
+        else:
+            out_feats = self.out_norm(hidden_feats).type_as(hidden_feats)
 
         if not torch.all(torch.isfinite(out_feats)):
             logging.warning("non-finite x-out-avg=%f", torch.mean(out_feats))
@@ -729,10 +729,10 @@ class QFormerV2(NetArch):
                     "non-finite x-enc-%d-avg=%f", i, torch.mean(hidden_feats)
                 )
 
-        out_feats = self.out_norm(hidden_feats)
-
         if self.out_feats is not None:
-            out_feats = self.out_proj(out_feats)
+            out_feats = self.out_proj(self.out_norm(hidden_feats))
+        else:
+            out_feats = self.out_norm(hidden_feats).type_as(hidden_feats)
 
         if not torch.all(torch.isfinite(out_feats)):
             logging.warning("non-finite x-out-avg=%f", torch.mean(out_feats))
