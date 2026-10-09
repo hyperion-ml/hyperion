@@ -215,8 +215,10 @@ class RotaryPosEncoder(PosEncoderBase):
         theta (float): Base value controlling the geometric progression of inverse frequencies.
         scale_freqs (bool): Whether to apply LLaMA-style frequency interpolation.
         update_max_seq_length (bool): Allow dynamic growth of the cached maximum sequence length while training.
-        low_freq_factor (float): Long-wavelength threshold factor for full frequency scaling.
-        high_freq_factor (float): Short-wavelength threshold factor for unchanged frequencies.
+        low_freq_factor (float): Factor defining the long-wavelength threshold above which
+            frequencies receive full scaling.
+        high_freq_factor (float): Factor defining the short-wavelength threshold below which
+            frequencies remain unchanged.
         scaling_factor (float): Scaling divisor applied to low-frequency components.
         freqs_cis (Optional[torch.Tensor]): Cached complex sinusoid buffer.
         max_seq_length (torch.Tensor): Tracked maximum sequence length observed so far.

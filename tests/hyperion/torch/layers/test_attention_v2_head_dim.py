@@ -12,6 +12,40 @@ from hyperion.torch.layers.attention_v2 import (
 
 
 @pytest.mark.parametrize(
+    "num_heads,num_kv_heads,world_size,invalid_arg",
+    [(3, 1, 2, "num_heads"), (4, 1, 2, "num_kv_heads"), (6, 3, 2, "num_kv_heads")],
+)
+def test_invalid_tensor_parallel_head_counts(
+    monkeypatch: pytest.MonkeyPatch,
+    num_heads: int,
+    num_kv_heads: int,
+    world_size: int,
+    invalid_arg: str,
+) -> None:
+    """Reject head partitions before constructing distributed projections.
+
+    Args:
+        monkeypatch: Fixture replacing the tensor-parallel world-size lookup.
+        num_heads: Query head count.
+        num_kv_heads: KV head count.
+        world_size: Simulated tensor-parallel rank count.
+        invalid_arg: Head-count argument that cannot be partitioned.
+    """
+    monkeypatch.setattr(
+        "hyperion.torch.layers.attention_v2.get_tensor_parallel_world_size",
+        lambda: world_size,
+    )
+    with pytest.raises(ValueError, match=rf"{invalid_arg} .*world size"):
+        ScaledDotProdAttV2(
+            num_feats=12,
+            num_heads=num_heads,
+            num_kv_heads=num_kv_heads,
+            head_dim=4,
+            model_parallel=True,
+        )
+
+
+@pytest.mark.parametrize(
     "attention_class", [ScaledDotProdAttV2, TorchScaledDotProdAttV2]
 )
 @pytest.mark.parametrize("head_dim", [2, 8])

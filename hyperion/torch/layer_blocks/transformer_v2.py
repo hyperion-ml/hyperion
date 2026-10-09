@@ -13,6 +13,7 @@ import torch.nn as nn
 from ..layers import ActivationFactory as AF
 from ..layers import DropPath1d, GRN1d, Interpolate, RMSNorm, StreamingCausalConv1d
 from ..layers.attention_v2 import (
+    CacheState,
     HFFlashScaledDotProdAttV2,
     ScaledDotProdAttV2,
     SDPBackendType,
@@ -126,8 +127,12 @@ def _frame_validity_mask(
             Cached history precedes the current frames on the key axis.
         length: Number of current frames; zero produces an empty mask.
 
-    Returns:
-        Boolean validity mask shaped (B, length), or None.
+        Returns:
+            Boolean validity mask shaped (B, length), or None.
+
+        For cached masks, current frames must occupy the final ``length`` key
+        positions. This matches append-only streaming; cache-overwrite masks
+        with a retained future suffix are unsupported.
     """
     if mask is None:
         return None
@@ -1220,6 +1225,55 @@ class TransformerV2ConvEndpoint(nn.Module):
         layers.append(Interpolate(scale_factor=stride, mode="nearest"))
         return nn.Sequential(*layers)
 
+    def output_lengths(
+        self, lengths: Union[int, torch.Tensor]
+    ) -> Union[int, torch.Tensor]:
+        """Calculate temporal lengths after endpoint resampling.
+
+        Args:
+            lengths: Input time size or per-sequence valid lengths.
+
+        Returns:
+            Output sizes including convolution, pooling, and interpolation rounding.
+        """
+        for layer in self.resample:
+            lengths = self._resample_output_lengths(lengths, layer)
+        return lengths
+
+    @staticmethod
+    def _resample_output_lengths(
+        lengths: Union[int, torch.Tensor], layer: nn.Module
+    ) -> Union[int, torch.Tensor]:
+        """Calculate lengths after one endpoint resampling operation.
+
+        Args:
+            lengths: Input time size or per-sequence valid lengths.
+            layer: Endpoint convolution, pooling, or interpolation layer.
+
+        Returns:
+            Nonnegative output lengths, preserving empty sequences.
+        """
+        if isinstance(layer, Interpolate):
+            return lengths * int(layer.scale_factor)
+        if isinstance(layer, nn.Conv1d):
+            kernel, stride, padding, dilation = (
+                layer.kernel_size[0],
+                layer.stride[0],
+                layer.padding[0],
+                layer.dilation[0],
+            )
+        else:
+            kernel, stride, padding, dilation = (
+                layer.kernel_size,
+                layer.stride,
+                layer.padding,
+                layer.dilation,
+            )
+        output = (lengths + 2 * padding - dilation * (kernel - 1) - 1) // stride + 1
+        if isinstance(lengths, torch.Tensor):
+            return output.clamp_min(0).masked_fill(lengths == 0, 0)
+        return max(0, output) if lengths > 0 else 0
+
     def forward(
         self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
@@ -1227,16 +1281,29 @@ class TransformerV2ConvEndpoint(nn.Module):
 
         Args:
             x (torch.Tensor): Input tensor with shape ``(batch, time, in_channels)``.
-            x_mask (Optional[torch.Tensor]): Unused; present for API symmetry.
+            x_mask (Optional[torch.Tensor]): Right-padding mask shaped (B, T) or
+                (B, 1, Q, K), using boolean keep or additive mask values. Padding
+                is cleared after normalization and excluded from max-pooling.
 
         Returns:
             torch.Tensor: Tensor with shape ``(batch, out_time, out_channels)``.
         """
         if x.size(1) == 0:
             return x.new_empty(x.size(0), 0, self.out_channels)
+        valid = _frame_validity_mask(x_mask, x.size(1))
+        lengths = valid.sum(dim=-1) if valid is not None else None
         x = self.norm(x).permute(0, 2, 1).contiguous()
-        x = self.resample(x).permute(0, 2, 1).contiguous()
-        return x
+        for layer in self.resample:
+            if valid is not None:
+                # Max-pooling must ignore padding even when valid values are negative.
+                fill_value = -float("inf") if isinstance(layer, nn.MaxPool1d) else 0.0
+                x = x.masked_fill(~valid[:, None, :], fill_value)
+            x = layer(x)
+            if lengths is not None:
+                lengths = self._resample_output_lengths(lengths, layer)
+                valid = seq_lengths_to_mask(lengths, x.size(-1))
+                x = x.masked_fill(~valid[:, None, :], 0.0)
+        return x.permute(0, 2, 1).contiguous()
 
 
 class TransformerV2ConvDownsampleBlock(nn.Module):
@@ -1412,7 +1479,7 @@ class TransformerV2SelfAttBlock(nn.Module):
         ff_type: TransformerV2FeedForwardType,
         num_feats: int,
         num_heads: int,
-        num_kv_heads: int,
+        num_kv_heads: Optional[int],
         ff_intermediate_feats: int,
         ff_kernel_size: int,
         ff_dilation: int,
@@ -1433,6 +1500,7 @@ class TransformerV2SelfAttBlock(nn.Module):
         is_causal: bool = False,
         att_sliding_window: Optional[int] = None,
         sdp_backend: SDPBackendType = SDPBackendType.default(),
+        flash_attention_version: Optional[int] = None,
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
         norm_eps: float = 1e-5,
@@ -1467,6 +1535,7 @@ class TransformerV2SelfAttBlock(nn.Module):
             is_causal (bool, optional): If ``True``, enables causal masking within the attention module. Defaults to ``False``.
             att_sliding_window (Optional[int], optional): Optional sliding-window constraint for attention. Defaults to ``None``.
             sdp_backend (SDPBackendType, optional): Preferred scaled dot-product backend. Defaults to ``SDPBackendType.default()``.
+            flash_attention_version: HF Flash Attention version (2, 3, or 4); None uses FA4.
             norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
             drop_path_rate (float, optional): Stochastic depth rate applied to the residual branch. Defaults to ``0.0``.
             norm_eps (float, optional): Epsilon for the normalization layers. Defaults to ``1e-5``.
@@ -1508,6 +1577,11 @@ class TransformerV2SelfAttBlock(nn.Module):
             is_causal=is_causal,
             sliding_window=att_sliding_window,
             sdp_backend=sdp_backend,
+            **(
+                {"flash_attention_version": flash_attention_version}
+                if flash_attention_version is not None
+                else {}
+            ),
             model_parallel=model_parallel,
         )
         moe_kwargs = (
@@ -1542,7 +1616,7 @@ class TransformerV2SelfAttBlock(nn.Module):
         max_cache_length: int,
         device: Optional[torch.device] = None,
         dtype: Optional[torch.dtype] = None,
-    ) -> Dict[str, torch.Tensor]:
+    ) -> CacheState:
         """Initialize the key/value cache dictionary required for streaming attention.
 
         Args:
@@ -1553,7 +1627,7 @@ class TransformerV2SelfAttBlock(nn.Module):
             dtype (Optional[torch.dtype]): Tensor dtype to use for the cache. Defaults to the attention weight dtype.
 
         Returns:
-            Dict[str, torch.Tensor]: Cache dictionary with keys ``"key"``, ``"value"``,
+            CacheState: Cache dictionary with keys ``"key"``, ``"value"``,
                 ``"cache_length"``, ``"cache_offset"``, and ``"max_cache_length"``.
                 K/V start empty and grow dynamically. Shared blocks use their source cache.
 
@@ -1577,16 +1651,16 @@ class TransformerV2SelfAttBlock(nn.Module):
         x: torch.Tensor,
         x_mask: Optional[torch.Tensor] = None,
         start_pos: int = 0,
-        state: Optional[Dict[str, torch.Tensor]] = None,
+        state: Optional[CacheState] = None,
         shared_kv: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         return_kv: bool = False,
     ) -> Union[
         torch.Tensor,
-        Tuple[torch.Tensor, Dict[str, torch.Tensor]],
+        Tuple[torch.Tensor, CacheState],
         Tuple[
             torch.Tensor,
             Tuple[torch.Tensor, torch.Tensor],
-            Optional[Dict[str, torch.Tensor]],
+            Optional[CacheState],
         ],
     ]:
         """Run self-attention and feed-forward sublayers with residual connections.
@@ -1595,7 +1669,7 @@ class TransformerV2SelfAttBlock(nn.Module):
             x (torch.Tensor): Input tensor of shape `(batch, seq_len, hidden_dim)`.
             x_mask (Optional[torch.Tensor]): Optional attention mask broadcastable to the attention scores.
             start_pos (int, optional): Starting position for rotary embeddings / cache writes. Defaults to 0.
-            state (Optional[Dict[str, torch.Tensor]]): Optional cache dictionary produced by :meth:`init_state`.
+            state (Optional[CacheState]): Optional cache dictionary produced by :meth:`init_state`.
 
             shared_kv: Processed source keys and values; required in shared mode.
             return_kv: Export processed K/V for other blocks. Defaults to False.
@@ -1603,7 +1677,7 @@ class TransformerV2SelfAttBlock(nn.Module):
         Returns:
             With return_kv=True, (output, (key, value), updated_state), where
             updated_state is None without caching. Otherwise:
-            Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]: Output tensor and, if ``state`` is
+            Union[torch.Tensor, Tuple[torch.Tensor, CacheState]]: Output tensor and, if ``state`` is
             provided, the updated cache dictionary.
         """
         if self.attention.shared_kv != (shared_kv is not None):
@@ -1664,7 +1738,7 @@ class TransformerV2CrossAttBlock(nn.Module):
         num_feats: int,
         num_heads: int,
         num_kv_feats: int,
-        num_kv_heads: int,
+        num_kv_heads: Optional[int],
         ff_intermediate_feats: int,
         ff_kernel_size: int,
         ff_dilation: int,
@@ -1685,6 +1759,7 @@ class TransformerV2CrossAttBlock(nn.Module):
         rope_in_self_att: bool = True,
         rope_in_cross_att: bool = True,
         sdp_backend: SDPBackendType = SDPBackendType.default(),
+        flash_attention_version: Optional[int] = None,
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
         norm_eps: float = 1e-5,
@@ -1720,6 +1795,7 @@ class TransformerV2CrossAttBlock(nn.Module):
             rope_in_self_att (bool, optional): If ``True``, applies the shared RoPE to self-attention. Defaults to ``True``.
             rope_in_cross_att (bool, optional): If ``True``, applies the shared RoPE to cross-attention. Defaults to ``True``.
             sdp_backend (SDPBackendType, optional): Preferred scaled dot-product backend. Defaults to ``SDPBackendType.default()``.
+            flash_attention_version: HF Flash Attention version (2, 3, or 4); None uses FA4.
             norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
             drop_path_rate (float, optional): Stochastic depth rate applied to the residual branch. Defaults to ``0.0``.
             norm_eps (float, optional): Epsilon for the normalization layers. Defaults to ``1e-5``.
@@ -1761,6 +1837,11 @@ class TransformerV2CrossAttBlock(nn.Module):
             norm_eps=norm_eps,
             rope=rope if rope_in_self_att else None,
             sdp_backend=sdp_backend,
+            **(
+                {"flash_attention_version": flash_attention_version}
+                if flash_attention_version is not None
+                else {}
+            ),
             model_parallel=model_parallel,
         )
 
@@ -1778,6 +1859,11 @@ class TransformerV2CrossAttBlock(nn.Module):
             norm_eps=norm_eps,
             rope=rope if rope_in_cross_att else None,
             sdp_backend=sdp_backend,
+            **(
+                {"flash_attention_version": flash_attention_version}
+                if flash_attention_version is not None
+                else {}
+            ),
             model_parallel=model_parallel,
         )
 
@@ -1814,7 +1900,7 @@ class TransformerV2CrossAttBlock(nn.Module):
         cross_max_cache_length: Optional[int] = None,
         device: Optional[torch.device] = None,
         dtype: Optional[torch.dtype] = None,
-    ) -> Dict[str, Dict[str, torch.Tensor]]:
+    ) -> Dict[str, CacheState]:
         """Initialize caches for both self- and cross-attention paths.
 
         Returns a mapping with keys `self_att` and/or `cross_att` when the respective
@@ -1829,11 +1915,11 @@ class TransformerV2CrossAttBlock(nn.Module):
             dtype (Optional[torch.dtype]): Tensor dtype for caches.
 
         Returns:
-            Dict[str, Dict[str, torch.Tensor]]: Dictionary containing cache dictionaries for self-attention
+            Dict[str, CacheState]: Dictionary containing cache dictionaries for self-attention
             (key ``"self_att"``) and cross-attention (key ``"cross_att"``) when supported.
         """
 
-        state: Dict[str, Dict[str, torch.Tensor]] = {}
+        state: Dict[str, CacheState] = {}
         if cross_max_cache_length is None:
             cross_max_cache_length = self_max_cache_length
 
@@ -1861,8 +1947,8 @@ class TransformerV2CrossAttBlock(nn.Module):
         x_kv_mask: Optional[torch.Tensor] = None,
         start_pos: int = 0,
         start_pos_kv: int = 0,
-        state: Optional[Dict[str, Dict[str, torch.Tensor]]] = None,
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, Dict[str, torch.Tensor]]]]:
+        state: Optional[Dict[str, CacheState]] = None,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, CacheState]]]:
         """Run self- then cross-attention (if provided) followed by the feed-forward stack.
 
         Args:
@@ -1872,11 +1958,11 @@ class TransformerV2CrossAttBlock(nn.Module):
             x_kv_mask (Optional[torch.Tensor]): Optional mask applied during cross-attention.
             start_pos (int, optional): Starting position for self-attention cache writes. Defaults to 0.
             start_pos_kv (int, optional): Starting position for cross-attention cache writes. Defaults to 0.
-            state (Optional[Dict[str, Dict[str, torch.Tensor]]]): Optional cache dictionary returned by
+            state (Optional[Dict[str, CacheState]]): Optional cache dictionary returned by
                 :meth:`init_state`.
 
         Returns:
-            Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, Dict[str, torch.Tensor]]]]: Output tensor and, if a
+            Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, CacheState]]]: Output tensor and, if a
             cache ``state`` is provided, the updated cache dictionary containing ``"self_att"`` and/or ``"cross_att"``.
         """
         x_norm = self.att_norm(x)
@@ -1890,7 +1976,7 @@ class TransformerV2CrossAttBlock(nn.Module):
             start_pos,
             state=self_state,
         )
-        new_state: Optional[Dict[str, Dict[str, torch.Tensor]]] = None
+        new_state: Optional[Dict[str, CacheState]] = None
         if isinstance(att_out, tuple):
             att_value, updated_self_state = att_out
             new_state = {"self_att": updated_self_state}

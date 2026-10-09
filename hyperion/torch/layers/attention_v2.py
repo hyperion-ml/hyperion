@@ -157,6 +157,7 @@ class ScaledDotProdAttV2(nn.Module):
             is_causal (bool): Whether the module should behave causally (see class docstring for details).
             sliding_window (Optional[int]): Sliding-window size for Flash Attention kernels.
             model_parallel (bool): If `True`, use tensor-parallel linear layers built on PyTorch collectives.
+                Query and KV head counts must both be divisible by the tensor-parallel world size.
             enable_v_norm (bool): Normalize values per head without learned scaling; independent of QK normalization.
             enable_qk_norm (bool): Enable learned per-head RMSNorm for Q and K and unit attention scaling.
             norm_eps (float): Epsilon for query/key/value RMSNorm. Defaults to `1e-6`.
@@ -170,6 +171,14 @@ class ScaledDotProdAttV2(nn.Module):
             or num_heads <= 0
         ):
             raise ValueError("num_heads must be a positive integer")
+        if (
+            isinstance(self.num_kv_heads, bool)
+            or not isinstance(self.num_kv_heads, int)
+            or self.num_kv_heads <= 0
+        ):
+            raise ValueError("num_kv_heads must be a positive integer or None")
+        if num_heads % self.num_kv_heads != 0:
+            raise ValueError("num_heads must be divisible by num_kv_heads")
         if head_dim is None:
             if num_feats % num_heads != 0:
                 raise ValueError(
@@ -208,6 +217,15 @@ class ScaledDotProdAttV2(nn.Module):
 
         if model_parallel:
             model_parallel_size = get_tensor_parallel_world_size()
+            for name, count in (
+                ("num_heads", num_heads),
+                ("num_kv_heads", self.num_kv_heads),
+            ):
+                if count % model_parallel_size != 0:
+                    raise ValueError(
+                        f"{name} ({count}) must be divisible by tensor parallel "
+                        f"world size ({model_parallel_size}) when model_parallel=True"
+                    )
             self.num_local_heads = num_heads // model_parallel_size
             self.num_local_kv_heads = self.num_kv_heads // model_parallel_size
             self.num_rep = self.num_local_heads // self.num_local_kv_heads
@@ -788,8 +806,6 @@ class TorchScaledDotProdAttV2(ScaledDotProdAttV2):
             sdp_backend (SDPBackendType): Preferred sequence of SDP kernels to attempt when
                 calling `torch.nn.functional.scaled_dot_product_attention`.
 
-        Returns:
-            None: This constructor initializes the module in place.
         """
 
         super().__init__(*args, **kwargs)
@@ -882,6 +898,10 @@ class TorchScaledDotProdAttV2(ScaledDotProdAttV2):
 
 class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
     """Scaled dot-product attention dispatched to Flash Attention kernels.
+
+    TODO: Test Flash Attention 2/3/4 selection and variable-length cross-attention
+    against newer Transformers releases before changing the supported dependency
+    range.
 
     Attributes:
         flash_attention_version: Requested Flash Attention version (2, 3, or 4).

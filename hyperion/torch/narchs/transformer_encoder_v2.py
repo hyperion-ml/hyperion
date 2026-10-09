@@ -29,7 +29,11 @@ from ..layer_blocks.transformer_v2 import (
     TransformerV2StreamingConvDownsampleBlock,
 )
 from ..layers import RotaryPosEncoder
-from ..layers.attention_v2 import ScaledDotProdAttV2, TorchScaledDotProdAttV2
+from ..layers.attention_v2 import (
+    CacheState,
+    ScaledDotProdAttV2,
+    TorchScaledDotProdAttV2,
+)
 from ..layers.tensor_parallel import ColumnParallelLinear
 from ..utils import seq_lengths_to_mask
 from .net_arch import NetArch
@@ -40,12 +44,12 @@ class TransformerBlockState(HyperDataClass):
     """Cache container for an individual transformer block.
 
     Attributes:
-        self_att: Dictionary with cached key/value tensors produced by the self-attention layer.
-        cross_att: Optional dictionary with cached key/value tensors for the cross-attention branch.
+        self_att: Cache state produced by the self-attention layer.
+        cross_att: Optional cache state for the cross-attention branch.
     """
 
-    self_att: Optional[Dict[str, torch.Tensor]] = None
-    cross_att: Optional[Dict[str, torch.Tensor]] = None
+    self_att: Optional[CacheState] = None
+    cross_att: Optional[CacheState] = None
 
 
 @dataclass
@@ -281,12 +285,13 @@ class TransformerEncoderV2(NetArch):
         pre_post_norm: Add branch post-norms before residual addition using norm_layer.
         is_causal (bool): Enables causal attention and streaming 1-D convolutions;
             Conv2D stems and ConvNeXt feed-forward blocks are unsupported.
-        flash_attention_version: Process-wide native Torch Flash Attention version (2, 3, or 4).
+        flash_attention_version: Flash Attention version (2, 3, or 4); None selects
+            Torch FA2 or HF FA4. Native Torch selection is process-wide.
         sdp_backend (SDPBackendType): Preferred backend for PyTorch scaled dot-product attention.
         multilayer (bool): Whether to enable multi-layer feature aggregation (MFA).
         multilayer_concat (bool): Whether MFA concatenates features instead of summing them.
         endpoint_channels (Optional[int]): Target channel size for MFA endpoints.
-        endpoint_layers (Optional[List[int]]): Zero-based indices of encoder stages used as MFA endpoints.
+        endpoint_layers (Optional[List[int]]): Zero-based MFA stage indices; the final stage is always included.
         endpoint_scale_layer (int): Stage index defining the temporal scale for MFA.
         model_parallel (bool): Enables built-in tensor-parallel projections.
     """
@@ -346,7 +351,7 @@ class TransformerEncoderV2(NetArch):
         pre_post_norm: bool = False,
         is_causal: bool = False,
         sdp_backend: SDPBackendType = SDPBackendType.default(),
-        flash_attention_version: int = 2,
+        flash_attention_version: Optional[int] = None,
         multilayer: bool = False,
         multilayer_concat: bool = False,
         endpoint_channels: Optional[int] = None,
@@ -412,14 +417,15 @@ class TransformerEncoderV2(NetArch):
             pre_post_norm: Add branch post-norms before residual addition using norm_layer. Defaults to False.
             is_causal (bool, optional): Whether to use causal attention and 1-D convolutions. Conv2D stems and
                 ConvNeXt feed-forward blocks are rejected. Defaults to ``False``.
-            flash_attention_version: Process-wide native Torch Flash Attention version; defaults to 2.
+            flash_attention_version: Flash Attention version (2, 3, or 4). None uses Torch
+                FA2 or HF FA4. Native Torch selection is process-wide.
             sdp_backend (SDPBackendType, optional): Preferred PyTorch scaled dot-product backend. Defaults to ``SDPBackendType.default()``.
             multilayer (bool, optional): Enables multi-layer feature aggregation (MFA). Defaults to ``False``.
             multilayer_concat (bool, optional): If ``True``, MFA concatenates endpoints before projection. Defaults to ``False``.
             endpoint_channels (Optional[int], optional): Target channel width for MFA endpoints. Defaults to ``None``.
-            endpoint_layers (Optional[List[int]], optional): Zero-based stage indices exported as MFA endpoints. Defaults to ``None``.
+            endpoint_layers (Optional[List[int]], optional): Zero-based MFA stage indices; the final stage is always included. None selects all stages.
             endpoint_scale_layer (int, optional): Stage index defining the temporal resolution for MFA. Defaults to ``-1``.
-            model_parallel (bool, optional): Enables FairScale tensor model-parallel linear layers. Defaults to ``False``.
+            model_parallel (bool, optional): Enables toolkit tensor model-parallel linear layers. Defaults to ``False``.
         """
         super().__init__()
         self.in_feats = in_feats
@@ -500,7 +506,9 @@ class TransformerEncoderV2(NetArch):
         self.sdp_backend = sdp_backend
         self.flash_attention_version = flash_attention_version
         if self.att_type == TransformerV2AttType.TORCH_SDP:
-            TorchScaledDotProdAttV2.set_flash_attention_version(flash_attention_version)
+            TorchScaledDotProdAttV2.set_flash_attention_version(
+                2 if flash_attention_version is None else flash_attention_version
+            )
 
         self.local_rope_theta = local_rope_theta
         self.global_rope_theta = global_rope_theta
@@ -725,6 +733,7 @@ class TransformerEncoderV2(NetArch):
                     is_causal=self.is_causal,
                     att_sliding_window=windows[layer_type],
                     sdp_backend=self.sdp_backend,
+                    flash_attention_version=self.flash_attention_version,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
                     pre_post_norm=self.pre_post_norm,
@@ -766,6 +775,10 @@ class TransformerEncoderV2(NetArch):
                         "endpoint_layers contains invalid 0-based stage indices "
                         f"{invalid_layers}; valid range is [0, {num_superblocks - 1}]"
                     )
+
+            # Keep every stage connected to the aggregated output during training.
+            if num_superblocks - 1 not in endpoint_layers:
+                endpoint_layers.append(num_superblocks - 1)
 
             if endpoint_channels is None:
                 # if None, the number of endpoint channels matches the one of the endpoint level
@@ -891,22 +904,50 @@ class TransformerEncoderV2(NetArch):
         return p
 
     def _compute_out_size(self, in_size: int) -> int:
-        """Compute the encoder time length after all convolutions.
+        """Compute the output time length including endpoint resampling and cropping.
 
         Args:
             in_size: Input time length.
 
         Returns:
-            int: Output time length after stem and downsampling blocks.
+            int: Output time length at the selected aggregation scale, or final stage.
         """
         out_size = in_size
-        for stride in self.stem_strides:
-            out_size = int((out_size + stride - 1) // stride)
+        endpoint_sizes = []
+        convolution_groups = [[layer.conv for layer in self.stem_block.conv_layers]] + [
+            [] if isinstance(block, nn.Identity) else [block.conv]
+            for block in self.downsample_blocks
+        ]
+        for group_idx, convolutions in enumerate(convolution_groups):
+            for conv in convolutions:
+                if out_size == 0:
+                    break
+                stride = conv.stride[-1]
+                if self.is_causal:
+                    # Streaming convolutions add the full causal left padding.
+                    out_size = (out_size + stride - 1) // stride
+                else:
+                    out_size = max(
+                        0,
+                        (
+                            out_size
+                            + 2 * conv.padding[-1]
+                            - conv.dilation[-1] * (conv.kernel_size[-1] - 1)
+                            - 1
+                        )
+                        // stride
+                        + 1,
+                    )
+            stage = group_idx - 1
+            if self.multilayer and stage >= 0 and self.is_endpoint[stage]:
+                endpoint_size = out_size
+                if self.has_endpoint_block[stage]:
+                    endpoint_size = self.endpoint_blocks[
+                        self.endpoint_block_idx[stage]
+                    ].output_lengths(endpoint_size)
+                endpoint_sizes.append(endpoint_size)
 
-        for stride in self.downb_strides:
-            out_size = int((out_size + stride - 1) // stride)
-
-        return out_size
+        return min(endpoint_sizes) if self.multilayer else out_size
 
     def in_context(self) -> Tuple[int, int]:
         """Return the encoder receptive-field context.
@@ -1033,11 +1074,16 @@ class TransformerEncoderV2(NetArch):
 
         return endpoints
 
-    def _merge_endpoints(self, endpoints: List[torch.Tensor]) -> torch.Tensor:
+    def _merge_endpoints(
+        self,
+        endpoints: List[torch.Tensor],
+        x_lengths: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         """Merge multi-layer endpoints into a single representation.
 
         Args:
             endpoints: Endpoint tensors to combine.
+            x_lengths: Optional valid lengths after endpoint cropping.
 
         Returns:
             torch.Tensor: Aggregated endpoint tensor.
@@ -1053,7 +1099,12 @@ class TransformerEncoderV2(NetArch):
                     )
                 raise
 
-            x = self.concat_endpoint_block(x)
+            mask = (
+                seq_lengths_to_mask(x_lengths, x.size(1))
+                if x_lengths is not None
+                else None
+            )
+            x = self.concat_endpoint_block(x, mask)
         else:
             x = torch.mean(torch.stack(endpoints), 0)
 
@@ -1149,7 +1200,9 @@ class TransformerEncoderV2(NetArch):
                 inference in eval mode. start_pos must count consumed input frames.
 
         Returns:
-            Either `(output, output_lengths)` when `state` is ``None`` or
+            Output lengths follow endpoint resampling and center-cropping when
+            multi-layer aggregation is enabled. Either `(output, output_lengths)`
+            when `state` is ``None`` or
             `(output, output_lengths, new_state)` when cache updates are requested.
         """
 
@@ -1176,6 +1229,7 @@ class TransformerEncoderV2(NetArch):
                     else start_pos // stride
                 )
         endpoints = []
+        endpoint_lengths = []
         if not torch.all(torch.isfinite(x)):
             logging.warning("non-finite x-stem-avg=%f", torch.mean(x))
 
@@ -1288,12 +1342,31 @@ class TransformerEncoderV2(NetArch):
                 endpoint_i = x
                 if self.has_endpoint_block[i]:
                     idx = self.endpoint_block_idx[i]
-                    endpoint_i = self.endpoint_blocks[idx](endpoint_i)
+                    endpoint_mask = (
+                        seq_lengths_to_mask(x_lengths, endpoint_i.size(1))
+                        if x_lengths is not None
+                        else None
+                    )
+                    endpoint_i = self.endpoint_blocks[idx](endpoint_i, endpoint_mask)
 
                 endpoints.append(endpoint_i)
+                if x_lengths is not None:
+                    lengths_i = x_lengths
+                    if self.has_endpoint_block[i]:
+                        lengths_i = self.endpoint_blocks[idx].output_lengths(lengths_i)
+                    endpoint_lengths.append(lengths_i)
 
         if self.multilayer:
-            x = self._merge_endpoints(endpoints)
+            merged_length = min(endpoint.size(1) for endpoint in endpoints)
+            if x_lengths is not None:
+                cropped_lengths = [
+                    (lengths - (endpoint.size(1) - merged_length) // 2).clamp(
+                        min=0, max=merged_length
+                    )
+                    for endpoint, lengths in zip(endpoints, endpoint_lengths)
+                ]
+                x_lengths = torch.stack(cropped_lengths).amin(dim=0)
+            x = self._merge_endpoints(endpoints, x_lengths)
 
         x = x.contiguous()
         if self.out_feats is not None:
@@ -1795,10 +1868,10 @@ class TransformerEncoderV2(NetArch):
 
             parser.add_argument(
                 "--flash-attention-version",
-                default=2,
+                default=None,
                 type=int,
                 choices=[2, 3, 4],
-                help="process-wide native Torch Flash Attention version; FA3/FA4 require newer PyTorch and kernel support",
+                help="Flash Attention version; defaults to Torch FA2 or HF FA4; native Torch selection is process-wide and FA3/FA4 require newer PyTorch",
             )
             parser.add_argument(
                 "--sdp-backend",
@@ -1837,7 +1910,7 @@ class TransformerEncoderV2(NetArch):
                 type=int,
                 help=(
                     "0-based encoder stage indices to aggregate in mfa; "
-                    "if None, all encoder stages are aggregated"
+                    "the final stage is always included; if None, all stages are aggregated"
                 ),
             )
             parser.add_argument(

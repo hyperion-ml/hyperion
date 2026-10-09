@@ -66,7 +66,8 @@ class QFormerV2(NetArch):
         rope_high_freq_factor: High-frequency RoPE scaling threshold.
         out_feats: Optional output projection dimension.
         drop_path_rate: Global stochastic-depth rate.
-        flash_attention_version: Process-wide native Torch Flash Attention version (2, 3, or 4).
+        flash_attention_version: Flash Attention version (2, 3, or 4); None selects
+            Torch FA2 or HF FA4. Native Torch selection is process-wide.
         sdp_backend: Preferred scaled dot-product attention backend.
         norm_layer: Normalization layer type.
         norm_eps: Epsilon used by normalization layers.
@@ -117,7 +118,7 @@ class QFormerV2(NetArch):
         out_feats: Optional[int] = None,
         drop_path_rate: float = 0.0,
         sdp_backend: SDPBackendType = SDPBackendType.default(),
-        flash_attention_version: int = 2,
+        flash_attention_version: Optional[int] = None,
         norm_layer: TransformerV2NormLayerType = TransformerV2NormLayerType.LAYERNORM,
         norm_eps: float = 1e-5,
         pre_post_norm: bool = False,
@@ -165,7 +166,8 @@ class QFormerV2(NetArch):
             rope_high_freq_factor: High-frequency threshold for RoPE scaling.
             out_feats: Optional output projection dimension; None or a nonpositive value disables it.
             drop_path_rate: Maximum stochastic-depth probability.
-            flash_attention_version: Process-wide native Torch Flash Attention version; defaults to 2.
+            flash_attention_version: Flash Attention version (2, 3, or 4). None uses Torch
+                FA2 or HF FA4. Native Torch selection is process-wide.
             sdp_backend: Preferred PyTorch scaled dot-product attention kernels.
             norm_layer: Branch normalization type; independent of pre_post_norm. QK/router norms remain RMS.
             norm_eps: Epsilon for branch, Q/K/V, and MoE router normalization.
@@ -195,7 +197,9 @@ class QFormerV2(NetArch):
         self.sdp_backend = sdp_backend
         self.flash_attention_version = flash_attention_version
         if self.att_type == TransformerV2AttType.TORCH_SDP:
-            TorchScaledDotProdAttV2.set_flash_attention_version(flash_attention_version)
+            TorchScaledDotProdAttV2.set_flash_attention_version(
+                2 if flash_attention_version is None else flash_attention_version
+            )
         self.att_dropout_rate = att_dropout_rate
         self.att_bias = att_bias
         self.enable_qk_norm = enable_qk_norm
@@ -302,6 +306,7 @@ class QFormerV2(NetArch):
                     rope_in_self_att=rope_in_self_att,
                     rope_in_cross_att=rope_in_cross_att,
                     sdp_backend=self.sdp_backend,
+                    flash_attention_version=self.flash_attention_version,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
                     pre_post_norm=self.pre_post_norm,
@@ -332,6 +337,7 @@ class QFormerV2(NetArch):
                     enable_v_norm=self.enable_v_norm,
                     rope=self.rope if rope_in_self_att else None,
                     sdp_backend=self.sdp_backend,
+                    flash_attention_version=self.flash_attention_version,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
                     pre_post_norm=self.pre_post_norm,
@@ -1104,14 +1110,14 @@ class QFormerV2(NetArch):
             "--rope-low-freq-factor",
             default=1,
             type=float,
-            help="ROPE frequencies are not scaled for wavelengths < max_seq_length / self.low_freq_factor",
+            help="fully scale frequencies with wavelengths above max_seq_length / low_freq_factor",
         )
         add_argument(
             "rope_high_freq_factor",
             "--rope-high-freq-factor",
             default=4,
             type=float,
-            help="ROPE frequencies are scaled by scaling for wavelengths > max_seq_length / self.high_freq_factor",
+            help="leave frequencies unchanged for wavelengths below max_seq_length / high_freq_factor",
         )
         add_argument(
             "rope_in_self_att",
@@ -1172,10 +1178,10 @@ class QFormerV2(NetArch):
         add_argument(
             "flash_attention_version",
             "--flash-attention-version",
-            default=2,
+            default=None,
             type=int,
             choices=[2, 3, 4],
-            help="process-wide native Torch Flash Attention version; FA3/FA4 require newer PyTorch and kernel support",
+            help="Flash Attention version; defaults to Torch FA2 or HF FA4; native Torch selection is process-wide and FA3/FA4 require newer PyTorch",
         )
         add_argument(
             "sdp_backend",
