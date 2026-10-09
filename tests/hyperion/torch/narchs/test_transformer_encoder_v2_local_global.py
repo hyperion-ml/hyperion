@@ -157,3 +157,60 @@ def test_finite_window_routing() -> None:
         for stage in restored.trans_blocks
         for block in stage
     ] == windows
+
+
+def test_local_global_head_dims() -> None:
+    """Custom widths preserve residual shapes, norm widths, and saved configuration."""
+    model = _encoder(
+        local_head_dim=6,
+        global_head_dim=12,
+        global_rope_partial_rotary_factor=0.25,
+        enable_qk_norm=True,
+        enable_v_norm=True,
+    ).eval()
+    attentions = [block.attention for stage in model.trans_blocks for block in stage]
+    assert [att.head_dim for att in attentions] == [6, 6, 12, 6, 12]
+    for att in attentions:
+        assert att.q_norm.dim == att.head_dim
+        assert att.v_norm.dim == att.head_dim
+        assert att.o_proj.out_features == att.num_feats
+    x = torch.randn(2, 20, 8)
+    output, _ = model(x)
+    assert output.shape[-1] == 16
+    restored = TransformerEncoderV2(**model.get_config(no_class_name=True)).eval()
+    restored.load_state_dict(model.state_dict())
+    torch.testing.assert_close(restored(x)[0], output)
+    parser = ArgumentParser()
+    TransformerEncoderV2.add_class_args(parser)
+    args = parser.parse_args(["--local-head-dim=6", "--global-head-dim=12"])
+    assert TransformerEncoderV2.filter_args(**args.as_dict())["global_head_dim"] == 12
+
+
+def test_stage_derived_head_dims() -> None:
+    """Default None widths are derived independently at each encoder stage."""
+    model = _encoder()
+    assert model.local_head_dim is None and model.global_head_dim is None
+    assert [
+        block.attention.head_dim for stage in model.trans_blocks for block in stage
+    ] == [4, 4, 8, 8, 8]
+
+
+def test_global_k_eq_v_routing() -> None:
+    """Only global layers reuse projections; preserve the option on reconstruction."""
+    model = _encoder(global_k_eq_v=True)
+    attentions = [block.attention for stage in model.trans_blocks for block in stage]
+    assert [att.k_eq_v for att in attentions] == [False, False, True, False, True]
+    assert [att.v_proj is None for att in attentions] == [
+        False,
+        False,
+        True,
+        False,
+        True,
+    ]
+    config = model.get_config(no_class_name=True)
+    assert config["global_k_eq_v"] is True
+    restored = TransformerEncoderV2(**config)
+    restored.load_state_dict(model.state_dict())
+    assert [
+        block.attention.k_eq_v for stage in restored.trans_blocks for block in stage
+    ] == [False, False, True, False, True]

@@ -1097,6 +1097,9 @@ class TransformerV2SelfAttBlock(nn.Module):
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
         enable_qk_norm: bool = False,
+        enable_v_norm: bool = False,
+        head_dim: Optional[int] = None,
+        k_eq_v: bool = False,
         rope: Optional[RotaryPosEncoder] = None,
         is_causal: bool = False,
         att_sliding_window: Optional[int] = None,
@@ -1126,6 +1129,9 @@ class TransformerV2SelfAttBlock(nn.Module):
             ff_moe_intermediate_dim: Expert intermediate width, required for g4moe.
             att_dropout_rate (float, optional): Dropout probability applied to attention weights. Defaults to ``0.0``.
             att_bias (bool, optional): Whether attention projection layers include biases. Defaults to ``False``.
+            k_eq_v (bool, optional): Reuse the raw key projection for values. Defaults to ``False``.
+            head_dim (Optional[int], optional): Attention head width; None derives num_feats / num_heads.
+            enable_v_norm (bool, optional): Apply per-head value RMSNorm without learned scaling. Defaults to ``False``.
             enable_qk_norm (bool, optional): Apply per-head Q/K RMSNorm before RoPE and use unit attention scaling. Defaults to ``False``.
             rope (Optional[RotaryPosEncoder], optional): Rotary position encoder applied to projected queries and keys before attention.
             is_causal (bool, optional): If ``True``, enables causal masking within the attention module. Defaults to ``False``.
@@ -1161,7 +1167,10 @@ class TransformerV2SelfAttBlock(nn.Module):
             dropout_rate=att_dropout_rate,
             att_bias=att_bias,
             enable_qk_norm=enable_qk_norm,
-            qk_norm_eps=norm_eps,
+            enable_v_norm=enable_v_norm,
+            head_dim=head_dim,
+            k_eq_v=k_eq_v,
+            norm_eps=norm_eps,
             rope=rope,
             is_causal=is_causal,
             sliding_window=att_sliding_window,
@@ -1304,6 +1313,10 @@ class TransformerV2CrossAttBlock(nn.Module):
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
         enable_qk_norm: bool = False,
+        enable_v_norm: bool = False,
+        head_dim: Optional[int] = None,
+        self_att_k_eq_v: bool = False,
+        cross_att_k_eq_v: bool = False,
         rope: Optional[RotaryPosEncoder] = None,
         rope_in_self_att: bool = True,
         rope_in_cross_att: bool = True,
@@ -1334,6 +1347,10 @@ class TransformerV2CrossAttBlock(nn.Module):
             ff_moe_intermediate_dim: Expert intermediate width, required for g4moe.
             att_dropout_rate (float, optional): Dropout probability applied to attention weights. Defaults to ``0.0``.
             att_bias (bool, optional): Whether attention projection layers include biases. Defaults to ``False``.
+            self_att_k_eq_v (bool, optional): Reuse the raw key projection for self-attention values. Defaults to ``False``.
+            cross_att_k_eq_v (bool, optional): Reuse the raw key projection for cross-attention values. Defaults to ``False``.
+            head_dim (Optional[int], optional): Attention head width; None derives num_feats / num_heads.
+            enable_v_norm (bool, optional): Apply per-head value RMSNorm without learned scaling. Defaults to ``False``.
             enable_qk_norm (bool, optional): Apply per-head Q/K RMSNorm before RoPE and use unit attention scaling. Defaults to ``False``.
             rope (Optional[RotaryPosEncoder], optional): Shared rotary position encoder instance.
             rope_in_self_att (bool, optional): If ``True``, applies the shared RoPE to self-attention. Defaults to ``True``.
@@ -1374,7 +1391,10 @@ class TransformerV2CrossAttBlock(nn.Module):
             dropout_rate=att_dropout_rate,
             att_bias=att_bias,
             enable_qk_norm=enable_qk_norm,
-            qk_norm_eps=norm_eps,
+            enable_v_norm=enable_v_norm,
+            head_dim=head_dim,
+            k_eq_v=self_att_k_eq_v,
+            norm_eps=norm_eps,
             rope=rope if rope_in_self_att else None,
             sdp_backend=sdp_backend,
             model_parallel=model_parallel,
@@ -1388,7 +1408,10 @@ class TransformerV2CrossAttBlock(nn.Module):
             dropout_rate=att_dropout_rate,
             att_bias=att_bias,
             enable_qk_norm=enable_qk_norm,
-            qk_norm_eps=norm_eps,
+            enable_v_norm=enable_v_norm,
+            head_dim=head_dim,
+            k_eq_v=cross_att_k_eq_v,
+            norm_eps=norm_eps,
             rope=rope if rope_in_cross_att else None,
             sdp_backend=sdp_backend,
             model_parallel=model_parallel,

@@ -97,6 +97,7 @@ class ScaledDotProdAttV2(nn.Module):
         num_heads (int): Number of query attention heads.
         num_kv_feats (int): Key/value feature dimension.
         num_kv_heads (int): Number of key/value heads (can differ from `num_heads`).
+        k_eq_v (bool): Reuse the raw key projection as values; omit the separate value projection.
         head_dim (int): Dimension per head after projection.
         dropout_rate (float): Dropout probability applied to attention weights.
         rope (Optional[RotaryPosEncoder]): Rotary positional encoder to inject rope phases.
@@ -108,8 +109,10 @@ class ScaledDotProdAttV2(nn.Module):
         num_local_heads (int): Number of heads handled by the local rank in model-parallel mode.
         num_local_kv_heads (int): Number of kv heads handled by the local rank.
         num_rep (int): Replication factor between attention heads and kv heads.
+        enable_v_norm (bool): Whether values receive per-head RMSNorm without a learned scale.
+        v_norm (Optional[RMSNorm]): Value normalization over head dimensions without learned scaling.
         enable_qk_norm (bool): Normalize queries and keys per head before RoPE.
-        qk_norm_eps (float): Epsilon used by query/key RMS normalization.
+        norm_eps (float): Epsilon used by query/key/value RMS normalization.
         q_norm (Optional[RMSNorm]): Learned query normalization over head dimensions.
         k_norm (Optional[RMSNorm]): Learned key normalization over head dimensions.
         att_scale (float): Attention score multiplier; one when QK normalization is enabled.
@@ -128,7 +131,10 @@ class ScaledDotProdAttV2(nn.Module):
         sliding_window: Optional[int] = None,
         model_parallel: bool = False,
         enable_qk_norm: bool = False,
-        qk_norm_eps: float = 1e-6,
+        enable_v_norm: bool = False,
+        norm_eps: float = 1e-6,
+        head_dim: Optional[int] = None,
+        k_eq_v: bool = False,
         **kwargs,
     ):
         """Construct a multi-head attention module.
@@ -136,6 +142,8 @@ class ScaledDotProdAttV2(nn.Module):
         Args:
             num_feats (int): Input feature dimension (`d_model`).
             num_heads (int): Number of query heads.
+            k_eq_v (bool): Reuse the raw key projection for V; the value input is ignored when enabled.
+            head_dim (Optional[int]): Positive head width; None derives num_feats / num_heads.
             num_kv_feats (Optional[int]): Feature dimension for key/value projections. Defaults to `num_feats`.
             num_kv_heads (Optional[int]): Number of key/value heads (for GQA/MQA). Defaults to `num_heads`.
             dropout_rate (float): Dropout probability applied to attention weights.
@@ -144,24 +152,47 @@ class ScaledDotProdAttV2(nn.Module):
             is_causal (bool): Whether the module should behave causally (see class docstring for details).
             sliding_window (Optional[int]): Sliding-window size for Flash Attention kernels.
             model_parallel (bool): If `True`, use tensor-parallel linear layers built on PyTorch collectives.
+            enable_v_norm (bool): Normalize values per head without learned scaling; independent of QK normalization.
             enable_qk_norm (bool): Enable learned per-head RMSNorm for Q and K and unit attention scaling.
-            qk_norm_eps (float): Epsilon for query/key RMSNorm. Defaults to `1e-6`.
+            norm_eps (float): Epsilon for query/key/value RMSNorm. Defaults to `1e-6`.
         """
         super().__init__()
         self.num_heads = num_heads
         self.num_kv_heads = num_heads if num_kv_heads is None else num_kv_heads
-        self.head_dim = num_feats // self.num_heads
-        assert num_feats == num_heads * self.head_dim
+        if (
+            isinstance(num_heads, bool)
+            or not isinstance(num_heads, int)
+            or num_heads <= 0
+        ):
+            raise ValueError("num_heads must be a positive integer")
+        if head_dim is None:
+            if num_feats % num_heads != 0:
+                raise ValueError(
+                    "num_feats must be divisible by num_heads when head_dim is None"
+                )
+            head_dim = num_feats // num_heads
+        if isinstance(head_dim, bool) or not isinstance(head_dim, int) or head_dim <= 0:
+            raise ValueError("head_dim must be a positive integer or None")
+        if rope is not None and head_dim % 2:
+            raise ValueError("head_dim must be even when using RoPE")
+        self.head_dim = head_dim
+        self.k_eq_v = k_eq_v
         self.num_feats = num_feats
         self.num_kv_feats = num_feats if num_kv_feats is None else num_kv_feats
         self.dropout_rate = dropout_rate
         self.rope = rope
         self.is_causal = is_causal
         self.sliding_window = sliding_window
+        self.enable_v_norm = enable_v_norm
+        self.v_norm = (
+            RMSNorm(self.head_dim, eps=norm_eps, with_scale=False)
+            if enable_v_norm
+            else None
+        )
         self.enable_qk_norm = enable_qk_norm
-        self.qk_norm_eps = qk_norm_eps
-        self.q_norm = RMSNorm(self.head_dim, eps=qk_norm_eps) if enable_qk_norm else None
-        self.k_norm = RMSNorm(self.head_dim, eps=qk_norm_eps) if enable_qk_norm else None
+        self.norm_eps = norm_eps
+        self.q_norm = RMSNorm(self.head_dim, eps=norm_eps) if enable_qk_norm else None
+        self.k_norm = RMSNorm(self.head_dim, eps=norm_eps) if enable_qk_norm else None
         self.att_scale = 1.0 if enable_qk_norm else self.head_dim**-0.5
         self._warned_qkv_cast_from_fp32 = False
 
@@ -183,11 +214,15 @@ class ScaledDotProdAttV2(nn.Module):
                 bias=att_bias,
                 gather_output=False,
             )
-            self.v_proj = ColumnParallelLinear(
-                self.num_kv_feats,
-                self.num_kv_heads * self.head_dim,
-                bias=att_bias,
-                gather_output=False,
+            self.v_proj = (
+                None
+                if k_eq_v
+                else ColumnParallelLinear(
+                    self.num_kv_feats,
+                    self.num_kv_heads * self.head_dim,
+                    bias=att_bias,
+                    gather_output=False,
+                )
             )
             self.o_proj = RowParallelLinear(
                 num_heads * self.head_dim,
@@ -211,10 +246,14 @@ class ScaledDotProdAttV2(nn.Module):
                 self.num_kv_heads * self.head_dim,
                 bias=att_bias,
             )
-            self.v_proj = nn.Linear(
-                self.num_kv_feats,
-                self.num_kv_heads * self.head_dim,
-                bias=att_bias,
+            self.v_proj = (
+                None
+                if k_eq_v
+                else nn.Linear(
+                    self.num_kv_feats,
+                    self.num_kv_heads * self.head_dim,
+                    bias=att_bias,
+                )
             )
             self.o_proj = nn.Linear(
                 num_heads * self.head_dim,
@@ -311,7 +350,7 @@ class ScaledDotProdAttV2(nn.Module):
                 float masks and boolean keep masks (`True` keeps, `False` masks).
 
         Returns:
-            torch.Tensor: Attention output of shape `(batch, seq_len_q, num_feats)`.
+            torch.Tensor: Attention output of shape `(batch, seq_len_q, local_heads * head_dim)`.
         """
         assert (
             not self.is_causal or mask is not None
@@ -408,7 +447,7 @@ class ScaledDotProdAttV2(nn.Module):
         Args:
             query (torch.Tensor): Query states `(batch, seq_len_q, num_feats)`.
             key (torch.Tensor): Key states `(batch, seq_len_k, num_feats or num_kv_feats)`.
-            value (torch.Tensor): Value states sharing shape with `key`.
+            value (torch.Tensor): Value states sharing shape with `key`; ignored when k_eq_v=True.
             mask (Optional[torch.Tensor]): Optional mask forwarded to `compute_attention`.
                 Supports additive float masks and boolean keep masks.
             query_start_pos (int, optional): Starting offset for query rope rotation. Defaults to 0.
@@ -424,11 +463,13 @@ class ScaledDotProdAttV2(nn.Module):
         _, k_length, _ = key.size()
         query = self.q_proj(query)
         key = self.k_proj(key)
-        value = self.v_proj(value)
+        value = key if self.k_eq_v else self.v_proj(value)
 
         query = query.view(bsz, q_length, self.num_local_heads, self.head_dim)
         key = key.view(bsz, k_length, self.num_local_kv_heads, self.head_dim)
         value = value.view(bsz, k_length, self.num_local_kv_heads, self.head_dim)
+        if self.v_norm is not None:
+            value = self.v_norm(value).type_as(value)
         if self.enable_qk_norm:
             query = self.q_norm(query).type_as(query)
             key = self.k_norm(key).type_as(key)
@@ -630,7 +671,7 @@ class TorchScaledDotProdAttV2(ScaledDotProdAttV2):
                 in either boolean or floating-point form.
 
         Returns:
-            torch.Tensor: Attention output of shape `(batch, q_len, num_feats)`.
+            torch.Tensor: Attention output of shape `(batch, q_len, local_heads * head_dim)`.
         """
         # Input q, k, v = (batch, length, num_heads, head_dim)
         bsz, q_length, num_heads, _ = query.size()
@@ -735,7 +776,7 @@ class HFFlashScaledDotProdAttV2(ScaledDotProdAttV2):
                 use non-negative values as valid tokens.
 
         Returns:
-            torch.Tensor: Attention output of shape `(batch, q_len, num_feats)`.
+            torch.Tensor: Attention output of shape `(batch, q_len, local_heads * head_dim)`.
         """
         # Input q, k, v = (batch, length, num_heads, head_dim)
         # Flash Attention requires the layout [batch_size, sequence_length, num_heads, head_dim]

@@ -113,6 +113,14 @@ default to ``None`` (unrestricted attention). Finite windows require
 the global window must exceed the local window. Window sizes are measured in
 stage tokens. The same window covers more audio after downsampling.
 
+``local_head_dim=None`` and ``global_head_dim=None`` derive each attention
+head width from the stage hidden dimension divided by ``num_heads``. Explicit
+positive widths allow the internal attention dimension to differ from the
+residual stream: Q projects to ``num_heads * head_dim``, K/V project to
+``num_kv_heads * head_dim``, and the output projection returns to the stage's
+hidden dimension. RoPE requires even head widths. Both options are exposed in
+the CLI and saved in the encoder configuration.
+
 Each stage has separate local and global ``RotaryPosEncoder`` instances, so
 caches do not mix head dimensions or temporal resolutions. Defaults are:
 
@@ -180,9 +188,54 @@ When enabled, separate learned RMSNorm layers normalize projected queries and
 keys over each head's feature dimension before rotary positional encoding.
 They use the architecture's ``norm_eps``, independently of its ``norm_layer``
 selection. Attention scores use a multiplier of one instead of
-``1 / sqrt(head_dim)`` across all V2 attention backends. Values are unchanged.
+``1 / sqrt(head_dim)`` across all V2 attention backends. Values are unchanged unless ``enable_v_norm=True``.
 In ``QFormerV2`` this applies to both self-attention and cross-attention,
 including tied layers.
+
+QFormerV2 attention head dimensions
+-----------------------------------
+
+``QFormerV2(head_dim=None)`` derives its attention head width from
+``hidden_dim / num_heads``. An explicit positive width applies to every
+self-attention and cross-attention branch, including tied layers. Internal
+attention width can differ from the residual width, while output projections
+return to ``hidden_dim``. RoPE requires an even head width. The option is saved
+in the architecture configuration and exposed as ``--head-dim``.
+
+Key/value projection reuse in V2 Transformers
+--------------------------------------------
+
+``TransformerEncoderV2(global_k_eq_v=False)`` optionally reuses raw key
+projections for values in global layers only. Local layers retain separate
+value projections. QFormerV2 independently controls its branches with
+``self_att_k_eq_v=False`` and ``cross_att_k_eq_v=False``, including tied layers.
+CLI options are ``--global-k-eq-v``, ``--self-att-k-eq-v``, and
+``--cross-att-k-eq-v``. All options are serialized.
+
+When enabled, attention omits ``v_proj`` and uses the raw ``k_proj`` output
+for V before K normalization and RoPE. ``enable_v_norm`` independently controls
+value RMSNorm without learned scaling. The final K and V tensors can therefore
+differ and retain separate inference caches. This option shares projection
+work within a layer; it does not share K/V across layers. To match Gemma's
+normalization alongside projection reuse, enable QK and value normalization.
+
+Value normalization in V2 Transformers
+-------------------------------------
+
+``TransformerEncoderV2`` and ``QFormerV2`` accept ``enable_v_norm=False`` (default),
+also exposed as ``--enable-v-norm`` and saved in the architecture configuration.
+When enabled, values receive per-head RMSNorm after projection and before
+attention or cache writes. This normalization has no learned scale and uses
+``norm_eps``. It is independent of ``enable_qk_norm`` and ``norm_layer``;
+values never receive RoPE, and enabling value normalization does not change
+attention score scaling. The common attention path applies it to manual,
+Torch SDPA, and HF Flash attention, including QFormer cross-attention and tied
+layers.
+
+``RMSNorm(dim, eps=1e-6, with_scale=True)`` retains its existing learned scale
+by default. ``with_scale=False`` computes RMS normalization without parameters,
+using FP32 statistics and returning the input dtype. It does not register a
+weight tensor in the state dictionary.
 
 Gemma 4 mixture of experts
 --------------------------

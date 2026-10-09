@@ -10,12 +10,15 @@ from hyperion.torch.narchs.qformer_v2 import QFormerV2
 from hyperion.torch.narchs.transformer_encoder_v2 import TransformerEncoderV2
 
 
-def _make_architecture(name: str, enabled: bool) -> TransformerEncoderV2 | QFormerV2:
+def _make_architecture(
+    name: str, enabled: bool, enable_v_norm: bool = False
+) -> TransformerEncoderV2 | QFormerV2:
     """Build a small architecture with grouped-query attention.
 
     Args:
         name: Architecture variant to construct.
         enabled: Whether to enable QK normalization.
+        enable_v_norm: Whether to enable value normalization.
 
     Returns:
         Architecture configured for a CPU forward pass.
@@ -26,6 +29,7 @@ def _make_architecture(name: str, enabled: bool) -> TransformerEncoderV2 | QForm
         num_kv_heads=2,
         ff_multiple_of=8,
         enable_qk_norm=enabled,
+        enable_v_norm=enable_v_norm,
         norm_eps=2e-6,
         rope_original_max_seq_length=32,
     )
@@ -56,17 +60,20 @@ def _make_architecture(name: str, enabled: bool) -> TransformerEncoderV2 | QForm
 
 @pytest.mark.parametrize("name", ["encoder", "qformer", "qformer_tied"])
 @pytest.mark.parametrize("enabled", [False, True])
-def test_qk_norm_architecture(name: str, enabled: bool) -> None:
+@pytest.mark.parametrize("enable_v_norm", [False, True])
+def test_qk_norm_architecture(name: str, enabled: bool, enable_v_norm: bool) -> None:
     """Check all branches, config reconstruction, and gradients through Q/K norms.
 
     Args:
         name: Architecture variant.
         enabled: Whether to enable QK normalization.
+        enable_v_norm: Whether to enable value normalization.
     """
     torch.manual_seed(42)
-    model = _make_architecture(name, enabled)
+    model = _make_architecture(name, enabled, enable_v_norm)
     config = model.get_config(no_class_name=True)
     assert config["enable_qk_norm"] is enabled
+    assert config["enable_v_norm"] is enable_v_norm
     restored = type(model)(**config)
     restored.load_state_dict(model.state_dict())
     attention_layers = [m for m in model.modules() if isinstance(m, ScaledDotProdAttV2)]
@@ -75,6 +82,13 @@ def test_qk_norm_architecture(name: str, enabled: bool) -> None:
     )
     for attention in attention_layers:
         assert attention.enable_qk_norm is enabled
+        assert attention.enable_v_norm is enable_v_norm
+        if enable_v_norm:
+            assert isinstance(attention.v_norm, RMSNorm)
+            assert attention.v_norm.weight is None
+            assert attention.v_norm.eps == model.norm_eps
+        else:
+            assert attention.v_norm is None
         assert attention.att_scale == (1.0 if enabled else attention.head_dim**-0.5)
         if enabled:
             assert isinstance(attention.q_norm, RMSNorm)
@@ -115,3 +129,20 @@ def test_qk_norm_parser(architecture: type) -> None:
     skipped_parser = ArgumentParser()
     architecture.add_class_args(skipped_parser, skip={"enable_qk_norm"})
     assert "enable_qk_norm" not in skipped_parser.parse_args([]).as_dict()
+
+
+@pytest.mark.parametrize("architecture", [TransformerEncoderV2, QFormerV2])
+def test_v_norm_parser(architecture: type) -> None:
+    """Check value normalization defaults, nested flags, filtering, and skips.
+
+    Args:
+        architecture: Architecture class exposing parser helpers.
+    """
+    parser = ArgumentParser()
+    architecture.add_class_args(parser, prefix="arch")
+    assert parser.parse_args([]).arch.enable_v_norm is False
+    assert parser.parse_args(["--arch.enable-v-norm"]).arch.enable_v_norm is True
+    assert architecture.filter_args(enable_v_norm=True) == {"enable_v_norm": True}
+    skipped = ArgumentParser()
+    architecture.add_class_args(skipped, skip={"enable_v_norm"})
+    assert "enable_v_norm" not in skipped.parse_args([]).as_dict()

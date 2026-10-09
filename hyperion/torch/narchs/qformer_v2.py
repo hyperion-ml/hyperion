@@ -35,11 +35,15 @@ class QFormerV2(NetArch):
         att_type: Attention implementation used in the transformer blocks.
         num_layers: Number of transformer layers.
         hidden_dim: Hidden dimension of the query stream.
+        self_att_k_eq_v: Reuse raw key projections for self-attention values.
+        cross_att_k_eq_v: Reuse raw key projections for cross-attention values.
+        head_dim: Attention head width; None derives hidden_dim / num_heads.
         num_heads: Number of attention heads.
         num_kv_heads: Number of key/value heads when using grouped-query attention.
         cross_att_freq: Frequency of cross-attention layers.
         att_dropout_rate: Attention dropout probability.
         att_bias: Whether attention projections use bias terms.
+        enable_v_norm: Enable per-head value RMSNorm without learned scaling.
         enable_qk_norm: Enable per-head Q/K RMSNorm before RoPE and unit attention scaling.
         ff_type: Feed-forward implementation used in the transformer blocks.
         ff_dim_multiplier: Multiplier for the dense feed-forward width, including the dense g4moe branch.
@@ -82,10 +86,14 @@ class QFormerV2(NetArch):
         hidden_dim: int = 768,
         num_heads: int = 12,
         num_kv_heads: Optional[int] = None,
+        head_dim: Optional[int] = None,
+        self_att_k_eq_v: bool = False,
+        cross_att_k_eq_v: bool = False,
         cross_att_freq: int = 1,
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
         enable_qk_norm: bool = False,
+        enable_v_norm: bool = False,
         ff_type: TransformerV2FeedForwardType = TransformerV2FeedForwardType.MLP,
         ff_dim_multiplier: int = 4,
         ff_multiple_of: int = 256,
@@ -124,11 +132,15 @@ class QFormerV2(NetArch):
             att_type: Attention backend implementation.
             num_layers: Number of query-stream transformer layers.
             hidden_dim: Hidden dimension of the query stream.
+            self_att_k_eq_v: Reuse raw key projections for self-attention values. Defaults to False.
+            cross_att_k_eq_v: Reuse raw key projections for cross-attention values. Defaults to False.
+            head_dim: Positive attention head width; None derives hidden_dim / num_heads. Defaults to None.
             num_heads: Number of query attention heads.
             num_kv_heads: Number of key/value heads; None uses num_heads.
             cross_att_freq: Cross-attention period; must be positive and divide num_layers.
             att_dropout_rate: Attention weight dropout probability.
             att_bias: Enable bias in attention projections.
+            enable_v_norm: Enable per-head value RMSNorm without learned scaling, independently of QK normalization.
             enable_qk_norm: Enable per-head Q/K RMSNorm before RoPE and unit attention scaling.
             ff_type: Feed-forward variant: mlp, convnext, or g4moe.
             ff_dim_multiplier: Multiplier for the dense MLP width, including the dense g4moe branch.
@@ -153,7 +165,7 @@ class QFormerV2(NetArch):
             drop_path_rate: Maximum stochastic-depth probability.
             sdp_backend: Preferred PyTorch scaled dot-product attention kernels.
             norm_layer: Branch normalization type; independent of pre_post_norm. QK/router norms remain RMS.
-            norm_eps: Epsilon for branch, QK, and MoE router normalization.
+            norm_eps: Epsilon for branch, Q/K/V, and MoE router normalization.
             pre_post_norm: Add attention and feed-forward post-norms before residual addition; default False.
             tied_layers: Reuse one cross_att_freq-sized group of blocks throughout the query stream.
             multilayer_input: Consume encoder features from multiple source layers.
@@ -172,12 +184,16 @@ class QFormerV2(NetArch):
 
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
+        self.head_dim = head_dim
+        self.self_att_k_eq_v = self_att_k_eq_v
+        self.cross_att_k_eq_v = cross_att_k_eq_v
 
         self.att_type = att_type
         self.sdp_backend = sdp_backend
         self.att_dropout_rate = att_dropout_rate
         self.att_bias = att_bias
         self.enable_qk_norm = enable_qk_norm
+        self.enable_v_norm = enable_v_norm
         self.cross_att_freq = cross_att_freq
 
         if cross_att_freq < 1:
@@ -260,6 +276,9 @@ class QFormerV2(NetArch):
                     num_heads=self.num_heads,
                     num_kv_feats=self.in_feats,
                     num_kv_heads=self.num_kv_heads,
+                    head_dim=self.head_dim,
+                    self_att_k_eq_v=self.self_att_k_eq_v,
+                    cross_att_k_eq_v=self.cross_att_k_eq_v,
                     ff_intermediate_feats=hidden_dim * self.ff_dim_multiplier,
                     ff_kernel_size=ff_kernel_size,
                     ff_dilation=ff_dilation,
@@ -272,6 +291,7 @@ class QFormerV2(NetArch):
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
                     enable_qk_norm=self.enable_qk_norm,
+                    enable_v_norm=self.enable_v_norm,
                     rope=self.rope,
                     rope_in_self_att=rope_in_self_att,
                     rope_in_cross_att=rope_in_cross_att,
@@ -289,6 +309,8 @@ class QFormerV2(NetArch):
                     num_feats=hidden_dim,
                     num_heads=self.num_heads,
                     num_kv_heads=self.num_kv_heads,
+                    head_dim=self.head_dim,
+                    k_eq_v=self.self_att_k_eq_v,
                     ff_intermediate_feats=hidden_dim * self.ff_dim_multiplier,
                     ff_kernel_size=ff_kernel_size,
                     ff_dilation=ff_dilation,
@@ -301,6 +323,7 @@ class QFormerV2(NetArch):
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
                     enable_qk_norm=self.enable_qk_norm,
+                    enable_v_norm=self.enable_v_norm,
                     rope=self.rope,
                     sdp_backend=self.sdp_backend,
                     norm_layer=self._norm_layer,
@@ -732,10 +755,14 @@ class QFormerV2(NetArch):
             "hidden_dim": self.hidden_dim,
             "num_heads": self.num_heads,
             "num_kv_heads": self.num_kv_heads,
+            "head_dim": self.head_dim,
+            "self_att_k_eq_v": self.self_att_k_eq_v,
+            "cross_att_k_eq_v": self.cross_att_k_eq_v,
             "cross_att_freq": self.cross_att_freq,
             "att_dropout_rate": self.att_dropout_rate,
             "att_bias": self.att_bias,
             "enable_qk_norm": self.enable_qk_norm,
+            "enable_v_norm": self.enable_v_norm,
             "ff_type": self.ff_type,
             "ff_dim_multiplier": self.ff_dim_multiplier,
             "ff_multiple_of": self.ff_multiple_of,
@@ -898,6 +925,27 @@ class QFormerV2(NetArch):
             help="num. of key, value attention heads when using GQA",
         )
         add_argument(
+            "self_att_k_eq_v",
+            "--self-att-k-eq-v",
+            default=False,
+            action=ActionYesNo,
+            help="reuse raw key projections for self-attention values",
+        )
+        add_argument(
+            "cross_att_k_eq_v",
+            "--cross-att-k-eq-v",
+            default=False,
+            action=ActionYesNo,
+            help="reuse raw key projections for cross-attention values",
+        )
+        add_argument(
+            "head_dim",
+            "--head-dim",
+            default=None,
+            type=int,
+            help="attention head width; None derives hidden_dim / num_heads",
+        )
+        add_argument(
             "cross_att_freq",
             "--cross-att-freq",
             default=1,
@@ -924,6 +972,13 @@ class QFormerV2(NetArch):
             default=False,
             action=ActionYesNo,
             help="enable per-head Q/K RMSNorm and unit attention scaling",
+        )
+        add_argument(
+            "enable_v_norm",
+            "--enable-v-norm",
+            default=False,
+            action=ActionYesNo,
+            help="enable per-head value RMSNorm without learned scaling",
         )
         add_argument(
             "ff_type",
@@ -1125,7 +1180,7 @@ class QFormerV2(NetArch):
             "--norm-eps",
             default=1e-5,
             type=float,
-            help="epsilon for branch, QK, and MoE router normalization",
+            help="epsilon for branch, Q/K/V, and MoE router normalization",
         )
         add_argument(
             "model_parallel",

@@ -238,6 +238,9 @@ class TransformerEncoderV2(NetArch):
         layer_types (List[str]): Derived local/global schedule in execution order.
         local_rope (nn.ModuleList): Local positional encoders with independent stage caches.
         global_rope (nn.ModuleList): Global positional encoders with independent stage caches.
+        local_head_dim (Optional[int]): Local head width; None derives the width at each stage.
+        global_k_eq_v (bool): Reuse the raw key projection for values in global layers only.
+        global_head_dim (Optional[int]): Global head width; None derives the width at each stage.
         local_to_global_ratio (int): Local layers per global layer across stages; 0 means all global. The final layer is global.
         local_rope_theta (float): Local RoPE frequency base.
         global_rope_theta (float): Global RoPE frequency base.
@@ -245,6 +248,7 @@ class TransformerEncoderV2(NetArch):
         global_rope_partial_rotary_factor (float): Fraction of global head dimensions rotated using full-head frequency spacing.
         local_rope_scale_freqs (bool): Apply wavelength-based frequency scaling to local RoPE.
         global_rope_scale_freqs (bool): Apply wavelength-based frequency scaling to global RoPE.
+        enable_v_norm (bool): Enable per-head value RMSNorm without learned scaling.
         enable_qk_norm (bool): Enable per-head Q/K RMSNorm before RoPE and unit attention scaling.
         ff_type (TransformerV2FeedForwardType): Feed-forward module implementation.
         ff_dim_multiplier (float): Factor multiplying hidden_dim to obtain the dense feed-forward width, including g4moe.
@@ -295,9 +299,13 @@ class TransformerEncoderV2(NetArch):
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
         enable_qk_norm: bool = False,
+        enable_v_norm: bool = False,
         local_attention_sliding_window: Optional[int] = None,
         global_attention_sliding_window: Optional[int] = None,
         local_to_global_ratio: int = 0,
+        local_head_dim: Optional[int] = None,
+        global_head_dim: Optional[int] = None,
+        global_k_eq_v: bool = False,
         ff_type: TransformerV2FeedForwardType = TransformerV2FeedForwardType.MLP,
         ff_dim_multiplier: float = 4,
         ff_multiple_of: int = 256,
@@ -354,6 +362,9 @@ class TransformerEncoderV2(NetArch):
             att_bias (bool, optional): Whether attention projections include biases. Defaults to ``False``.
             local_attention_sliding_window (Optional[int], optional): Local attention window in stage tokens; None is unrestricted. Defaults to ``None``.
             global_attention_sliding_window (Optional[int], optional): Global attention window in stage tokens; None is unrestricted. Defaults to ``None``.
+            local_head_dim (Optional[int], optional): Local head width; None derives hidden_dims[i] / num_heads. Defaults to ``None``.
+            global_k_eq_v (bool, optional): Reuse the raw key projection for V in global layers; independent of value normalization. Defaults to ``False``.
+            global_head_dim (Optional[int], optional): Global head width; None derives hidden_dims[i] / num_heads. Defaults to ``None``.
             local_to_global_ratio (int, optional): Local layers per global layer across stages; 0 means all global. The final layer is global. Defaults to ``0``.
             local_rope_theta (float, optional): Local RoPE frequency base. Defaults to ``10000.0``.
             global_rope_theta (float, optional): Global RoPE frequency base. Defaults to ``1000000.0``.
@@ -361,6 +372,7 @@ class TransformerEncoderV2(NetArch):
             global_rope_partial_rotary_factor (float, optional): Fraction of global head dimensions rotated using full-head frequency spacing. Defaults to ``1.0``.
             local_rope_scale_freqs (bool, optional): Apply wavelength-based frequency scaling to local RoPE. Defaults to ``True``.
             global_rope_scale_freqs (bool, optional): Apply wavelength-based frequency scaling to global RoPE. Defaults to ``True``.
+            enable_v_norm (bool, optional): Enable per-head value RMSNorm without learned scaling. Defaults to ``False``.
             enable_qk_norm (bool, optional): Enable per-head Q/K RMSNorm and unit attention scaling. Defaults to ``False``.
             ff_type (TransformerV2FeedForwardType, optional): Feed-forward module implementation. Defaults to ``MLP``.
             ff_dim_multiplier (float, optional): Scales ``hidden_dim`` to obtain the feed-forward width. Defaults to ``4``.
@@ -440,6 +452,7 @@ class TransformerEncoderV2(NetArch):
         self.att_dropout_rate = att_dropout_rate
         self.att_bias = att_bias
         self.enable_qk_norm = enable_qk_norm
+        self.enable_v_norm = enable_v_norm
 
         self.ff_type = ff_type
         self.ff_dim_multiplier = ff_dim_multiplier
@@ -460,6 +473,9 @@ class TransformerEncoderV2(NetArch):
         self.local_attention_sliding_window = local_attention_sliding_window
         self.global_attention_sliding_window = global_attention_sliding_window
         self.local_to_global_ratio = local_to_global_ratio
+        self.local_head_dim = local_head_dim
+        self.global_head_dim = global_head_dim
+        self.global_k_eq_v = global_k_eq_v
         self.sdp_backend = sdp_backend
 
         self.local_rope_theta = local_rope_theta
@@ -618,6 +634,13 @@ class TransformerEncoderV2(NetArch):
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
                     enable_qk_norm=self.enable_qk_norm,
+                    enable_v_norm=self.enable_v_norm,
+                    k_eq_v=self.global_k_eq_v and layer_type == "global",
+                    head_dim=(
+                        self.local_head_dim
+                        if layer_type == "local"
+                        else self.global_head_dim
+                    ),
                     rope=(
                         self.local_rope[i]
                         if layer_type == "local"
@@ -1088,6 +1111,7 @@ class TransformerEncoderV2(NetArch):
             "att_dropout_rate": self.att_dropout_rate,
             "att_bias": self.att_bias,
             "enable_qk_norm": self.enable_qk_norm,
+            "enable_v_norm": self.enable_v_norm,
             "ff_type": self.ff_type,
             "ff_dim_multiplier": self.ff_dim_multiplier,
             "ff_multiple_of": self.ff_multiple_of,
@@ -1102,6 +1126,9 @@ class TransformerEncoderV2(NetArch):
             "local_attention_sliding_window": self.local_attention_sliding_window,
             "global_attention_sliding_window": self.global_attention_sliding_window,
             "local_to_global_ratio": self.local_to_global_ratio,
+            "local_head_dim": self.local_head_dim,
+            "global_head_dim": self.global_head_dim,
+            "global_k_eq_v": self.global_k_eq_v,
             "local_rope_theta": self.local_rope_theta,
             "global_rope_theta": self.global_rope_theta,
             "local_rope_partial_rotary_factor": self.local_rope_partial_rotary_factor,
@@ -1309,6 +1336,12 @@ class TransformerEncoderV2(NetArch):
                 help="enable per-head Q/K RMSNorm and unit attention scaling",
             )
             parser.add_argument(
+                "--enable-v-norm",
+                default=False,
+                action=ActionYesNo,
+                help="enable per-head value RMSNorm without learned scaling",
+            )
+            parser.add_argument(
                 "--ff-type",
                 default=TransformerV2FeedForwardType.MLP.value,
                 choices=TransformerV2FeedForwardType.choices(),
@@ -1394,6 +1427,24 @@ class TransformerEncoderV2(NetArch):
                 default=0,
                 type=int,
                 help="Local layers per global layer across stages; 0 means all global. The final layer is global.",
+            )
+            parser.add_argument(
+                "--global-k-eq-v",
+                default=False,
+                action=ActionYesNo,
+                help="reuse the raw key projection as values in global layers only",
+            )
+            parser.add_argument(
+                "--local-head-dim",
+                default=None,
+                type=int,
+                help="local attention head width; None derives hidden_dims[i] / num_heads",
+            )
+            parser.add_argument(
+                "--global-head-dim",
+                default=None,
+                type=int,
+                help="global attention head width; None derives hidden_dims[i] / num_heads",
             )
             parser.add_argument(
                 "--local-rope-theta",
@@ -1486,7 +1537,7 @@ class TransformerEncoderV2(NetArch):
                 "--norm-eps",
                 default=1e-5,
                 type=float,
-                help="epsilon for branch, QK, and MoE router normalization",
+                help="epsilon for branch, Q/K/V, and MoE router normalization",
             )
             parser.add_argument(
                 "--is-causal",
