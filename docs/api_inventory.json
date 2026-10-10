@@ -1,5 +1,11 @@
 {
   "concepts": [
+    {"name": "Gemma-style routed feed-forward block", "reference": "hyperion.torch.layer_blocks.transformer_v2.TransformerV2G4MoEBlock", "status": "stable", "docs": ["torch-api.rst", "torch-layers-and-architectures.rst"]},
+    {"name": "HF Flash V2 attention", "reference": "hyperion.torch.layers.attention_v2.HFFlashScaledDotProdAttV2", "status": "stable", "docs": ["torch-api.rst", "torch-layers-and-architectures.rst"]},
+    {"name": "scaled and unscaled RMS normalization", "reference": "hyperion.torch.layers.norm_layers.RMSNorm", "status": "stable", "docs": ["torch-api.rst", "torch-layers-and-architectures.rst"]},
+    {"name": "V2 transformer encoder", "reference": "hyperion.torch.narchs.transformer_encoder_v2.TransformerEncoderV2", "status": "stable", "docs": ["torch-api-contracts.rst", "torch-layers-and-architectures.rst"]},
+    {"name": "V2 query former", "reference": "hyperion.torch.narchs.qformer_v2.QFormerV2", "status": "stable", "docs": ["torch-api-contracts.rst", "torch-layers-and-architectures.rst"]},
+    {"name": "conditional parameter DDP hook", "reference": "hyperion.torch.HyperTorchModel.requires_ddp_find_unused_parameters", "status": "stable", "docs": ["torch-api-contracts.rst", "torch-training-support.rst"]},
     {"name": "feature writer factory", "reference": "hyperion.io.DataWriterFactory", "status": "stable", "docs": ["io.rst", "foundation-api-contracts.rst"]},
     {"name": "sequential feature reader factory", "reference": "hyperion.io.SequentialDataReaderFactory", "status": "stable", "docs": ["io.rst", "foundation-api-contracts.rst"]},
     {"name": "random-access feature reader factory", "reference": "hyperion.io.RandomAccessDataReaderFactory", "status": "stable", "docs": ["io.rst", "foundation-api-contracts.rst"]},

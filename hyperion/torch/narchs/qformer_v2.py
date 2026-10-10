@@ -624,10 +624,9 @@ class QFormerV2(NetArch):
         Args:
             query_embeds: Query tensor `(batch, query_len, hidden_dim)`.
             feats: Sequence of encoder feature tensors, one per cross-attention layer.
-            feats_lengths: Optional sequence lengths. It can be:
-                - a single tensor shared by all `feats` entries (all entries must have
-                  the same temporal length), or
-                - a sequence matching `feats`, potentially with per-entry lengths.
+            feats_lengths: Optional sequence lengths: a single tensor shared by all
+                feature entries with the same temporal length, or a sequence matching
+                feats with per-entry length tensors or None entries.
             start_pos: Starting rotary/cache position for cross-attention.
 
         Returns:

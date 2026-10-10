@@ -62,6 +62,35 @@ see :doc:`torch-extension-points`.
 For selecting stable feature frontends, pooling, reusable blocks, and neural
 architecture families, see :doc:`torch-layers-and-architectures`.
 
+
+V2 Transformer references
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.narchs.transformer_encoder_v2.TransformerEncoderV2
+   :no-index:
+   :members: forward, init_state, out_shape, get_config, requires_ddp_find_unused_parameters
+
+.. autoclass:: hyperion.torch.narchs.qformer_v2.QFormerV2
+   :no-index:
+   :members: forward, out_shape, get_config, requires_ddp_find_unused_parameters
+
+.. autoclass:: hyperion.torch.layer_blocks.transformer_v2.TransformerV2G4MoEBlock
+   :no-index:
+   :members: forward
+
+.. autoclass:: hyperion.torch.layers.attention_v2.HFFlashScaledDotProdAttV2
+   :no-index:
+   :members: compute_attention
+
+.. autoclass:: hyperion.torch.layers.norm_layers.RMSNorm
+   :no-index:
+   :members: forward
+
+For shapes, length transformations, external cache mutation, and checkpoint
+migration, see :doc:`torch-api-contracts`. For configuration defaults,
+normalization, MoE routing, backend prerequisites, and a synthetic encoder to
+QFormer workflow, see :doc:`torch-layers-and-architectures`.
+
 Margin-based classifier heads, training metrics/loggers, and resumable
 scheduler behavior are documented in :doc:`torch-training-support`.
 

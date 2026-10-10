@@ -33,7 +33,18 @@ Unreleased
 Stable public API
 ~~~~~~~~~~~~~~~~~
 
-No stable public API changes have been recorded for the next release.
+* V2 Transformer encoder and QFormer architectures support optional QK/value
+  RMS normalization, pre/post normalization, configurable head widths, K=V
+  projections, GELU with tanh approximation, and dense-plus-routed G4MoE blocks.
+  Encoder local/global attention has independent RoPE settings, KV sharing,
+  and causal convolution streaming. Padding and output lengths now account
+  for exact convolutions and endpoint resampling. The final superblock is
+  always included in multi-layer aggregation, and invalid tensor-parallel
+  head partitions are rejected. See :doc:`torch-layers-and-architectures` and
+  :doc:`torch-api-contracts`.
+* DDP trainers consult the top-level model's unused-parameter requirement;
+  composed task models must delegate to conditional encoders. See
+  :doc:`torch-training-support`.
 
 CLI commands
 ~~~~~~~~~~~~
@@ -44,8 +55,16 @@ release.
 Artifact and configuration compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-No artifact, checkpoint, serialized configuration, or stable data-format
-compatibility changes have been recorded for the next release.
+* V2 encoder configurations use local/global window and RoPE arguments in
+  place of the former shared names. QFormer has separate self/cross K=V
+  options. Norm precision uses ``norm_eps``; new projection/norm/MoE choices
+  can change checkpoint keys and shapes. Dynamic-reference RoPE now retains
+  frequency scaling in training. See :doc:`torch-api-contracts` for argument
+  migration and :doc:`torch-layers-and-architectures` for defaults.
+* ``flash_attention_version`` selects native Torch or HF versions; native
+  selection is process-wide and HF/newer-kernel compatibility remains
+  conditional. Configuration/checkpoint loading does not restore external
+  inference cache state. See :doc:`torch-layers-and-architectures`.
 
 Deprecations
 ~~~~~~~~~~~~

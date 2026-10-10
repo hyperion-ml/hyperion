@@ -109,6 +109,94 @@ resolution must state how it transforms lengths/masks. See
 :doc:`torch-layers-and-architectures` for the stable frontend, pooling, block,
 and architecture families.
 
+V2 Transformer architecture contracts
+-------------------------------------
+
+``TransformerEncoderV2``
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+:class:`hyperion.torch.narchs.transformer_encoder_v2.TransformerEncoderV2`
+accepts floating-point ``x`` shaped ``(B, T, in_feats)`` and optional integral
+``x_lengths`` shaped ``(B,)``. Lengths describe a valid prefix followed by
+right padding. Inputs, lengths, parameters, and external state should be on
+the same device. The architecture builds its attention masks internally.
+
+``forward(x, x_lengths)`` returns ``(features, output_lengths)``. Features have
+shape ``(B, output_time, output_channels)``; channels are ``out_feats`` when a
+positive output projection is requested, otherwise ``endpoint_channels``.
+``output_lengths`` is None when input lengths are omitted. Otherwise it gives
+valid prefixes at the returned temporal resolution, including endpoint
+resampling and cropping. Padded feature values are not guaranteed to remain
+zero after the final output norm/projection; callers must retain the lengths.
+``out_shape`` uses the same convolution and endpoint rounding as forwarding.
+
+``forward(..., state=state)`` returns ``(features, output_lengths, new_state)``.
+``init_state`` supplies one block-state entry per transformer layer and
+convolution state for causal encoders. Independent attention cache dictionaries
+are mutated during forwarding; use the returned state for the next chunk.
+Shared layers have ``self_att=None`` and consume the source's processed K/V.
+Cached keys are after QK normalization and RoPE; cached values are after any
+value normalization. Cache suffix views can retain the full attention storage
+until replaced. These external states are not saved in model checkpoints.
+
+Use full-sequence training without state. For streaming inference use causal
+mode, ``eval()``, no gradients, and input-frame ``start_pos`` equal to consumed
+frames. Finished batch elements must not resume after a partially valid final
+chunk. Conv2D stems and ConvNeXt feed-forward blocks raise ``ValueError`` in
+causal mode, and causal endpoint resampling across temporal scales is rejected.
+Invalid windows, sharing counts/source availability, head widths, and
+head partitions raise configuration errors. See
+:doc:`torch-layers-and-architectures` for defaults and operational constraints.
+
+``QFormerV2``
+~~~~~~~~~~~~~
+
+:class:`hyperion.torch.narchs.qformer_v2.QFormerV2` consumes floating-point
+``query_embeds`` shaped ``(B, Q, hidden_dim)`` and encoder ``feats`` shaped
+``(B, K, in_feats)``. All query slots are valid; optional integral
+``feats_lengths`` shaped ``(B,)`` excludes right-padded keys. Every example
+should have at least one valid key. Queries and encoder time axes can differ.
+The output is a tensor shaped ``(B, Q, out_dim())``; it has no output-length
+return because query slots remain valid. ``out_shape`` takes the query shape.
+
+With ``multilayer_input=True``, provide one feature tensor per cross-attention
+step (``num_layers // cross_att_freq``). Their temporal lengths may differ if
+lengths are supplied as a matching list of tensors or None entries. A single
+shared length tensor requires equal padded feature lengths across entries.
+``distribute_query_across_layers=True`` requires Q divisible by the number of
+query groups; groups accumulate across cross-attention steps and the final
+output still contains Q query slots. ``num_layers`` must be a multiple of
+positive ``cross_att_freq``. ``use_layer_idx_encoder`` requires tied layers.
+
+Self-attention and cross-attention have independent RoPE enable flags, both
+False by default, and separate K=V flags. Shared encoder KV suffixes and
+local/global schedules are not QFormer options. The architecture forward
+interface has no external cache argument; cache support in its reusable
+attention blocks does not establish QFormer architecture streaming support.
+``train()`` enables dropout/stochastic depth and dynamic RoPE reference updates;
+``eval()`` fixes those behaviors but does not disable gradients.
+
+Serialization and migration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both architectures serialize constructor options via ``get_config`` and use
+the standard model configuration/parameter save and load contract. Enabling
+QK norms, MoE, post-norms, K=V, head widths, or KV sharing can change parameter
+names/shapes. Do not load old weights blindly with ``strict=False``. Recreate
+the intended architecture and validate any explicit parameter migration.
+
+Encoder configurations replace ``att_sliding_window`` with
+``global_attention_sliding_window`` for an all-global schedule
+(``local_to_global_ratio=0``). Map an old ``rope_theta`` and ``rope_scale_freqs``
+to their global-prefixed replacements. Alternating local/global attention
+needs both sets configured deliberately. QFormer replaces a shared ``k_eq_v``
+flag with ``self_att_k_eq_v`` and ``cross_att_k_eq_v``; common attention norm
+precision is now named ``norm_eps``. Removed constructor keys are not accepted
+as a backwards-compatibility layer. Frequency scaling now also applies during
+training with reference updates enabled, so identical weights/configuration
+may produce different outputs from the previous implementation.
+
+
 Data and samplers
 -----------------
 

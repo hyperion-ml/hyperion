@@ -141,9 +141,9 @@ The remaining RoPE arguments are shared: ``rope_update_max_seq_length=True``,
 ``rope_scaling_factor=8``, ``rope_low_freq_factor=1``, and
 ``rope_high_freq_factor=4``. Scaling is applied in training and evaluation when
 enabled, regardless of current sequence length. Training can grow each
-stage/type's reference length; that rebuilds its rotation cache. For fixed
-frequency behavior, including incremental attention with cached keys, disable
-reference-length updates. Previously, training with updates enabled bypassed
+stage/type's reference length; that rebuilds its rotation cache. Evaluation never grows the reference, so inference caches retain a fixed
+rotation after training. Disable reference-length updates for fixed training
+frequencies as well; caching while training with a growing reference is unsupported. Previously, training with updates enabled bypassed
 frequency scaling; this behavior is corrected in the shared positional layer,
 including QFormerV2.
 
@@ -153,19 +153,22 @@ architecture options. All new options are serialized and exposed by the
 encoder argument parser.
 
 Pre/post normalization in V2 Transformers
-----------------------------------------
+-----------------------------------------
 
 ``TransformerEncoderV2`` and ``QFormerV2`` accept ``pre_post_norm=False``
 (default), also exposed as ``--pre-post-norm``. This flag controls normalization
 placement; ``norm_layer`` independently selects LayerNorm or RMSNorm.
 The flag and normalization type are saved in the architecture configuration.
+``norm_eps=1e-5`` is passed to branch, stem, endpoint, output, Q/K/V, and MoE
+normalizations; Q/K/V and router norms remain RMS-based regardless of
+``norm_layer``.
 
 With ``pre_post_norm=False``, attention and feed-forward branches use pre-norm.
 With ``True``, the projected self-attention output is normalized before residual
 addition. QFormer cross-attention outputs are normalized in the same position.
 Dense MLP and ConvNeXt feed-forward outputs are normalized after the final
-projection and before residual addition. The ConvNeXt internal normalization is retained and uses the configured
-``norm_eps``.
+projection and before residual addition. The ConvNeXt internal normalization
+is retained and uses the configured ``norm_eps``.
 
 For example, a dense branch follows these equations when the flag is enabled::
 
@@ -173,12 +176,13 @@ For example, a dense branch follows these equations when the flag is enabled::
     y = h + ff_post_norm(feed_forward_without_post_norm(ff_norm(h)))
 
 Each pre/post norm has independent learned parameters and uses the configured
-``norm_layer``. The normalization placement matches Gemma 4; choosing RMSNorm
-also matches its normalization type. ``pre_post_norm=True`` does not override
+``norm_layer``. The dense attention/MLP branches use Gemma-style normalization placement;
+choosing RMSNorm also selects its normalization type. ConvNeXt retains its
+own internal convolution and normalization structure. ``pre_post_norm=True`` does not override
 ``norm_layer``, enable QK normalization, or change the activation.
 
 QK normalization in V2 Transformers
-----------------------------------
+-----------------------------------
 
 ``TransformerEncoderV2`` and ``QFormerV2`` accept ``enable_qk_norm=True``
 (default: ``False``), also exposed as ``--enable-qk-norm`` in their argument
@@ -203,7 +207,7 @@ return to ``hidden_dim``. RoPE requires an even head width. The option is saved
 in the architecture configuration and exposed as ``--head-dim``.
 
 Key/value projection reuse in V2 Transformers
---------------------------------------------
+---------------------------------------------
 
 ``TransformerEncoderV2(global_k_eq_v=False)`` optionally reuses raw key
 projections for values in global layers only. Local layers retain separate
@@ -220,7 +224,7 @@ work within a layer; it does not share K/V across layers. To match Gemma's
 normalization alongside projection reuse, enable QK and value normalization.
 
 Shared K/V inputs in V2 attention
---------------------------------
+---------------------------------
 
 ``ScaledDotProdAttV2``, ``TorchScaledDotProdAttV2``, and
 ``HFFlashScaledDotProdAttV2`` accept ``shared_kv=False``. With ``shared_kv=True``,
@@ -263,7 +267,7 @@ source tensors are stored on the model between forward calls. QFormerV2 does
 not configure shared suffixes.
 
 Encoder attention masks and streaming
-------------------------------------
+-------------------------------------
 
 ``TransformerEncoderV2(is_causal=True)`` combines key padding with causality
 for manual and Torch attention. Explicit masks use boolean keep semantics and
@@ -319,7 +323,7 @@ scale; endpoint resampling is not supported for causal streaming. Ordinary
 stems, downsampling and endpoints remain available for non-causal encoders.
 
 Value normalization in V2 Transformers
--------------------------------------
+--------------------------------------
 
 ``TransformerEncoderV2`` and ``QFormerV2`` accept ``enable_v_norm=False`` (default),
 also exposed as ``--enable-v-norm`` and saved in the architecture configuration.
@@ -398,10 +402,164 @@ using the existing tensor-parallel layers. The router is replicated; experts
 are not distributed to separate devices by expert parallelism.
 
 Sparse routing can leave some expert parameters unused in a training step.
-DDP training therefore requires unused-parameter detection, for example
-``DistributedDataParallel(..., find_unused_parameters=True)``. The standard
-``TorchTrainerBase`` DDP path currently does not enable this option; using
-``g4moe`` there requires additional trainer integration.
+Both architectures report this through
+``requires_ddp_find_unused_parameters()`` when ``ff_type="g4moe"``.
+``TorchTrainerBase`` and the legacy trainer pass the top-level model's result
+to ``DistributedDataParallel(find_unused_parameters=...)``. A composed task
+model must override and delegate this method to its encoder/QFormer; the
+trainer does not scan child modules. See :doc:`torch-training-support`.
+
+
+Attention backends and Flash Attention versions
+-----------------------------------------------
+
+Both architectures accept ``att_type="sdp"`` (manual), ``"torch_sdp"`` (default),
+or ``"hf_flash_sdp"``. ``sdp_backend`` selects native Torch SDPA backends and
+is saved in the configuration; the backend lists retain a math fallback.
+``flash_attention_version=None`` selects the backend default: native Torch
+FA2 or HF FA4. Explicit values ``2``, ``3``, or ``4`` propagate to every HF
+attention branch, including QFormer self-attention-only blocks and both
+branches of cross-attention blocks. The option is saved and exposed as
+``--flash-attention-version``. Standalone
+``HFFlashScaledDotProdAttV2`` defaults to FA4.
+
+Native Torch version selection changes process-wide state through
+``TorchScaledDotProdAttV2.set_flash_attention_version``. PyTorch at or below
+2.9.1 accepts only FA2. Newer builds must provide the implementation registry
+and the requested kernels; unavailable versions raise ``RuntimeError``.
+Constructing another architecture can change the selection for existing
+native SDPA modules in the same process. The repository dependency range
+currently caps Torch at 2.9.1, so native FA3/FA4 require a separately validated
+newer runtime. Selecting a version does not force every SDPA call to use
+Flash Attention: dtype, device, masks, and the selected backend list still
+control dispatch.
+
+HF Flash Attention is conditional on a compatible Transformers version,
+installed kernels, supported device, and compute dtype. The implementation
+uses HF's private ``_flash_attention_forward`` helper; FA2/FA3/FA4 dispatch and
+variable-length cross-attention still need runtime testing with newer HF
+versions before changing the dependency range. Do not interpret the HF FA4
+default as a compatibility guarantee for every supported Transformers release.
+
+HF self-attention accepts boolean key-padding masks shaped ``(B, K)``.
+Numeric masks use additive values: nonnegative entries are valid, negative
+entries are masked. Non-causal cross-attention also accepts padding-only
+``(B, 1, Q, K)`` masks whose rows are identical. Pairwise masks are unsupported.
+For padded cross-attention with different Q/K lengths, the wrapper packs all
+valid queries and only valid keys with separate cumulative sequence lengths;
+queries are not truncated to the key lengths.
+
+QFormer positional encoding and valid inputs
+--------------------------------------------
+
+``rope_in_self_att=False`` and ``rope_in_cross_att=False`` are independent
+QFormer defaults. Leaving cross-attention RoPE disabled is appropriate for
+learned query slots and acoustic frames without a shared positional timeline.
+Self-attention-only blocks honor ``rope_in_self_att`` even when cross-attention
+RoPE is enabled. QFormer has a single ``rope_theta`` and scaling configuration;
+it does not create local/global layer schedules or shared KV suffixes.
+
+Every QFormer example should contain at least one valid encoder key. Fully
+masked manual attention is outside this usage contract. If cross-attention
+RoPE is enabled during training, a K sequence that grows the dynamic reference
+after Q has rotated can give Q and K different frequencies. Use a fixed
+reference (``rope_update_max_seq_length=False``) or disabled frequency scaling
+for that configuration; the default disabled cross-attention RoPE avoids it.
+
+Exact lengths, padding, and multi-layer endpoints
+-------------------------------------------------
+
+Non-causal convolution lengths use the actual kernel, stride, padding, and
+dilation, preserving zero valid lengths. ``conv_output_lengths`` in
+``hyperion.torch.utils.misc`` exposes the same calculation for reuse. Causal
+streaming instead uses convolution stride phase. Ordinary downsampling
+``forward`` returns ``(features, lengths)`` even when lengths are omitted.
+
+Stems and downsampling blocks clear padding immediately before temporal
+convolutions, including after normalization. Feed-forward blocks accept an
+optional ``x_mask`` with boolean keep or additive semantics, shaped ``(B, T)``
+or ``(B, 1, Q, K)``. Pointwise dense/MoE blocks ignore it; ConvNeXt clears
+padding before its depthwise convolution and excludes it from GRN. ConvNeXt
+requires a positive odd kernel size to preserve residual length and rejects
+``model_parallel=True``.
+
+With ``multilayer=True``, ``endpoint_layers=None`` selects all superblocks.
+An explicit nonempty list selects zero-based superblock indices; the final
+superblock is always appended if absent, keeping every stage connected to the
+aggregated training output. The effective list is saved in ``get_config()``.
+``endpoint_scale_layer=-1`` chooses the final stage's temporal scale by default.
+
+Endpoint blocks receive right-padding masks in either 2-D or 4-D form. They
+clear padding after normalization and intermediate projections, and use
+negative infinity to exclude invalid positions from max-pooling, including
+when valid features are negative. Masks and lengths follow each convolution,
+pooling, and interpolation operation. Endpoint tensors are center-cropped to
+the shortest resampled length before averaging or concatenation. Output valid
+lengths subtract each left crop, clamp to the merged size, and take the minimum
+across endpoints. ``out_shape`` accounts for the same resampling and cropping,
+rather than always reporting the final stage size. See
+:doc:`torch-api-contracts` for forward return values and cache mutation.
+
+Tensor-parallel attention requires positive Q/KV head counts, Q heads divisible
+by KV heads, and both counts divisible by the tensor-parallel world size.
+Incompatible configurations raise ``ValueError`` before distributed projections
+are created; KV replication across ranks is not implemented.
+
+GELU activation choice
+-----------------------
+
+``hyperion.torch.layers.activation_factory.ActivationFactory`` exposes
+``"gelu-tanh"`` as ``torch.nn.GELU(approximate="tanh")``. ``"gelu"`` retains the
+non-approximate GELU implementation. Both are gated-MLP activation choices;
+the activation name is saved as ``ff_act`` in architecture configurations.
+
+Configure an encoder and QFormer on synthetic frames
+-----------------------------------------------------
+
+This CPU example needs an installed Hyperion runtime with Torch and
+Transformers. It uses no downloaded model or corpus. The encoder emits frame
+features and valid lengths; QFormer converts them to four query features per
+example. Shapes depend on the exact convolution lengths.
+
+.. code-block:: python
+
+   import torch
+   from hyperion.torch.narchs.transformer_encoder_v2 import TransformerEncoderV2
+   from hyperion.torch.narchs.qformer_v2 import QFormerV2
+
+   encoder = TransformerEncoderV2(
+       in_feats=8, stem_type="conv1d", stem_hidden_channels=[16],
+       stem_kernel_sizes=[3], stem_strides=[1], stem_dropout_rate=0.0,
+       encb_repeats=[4], hidden_dims=[16], downb_strides=[], num_heads=4,
+       ff_multiple_of=8, ff_type="g4moe", ff_num_experts=4,
+       ff_top_k_experts=2, ff_moe_intermediate_dim=32, ff_act="gelu-tanh",
+       enable_qk_norm=True, enable_v_norm=True, pre_post_norm=True,
+       norm_layer="rms-norm", local_to_global_ratio=1,
+       num_kv_shared_layers=2, global_k_eq_v=True,
+       local_rope_scale_freqs=False, global_rope_scale_freqs=False,
+   ).eval()
+   qformer = QFormerV2(
+       in_feats=16, hidden_dim=16, num_heads=4, num_layers=2,
+       ff_multiple_of=8, enable_qk_norm=True, enable_v_norm=True,
+       pre_post_norm=True, norm_layer="rms-norm", head_dim=8,
+       rope_in_self_att=False, rope_in_cross_att=False,
+   ).eval()
+   frames = torch.randn(2, 20, 8)
+   queries = torch.randn(2, 4, 16)
+   with torch.no_grad():
+       features, lengths = encoder(frames, torch.tensor([20, 16]))
+       query_features = qformer(queries, features, lengths)
+   assert features.shape == encoder.out_shape(tuple(frames.shape))
+   assert query_features.shape == (2, 4, 16)
+
+For causal inference, construct the encoder with ``is_causal=True``, call
+``state = encoder.init_state(batch_size, max_cache_length)``, and pass state
+through ``output, lengths, state = encoder(chunk, chunk_lengths,
+start_pos=consumed_frames, state=state)``. ``max_cache_length`` is measured at
+the first transformer stage after the stem. Persist configuration and weights
+through the model's standard ``save``/``load`` interface; ``get_config`` records
+architecture settings but does not replace ``state_dict``. Inference cache
+state is external and is not included in the architecture checkpoint.
 
 Factories and selection
 -----------------------

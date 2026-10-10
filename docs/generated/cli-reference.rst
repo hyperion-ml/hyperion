@@ -49886,12 +49886,20 @@ hyperion-train-qvector resnet
                                             [--model.hidden_feats_agg_qformer.hidden-dim HIDDEN_DIM]
                                             [--model.hidden_feats_agg_qformer.num-heads NUM_HEADS]
                                             [--model.hidden_feats_agg_qformer.num-kv-heads NUM_KV_HEADS]
+                                            [--model.hidden_feats_agg_qformer.self-att-k-eq-v]
+                                            [--model.hidden_feats_agg_qformer.cross-att-k-eq-v]
+                                            [--model.hidden_feats_agg_qformer.head-dim HEAD_DIM]
                                             [--model.hidden_feats_agg_qformer.cross-att-freq CROSS_ATT_FREQ]
                                             [--model.hidden_feats_agg_qformer.att-dropout-rate ATT_DROPOUT_RATE]
                                             [--model.hidden_feats_agg_qformer.att-bias]
-                                            [--model.hidden_feats_agg_qformer.ff-type {mlp,convnext}]
+                                            [--model.hidden_feats_agg_qformer.enable-qk-norm]
+                                            [--model.hidden_feats_agg_qformer.enable-v-norm]
+                                            [--model.hidden_feats_agg_qformer.ff-type {mlp,convnext,g4moe}]
                                             [--model.hidden_feats_agg_qformer.ff-dim-multiplier FF_DIM_MULTIPLIER]
                                             [--model.hidden_feats_agg_qformer.ff-multiple-of FF_MULTIPLE_OF]
+                                            [--model.hidden_feats_agg_qformer.ff-num-experts FF_NUM_EXPERTS]
+                                            [--model.hidden_feats_agg_qformer.ff-top-k-experts FF_TOP_K_EXPERTS]
+                                            [--model.hidden_feats_agg_qformer.ff-moe-intermediate-dim FF_MOE_INTERMEDIATE_DIM]
                                             [--model.hidden_feats_agg_qformer.ff-kernel-size FF_KERNEL_SIZE]
                                             [--model.hidden_feats_agg_qformer.ff-dilation FF_DILATION]
                                             [--model.hidden_feats_agg_qformer.ff-act FF_ACT]
@@ -49910,8 +49918,10 @@ hyperion-train-qvector resnet
                                             [--model.hidden_feats_agg_qformer.use-layer-idx-encoder]
                                             [--model.hidden_feats_agg_qformer.out-feats OUT_FEATS]
                                             [--model.hidden_feats_agg_qformer.drop-path-rate DROP_PATH_RATE]
+                                            [--model.hidden_feats_agg_qformer.flash-attention-version {2,3,4}]
                                             [--model.hidden_feats_agg_qformer.sdp-backend {math,flash,efficient,cudnn,flash->efficient,cudnn->efficient,flash->cudnn->efficient,flash->efficient->cudnn}]
                                             [--model.hidden_feats_agg_qformer.norm-layer {layer-norm,rms-norm}]
+                                            [--model.hidden_feats_agg_qformer.pre-post-norm]
                                             [--model.hidden_feats_agg_qformer.norm-eps NORM_EPS]
                                             [--model.hidden_feats_agg_qformer.model-parallel]
                                             [--model.output_feats_agg_qformer CONFIG]
@@ -49921,12 +49931,20 @@ hyperion-train-qvector resnet
                                             [--model.output_feats_agg_qformer.hidden-dim HIDDEN_DIM]
                                             [--model.output_feats_agg_qformer.num-heads NUM_HEADS]
                                             [--model.output_feats_agg_qformer.num-kv-heads NUM_KV_HEADS]
+                                            [--model.output_feats_agg_qformer.self-att-k-eq-v]
+                                            [--model.output_feats_agg_qformer.cross-att-k-eq-v]
+                                            [--model.output_feats_agg_qformer.head-dim HEAD_DIM]
                                             [--model.output_feats_agg_qformer.cross-att-freq CROSS_ATT_FREQ]
                                             [--model.output_feats_agg_qformer.att-dropout-rate ATT_DROPOUT_RATE]
                                             [--model.output_feats_agg_qformer.att-bias]
-                                            [--model.output_feats_agg_qformer.ff-type {mlp,convnext}]
+                                            [--model.output_feats_agg_qformer.enable-qk-norm]
+                                            [--model.output_feats_agg_qformer.enable-v-norm]
+                                            [--model.output_feats_agg_qformer.ff-type {mlp,convnext,g4moe}]
                                             [--model.output_feats_agg_qformer.ff-dim-multiplier FF_DIM_MULTIPLIER]
                                             [--model.output_feats_agg_qformer.ff-multiple-of FF_MULTIPLE_OF]
+                                            [--model.output_feats_agg_qformer.ff-num-experts FF_NUM_EXPERTS]
+                                            [--model.output_feats_agg_qformer.ff-top-k-experts FF_TOP_K_EXPERTS]
+                                            [--model.output_feats_agg_qformer.ff-moe-intermediate-dim FF_MOE_INTERMEDIATE_DIM]
                                             [--model.output_feats_agg_qformer.ff-kernel-size FF_KERNEL_SIZE]
                                             [--model.output_feats_agg_qformer.ff-dilation FF_DILATION]
                                             [--model.output_feats_agg_qformer.ff-act FF_ACT]
@@ -49945,8 +49963,10 @@ hyperion-train-qvector resnet
                                             [--model.output_feats_agg_qformer.use-layer-idx-encoder]
                                             [--model.output_feats_agg_qformer.out-feats OUT_FEATS]
                                             [--model.output_feats_agg_qformer.drop-path-rate DROP_PATH_RATE]
+                                            [--model.output_feats_agg_qformer.flash-attention-version {2,3,4}]
                                             [--model.output_feats_agg_qformer.sdp-backend {math,flash,efficient,cudnn,flash->efficient,cudnn->efficient,flash->cudnn->efficient,flash->efficient->cudnn}]
                                             [--model.output_feats_agg_qformer.norm-layer {layer-norm,rms-norm}]
+                                            [--model.output_feats_agg_qformer.pre-post-norm]
                                             [--model.output_feats_agg_qformer.norm-eps NORM_EPS]
                                             [--model.output_feats_agg_qformer.model-parallel]
                                             [--model.head CONFIG]
@@ -50708,8 +50728,8 @@ hyperion-train-qvector resnet
      --model.hidden_feats_agg_qformer.in-feats IN_FEATS
                            input features dimension (type: int, default: null)
      --model.hidden_feats_agg_qformer.att-type {sdp,torch_sdp,hf_flash_sdp}
-                           type of attention layer in [sdp, torch_sdp, flash_sdp]
-                           (default: torch_sdp)
+                           type of attention layer in [sdp, torch_sdp,
+                           hf_flash_sdp] (default: torch_sdp)
      --model.hidden_feats_agg_qformer.num-layers NUM_LAYERS
                            transformer block repeats in each encoder stage (type:
                            int, default: 3)
@@ -50721,6 +50741,15 @@ hyperion-train-qvector resnet
      --model.hidden_feats_agg_qformer.num-kv-heads NUM_KV_HEADS
                            num. of key, value attention heads when using GQA
                            (type: int, default: null)
+     --model.hidden_feats_agg_qformer.self-att-k-eq-v, --no_model.hidden_feats_agg_qformer.self-att-k-eq-v
+                           reuse raw key projections for self-attention values
+                           (type: bool, default: False)
+     --model.hidden_feats_agg_qformer.cross-att-k-eq-v, --no_model.hidden_feats_agg_qformer.cross-att-k-eq-v
+                           reuse raw key projections for cross-attention values
+                           (type: bool, default: False)
+     --model.hidden_feats_agg_qformer.head-dim HEAD_DIM
+                           attention head width; None derives hidden_dim /
+                           num_heads (type: int, default: null)
      --model.hidden_feats_agg_qformer.cross-att-freq CROSS_ATT_FREQ
                            The frequency of adding cross-attention to the
                            Transformer layers. (type: int, default: 1)
@@ -50729,15 +50758,31 @@ hyperion-train-qvector resnet
      --model.hidden_feats_agg_qformer.att-bias, --no_model.hidden_feats_agg_qformer.att-bias
                            use bias in Linear layers of attention blocks (type:
                            bool, default: False)
-     --model.hidden_feats_agg_qformer.ff-type {mlp,convnext}
-                           type of feed forward layer in [mlp, convnext]
+     --model.hidden_feats_agg_qformer.enable-qk-norm, --no_model.hidden_feats_agg_qformer.enable-qk-norm
+                           enable per-head Q/K RMSNorm and unit attention scaling
+                           (type: bool, default: False)
+     --model.hidden_feats_agg_qformer.enable-v-norm, --no_model.hidden_feats_agg_qformer.enable-v-norm
+                           enable per-head value RMSNorm without learned scaling
+                           (type: bool, default: False)
+     --model.hidden_feats_agg_qformer.ff-type {mlp,convnext,g4moe}
+                           type of feed forward layer in [mlp, convnext, g4moe]
                            (default: mlp)
      --model.hidden_feats_agg_qformer.ff-dim-multiplier FF_DIM_MULTIPLIER
-                           number that multiplies the hidden dimension to get the
-                           inv. bottleneck dimension (type: int, default: 4)
+                           hidden dimension multiplier for the dense feed-forward
+                           width (dense branch for g4moe) (type: int, default: 4)
      --model.hidden_feats_agg_qformer.ff-multiple-of FF_MULTIPLE_OF
-                           the inv bottleneck dim has to be a multiple of this
-                           (type: int, default: 256)
+                           round dense and expert intermediate widths up to this
+                           multiple (type: int, default: 256)
+     --model.hidden_feats_agg_qformer.ff-num-experts FF_NUM_EXPERTS
+                           positive number of routed experts; required for g4moe
+                           (type: int, default: null)
+     --model.hidden_feats_agg_qformer.ff-top-k-experts FF_TOP_K_EXPERTS
+                           experts selected per token in [1, ff_num_experts];
+                           required for g4moe (type: int, default: null)
+     --model.hidden_feats_agg_qformer.ff-moe-intermediate-dim FF_MOE_INTERMEDIATE_DIM
+                           positive expert width before rounding by
+                           ff_multiple_of; required for g4moe (type: int,
+                           default: null)
      --model.hidden_feats_agg_qformer.ff-kernel-size FF_KERNEL_SIZE
                            kernel size when using convnext feed forward layer
                            (type: int, default: 7)
@@ -50745,7 +50790,8 @@ hyperion-train-qvector resnet
                            dilation when using convnext feedforward layers (type:
                            int, default: 1)
      --model.hidden_feats_agg_qformer.ff-act FF_ACT
-                           activation of feedforward layers (default: silu)
+                           gated feed-forward activation (use gelu-tanh to match
+                           Gemma 4) (default: silu)
      --model.hidden_feats_agg_qformer.ff-bias, --no_model.hidden_feats_agg_qformer.ff-bias
                            use bias in Linear layers of feed forward blocks
                            (type: bool, default: False)
@@ -50760,17 +50806,17 @@ hyperion-train-qvector resnet
                            the max seq length seen on training (type: bool,
                            default: True)
      --model.hidden_feats_agg_qformer.rope-original-max-seq-length ROPE_ORIGINAL_MAX_SEQ_LENGTH
-                           sets manually the max seq length seen in training for
-                           ROPE (type: int, default: null)
+                           original RoPE context length override; None uses the
+                           positional encoder default (type: int, default: null)
      --model.hidden_feats_agg_qformer.rope-scaling-factor ROPE_SCALING_FACTOR
                            ROPE scaling factors (type: float, default: 8)
      --model.hidden_feats_agg_qformer.rope-low-freq-factor ROPE_LOW_FREQ_FACTOR
-                           ROPE frequencies are not scaled for wavelengths <
-                           max_seq_length / self.low_freq_factor (type: float,
+                           fully scale frequencies with wavelengths above
+                           max_seq_length / low_freq_factor (type: float,
                            default: 1)
      --model.hidden_feats_agg_qformer.rope-high-freq-factor ROPE_HIGH_FREQ_FACTOR
-                           ROPE frequencies are scaled by scaling for wavelengths
-                           > max_seq_length / self.high_freq_factor (type: float,
+                           leave frequencies unchanged for wavelengths below
+                           max_seq_length / high_freq_factor (type: float,
                            default: 4)
      --model.hidden_feats_agg_qformer.rope-in-self-att, --no_model.hidden_feats_agg_qformer.rope-in-self-att
                            use Rotary positional encoder or not positional
@@ -50781,40 +50827,48 @@ hyperion-train-qvector resnet
                            encoder at all in cross-attention (type: bool,
                            default: False)
      --model.hidden_feats_agg_qformer.distribute-query-across-layers, --no_model.hidden_feats_agg_qformer.distribute-query-across-layers
-                           splits the query into num_layers / num_cross_attention
-                           layers groups, the first group is used as input to the
-                           first cross-attention layer, the nth group is
-                           concantenated to input of the nth cross-attention
-                           layer (type: bool, default: False)
-     --model.hidden_feats_agg_qformer.tied-layers, --no_model.hidden_feats_agg_qformer.tied-layers
-                           whether the encoder encoder layers are tied or not.
+                           split queries into num_layers / cross_att_freq groups
+                           and introduce one group per cross-attention layer
                            (type: bool, default: False)
+     --model.hidden_feats_agg_qformer.tied-layers, --no_model.hidden_feats_agg_qformer.tied-layers
+                           reuse one group of query-stream transformer blocks
+                           across layers (type: bool, default: False)
      --model.hidden_feats_agg_qformer.use-layer-idx-encoder, --no_model.hidden_feats_agg_qformer.use-layer-idx-encoder
                            add a learned embedding of the encoder layer index to
                            cross-attention inputs (type: bool, default: False)
      --model.hidden_feats_agg_qformer.out-feats OUT_FEATS
-                           features for ouptut projection, if None, no output
-                           proj is done (type: int, default: null)
+                           output projection dimension; None or a nonpositive
+                           value disables projection (type: int, default: null)
      --model.hidden_feats_agg_qformer.drop-path-rate DROP_PATH_RATE
                            drop path rate (type: float, default: 0.0)
+     --model.hidden_feats_agg_qformer.flash-attention-version {2,3,4}
+                           Flash Attention version; defaults to Torch FA2 or HF
+                           FA4; native Torch selection is process-wide and
+                           FA3/FA4 require newer PyTorch (type: <function
+                           <lambda> at <address>>, default: null)
      --model.hidden_feats_agg_qformer.sdp-backend {math,flash,efficient,cudnn,flash->efficient,cudnn->efficient,flash->cudnn->efficient,flash->efficient->cudnn}
                            Preferred sequence of SDP kernels to attempt when
                            calling Torch SDP function (default:
                            flash->efficient->cudnn)
      --model.hidden_feats_agg_qformer.norm-layer {layer-norm,rms-norm}
-                           type of norm layer in [layer-norm, rms-norm] (default:
-                           layer-norm)
+                           branch norm type in [layer-norm, rms-norm];
+                           independent of pre_post_norm (default: layer-norm)
+     --model.hidden_feats_agg_qformer.pre-post-norm, --no_model.hidden_feats_agg_qformer.pre-post-norm
+                           add branch post-norms before residual addition using
+                           norm_layer (default: pre-norm only) (type: bool,
+                           default: False)
      --model.hidden_feats_agg_qformer.norm-eps NORM_EPS
-                           eps for layer norms (type: float, default: 1e-05)
+                           epsilon for branch, Q/K/V, and MoE router
+                           normalization (type: float, default: 1e-05)
      --model.hidden_feats_agg_qformer.model-parallel, --no_model.hidden_feats_agg_qformer.model-parallel
-                           train with model parallel using external tools (no
-                           built-in support) (type: bool, default: False)
+                           use tensor-parallel projections with an externally
+                           initialized process group (type: bool, default: False)
 
      --model.output_feats_agg_qformer.in-feats IN_FEATS
                            input features dimension (type: int, default: null)
      --model.output_feats_agg_qformer.att-type {sdp,torch_sdp,hf_flash_sdp}
-                           type of attention layer in [sdp, torch_sdp, flash_sdp]
-                           (default: torch_sdp)
+                           type of attention layer in [sdp, torch_sdp,
+                           hf_flash_sdp] (default: torch_sdp)
      --model.output_feats_agg_qformer.num-layers NUM_LAYERS
                            transformer block repeats in each encoder stage (type:
                            int, default: 3)
@@ -50826,6 +50880,15 @@ hyperion-train-qvector resnet
      --model.output_feats_agg_qformer.num-kv-heads NUM_KV_HEADS
                            num. of key, value attention heads when using GQA
                            (type: int, default: null)
+     --model.output_feats_agg_qformer.self-att-k-eq-v, --no_model.output_feats_agg_qformer.self-att-k-eq-v
+                           reuse raw key projections for self-attention values
+                           (type: bool, default: False)
+     --model.output_feats_agg_qformer.cross-att-k-eq-v, --no_model.output_feats_agg_qformer.cross-att-k-eq-v
+                           reuse raw key projections for cross-attention values
+                           (type: bool, default: False)
+     --model.output_feats_agg_qformer.head-dim HEAD_DIM
+                           attention head width; None derives hidden_dim /
+                           num_heads (type: int, default: null)
      --model.output_feats_agg_qformer.cross-att-freq CROSS_ATT_FREQ
                            The frequency of adding cross-attention to the
                            Transformer layers. (type: int, default: 1)
@@ -50834,15 +50897,31 @@ hyperion-train-qvector resnet
      --model.output_feats_agg_qformer.att-bias, --no_model.output_feats_agg_qformer.att-bias
                            use bias in Linear layers of attention blocks (type:
                            bool, default: False)
-     --model.output_feats_agg_qformer.ff-type {mlp,convnext}
-                           type of feed forward layer in [mlp, convnext]
+     --model.output_feats_agg_qformer.enable-qk-norm, --no_model.output_feats_agg_qformer.enable-qk-norm
+                           enable per-head Q/K RMSNorm and unit attention scaling
+                           (type: bool, default: False)
+     --model.output_feats_agg_qformer.enable-v-norm, --no_model.output_feats_agg_qformer.enable-v-norm
+                           enable per-head value RMSNorm without learned scaling
+                           (type: bool, default: False)
+     --model.output_feats_agg_qformer.ff-type {mlp,convnext,g4moe}
+                           type of feed forward layer in [mlp, convnext, g4moe]
                            (default: mlp)
      --model.output_feats_agg_qformer.ff-dim-multiplier FF_DIM_MULTIPLIER
-                           number that multiplies the hidden dimension to get the
-                           inv. bottleneck dimension (type: int, default: 4)
+                           hidden dimension multiplier for the dense feed-forward
+                           width (dense branch for g4moe) (type: int, default: 4)
      --model.output_feats_agg_qformer.ff-multiple-of FF_MULTIPLE_OF
-                           the inv bottleneck dim has to be a multiple of this
-                           (type: int, default: 256)
+                           round dense and expert intermediate widths up to this
+                           multiple (type: int, default: 256)
+     --model.output_feats_agg_qformer.ff-num-experts FF_NUM_EXPERTS
+                           positive number of routed experts; required for g4moe
+                           (type: int, default: null)
+     --model.output_feats_agg_qformer.ff-top-k-experts FF_TOP_K_EXPERTS
+                           experts selected per token in [1, ff_num_experts];
+                           required for g4moe (type: int, default: null)
+     --model.output_feats_agg_qformer.ff-moe-intermediate-dim FF_MOE_INTERMEDIATE_DIM
+                           positive expert width before rounding by
+                           ff_multiple_of; required for g4moe (type: int,
+                           default: null)
      --model.output_feats_agg_qformer.ff-kernel-size FF_KERNEL_SIZE
                            kernel size when using convnext feed forward layer
                            (type: int, default: 7)
@@ -50850,7 +50929,8 @@ hyperion-train-qvector resnet
                            dilation when using convnext feedforward layers (type:
                            int, default: 1)
      --model.output_feats_agg_qformer.ff-act FF_ACT
-                           activation of feedforward layers (default: silu)
+                           gated feed-forward activation (use gelu-tanh to match
+                           Gemma 4) (default: silu)
      --model.output_feats_agg_qformer.ff-bias, --no_model.output_feats_agg_qformer.ff-bias
                            use bias in Linear layers of feed forward blocks
                            (type: bool, default: False)
@@ -50865,17 +50945,17 @@ hyperion-train-qvector resnet
                            the max seq length seen on training (type: bool,
                            default: True)
      --model.output_feats_agg_qformer.rope-original-max-seq-length ROPE_ORIGINAL_MAX_SEQ_LENGTH
-                           sets manually the max seq length seen in training for
-                           ROPE (type: int, default: null)
+                           original RoPE context length override; None uses the
+                           positional encoder default (type: int, default: null)
      --model.output_feats_agg_qformer.rope-scaling-factor ROPE_SCALING_FACTOR
                            ROPE scaling factors (type: float, default: 8)
      --model.output_feats_agg_qformer.rope-low-freq-factor ROPE_LOW_FREQ_FACTOR
-                           ROPE frequencies are not scaled for wavelengths <
-                           max_seq_length / self.low_freq_factor (type: float,
+                           fully scale frequencies with wavelengths above
+                           max_seq_length / low_freq_factor (type: float,
                            default: 1)
      --model.output_feats_agg_qformer.rope-high-freq-factor ROPE_HIGH_FREQ_FACTOR
-                           ROPE frequencies are scaled by scaling for wavelengths
-                           > max_seq_length / self.high_freq_factor (type: float,
+                           leave frequencies unchanged for wavelengths below
+                           max_seq_length / high_freq_factor (type: float,
                            default: 4)
      --model.output_feats_agg_qformer.rope-in-self-att, --no_model.output_feats_agg_qformer.rope-in-self-att
                            use Rotary positional encoder or not positional
@@ -50886,34 +50966,42 @@ hyperion-train-qvector resnet
                            encoder at all in cross-attention (type: bool,
                            default: False)
      --model.output_feats_agg_qformer.distribute-query-across-layers, --no_model.output_feats_agg_qformer.distribute-query-across-layers
-                           splits the query into num_layers / num_cross_attention
-                           layers groups, the first group is used as input to the
-                           first cross-attention layer, the nth group is
-                           concantenated to input of the nth cross-attention
-                           layer (type: bool, default: False)
-     --model.output_feats_agg_qformer.tied-layers, --no_model.output_feats_agg_qformer.tied-layers
-                           whether the encoder encoder layers are tied or not.
+                           split queries into num_layers / cross_att_freq groups
+                           and introduce one group per cross-attention layer
                            (type: bool, default: False)
+     --model.output_feats_agg_qformer.tied-layers, --no_model.output_feats_agg_qformer.tied-layers
+                           reuse one group of query-stream transformer blocks
+                           across layers (type: bool, default: False)
      --model.output_feats_agg_qformer.use-layer-idx-encoder, --no_model.output_feats_agg_qformer.use-layer-idx-encoder
                            add a learned embedding of the encoder layer index to
                            cross-attention inputs (type: bool, default: False)
      --model.output_feats_agg_qformer.out-feats OUT_FEATS
-                           features for ouptut projection, if None, no output
-                           proj is done (type: int, default: null)
+                           output projection dimension; None or a nonpositive
+                           value disables projection (type: int, default: null)
      --model.output_feats_agg_qformer.drop-path-rate DROP_PATH_RATE
                            drop path rate (type: float, default: 0.0)
+     --model.output_feats_agg_qformer.flash-attention-version {2,3,4}
+                           Flash Attention version; defaults to Torch FA2 or HF
+                           FA4; native Torch selection is process-wide and
+                           FA3/FA4 require newer PyTorch (type: <function
+                           <lambda> at <address>>, default: null)
      --model.output_feats_agg_qformer.sdp-backend {math,flash,efficient,cudnn,flash->efficient,cudnn->efficient,flash->cudnn->efficient,flash->efficient->cudnn}
                            Preferred sequence of SDP kernels to attempt when
                            calling Torch SDP function (default:
                            flash->efficient->cudnn)
      --model.output_feats_agg_qformer.norm-layer {layer-norm,rms-norm}
-                           type of norm layer in [layer-norm, rms-norm] (default:
-                           layer-norm)
+                           branch norm type in [layer-norm, rms-norm];
+                           independent of pre_post_norm (default: layer-norm)
+     --model.output_feats_agg_qformer.pre-post-norm, --no_model.output_feats_agg_qformer.pre-post-norm
+                           add branch post-norms before residual addition using
+                           norm_layer (default: pre-norm only) (type: bool,
+                           default: False)
      --model.output_feats_agg_qformer.norm-eps NORM_EPS
-                           eps for layer norms (type: float, default: 1e-05)
+                           epsilon for branch, Q/K/V, and MoE router
+                           normalization (type: float, default: 1e-05)
      --model.output_feats_agg_qformer.model-parallel, --no_model.output_feats_agg_qformer.model-parallel
-                           train with model parallel using external tools (no
-                           built-in support) (type: bool, default: False)
+                           use tensor-parallel projections with an externally
+                           initialized process group (type: bool, default: False)
 
      --model.head.head-type {classif,none}
                            Type of Hydra head to instantiate. (default: classif)
@@ -51494,12 +51582,20 @@ hyperion-train-qvector wav2vec2
                                               [--model.hidden_feats_agg_qformer.hidden-dim HIDDEN_DIM]
                                               [--model.hidden_feats_agg_qformer.num-heads NUM_HEADS]
                                               [--model.hidden_feats_agg_qformer.num-kv-heads NUM_KV_HEADS]
+                                              [--model.hidden_feats_agg_qformer.self-att-k-eq-v]
+                                              [--model.hidden_feats_agg_qformer.cross-att-k-eq-v]
+                                              [--model.hidden_feats_agg_qformer.head-dim HEAD_DIM]
                                               [--model.hidden_feats_agg_qformer.cross-att-freq CROSS_ATT_FREQ]
                                               [--model.hidden_feats_agg_qformer.att-dropout-rate ATT_DROPOUT_RATE]
                                               [--model.hidden_feats_agg_qformer.att-bias]
-                                              [--model.hidden_feats_agg_qformer.ff-type {mlp,convnext}]
+                                              [--model.hidden_feats_agg_qformer.enable-qk-norm]
+                                              [--model.hidden_feats_agg_qformer.enable-v-norm]
+                                              [--model.hidden_feats_agg_qformer.ff-type {mlp,convnext,g4moe}]
                                               [--model.hidden_feats_agg_qformer.ff-dim-multiplier FF_DIM_MULTIPLIER]
                                               [--model.hidden_feats_agg_qformer.ff-multiple-of FF_MULTIPLE_OF]
+                                              [--model.hidden_feats_agg_qformer.ff-num-experts FF_NUM_EXPERTS]
+                                              [--model.hidden_feats_agg_qformer.ff-top-k-experts FF_TOP_K_EXPERTS]
+                                              [--model.hidden_feats_agg_qformer.ff-moe-intermediate-dim FF_MOE_INTERMEDIATE_DIM]
                                               [--model.hidden_feats_agg_qformer.ff-kernel-size FF_KERNEL_SIZE]
                                               [--model.hidden_feats_agg_qformer.ff-dilation FF_DILATION]
                                               [--model.hidden_feats_agg_qformer.ff-act FF_ACT]
@@ -51518,8 +51614,10 @@ hyperion-train-qvector wav2vec2
                                               [--model.hidden_feats_agg_qformer.use-layer-idx-encoder]
                                               [--model.hidden_feats_agg_qformer.out-feats OUT_FEATS]
                                               [--model.hidden_feats_agg_qformer.drop-path-rate DROP_PATH_RATE]
+                                              [--model.hidden_feats_agg_qformer.flash-attention-version {2,3,4}]
                                               [--model.hidden_feats_agg_qformer.sdp-backend {math,flash,efficient,cudnn,flash->efficient,cudnn->efficient,flash->cudnn->efficient,flash->efficient->cudnn}]
                                               [--model.hidden_feats_agg_qformer.norm-layer {layer-norm,rms-norm}]
+                                              [--model.hidden_feats_agg_qformer.pre-post-norm]
                                               [--model.hidden_feats_agg_qformer.norm-eps NORM_EPS]
                                               [--model.hidden_feats_agg_qformer.model-parallel]
                                               [--model.output_feats_agg_qformer CONFIG]
@@ -51529,12 +51627,20 @@ hyperion-train-qvector wav2vec2
                                               [--model.output_feats_agg_qformer.hidden-dim HIDDEN_DIM]
                                               [--model.output_feats_agg_qformer.num-heads NUM_HEADS]
                                               [--model.output_feats_agg_qformer.num-kv-heads NUM_KV_HEADS]
+                                              [--model.output_feats_agg_qformer.self-att-k-eq-v]
+                                              [--model.output_feats_agg_qformer.cross-att-k-eq-v]
+                                              [--model.output_feats_agg_qformer.head-dim HEAD_DIM]
                                               [--model.output_feats_agg_qformer.cross-att-freq CROSS_ATT_FREQ]
                                               [--model.output_feats_agg_qformer.att-dropout-rate ATT_DROPOUT_RATE]
                                               [--model.output_feats_agg_qformer.att-bias]
-                                              [--model.output_feats_agg_qformer.ff-type {mlp,convnext}]
+                                              [--model.output_feats_agg_qformer.enable-qk-norm]
+                                              [--model.output_feats_agg_qformer.enable-v-norm]
+                                              [--model.output_feats_agg_qformer.ff-type {mlp,convnext,g4moe}]
                                               [--model.output_feats_agg_qformer.ff-dim-multiplier FF_DIM_MULTIPLIER]
                                               [--model.output_feats_agg_qformer.ff-multiple-of FF_MULTIPLE_OF]
+                                              [--model.output_feats_agg_qformer.ff-num-experts FF_NUM_EXPERTS]
+                                              [--model.output_feats_agg_qformer.ff-top-k-experts FF_TOP_K_EXPERTS]
+                                              [--model.output_feats_agg_qformer.ff-moe-intermediate-dim FF_MOE_INTERMEDIATE_DIM]
                                               [--model.output_feats_agg_qformer.ff-kernel-size FF_KERNEL_SIZE]
                                               [--model.output_feats_agg_qformer.ff-dilation FF_DILATION]
                                               [--model.output_feats_agg_qformer.ff-act FF_ACT]
@@ -51553,8 +51659,10 @@ hyperion-train-qvector wav2vec2
                                               [--model.output_feats_agg_qformer.use-layer-idx-encoder]
                                               [--model.output_feats_agg_qformer.out-feats OUT_FEATS]
                                               [--model.output_feats_agg_qformer.drop-path-rate DROP_PATH_RATE]
+                                              [--model.output_feats_agg_qformer.flash-attention-version {2,3,4}]
                                               [--model.output_feats_agg_qformer.sdp-backend {math,flash,efficient,cudnn,flash->efficient,cudnn->efficient,flash->cudnn->efficient,flash->efficient->cudnn}]
                                               [--model.output_feats_agg_qformer.norm-layer {layer-norm,rms-norm}]
+                                              [--model.output_feats_agg_qformer.pre-post-norm]
                                               [--model.output_feats_agg_qformer.norm-eps NORM_EPS]
                                               [--model.output_feats_agg_qformer.model-parallel]
                                               [--model.head CONFIG]
@@ -52401,8 +52509,8 @@ hyperion-train-qvector wav2vec2
      --model.hidden_feats_agg_qformer.in-feats IN_FEATS
                            input features dimension (type: int, default: null)
      --model.hidden_feats_agg_qformer.att-type {sdp,torch_sdp,hf_flash_sdp}
-                           type of attention layer in [sdp, torch_sdp, flash_sdp]
-                           (default: torch_sdp)
+                           type of attention layer in [sdp, torch_sdp,
+                           hf_flash_sdp] (default: torch_sdp)
      --model.hidden_feats_agg_qformer.num-layers NUM_LAYERS
                            transformer block repeats in each encoder stage (type:
                            int, default: 3)
@@ -52414,6 +52522,15 @@ hyperion-train-qvector wav2vec2
      --model.hidden_feats_agg_qformer.num-kv-heads NUM_KV_HEADS
                            num. of key, value attention heads when using GQA
                            (type: int, default: null)
+     --model.hidden_feats_agg_qformer.self-att-k-eq-v, --no_model.hidden_feats_agg_qformer.self-att-k-eq-v
+                           reuse raw key projections for self-attention values
+                           (type: bool, default: False)
+     --model.hidden_feats_agg_qformer.cross-att-k-eq-v, --no_model.hidden_feats_agg_qformer.cross-att-k-eq-v
+                           reuse raw key projections for cross-attention values
+                           (type: bool, default: False)
+     --model.hidden_feats_agg_qformer.head-dim HEAD_DIM
+                           attention head width; None derives hidden_dim /
+                           num_heads (type: int, default: null)
      --model.hidden_feats_agg_qformer.cross-att-freq CROSS_ATT_FREQ
                            The frequency of adding cross-attention to the
                            Transformer layers. (type: int, default: 1)
@@ -52422,15 +52539,31 @@ hyperion-train-qvector wav2vec2
      --model.hidden_feats_agg_qformer.att-bias, --no_model.hidden_feats_agg_qformer.att-bias
                            use bias in Linear layers of attention blocks (type:
                            bool, default: False)
-     --model.hidden_feats_agg_qformer.ff-type {mlp,convnext}
-                           type of feed forward layer in [mlp, convnext]
+     --model.hidden_feats_agg_qformer.enable-qk-norm, --no_model.hidden_feats_agg_qformer.enable-qk-norm
+                           enable per-head Q/K RMSNorm and unit attention scaling
+                           (type: bool, default: False)
+     --model.hidden_feats_agg_qformer.enable-v-norm, --no_model.hidden_feats_agg_qformer.enable-v-norm
+                           enable per-head value RMSNorm without learned scaling
+                           (type: bool, default: False)
+     --model.hidden_feats_agg_qformer.ff-type {mlp,convnext,g4moe}
+                           type of feed forward layer in [mlp, convnext, g4moe]
                            (default: mlp)
      --model.hidden_feats_agg_qformer.ff-dim-multiplier FF_DIM_MULTIPLIER
-                           number that multiplies the hidden dimension to get the
-                           inv. bottleneck dimension (type: int, default: 4)
+                           hidden dimension multiplier for the dense feed-forward
+                           width (dense branch for g4moe) (type: int, default: 4)
      --model.hidden_feats_agg_qformer.ff-multiple-of FF_MULTIPLE_OF
-                           the inv bottleneck dim has to be a multiple of this
-                           (type: int, default: 256)
+                           round dense and expert intermediate widths up to this
+                           multiple (type: int, default: 256)
+     --model.hidden_feats_agg_qformer.ff-num-experts FF_NUM_EXPERTS
+                           positive number of routed experts; required for g4moe
+                           (type: int, default: null)
+     --model.hidden_feats_agg_qformer.ff-top-k-experts FF_TOP_K_EXPERTS
+                           experts selected per token in [1, ff_num_experts];
+                           required for g4moe (type: int, default: null)
+     --model.hidden_feats_agg_qformer.ff-moe-intermediate-dim FF_MOE_INTERMEDIATE_DIM
+                           positive expert width before rounding by
+                           ff_multiple_of; required for g4moe (type: int,
+                           default: null)
      --model.hidden_feats_agg_qformer.ff-kernel-size FF_KERNEL_SIZE
                            kernel size when using convnext feed forward layer
                            (type: int, default: 7)
@@ -52438,7 +52571,8 @@ hyperion-train-qvector wav2vec2
                            dilation when using convnext feedforward layers (type:
                            int, default: 1)
      --model.hidden_feats_agg_qformer.ff-act FF_ACT
-                           activation of feedforward layers (default: silu)
+                           gated feed-forward activation (use gelu-tanh to match
+                           Gemma 4) (default: silu)
      --model.hidden_feats_agg_qformer.ff-bias, --no_model.hidden_feats_agg_qformer.ff-bias
                            use bias in Linear layers of feed forward blocks
                            (type: bool, default: False)
@@ -52453,17 +52587,17 @@ hyperion-train-qvector wav2vec2
                            the max seq length seen on training (type: bool,
                            default: True)
      --model.hidden_feats_agg_qformer.rope-original-max-seq-length ROPE_ORIGINAL_MAX_SEQ_LENGTH
-                           sets manually the max seq length seen in training for
-                           ROPE (type: int, default: null)
+                           original RoPE context length override; None uses the
+                           positional encoder default (type: int, default: null)
      --model.hidden_feats_agg_qformer.rope-scaling-factor ROPE_SCALING_FACTOR
                            ROPE scaling factors (type: float, default: 8)
      --model.hidden_feats_agg_qformer.rope-low-freq-factor ROPE_LOW_FREQ_FACTOR
-                           ROPE frequencies are not scaled for wavelengths <
-                           max_seq_length / self.low_freq_factor (type: float,
+                           fully scale frequencies with wavelengths above
+                           max_seq_length / low_freq_factor (type: float,
                            default: 1)
      --model.hidden_feats_agg_qformer.rope-high-freq-factor ROPE_HIGH_FREQ_FACTOR
-                           ROPE frequencies are scaled by scaling for wavelengths
-                           > max_seq_length / self.high_freq_factor (type: float,
+                           leave frequencies unchanged for wavelengths below
+                           max_seq_length / high_freq_factor (type: float,
                            default: 4)
      --model.hidden_feats_agg_qformer.rope-in-self-att, --no_model.hidden_feats_agg_qformer.rope-in-self-att
                            use Rotary positional encoder or not positional
@@ -52474,40 +52608,48 @@ hyperion-train-qvector wav2vec2
                            encoder at all in cross-attention (type: bool,
                            default: False)
      --model.hidden_feats_agg_qformer.distribute-query-across-layers, --no_model.hidden_feats_agg_qformer.distribute-query-across-layers
-                           splits the query into num_layers / num_cross_attention
-                           layers groups, the first group is used as input to the
-                           first cross-attention layer, the nth group is
-                           concantenated to input of the nth cross-attention
-                           layer (type: bool, default: False)
-     --model.hidden_feats_agg_qformer.tied-layers, --no_model.hidden_feats_agg_qformer.tied-layers
-                           whether the encoder encoder layers are tied or not.
+                           split queries into num_layers / cross_att_freq groups
+                           and introduce one group per cross-attention layer
                            (type: bool, default: False)
+     --model.hidden_feats_agg_qformer.tied-layers, --no_model.hidden_feats_agg_qformer.tied-layers
+                           reuse one group of query-stream transformer blocks
+                           across layers (type: bool, default: False)
      --model.hidden_feats_agg_qformer.use-layer-idx-encoder, --no_model.hidden_feats_agg_qformer.use-layer-idx-encoder
                            add a learned embedding of the encoder layer index to
                            cross-attention inputs (type: bool, default: False)
      --model.hidden_feats_agg_qformer.out-feats OUT_FEATS
-                           features for ouptut projection, if None, no output
-                           proj is done (type: int, default: null)
+                           output projection dimension; None or a nonpositive
+                           value disables projection (type: int, default: null)
      --model.hidden_feats_agg_qformer.drop-path-rate DROP_PATH_RATE
                            drop path rate (type: float, default: 0.0)
+     --model.hidden_feats_agg_qformer.flash-attention-version {2,3,4}
+                           Flash Attention version; defaults to Torch FA2 or HF
+                           FA4; native Torch selection is process-wide and
+                           FA3/FA4 require newer PyTorch (type: <function
+                           <lambda> at <address>>, default: null)
      --model.hidden_feats_agg_qformer.sdp-backend {math,flash,efficient,cudnn,flash->efficient,cudnn->efficient,flash->cudnn->efficient,flash->efficient->cudnn}
                            Preferred sequence of SDP kernels to attempt when
                            calling Torch SDP function (default:
                            flash->efficient->cudnn)
      --model.hidden_feats_agg_qformer.norm-layer {layer-norm,rms-norm}
-                           type of norm layer in [layer-norm, rms-norm] (default:
-                           layer-norm)
+                           branch norm type in [layer-norm, rms-norm];
+                           independent of pre_post_norm (default: layer-norm)
+     --model.hidden_feats_agg_qformer.pre-post-norm, --no_model.hidden_feats_agg_qformer.pre-post-norm
+                           add branch post-norms before residual addition using
+                           norm_layer (default: pre-norm only) (type: bool,
+                           default: False)
      --model.hidden_feats_agg_qformer.norm-eps NORM_EPS
-                           eps for layer norms (type: float, default: 1e-05)
+                           epsilon for branch, Q/K/V, and MoE router
+                           normalization (type: float, default: 1e-05)
      --model.hidden_feats_agg_qformer.model-parallel, --no_model.hidden_feats_agg_qformer.model-parallel
-                           train with model parallel using external tools (no
-                           built-in support) (type: bool, default: False)
+                           use tensor-parallel projections with an externally
+                           initialized process group (type: bool, default: False)
 
      --model.output_feats_agg_qformer.in-feats IN_FEATS
                            input features dimension (type: int, default: null)
      --model.output_feats_agg_qformer.att-type {sdp,torch_sdp,hf_flash_sdp}
-                           type of attention layer in [sdp, torch_sdp, flash_sdp]
-                           (default: torch_sdp)
+                           type of attention layer in [sdp, torch_sdp,
+                           hf_flash_sdp] (default: torch_sdp)
      --model.output_feats_agg_qformer.num-layers NUM_LAYERS
                            transformer block repeats in each encoder stage (type:
                            int, default: 3)
@@ -52519,6 +52661,15 @@ hyperion-train-qvector wav2vec2
      --model.output_feats_agg_qformer.num-kv-heads NUM_KV_HEADS
                            num. of key, value attention heads when using GQA
                            (type: int, default: null)
+     --model.output_feats_agg_qformer.self-att-k-eq-v, --no_model.output_feats_agg_qformer.self-att-k-eq-v
+                           reuse raw key projections for self-attention values
+                           (type: bool, default: False)
+     --model.output_feats_agg_qformer.cross-att-k-eq-v, --no_model.output_feats_agg_qformer.cross-att-k-eq-v
+                           reuse raw key projections for cross-attention values
+                           (type: bool, default: False)
+     --model.output_feats_agg_qformer.head-dim HEAD_DIM
+                           attention head width; None derives hidden_dim /
+                           num_heads (type: int, default: null)
      --model.output_feats_agg_qformer.cross-att-freq CROSS_ATT_FREQ
                            The frequency of adding cross-attention to the
                            Transformer layers. (type: int, default: 1)
@@ -52527,15 +52678,31 @@ hyperion-train-qvector wav2vec2
      --model.output_feats_agg_qformer.att-bias, --no_model.output_feats_agg_qformer.att-bias
                            use bias in Linear layers of attention blocks (type:
                            bool, default: False)
-     --model.output_feats_agg_qformer.ff-type {mlp,convnext}
-                           type of feed forward layer in [mlp, convnext]
+     --model.output_feats_agg_qformer.enable-qk-norm, --no_model.output_feats_agg_qformer.enable-qk-norm
+                           enable per-head Q/K RMSNorm and unit attention scaling
+                           (type: bool, default: False)
+     --model.output_feats_agg_qformer.enable-v-norm, --no_model.output_feats_agg_qformer.enable-v-norm
+                           enable per-head value RMSNorm without learned scaling
+                           (type: bool, default: False)
+     --model.output_feats_agg_qformer.ff-type {mlp,convnext,g4moe}
+                           type of feed forward layer in [mlp, convnext, g4moe]
                            (default: mlp)
      --model.output_feats_agg_qformer.ff-dim-multiplier FF_DIM_MULTIPLIER
-                           number that multiplies the hidden dimension to get the
-                           inv. bottleneck dimension (type: int, default: 4)
+                           hidden dimension multiplier for the dense feed-forward
+                           width (dense branch for g4moe) (type: int, default: 4)
      --model.output_feats_agg_qformer.ff-multiple-of FF_MULTIPLE_OF
-                           the inv bottleneck dim has to be a multiple of this
-                           (type: int, default: 256)
+                           round dense and expert intermediate widths up to this
+                           multiple (type: int, default: 256)
+     --model.output_feats_agg_qformer.ff-num-experts FF_NUM_EXPERTS
+                           positive number of routed experts; required for g4moe
+                           (type: int, default: null)
+     --model.output_feats_agg_qformer.ff-top-k-experts FF_TOP_K_EXPERTS
+                           experts selected per token in [1, ff_num_experts];
+                           required for g4moe (type: int, default: null)
+     --model.output_feats_agg_qformer.ff-moe-intermediate-dim FF_MOE_INTERMEDIATE_DIM
+                           positive expert width before rounding by
+                           ff_multiple_of; required for g4moe (type: int,
+                           default: null)
      --model.output_feats_agg_qformer.ff-kernel-size FF_KERNEL_SIZE
                            kernel size when using convnext feed forward layer
                            (type: int, default: 7)
@@ -52543,7 +52710,8 @@ hyperion-train-qvector wav2vec2
                            dilation when using convnext feedforward layers (type:
                            int, default: 1)
      --model.output_feats_agg_qformer.ff-act FF_ACT
-                           activation of feedforward layers (default: silu)
+                           gated feed-forward activation (use gelu-tanh to match
+                           Gemma 4) (default: silu)
      --model.output_feats_agg_qformer.ff-bias, --no_model.output_feats_agg_qformer.ff-bias
                            use bias in Linear layers of feed forward blocks
                            (type: bool, default: False)
@@ -52558,17 +52726,17 @@ hyperion-train-qvector wav2vec2
                            the max seq length seen on training (type: bool,
                            default: True)
      --model.output_feats_agg_qformer.rope-original-max-seq-length ROPE_ORIGINAL_MAX_SEQ_LENGTH
-                           sets manually the max seq length seen in training for
-                           ROPE (type: int, default: null)
+                           original RoPE context length override; None uses the
+                           positional encoder default (type: int, default: null)
      --model.output_feats_agg_qformer.rope-scaling-factor ROPE_SCALING_FACTOR
                            ROPE scaling factors (type: float, default: 8)
      --model.output_feats_agg_qformer.rope-low-freq-factor ROPE_LOW_FREQ_FACTOR
-                           ROPE frequencies are not scaled for wavelengths <
-                           max_seq_length / self.low_freq_factor (type: float,
+                           fully scale frequencies with wavelengths above
+                           max_seq_length / low_freq_factor (type: float,
                            default: 1)
      --model.output_feats_agg_qformer.rope-high-freq-factor ROPE_HIGH_FREQ_FACTOR
-                           ROPE frequencies are scaled by scaling for wavelengths
-                           > max_seq_length / self.high_freq_factor (type: float,
+                           leave frequencies unchanged for wavelengths below
+                           max_seq_length / high_freq_factor (type: float,
                            default: 4)
      --model.output_feats_agg_qformer.rope-in-self-att, --no_model.output_feats_agg_qformer.rope-in-self-att
                            use Rotary positional encoder or not positional
@@ -52579,34 +52747,42 @@ hyperion-train-qvector wav2vec2
                            encoder at all in cross-attention (type: bool,
                            default: False)
      --model.output_feats_agg_qformer.distribute-query-across-layers, --no_model.output_feats_agg_qformer.distribute-query-across-layers
-                           splits the query into num_layers / num_cross_attention
-                           layers groups, the first group is used as input to the
-                           first cross-attention layer, the nth group is
-                           concantenated to input of the nth cross-attention
-                           layer (type: bool, default: False)
-     --model.output_feats_agg_qformer.tied-layers, --no_model.output_feats_agg_qformer.tied-layers
-                           whether the encoder encoder layers are tied or not.
+                           split queries into num_layers / cross_att_freq groups
+                           and introduce one group per cross-attention layer
                            (type: bool, default: False)
+     --model.output_feats_agg_qformer.tied-layers, --no_model.output_feats_agg_qformer.tied-layers
+                           reuse one group of query-stream transformer blocks
+                           across layers (type: bool, default: False)
      --model.output_feats_agg_qformer.use-layer-idx-encoder, --no_model.output_feats_agg_qformer.use-layer-idx-encoder
                            add a learned embedding of the encoder layer index to
                            cross-attention inputs (type: bool, default: False)
      --model.output_feats_agg_qformer.out-feats OUT_FEATS
-                           features for ouptut projection, if None, no output
-                           proj is done (type: int, default: null)
+                           output projection dimension; None or a nonpositive
+                           value disables projection (type: int, default: null)
      --model.output_feats_agg_qformer.drop-path-rate DROP_PATH_RATE
                            drop path rate (type: float, default: 0.0)
+     --model.output_feats_agg_qformer.flash-attention-version {2,3,4}
+                           Flash Attention version; defaults to Torch FA2 or HF
+                           FA4; native Torch selection is process-wide and
+                           FA3/FA4 require newer PyTorch (type: <function
+                           <lambda> at <address>>, default: null)
      --model.output_feats_agg_qformer.sdp-backend {math,flash,efficient,cudnn,flash->efficient,cudnn->efficient,flash->cudnn->efficient,flash->efficient->cudnn}
                            Preferred sequence of SDP kernels to attempt when
                            calling Torch SDP function (default:
                            flash->efficient->cudnn)
      --model.output_feats_agg_qformer.norm-layer {layer-norm,rms-norm}
-                           type of norm layer in [layer-norm, rms-norm] (default:
-                           layer-norm)
+                           branch norm type in [layer-norm, rms-norm];
+                           independent of pre_post_norm (default: layer-norm)
+     --model.output_feats_agg_qformer.pre-post-norm, --no_model.output_feats_agg_qformer.pre-post-norm
+                           add branch post-norms before residual addition using
+                           norm_layer (default: pre-norm only) (type: bool,
+                           default: False)
      --model.output_feats_agg_qformer.norm-eps NORM_EPS
-                           eps for layer norms (type: float, default: 1e-05)
+                           epsilon for branch, Q/K/V, and MoE router
+                           normalization (type: float, default: 1e-05)
      --model.output_feats_agg_qformer.model-parallel, --no_model.output_feats_agg_qformer.model-parallel
-                           train with model parallel using external tools (no
-                           built-in support) (type: bool, default: False)
+                           use tensor-parallel projections with an externally
+                           initialized process group (type: bool, default: False)
 
      --model.head.head-type {classif,none}
                            Type of Hydra head to instantiate. (default: classif)
@@ -77103,16 +77279,32 @@ hyperion-train-wav2xvector transformer_v2
                                                         [--model.xvector.transformer_enc.num-kv-heads NUM_KV_HEADS]
                                                         [--model.xvector.transformer_enc.att-dropout-rate ATT_DROPOUT_RATE]
                                                         [--model.xvector.transformer_enc.att-bias]
-                                                        [--model.xvector.transformer_enc.ff-type {mlp,convnext}]
+                                                        [--model.xvector.transformer_enc.num-kv-shared-layers NUM_KV_SHARED_LAYERS]
+                                                        [--model.xvector.transformer_enc.enable-qk-norm]
+                                                        [--model.xvector.transformer_enc.enable-v-norm]
+                                                        [--model.xvector.transformer_enc.ff-type {mlp,convnext,g4moe}]
                                                         [--model.xvector.transformer_enc.ff-dim-multiplier FF_DIM_MULTIPLIER]
                                                         [--model.xvector.transformer_enc.ff-multiple-of FF_MULTIPLE_OF]
+                                                        [--model.xvector.transformer_enc.ff-num-experts FF_NUM_EXPERTS]
+                                                        [--model.xvector.transformer_enc.ff-top-k-experts FF_TOP_K_EXPERTS]
+                                                        [--model.xvector.transformer_enc.ff-moe-intermediate-dim FF_MOE_INTERMEDIATE_DIM]
                                                         [--model.xvector.transformer_enc.ff-kernel-sizes FF_KERNEL_SIZES [FF_KERNEL_SIZES ...]]
                                                         [--model.xvector.transformer_enc.ff-dilations FF_DILATIONS [FF_DILATIONS ...]]
                                                         [--model.xvector.transformer_enc.ff-act FF_ACT]
                                                         [--model.xvector.transformer_enc.ff-bias]
                                                         [--model.xvector.transformer_enc.downb-strides DOWNB_STRIDES [DOWNB_STRIDES ...]]
-                                                        [--model.xvector.transformer_enc.rope-theta ROPE_THETA]
-                                                        [--model.xvector.transformer_enc.rope-scale-freqs]
+                                                        [--model.xvector.transformer_enc.local-attention-sliding-window LOCAL_ATTENTION_SLIDING_WINDOW]
+                                                        [--model.xvector.transformer_enc.global-attention-sliding-window GLOBAL_ATTENTION_SLIDING_WINDOW]
+                                                        [--model.xvector.transformer_enc.local-to-global-ratio LOCAL_TO_GLOBAL_RATIO]
+                                                        [--model.xvector.transformer_enc.global-k-eq-v]
+                                                        [--model.xvector.transformer_enc.local-head-dim LOCAL_HEAD_DIM]
+                                                        [--model.xvector.transformer_enc.global-head-dim GLOBAL_HEAD_DIM]
+                                                        [--model.xvector.transformer_enc.local-rope-theta LOCAL_ROPE_THETA]
+                                                        [--model.xvector.transformer_enc.global-rope-theta GLOBAL_ROPE_THETA]
+                                                        [--model.xvector.transformer_enc.local-rope-partial-rotary-factor LOCAL_ROPE_PARTIAL_ROTARY_FACTOR]
+                                                        [--model.xvector.transformer_enc.global-rope-partial-rotary-factor GLOBAL_ROPE_PARTIAL_ROTARY_FACTOR]
+                                                        [--model.xvector.transformer_enc.local-rope-scale-freqs]
+                                                        [--model.xvector.transformer_enc.global-rope-scale-freqs]
                                                         [--model.xvector.transformer_enc.rope-update-max-seq-length]
                                                         [--model.xvector.transformer_enc.rope-original-max-seq-length ROPE_ORIGINAL_MAX_SEQ_LENGTH]
                                                         [--model.xvector.transformer_enc.rope-scaling-factor ROPE_SCALING_FACTOR]
@@ -77121,9 +77313,10 @@ hyperion-train-wav2xvector transformer_v2
                                                         [--model.xvector.transformer_enc.out-feats OUT_FEATS]
                                                         [--model.xvector.transformer_enc.drop-path-rate DROP_PATH_RATE]
                                                         [--model.xvector.transformer_enc.norm-layer {layer-norm,rms-norm}]
+                                                        [--model.xvector.transformer_enc.pre-post-norm]
                                                         [--model.xvector.transformer_enc.norm-eps NORM_EPS]
                                                         [--model.xvector.transformer_enc.is-causal]
-                                                        [--model.xvector.transformer_enc.att-sliding-window ATT_SLIDING_WINDOW]
+                                                        [--model.xvector.transformer_enc.flash-attention-version {2,3,4}]
                                                         [--model.xvector.transformer_enc.sdp-backend {math,flash,efficient,cudnn,flash->efficient,cudnn->efficient,flash->cudnn->efficient,flash->efficient->cudnn}]
                                                         [--model.xvector.transformer_enc.model-parallel]
                                                         [--model.xvector.transformer_enc.multilayer]
@@ -77887,15 +78080,36 @@ hyperion-train-wav2xvector transformer_v2
      --model.xvector.transformer_enc.att-bias, --no_model.xvector.transformer_enc.att-bias
                            use bias in Linear layers of attention blocks (type:
                            bool, default: False)
-     --model.xvector.transformer_enc.ff-type {mlp,convnext}
-                           type of feed forward layer in [mlp, convnext]
+     --model.xvector.transformer_enc.num-kv-shared-layers NUM_KV_SHARED_LAYERS, --model.xvector.transformer_enc.num-kv-shared-layers+ NUM_KV_SHARED_LAYERS
+                           shared suffix layers per superblock; integer for all
+                           stages or a list of counts (default: 0) (type:
+                           Union[int, List[int]], default: 0)
+     --model.xvector.transformer_enc.enable-qk-norm, --no_model.xvector.transformer_enc.enable-qk-norm
+                           enable per-head Q/K RMSNorm and unit attention scaling
+                           (type: bool, default: False)
+     --model.xvector.transformer_enc.enable-v-norm, --no_model.xvector.transformer_enc.enable-v-norm
+                           enable per-head value RMSNorm without learned scaling
+                           (type: bool, default: False)
+     --model.xvector.transformer_enc.ff-type {mlp,convnext,g4moe}
+                           type of feed forward layer in [mlp, convnext, g4moe]
                            (default: mlp)
      --model.xvector.transformer_enc.ff-dim-multiplier FF_DIM_MULTIPLIER
-                           number that multiplies the hidden dimension to get the
-                           inv. bottleneck dimension (type: float, default: 4)
+                           hidden dimension multiplier for the dense feed-forward
+                           width (dense branch for g4moe) (type: float, default:
+                           4)
      --model.xvector.transformer_enc.ff-multiple-of FF_MULTIPLE_OF
-                           the inv bottleneck dim has to be a multiple of this
-                           (type: int, default: 256)
+                           round dense and expert intermediate widths up to this
+                           multiple (type: int, default: 256)
+     --model.xvector.transformer_enc.ff-num-experts FF_NUM_EXPERTS
+                           positive number of routed experts; required for g4moe
+                           (type: int, default: null)
+     --model.xvector.transformer_enc.ff-top-k-experts FF_TOP_K_EXPERTS
+                           experts selected per token in [1, ff_num_experts];
+                           required for g4moe (type: int, default: null)
+     --model.xvector.transformer_enc.ff-moe-intermediate-dim FF_MOE_INTERMEDIATE_DIM
+                           positive expert width before rounding by
+                           ff_multiple_of; required for g4moe (type: int,
+                           default: null)
      --model.xvector.transformer_enc.ff-kernel-sizes FF_KERNEL_SIZES [FF_KERNEL_SIZES ...]
                            kernels sizes when using convnext feed forward layer
                            (type: int, default: [7])
@@ -77903,35 +78117,66 @@ hyperion-train-wav2xvector transformer_v2
                            dilations when using convnext feedforward layers
                            (type: int, default: [1])
      --model.xvector.transformer_enc.ff-act FF_ACT
-                           activation of feedforward layers (default: silu)
+                           gated feed-forward activation (use gelu-tanh to match
+                           Gemma 4) (default: silu)
      --model.xvector.transformer_enc.ff-bias, --no_model.xvector.transformer_enc.ff-bias
                            use bias in Linear layers of feed forward blocks
                            (type: bool, default: False)
      --model.xvector.transformer_enc.downb-strides DOWNB_STRIDES [DOWNB_STRIDES ...]
                            strides to be downsample feature maps before each
                            encoder stage (type: int, default: [1])
-     --model.xvector.transformer_enc.rope-theta ROPE_THETA
-                           ROPE base theta (type: float, default: 50000)
-     --model.xvector.transformer_enc.rope-scale-freqs, --no_model.xvector.transformer_enc.rope-scale-freqs
-                           scale ROPE frequencies when seq lenght is larger than
-                           the maximmum length of the original training sequences
-                           (type: bool, default: True)
+     --model.xvector.transformer_enc.local-attention-sliding-window LOCAL_ATTENTION_SLIDING_WINDOW
+                           Local attention window in stage tokens; None is
+                           unrestricted. (type: int, default: null)
+     --model.xvector.transformer_enc.global-attention-sliding-window GLOBAL_ATTENTION_SLIDING_WINDOW
+                           Global attention window in stage tokens; None is
+                           unrestricted. (type: int, default: null)
+     --model.xvector.transformer_enc.local-to-global-ratio LOCAL_TO_GLOBAL_RATIO
+                           Local layers per global layer across stages; 0 means
+                           all global. The final layer is global. (type: int,
+                           default: 0)
+     --model.xvector.transformer_enc.global-k-eq-v, --no_model.xvector.transformer_enc.global-k-eq-v
+                           reuse the raw key projection as values in global
+                           layers only (type: bool, default: False)
+     --model.xvector.transformer_enc.local-head-dim LOCAL_HEAD_DIM
+                           local attention head width; None derives
+                           hidden_dims[i] / num_heads (type: int, default: null)
+     --model.xvector.transformer_enc.global-head-dim GLOBAL_HEAD_DIM
+                           global attention head width; None derives
+                           hidden_dims[i] / num_heads (type: int, default: null)
+     --model.xvector.transformer_enc.local-rope-theta LOCAL_ROPE_THETA
+                           Local RoPE frequency base. (type: float, default:
+                           10000.0)
+     --model.xvector.transformer_enc.global-rope-theta GLOBAL_ROPE_THETA
+                           Global RoPE frequency base. (type: float, default:
+                           1000000.0)
+     --model.xvector.transformer_enc.local-rope-partial-rotary-factor LOCAL_ROPE_PARTIAL_ROTARY_FACTOR
+                           Fraction of local head dimensions rotated using full-
+                           head frequency spacing. (type: float, default: 1.0)
+     --model.xvector.transformer_enc.global-rope-partial-rotary-factor GLOBAL_ROPE_PARTIAL_ROTARY_FACTOR
+                           Fraction of global head dimensions rotated using full-
+                           head frequency spacing. (type: float, default: 1.0)
+     --model.xvector.transformer_enc.local-rope-scale-freqs, --no_model.xvector.transformer_enc.local-rope-scale-freqs
+                           Apply wavelength-based frequency scaling to local
+                           RoPE. (type: bool, default: True)
+     --model.xvector.transformer_enc.global-rope-scale-freqs, --no_model.xvector.transformer_enc.global-rope-scale-freqs
+                           Apply wavelength-based frequency scaling to global
+                           RoPE. (type: bool, default: True)
      --model.xvector.transformer_enc.rope-update-max-seq-length, --no_model.xvector.transformer_enc.rope-update-max-seq-length
-                           update the invernal ROPE variable that keeps track of
-                           the max seq length seen on training (type: bool,
-                           default: True)
+                           grow each stage/type RoPE scaling reference length
+                           during training (type: bool, default: True)
      --model.xvector.transformer_enc.rope-original-max-seq-length ROPE_ORIGINAL_MAX_SEQ_LENGTH
-                           sets manually the max seq length seen in training for
-                           ROPE (type: int, default: null)
+                           original RoPE context length override; None uses the
+                           positional encoder default (type: int, default: null)
      --model.xvector.transformer_enc.rope-scaling-factor ROPE_SCALING_FACTOR
                            ROPE scaling factors (type: float, default: 8)
      --model.xvector.transformer_enc.rope-low-freq-factor ROPE_LOW_FREQ_FACTOR
-                           ROPE frequencies are not scaled for wavelengths <
-                           max_seq_length / self.low_freq_factor (type: float,
-                           default: 1)
+                           low-frequency threshold: wavelengths above reference
+                           length / low_freq_factor are fully scaled (type:
+                           float, default: 1)
      --model.xvector.transformer_enc.rope-high-freq-factor ROPE_HIGH_FREQ_FACTOR
-                           ROPE frequencies are scaled by scaling for wavelengths
-                           > max_seq_length / self.high_freq_factor (type: float,
+                           high-frequency threshold: wavelengths below reference
+                           length / high_freq_factor are unchanged (type: float,
                            default: 4)
      --model.xvector.transformer_enc.out-feats OUT_FEATS
                            features for output projection, if None, no output
@@ -77939,21 +78184,30 @@ hyperion-train-wav2xvector transformer_v2
      --model.xvector.transformer_enc.drop-path-rate DROP_PATH_RATE
                            drop path rate (type: float, default: 0.0)
      --model.xvector.transformer_enc.norm-layer {layer-norm,rms-norm}
-                           type of norm layer in [layer-norm, rms-norm] (default:
-                           layer-norm)
+                           branch norm type in [layer-norm, rms-norm];
+                           independent of pre_post_norm (default: layer-norm)
+     --model.xvector.transformer_enc.pre-post-norm, --no_model.xvector.transformer_enc.pre-post-norm
+                           add branch post-norms before residual addition using
+                           norm_layer (default: pre-norm only) (type: bool,
+                           default: False)
      --model.xvector.transformer_enc.norm-eps NORM_EPS
-                           eps for layer norms (type: float, default: 1e-05)
+                           epsilon for branch, Q/K/V, and MoE router
+                           normalization (type: float, default: 1e-05)
      --model.xvector.transformer_enc.is-causal, --no_model.xvector.transformer_enc.is-causal
-                           attention mask is causal (type: bool, default: False)
-     --model.xvector.transformer_enc.att-sliding-window ATT_SLIDING_WINDOW
-                           sliding window size for attention when using local
-                           attention (type: int, default: null)
+                           use causal attention and streaming 1-D convolutions;
+                           rejects conv2d stems and ConvNeXt (type: bool,
+                           default: False)
+     --model.xvector.transformer_enc.flash-attention-version {2,3,4}
+                           Flash Attention version; defaults to Torch FA2 or HF
+                           FA4; native Torch selection is process-wide and
+                           FA3/FA4 require newer PyTorch (type: <function
+                           <lambda> at <address>>, default: null)
      --model.xvector.transformer_enc.sdp-backend {math,flash,efficient,cudnn,flash->efficient,cudnn->efficient,flash->cudnn->efficient,flash->efficient->cudnn}
                            backend to use for native torch scaled dot product
                            attention (default: flash->efficient->cudnn)
      --model.xvector.transformer_enc.model-parallel, --no_model.xvector.transformer_enc.model-parallel
-                           train with model parallel using external tools (no
-                           built-in support) (type: bool, default: False)
+                           use tensor-parallel projections with an externally
+                           initialized process group (type: bool, default: False)
      --model.xvector.transformer_enc.multilayer, --no_model.xvector.transformer_enc.multilayer
                            use multilayer feature aggregation (mfa) (type: bool,
                            default: False)
@@ -77963,9 +78217,9 @@ hyperion-train-wav2xvector transformer_v2
                            num. endpoint channels when using mfa (type: int,
                            default: null)
      --model.xvector.transformer_enc.endpoint-layers ENDPOINT_LAYERS [ENDPOINT_LAYERS ...]
-                           0-based encoder stage indices to aggregate in mfa; if
-                           None, all encoder stages are aggregated (type: int,
-                           default: null)
+                           0-based encoder stage indices to aggregate in mfa; the
+                           final stage is always included; if None, all stages
+                           are aggregated (type: int, default: null)
      --model.xvector.transformer_enc.endpoint-scale-layer ENDPOINT_SCALE_LAYER
                            encoder stage index that indicates the MFA time scale;
                            supports Python-style negative indexing (type: int,

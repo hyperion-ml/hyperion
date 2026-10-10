@@ -73,6 +73,29 @@ cosine, triangular, Adam cosine, and reduce-on-plateau. Weight-decay scheduling
 currently provides cosine scheduling. Select them via the factories in
 :doc:`torch-extension-points`.
 
+Conditional parameters and DDP
+-------------------------------
+
+:meth:`hyperion.torch.HyperTorchModel.requires_ddp_find_unused_parameters` returns False by
+default. ``TransformerEncoderV2`` and ``QFormerV2`` return True when
+``ff_type="g4moe"``, because experts not selected in a batch have no gradients.
+The ordinary DDP paths in ``TorchTrainerBase`` and ``legacy_torch_trainer``
+query this method on the top-level task model and pass its result to
+``DistributedDataParallel(find_unused_parameters=...)``.
+
+A task model containing a conditional encoder must delegate explicitly, for
+example in its subclass::
+
+    def requires_ddp_find_unused_parameters(self):
+        return self.encoder.requires_ddp_find_unused_parameters()
+
+If it contains multiple conditional branches, return the logical OR of their
+requirements. The trainer does not recursively inspect modules. Enabling the
+flag incurs DDP graph-traversal overhead; ordinary models retain False. This
+hook configures ordinary DDP only and does not establish MoE FSDP or expert
+parallelism support. See :doc:`torch-layers-and-architectures` for routing and
+tensor-parallel constraints.
+
 See also
 --------
 
