@@ -21,6 +21,7 @@ build/*
 docs/_build/
 #tags
 #Keras.egg-info
+hyperion_ml.egg-info/
 
 # test-related
 #.coverage

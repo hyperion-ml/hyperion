@@ -1,9 +1,0 @@
-build
-docs
-egs
-hyp_utils
-hyperion
-notebooks
-resources
-tests
-tools
