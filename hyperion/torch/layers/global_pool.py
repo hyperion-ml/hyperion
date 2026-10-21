@@ -18,6 +18,8 @@ from ..utils import seq_lengths_to_mask
 
 SQRT_EPS = 1e-5
 N_EPS = 1e-6
+# Enables expensive non-finite checks in attentive pooling forward passes.
+DEBUG = False
 WindowArg = int | float
 Shape = tuple[int, ...]
 
@@ -1246,9 +1248,9 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         # x = (batch, feat_dim, time)
         weights = self._standardize_weights(x, x_lengths, weights)  # (batch, 1,  time)
         x_inner = self.conv1(x)  # (batch, inner_dim, time)
-        if not torch.all(torch.isfinite(x)):
+        if DEBUG and not torch.all(torch.isfinite(x)):
             logging.warning("non-finite x-avg=%f", torch.mean(x))
-        if not torch.all(torch.isfinite(x_inner)):
+        if DEBUG and not torch.all(torch.isfinite(x_inner)):
             logging.warning("non-finite x-inner-avg=%f", torch.mean(x_inner))
         # is_nan = torch.isnan(x_inner)
         # if torch.any(is_nan):
@@ -1263,9 +1265,9 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
             global_mus = self.stats_pool(x, weights=weights)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
 
-            if not torch.all(torch.isfinite(global_mus)):
+            if DEBUG and not torch.all(torch.isfinite(global_mus)):
                 logging.warning("non-finite global-mus-avg=%f", torch.mean(global_mus))
-        if not torch.all(torch.isfinite(x_inner)):
+        if DEBUG and not torch.all(torch.isfinite(x_inner)):
             logging.warning("non-finite x-inner-avg=%f", torch.mean(x_inner))
         # attn = self.conv2(
         #     self.activation(self.norm_layer(x_inner))
@@ -1273,7 +1275,7 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         a1 = self.norm_layer(x_inner)
         a2 = self.activation(a1)
         attn = self.conv2(a2)
-        if not torch.all(torch.isfinite(attn)):
+        if DEBUG and not torch.all(torch.isfinite(attn)):
             logging.warning(
                 "non-finite attn-avg=%f %f %f %f %f %f %s %s",
                 torch.mean(attn),
@@ -1296,18 +1298,18 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
                 mask = weights.eq(0)
                 attn = attn.masked_fill(mask, min_value)
 
-            if not torch.all(torch.isfinite(attn)):
+            if DEBUG and not torch.all(torch.isfinite(attn)):
                 logging.warning("non-finite attn-avg=%f", torch.mean(attn))
             attn = nnf.softmax(attn, dim=-1)
 
-        if not torch.all(torch.isfinite(attn)):
+        if DEBUG and not torch.all(torch.isfinite(attn)):
             logging.warning("non-finite attn-avg=%f", torch.mean(attn))
 
         if weights is not None:
             attn = attn * weights
 
         mus = self.stats_pool(x, weights=attn)
-        if not torch.all(torch.isfinite(mus)):
+        if DEBUG and not torch.all(torch.isfinite(mus)):
             logging.warning("non-finite mus-avg=%f", torch.mean(mus))
 
         if self.keepdim:
