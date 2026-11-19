@@ -6,6 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 import os
 from collections import OrderedDict as ODict
+from contextlib import nullcontext
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -156,22 +157,39 @@ class XVectorTrainer(LegacyTorchTrainer):
 
             input_keys = self.get_augs_keys(data, self.input_key)
             loss_scale = self.grad_acc_steps * len(input_keys)
-            loss_acc = 0.0
-            for aug_key in input_keys:
+            loss_acc = None
+            for aug_idx, aug_key in enumerate(input_keys):
                 batch_keys = [aug_key, f"{aug_key}_lengths", self.target_key]
                 x, x_lengths, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = x.size(0)
-                with amp.autocast(
-                    enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
-                ):
-                    output = self.model(x, x_lengths=x_lengths, y=target)
-                    loss = self.loss(output.logits, target) / loss_scale
-                    loss_acc += loss.item()
+                sync_now = (batch + 1) % self.grad_acc_steps == 0 and aug_idx == len(
+                    input_keys
+                ) - 1
+                sync_context = (
+                    self.model.no_sync()
+                    if self.ddp and not sync_now
+                    else nullcontext()
+                )
+                with sync_context:
+                    with amp.autocast(
+                        enabled=self.use_amp,
+                        dtype=self.amp_dtype,
+                        device_type="cuda",
+                    ):
+                        output = self.model(x, x_lengths=x_lengths, y=target)
+                        loss = self.loss(output.logits, target) / loss_scale
+                        # Keep metric accumulation on device; MetricAcc performs
+                        # the scalar conversion once per batch.
+                        loss_acc = (
+                            loss.detach()
+                            if loss_acc is None
+                            else loss_acc + loss.detach()
+                        )
 
-                if self.use_amp:
-                    self.grad_scaler.scale(loss).backward()
-                else:
-                    loss.backward()
+                    if self.use_amp:
+                        self.grad_scaler.scale(loss).backward()
+                    else:
+                        loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
                 self.cur_batch = batch + 1

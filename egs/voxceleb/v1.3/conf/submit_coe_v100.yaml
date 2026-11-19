@@ -1,7 +1,7 @@
 # Slurm policy for the COE CPU and V100 GPU partitions.
 num_gpus: 0
 num_threads: 1
-time: "168:00:00"
+time: "96:00:00"
 sbatch_command: sbatch
 base_options:
   - --nodes=1
