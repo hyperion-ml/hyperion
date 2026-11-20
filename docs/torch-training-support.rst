@@ -99,6 +99,10 @@ cosine, triangular, Adam cosine, and reduce-on-plateau. Weight-decay scheduling
 currently provides cosine scheduling. Select them via the factories in
 :doc:`torch-extension-points`.
 
+In distributed training, ``ReduceLROnPlateau`` shares its monitored epoch
+metric from rank 0. Every rank uses that value to update its scheduler and
+optimizer learning rates.
+
 Conditional parameters and DDP
 -------------------------------
 

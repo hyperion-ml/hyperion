@@ -8,6 +8,7 @@ from functools import partial
 from math import inf
 from typing import Any, Callable, Mapping, Optional
 
+import torch.distributed as dist
 import torch.optim as optim
 
 from .lr_scheduler import LRScheduler, MinLR
@@ -121,10 +122,28 @@ class ReduceLROnPlateau(LRScheduler):
     def on_epoch_end(self, metrics: Mapping[str, float]) -> None:
         """Evaluate monitored metric and reduce LR if plateaued.
 
+        In distributed training, all ranks must call this method. Rank 0
+        supplies the monitored metric and each rank updates its scheduler.
+
         Args:
             metrics: Mapping containing the monitored metric key.
+
+        Raises:
+            KeyError: If the monitored metric is missing.
         """
-        current = metrics[self.monitor]
+        if dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1:
+            shared_metric = [
+                metrics.get(self.monitor) if dist.get_rank() == 0 else None
+            ]
+            dist.broadcast_object_list(shared_metric, src=0)
+            current = shared_metric[0]
+            if current is None:
+                raise KeyError(
+                    f"ReduceLROnPlateau monitor {self.monitor!r} is missing."
+                )
+        else:
+            current = metrics[self.monitor]
+
         if self.is_better(current, self.best):
             self.best = current
             self.num_bad_epochs = 0
