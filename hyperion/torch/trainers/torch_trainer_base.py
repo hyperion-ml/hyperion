@@ -63,6 +63,8 @@ from ..utils.grad_tracker import GradNormTracker
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
 
+_VAL_HOURS_CHECK_STEPS = 1000
+
 
 class DDPType(str, Enum):
     """Supported distributed training backends."""
@@ -1119,7 +1121,8 @@ class TorchTrainerBase:
         self.train_data = train_data
         self.val_data = val_data
         self.last_save_time = time.monotonic()
-        self.last_val_time = time.time()
+        if val_data is not None and self.val_hours is not None and self.rank == 0:
+            self.last_val_time = time.monotonic()
         self.last_save_step = self.cur_step
         self.last_val_step = self.cur_step
         self.on_train_begin()
@@ -1193,7 +1196,7 @@ class TorchTrainerBase:
             if updated and self.save_now():
                 self.save_checkpoint()
 
-            if self.validate_now():
+            if updated and self.validate_now():
                 logs = self.make_train_logs(metric_acc.metrics)
                 val_logs = self.validation_loop()
                 logs.update(val_logs)
@@ -1345,6 +1348,8 @@ class TorchTrainerBase:
             metric_acc.update(batch_metrics, batch_size)
 
         logs = self.make_val_logs(metric_acc.metrics)
+        if self.val_hours is not None and self.rank == 0:
+            self.last_val_time = time.monotonic()
         return logs
 
     def validation_step(
@@ -1821,32 +1826,42 @@ class TorchTrainerBase:
         return False
 
     def validate_now(self) -> bool:
-        """
-        Determines whether validation should be run based on elapsed time
-        or training step count.
+        """Decide whether to validate after an optimizer step.
+
+        For timed validation, distributed ranks share rank 0's decision every
+        1000 optimizer steps.
 
         Returns:
-            bool: True if validation conditions are met, False otherwise.
+            Whether validation is due.
         """
         if self.val_data is None:
             return False
-
-        if self.val_hours is not None:
-            t = time.time() / 3600
-            dt = t - self.last_val_time
-            if dt > self.val_hours:
-                self.last_val_time = t
-                self.last_val_step = self.cur_step
-                return True
 
         if self.val_steps is not None:
             dstep = self.cur_step - self.last_val_step
             if self.cur_step > 0 and dstep >= self.val_steps:
                 self.last_val_step = self.cur_step
-                self.last_val_time = time.time() / 3600
                 return True
 
-        return False
+        distributed = self.world_size > 1
+        if self.val_hours is None or (
+            distributed and self.cur_step % _VAL_HOURS_CHECK_STEPS != 0
+        ):
+            return False
+
+        should_validate = (
+            self.rank == 0
+            and time.monotonic() - self.last_val_time >= self.val_hours * 3600
+        )
+        if distributed:
+            device = "cuda" if dist.get_backend() == "nccl" else "cpu"
+            decision = torch.tensor(should_validate, dtype=torch.bool, device=device)
+            dist.broadcast(decision, src=0)
+            should_validate = bool(decision.item())
+
+        if should_validate:
+            self.last_val_step = self.cur_step
+        return should_validate
 
     def finish_now(self) -> bool:
         """

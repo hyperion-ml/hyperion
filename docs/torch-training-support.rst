@@ -94,6 +94,12 @@ run when training reaches the end of the loader. The epoch-end checkpoint
 records the next epoch with ``next_batch=0``. Trainer resume requires a
 checkpoint with the ``next_batch`` field.
 
+With ``val_hours`` set, distributed trainers check the elapsed time on rank 0
+at multiples of 1,000 optimizer steps and share the decision across ranks.
+Validation starts at the first such step after the interval expires. A
+single-process run checks after each optimizer step. The interval restarts
+when validation finishes, including at epoch boundaries.
+
 Available learning-rate families include exponential, inverse-power, Noam,
 cosine, triangular, Adam cosine, and reduce-on-plateau. Weight-decay scheduling
 currently provides cosine scheduling. Select them via the factories in

@@ -3,12 +3,15 @@ Copyright 2026 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 import torch
+import torch.distributed as dist
+import torch.multiprocessing as mp
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
@@ -66,6 +69,7 @@ def _make_trainer(
     max_steps: int | None = None,
     save_steps: int | None = None,
     save_hours: float | None = None,
+    val_hours: float | None = None,
 ) -> SingleModelTrainer:
     model = _RegressionModel()
     return SingleModelTrainer(
@@ -79,6 +83,7 @@ def _make_trainer(
         max_steps=max_steps,
         save_steps=save_steps,
         save_hours=save_hours,
+        val_hours=val_hours,
         grad_acc_steps=grad_acc_steps,
         device=torch.device("cpu"),
         loggers=[],
@@ -176,3 +181,114 @@ def test_mid_epoch_resume_requires_an_offset_aware_batch_sampler(
     resumed.load_checkpoint(epoch=0, step=1)
     with pytest.raises(ValueError, match="Mid-epoch resume requires a batch sampler"):
         resumed.fit(DataLoader(_NumberedDataset(), batch_size=1))
+
+
+def test_validation_timer_restarts_after_epoch_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trainer = _make_trainer(tmp_path, 2, val_hours=1)
+    trainer.num_epochs = 2
+    elapsed = 0.0
+    validation_steps = []
+    training_step = trainer.training_step
+    on_val_loop_begin = trainer.on_val_loop_begin
+
+    def run_batch(
+        batch_idx: int, batch_data: dict[str, Any]
+    ) -> tuple[int, dict[str, Any]]:
+        nonlocal elapsed
+        elapsed += 400
+        return training_step(batch_idx, batch_data)
+
+    def begin_validation() -> None:
+        nonlocal elapsed
+        validation_steps.append(trainer.cur_step)
+        elapsed += 600
+        on_val_loop_begin()
+
+    monkeypatch.setattr(
+        torch_trainer_base, "time", SimpleNamespace(monotonic=lambda: elapsed)
+    )
+    monkeypatch.setattr(trainer, "training_step", run_batch)
+    monkeypatch.setattr(trainer, "on_val_loop_begin", begin_validation)
+    trainer.fit(_make_loader(), _make_loader())
+
+    assert validation_steps == [4, 8]
+    assert trainer.last_val_time == elapsed
+
+
+def _timed_validation_worker(rank: int, rendezvous: str, exp_path: Path) -> None:
+    dist.init_process_group(
+        "gloo",
+        init_method=rendezvous,
+        rank=rank,
+        world_size=2,
+        timeout=timedelta(seconds=30),
+    )
+    try:
+        trainer = _make_trainer(exp_path, 2, val_hours=1)
+        trainer.rank, trainer.world_size = rank, 2
+        clock = 0.0 if rank == 0 else 10000.0
+        clock_reads = 0
+        validation_steps = []
+        decisions = []
+        broadcast = dist.broadcast
+        training_step = trainer.training_step
+        on_val_loop_begin = trainer.on_val_loop_begin
+
+        def monotonic() -> float:
+            nonlocal clock_reads
+            clock_reads += 1
+            return clock
+
+        def share_decision(decision: torch.Tensor, src: int) -> None:
+            broadcast(decision, src=src)
+            decisions.append((trainer.cur_step, bool(decision.item())))
+
+        def run_batch(
+            batch_idx: int, batch_data: dict[str, Any]
+        ) -> tuple[int, dict[str, Any]]:
+            nonlocal clock
+            if rank == 0:
+                clock = 3600.0
+            return training_step(batch_idx, batch_data)
+
+        def begin_validation() -> None:
+            validation_steps.append(trainer.cur_step)
+            on_val_loop_begin()
+
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(
+                torch_trainer_base, "time", SimpleNamespace(monotonic=monotonic)
+            )
+            patch.setattr(dist, "broadcast", share_decision)
+            patch.setattr(trainer, "training_step", run_batch)
+            patch.setattr(trainer, "on_val_loop_begin", begin_validation)
+
+            loader = DataLoader(_NumberedDataset(), batch_size=1)
+            trainer.val_data = loader
+            trainer.cur_step = 1000
+            if rank == 0:
+                trainer.last_val_time = 0.0
+            assert not trainer.validate_now()
+
+            trainer.cur_step = 1998
+            trainer.fit(loader, loader)
+            assert validation_steps == [2000, 2002]
+
+            trainer.val_hours = None
+            trainer.val_steps = 1
+            trainer.cur_step = 3000
+            assert trainer.validate_now()
+
+        assert decisions == [(1000, False), (2000, True)]
+        if rank != 0:
+            assert clock_reads == 1  # Checkpoint timer initialization in fit.
+    finally:
+        dist.destroy_process_group()
+
+
+@pytest.mark.skipif(not dist.is_gloo_available(), reason="Requires Gloo")
+def test_timed_validation_shares_rank_zero_decisions(tmp_path: Path) -> None:
+    rendezvous = (tmp_path / "rendezvous").as_uri()
+    mp.spawn(_timed_validation_worker, args=(rendezvous, tmp_path), nprocs=2)
