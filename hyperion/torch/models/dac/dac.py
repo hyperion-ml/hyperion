@@ -6,7 +6,6 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import contextlib
 import logging
 import math
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -25,6 +24,7 @@ from ....utils.misc import filter_func_args
 from ...hyper_torch_model import HyperTorchModel
 from ...layers import LoudnessNorm, ResidualVectorQuantizer, VectorQuantizerOutput
 from ...narchs import DACDecoder, DACEncoder
+from ...utils._pytree import pytree_dataclass
 from ...utils.masking import scale_seq_lengths, seq_lengths_to_mask
 from ...utils.timers import CUDATimer
 
@@ -318,7 +318,7 @@ class DACTrainMode(str, Enum):
         return [o.value for o in DACTrainMode]
 
 
-@dataclass
+@pytree_dataclass
 class DACOutput(HyperDataClass):
     """Container for DAC forward outputs.
 
@@ -701,6 +701,10 @@ class DAC(HyperTorchModel):
         """
         x = self.decoder(z, z_lengths)
         return x
+
+    def fsdp_shard_blocks(self) -> tuple[nn.Module, ...]:
+        """Return the encoder and decoder blocks in execution order."""
+        return (*self.encoder.blocks, *self.decoder.blocks)
 
     def forward(
         self,

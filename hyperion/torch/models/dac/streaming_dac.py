@@ -465,6 +465,10 @@ class StreamingDAC(HyperTorchModel):
         x, x_lengths = self.decoder(z, z_lengths)
         return x, x_lengths
 
+    def fsdp_shard_blocks(self) -> tuple[torch.nn.Module, ...]:
+        """Return the encoder and decoder blocks used by training forward."""
+        return (*self.encoder.blocks, *self.decoder.blocks)
+
     def forward(
         self,
         x: torch.Tensor,

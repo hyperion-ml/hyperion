@@ -6,7 +6,6 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import contextlib
 import logging
 import math
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -27,9 +26,10 @@ from ...narchs import (
     HydraRegressionHeadOutput,
     ProjHead,
 )
+from ...utils._pytree import pytree_dataclass
 
 
-@dataclass
+@pytree_dataclass
 class XVectorPOutput(HyperDataClass):
     """Container for x-vector+ inference artifacts.
 

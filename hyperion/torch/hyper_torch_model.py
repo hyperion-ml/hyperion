@@ -180,6 +180,17 @@ class HyperTorchModel(nn.Module):
         """
         return False
 
+    def fsdp_shard_blocks(self) -> tuple[nn.Module, ...]:
+        """Select compute blocks for separate FSDP2 parameter groups.
+
+        Returns:
+            Registered submodules in forward order. Blocks must be disjoint and
+            called through ``module(...)`` in the same order on all ranks.
+            Parameters shared across blocks must stay in a single group. An empty
+            tuple leaves all parameters in the root FSDP2 group.
+        """
+        return ()
+
     def has_param_groups(self) -> bool:
         """Return whether model exposes custom optimizer parameter groups.
 

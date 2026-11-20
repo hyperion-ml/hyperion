@@ -4,7 +4,6 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Type
 
@@ -18,6 +17,7 @@ from ...utils.misc import filter_func_args
 from ..layers import ArcLossOutput, CosLossOutput, SubCenterArcLossOutput
 from ..losses.rate_distortion import SubspaceLikeGaussianCodeRateDistortionL2
 from ..losses.sig_reg import SIGReg
+from ..utils._pytree import pytree_dataclass
 from .net_arch import NetArch
 
 
@@ -100,7 +100,7 @@ class HydraClassifLossType(str, Enum):
         return [e.value for e in HydraClassifLossType]
 
 
-@dataclass
+@pytree_dataclass
 class HydraClassifHeadOutput:
     """Output structure for Hydra classification head forward pass.
 
@@ -118,7 +118,7 @@ class HydraClassifHeadOutput:
     prototype_sig_reg: Optional[torch.Tensor] = None
 
 
-@dataclass
+@pytree_dataclass
 class HydraRegressionHeadOutput:
     """Output structure for Hydra regression head forward pass.
 

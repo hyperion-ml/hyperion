@@ -6,7 +6,6 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import contextlib
 import logging
 import math
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -21,6 +20,7 @@ from ...narchs.audio_feats_mvn import AudioFeatsMVN
 from ...narchs.hifi_generator import HiFiGenerator
 from ...narchs.nvp_flow import WaveNetNVPFlow as NVPFlow
 from ...narchs.wavenet_posterior_encoder import WaveNetPosteriorEncoder
+from ...utils._pytree import pytree_dataclass
 from ...utils.masking import seq_lengths_to_mask
 from ...utils.misc import slice_segments
 
@@ -48,7 +48,7 @@ class FreeVCTrainMode(str, Enum):
         return [o.value for o in FreeVCTrainMode]
 
 
-@dataclass
+@pytree_dataclass
 class FreeVCOutput(HyperDataClass):
     """
     Output container for :class:`FreeVC`.

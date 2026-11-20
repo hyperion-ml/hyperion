@@ -187,6 +187,10 @@ class TransformerEncoderV1(NetArch):
         else:
             raise ValueError("unknown in_layer_type: " + self.in_layer_type)
 
+    def fsdp_shard_blocks(self) -> tuple[nn.Module, ...]:
+        """Return individual encoder blocks in execution order."""
+        return tuple(self.blocks)
+
     def forward(
         self,
         x: torch.Tensor,

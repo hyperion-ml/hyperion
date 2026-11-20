@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -21,6 +20,7 @@ from torch.nn.utils.parametrize import is_parametrized, remove_parametrizations
 from ...utils import HyperDataClass
 from ...utils.misc import filter_func_args
 from ..utils import seq_lengths_to_mask
+from ..utils._pytree import pytree_dataclass
 
 
 class VQDistanceType(str, Enum):
@@ -33,7 +33,7 @@ class VQDistanceType(str, Enum):
         return [o.value for o in VQDistanceType]
 
 
-@dataclass
+@pytree_dataclass
 class VectorQuantizerOutput(HyperDataClass):
     """Output of vector quantization layers."""
 

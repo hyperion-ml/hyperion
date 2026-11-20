@@ -393,6 +393,10 @@ class ConformerEncoderV1(NetArch):
         self.pos_dropout_rate = pos_dropout_rate
         self.att_dropout_rate = att_dropout_rate
 
+    def fsdp_shard_blocks(self) -> tuple[nn.Module, ...]:
+        """Return individual encoder blocks in execution order."""
+        return tuple(self.blocks)
+
     def forward(
         self,
         x: torch.Tensor,

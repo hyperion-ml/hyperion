@@ -51,6 +51,10 @@ class Wav2RNNTransducer(HyperTorchModel):
         self.feats = feats
         self.transducer = transducer
 
+    def fsdp_shard_blocks(self) -> tuple[torch.nn.Module, ...]:
+        """Use the transducer's FSDP2 groups within the waveform model."""
+        return self.transducer.fsdp_shard_blocks()
+
     def forward(
         self,
         x: torch.Tensor,

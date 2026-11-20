@@ -68,6 +68,31 @@ Trainers based on ``TorchTrainerBase`` accept ``cudnn_benchmark=True`` or the
 CLI flag ``--trainer.cudnn-benchmark``. The option defaults to false. Enable
 it to have cuDNN benchmark convolution algorithms during training.
 
+FSDP2
+-----
+
+With ``ddp_type=fsdp``, the trainer shards the blocks declared by
+``HyperTorchModel.fsdp_shard_blocks()`` before sharding the model root. The
+root owns parameters outside those blocks. Models that use the default
+empty selection are sharded as a single group. DAC and StreamingDAC select
+encoder and decoder blocks, and the multi-discriminator selects its branches.
+Transformer and Conformer encoders select individual encoder blocks.
+When a model returns a dataclass, register its tensor fields as a PyTorch
+pytree so FSDP2 can attach backward hooks to the outputs.
+
+Choose ``use_amp=true`` and ``amp_dtype=float16`` on GPUs such as V100.
+FP16 AMP enables gradient scaling even without an FSDP parameter dtype
+override. Use ``amp_dtype=bfloat16`` when every rank has native BF16 support.
+For DAC and FreeVC, ``fsdp_cpu_offload`` applies to both models. The
+discriminator uses the trainer's AMP autocast and the FSDP2 defaults for
+mixed-precision and resharding policies.
+
+All ranks collect full model and optimizer state for an FSDP2 checkpoint.
+Rank 0 writes the files, including the gradient scaler state when enabled.
+With ``save_hours`` set, rank 0 checks the timer at
+multiples of 1,000 optimizer steps and shares the decision. Step-based and
+epoch-end checkpoints use the same collective save path.
+
 Schedulers and checkpoints
 --------------------------
 

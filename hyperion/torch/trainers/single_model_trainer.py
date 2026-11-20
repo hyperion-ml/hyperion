@@ -520,7 +520,7 @@ class SingleModelTrainer(TorchTrainerBase):
         Returns:
             None
         """
-        if self.rank != 0:
+        if self.rank != 0 and not self._is_fsdp_module(self.model):
             return
 
         checkpoint = self.model_checkpoint(

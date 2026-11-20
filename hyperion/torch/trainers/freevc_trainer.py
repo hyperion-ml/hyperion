@@ -312,6 +312,7 @@ class FreeVCTrainer(TorchTrainerBase):
             device=self.device,
             ddp=self.ddp,
             ddp_type=self.ddp_type,
+            fsdp_cpu_offload=self.fsdp_cpu_offload,
         )
         self.grad_scaler = self.get_grad_scaler()
 
@@ -813,7 +814,7 @@ class FreeVCTrainer(TorchTrainerBase):
         Args:
             logs (Optional[Dict[str, Any]]): Logging metrics to include in the checkpoint.
         """
-        if self.rank != 0:
+        if self.rank != 0 and not self._is_fsdp_module(self.vc_model):
             return
 
         checkpoint = self.model_checkpoint(

@@ -138,6 +138,10 @@ class Wav2XVector(HyperTorchModel):
         """Clears gradients on the backend output layer."""
         self.xvector.cancel_output_layer_grads()
 
+    def fsdp_shard_blocks(self) -> tuple[torch.nn.Module, ...]:
+        """Use the x-vector model's FSDP2 groups within the waveform model."""
+        return self.xvector.fsdp_shard_blocks()
+
     def forward(
         self,
         x: torch.Tensor,

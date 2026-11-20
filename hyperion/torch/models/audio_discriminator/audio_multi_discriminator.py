@@ -853,6 +853,10 @@ class AudioMultiDiscriminator(HyperTorchModel):
         x = 0.8 * x / (x.abs().max(dim=-1, keepdim=True)[0] + 1e-9)
         return x
 
+    def fsdp_shard_blocks(self) -> tuple[nn.Module, ...]:
+        """Return each independently invoked discriminator branch."""
+        return tuple(self.discriminators)
+
     def forward(
         self, x: torch.Tensor
     ) -> Tuple[List[torch.Tensor], List[List[torch.Tensor]]]:

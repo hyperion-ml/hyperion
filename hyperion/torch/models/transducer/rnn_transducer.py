@@ -4,7 +4,6 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Union
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -20,9 +19,10 @@ from ....utils import HyperDataClass
 from ....utils.misc import filter_func_args
 from ...hyper_torch_model import HyperTorchModel
 from ...narchs import RNNTransducerDecoder
+from ...utils._pytree import pytree_dataclass
 
 
-@dataclass
+@pytree_dataclass
 class RNNTransducerOutput(HyperDataClass):
     """Output container for RNN-T training.
 
@@ -70,6 +70,12 @@ class RNNTransducer(HyperTorchModel):
 
         self.encoder = encoder
         self.rnnt_decoder = rnnt_decoder
+
+    def fsdp_shard_blocks(self) -> tuple[torch.nn.Module, ...]:
+        """Use the encoder's FSDP2 groups when an encoder is present."""
+        if isinstance(self.encoder, HyperTorchModel):
+            return self.encoder.fsdp_shard_blocks()
+        return ()
 
     def forward(
         self,

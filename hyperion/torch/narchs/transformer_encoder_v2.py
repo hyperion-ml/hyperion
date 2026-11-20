@@ -1177,6 +1177,10 @@ class TransformerEncoderV2(NetArch):
             downsample_states=downsample_states,
         )
 
+    def fsdp_shard_blocks(self) -> tuple[nn.Module, ...]:
+        """Return individual encoder blocks across all stages."""
+        return tuple(block for stage in self.trans_blocks for block in stage)
+
     def forward(
         self,
         x: torch.Tensor,

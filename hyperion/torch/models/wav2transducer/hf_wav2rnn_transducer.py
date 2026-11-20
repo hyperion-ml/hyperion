@@ -168,6 +168,10 @@ class HFWav2RNNTransducer(HyperTorchModel):
 
         return feats, hid_feats, feat_lengths
 
+    def fsdp_shard_blocks(self) -> tuple[torch.nn.Module, ...]:
+        """Use the transducer's FSDP2 groups within the waveform model."""
+        return self.transducer.fsdp_shard_blocks()
+
     def forward(
         self,
         x: torch.Tensor,

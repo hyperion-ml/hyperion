@@ -28,10 +28,16 @@ from torch.distributed.checkpoint.state_dict import (
 from torch.distributed.elastic.multiprocessing.errors import record
 
 try:
+    from torch.distributed.device_mesh import DeviceMesh
     from torch.distributed.fsdp import CPUOffloadPolicy
     from torch.distributed.fsdp import FSDPModule as FSDP
     from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
-    from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
+
+    from ._fsdp2 import (
+        CPUOffloadGradScaler,
+        clip_cpu_gradient_shards_,
+        load_cpu_offloaded_state,
+    )
 
     FSDP_AVAILABLE = True
 except (ImportError, AttributeError):
@@ -39,11 +45,6 @@ except (ImportError, AttributeError):
     FSDP = None  # type: ignore
     MixedPrecisionPolicy = None  # type: ignore
     fully_shard = None  # type: ignore
-
-    class ShardedGradScaler(amp.GradScaler):  # type: ignore
-        """Fallback so the symbol remains a type and callable."""
-
-        pass
 
     FSDP_AVAILABLE = False
 
@@ -63,6 +64,7 @@ from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
 
 _VAL_HOURS_CHECK_STEPS = 1000
+_SAVE_HOURS_CHECK_STEPS = 1000
 
 
 class DDPType(str, Enum):
@@ -383,11 +385,41 @@ class TorchTrainerBase:
             self.rank = dist.get_rank()
             self.world_size = dist.get_world_size()
 
+        if ddp and ddp_type == DDPType.FSDP:
+            if self.do_swa:
+                raise ValueError("SWA is not supported with FSDP2.")
+            fsdp_bf16 = torch.bfloat16 in (
+                self.fsdp_mp_param_dtype,
+                self.fsdp_mp_reduce_dtype,
+                self.fsdp_mp_output_dtype,
+            )
+            if fsdp_bf16 or (self.use_amp and self.amp_dtype == torch.bfloat16):
+                self._check_fsdp_bf16_support()
+
         torch.backends.cudnn.benchmark = self.cudnn_benchmark
         if self.cudnn_benchmark and self.rank == 0:
             logging.info("cuDNN convolution benchmarking enabled")
 
         self.grad_tracker: Optional[GradNormTracker] = None
+
+    def _check_fsdp_bf16_support(self) -> None:
+        """Require native CUDA BF16 on every FSDP2 rank when configured."""
+        device = torch.device(self.device if self.device is not None else "cuda")
+        cuda_device = torch.cuda.is_available() and device.type == "cuda"
+        supported = False
+        if cuda_device:
+            with torch.cuda.device(device):
+                supported = torch.cuda.is_bf16_supported(including_emulation=False)
+        if self.world_size > 1:
+            reduce_device = device if dist.get_backend() == "nccl" else "cpu"
+            all_supported = torch.tensor(int(supported), device=reduce_device)
+            dist.all_reduce(all_supported, op=dist.ReduceOp.MIN)
+            supported = bool(all_supported.item())
+        if not supported:
+            raise ValueError(
+                "FSDP2 BF16 requires native CUDA BF16 on every rank. "
+                "Configure float16 AMP on GPUs such as V100."
+            )
 
     def _prepare_model_for_training(
         self,
@@ -446,7 +478,8 @@ class TorchTrainerBase:
                 swa_model (Optional[AveragedModel]),
                 swa_scheduler (Optional[SWALR])
         """
-        if device is not None:
+        fsdp = ddp and ddp_type == DDPType.FSDP
+        if device is not None and not fsdp:
             model.to(device)
 
         if ddp:
@@ -482,7 +515,28 @@ class TorchTrainerBase:
                         "enabled" if "mp_policy" in fsdp_kwargs else "disabled",
                         fsdp_cpu_offload,
                     )
-                model = self._wrap_with_fully_shard(model, fsdp_kwargs)
+                device_context = nullcontext()
+                if device is not None:
+                    device_type = torch.device(device).type
+                    fsdp_kwargs["mesh"] = DeviceMesh.from_group(
+                        dist.group.WORLD, device_type
+                    )
+                    if device_type == "cuda":
+                        device_context = torch.cuda.device(device)
+                with device_context:
+                    model = self._wrap_with_fully_shard(model, fsdp_kwargs)
+                if isinstance(optim, torch.optim.Optimizer):
+                    model_params = set(model.parameters())
+                    if any(
+                        param not in model_params
+                        for group in optim.param_groups
+                        for param in group["params"]
+                    ):
+                        raise ValueError(
+                            "FSDP2 replaces model parameters during sharding. "
+                            "Pass an optimizer configuration or an optimizer "
+                            "built from an already sharded model."
+                        )
                 optimizer = self._make_optimizer(optim, model)
             else:
                 raise ValueError(f"Unsupported ddp_type: {ddp_type}")
@@ -528,7 +582,7 @@ class TorchTrainerBase:
 
         Args:
             reshard_after_forward: Reshard policy after forward (None uses FSDP2 defaults).
-            mp_param_dtype: Optional mixed-precision param dtype (None disables mp policy).
+            mp_param_dtype: Optional mixed-precision parameter dtype.
             mp_reduce_dtype: Optional mixed-precision reduce dtype.
             mp_output_dtype: Optional mixed-precision output dtype.
             cpu_offload: Whether to offload parameters to CPU between compute steps.
@@ -543,7 +597,10 @@ class TorchTrainerBase:
         if cpu_offload:
             fsdp_kwargs["offload_policy"] = CPUOffloadPolicy()
 
-        if mp_param_dtype is not None:
+        if any(
+            dtype is not None
+            for dtype in (mp_param_dtype, mp_reduce_dtype, mp_output_dtype)
+        ):
             mixed_precision = MixedPrecisionPolicy(
                 param_dtype=mp_param_dtype,
                 reduce_dtype=mp_reduce_dtype,
@@ -561,23 +618,43 @@ class TorchTrainerBase:
         return isinstance(module, FSDP)
 
     def _wrap_with_fully_shard(
-        self, model: nn.Module, fsdp_kwargs: Dict[str, Any]
+        self, model: HyperTorchModel, fsdp_kwargs: Dict[str, Any]
     ) -> nn.Module:
-        """
-        Recursively applies fully_shard to all submodules and then to the root,
-        matching the FSDP2 tutorial guidance.
-        """
+        """Shard the model-declared compute blocks, then shard the root.
 
-        def _shard_recursive(module: nn.Module):
-            for child in module.children():
-                if not self._is_fsdp_module(child):
-                    _shard_recursive(child)
-                    fully_shard(child, **fsdp_kwargs)
+        Args:
+            model: Model that selects its FSDP2 compute blocks.
+            fsdp_kwargs: Policies for the sharding groups.
 
-        _shard_recursive(model)
-        if not self._is_fsdp_module(model):
-            model = fully_shard(model, **fsdp_kwargs)
-        return model
+        Returns:
+            The model with its FSDP2 hooks installed.
+        """
+        if self._is_fsdp_module(model):
+            return model
+
+        blocks = tuple(model.fsdp_shard_blocks())
+        descendants = set(model.modules()) - {model}
+        selected = set(blocks)
+        if len(selected) != len(blocks):
+            raise ValueError("fsdp_shard_blocks() returned a duplicate block.")
+        for block in blocks:
+            if block not in descendants or isinstance(
+                block, (nn.ModuleList, nn.ModuleDict)
+            ):
+                raise ValueError(
+                    "fsdp_shard_blocks() must return callable model descendants."
+                )
+            if any(
+                child in selected for child in block.modules() if child is not block
+            ):
+                raise ValueError("fsdp_shard_blocks() must return disjoint blocks.")
+
+        if self.rank == 0:
+            logging.info("FSDP2 sharding %d compute blocks plus the root", len(blocks))
+        for block in blocks:
+            if not self._is_fsdp_module(block):
+                fully_shard(block, **fsdp_kwargs)
+        return fully_shard(model, **fsdp_kwargs)
 
     def get_grad_scaler(
         self,
@@ -587,11 +664,12 @@ class TorchTrainerBase:
         amp_dtype: Optional[torch.dtype] = None,
         bf16_grad_scaler: Optional[bool] = None,
         fsdp_mp_param_dtype: Optional[torch.dtype] = None,
-    ) -> Union[amp.GradScaler, ShardedGradScaler]:
+    ) -> amp.GradScaler:
         """
         Initializes the appropriate gradient scaler for AMP (automatic mixed precision).
 
-        Uses the torch FSDP ShardedGradScaler for FSDP sharded/full modes, and native GradScaler otherwise.
+        Uses the native GradScaler for device-resident DTensors and a
+        shard-aware scaler for FSDP2 CPU offload.
 
         Args:
             use_amp (bool): Whether AMP is enabled.
@@ -599,6 +677,7 @@ class TorchTrainerBase:
             ddp_type (DDPType): DDP backend type.
             amp_dtype (torch.dtype): Data type for AMP (float16 or bfloat16).
             bf16_grad_scaler (bool): If True, enables grad scaler for bfloat16 (default is False).
+            fsdp_mp_param_dtype: Optional FSDP2 parameter computation dtype.
 
         Returns:
             GradScaler: AMP gradient scaler (native or sharded).
@@ -616,18 +695,16 @@ class TorchTrainerBase:
             else fsdp_mp_param_dtype
         )
 
-        if ddp and ddp_type == DDPType.FSDP:
-            use_grad_scaler = fsdp_mp_param_dtype == torch.float16 or bf16_grad_scaler
-            if self.rank == 0:
-                if use_grad_scaler:
-                    logging.info(
-                        "using mixed precision training with FSDP sharded-grad-scaler"
-                    )
-                else:
-                    logging.info("not using grad scaler with FSDP")
-            return ShardedGradScaler(enabled=use_grad_scaler)
-
         use_grad_scaler = use_amp and (amp_dtype == torch.float16 or bf16_grad_scaler)
+        scaler_cls = amp.GradScaler
+        if ddp and ddp_type == DDPType.FSDP:
+            active_dtypes = (amp_dtype if use_amp else None, fsdp_mp_param_dtype)
+            use_grad_scaler = torch.float16 in active_dtypes or (
+                bf16_grad_scaler and torch.bfloat16 in active_dtypes
+            )
+            if self.fsdp_cpu_offload:
+                scaler_cls = CPUOffloadGradScaler
+
         if self.rank == 0:
             if use_grad_scaler:
                 logging.info(
@@ -635,7 +712,7 @@ class TorchTrainerBase:
                 )
             else:
                 logging.info("not using grad scaler")
-        return amp.GradScaler(enabled=use_grad_scaler)
+        return scaler_cls(enabled=use_grad_scaler)
 
     def set_data_epoch(
         self, data_loader: DataLoader[Any], cur_epoch: int, cur_batch: int = 0
@@ -1444,9 +1521,27 @@ class TorchTrainerBase:
         Returns:
             float: The total norm of the parameters (before clipping).
         """
-        grad_norm = nn.utils.clip_grad_norm_(
-            model.parameters(), grad_clip, norm_type=grad_clip_norm
-        )
+        if self._is_fsdp_module(model):
+            if self.fsdp_cpu_offload:
+                grad_norm = clip_cpu_gradient_shards_(
+                    model.parameters(),
+                    grad_clip,
+                    float(grad_clip_norm),
+                    torch.device(self.device if self.device is not None else "cuda"),
+                )
+            else:
+                params = [p for p in model.parameters() if p.grad is not None]
+                grad_norm = nn.utils.get_total_norm(
+                    [p.grad for p in params], norm_type=grad_clip_norm
+                )
+                if params:
+                    # A partial DTensor's item() reads only its local contribution.
+                    grad_norm = grad_norm.full_tensor()
+                nn.utils.clip_grads_with_norm_(params, grad_clip, grad_norm)
+        else:
+            grad_norm = nn.utils.clip_grad_norm_(
+                model.parameters(), grad_clip, norm_type=grad_clip_norm
+            )
         return grad_norm.item()
 
     def _update_model_by_optim(
@@ -1456,7 +1551,7 @@ class TorchTrainerBase:
         grad_clip: float,
         grad_clip_norm: Union[int, float, str],
         use_amp: bool,
-        grad_scaler: Union[amp.GradScaler, ShardedGradScaler],
+        grad_scaler: amp.GradScaler,
     ) -> float:
         """
         Updates the model parameters by stepping the optimizer, with optional
@@ -1674,9 +1769,7 @@ class TorchTrainerBase:
 
         return wds
 
-    def _get_grad_scale(
-        self, grad_scaler: Union[amp.GradScaler, ShardedGradScaler]
-    ) -> Dict[str, float]:
+    def _get_grad_scale(self, grad_scaler: amp.GradScaler) -> Dict[str, float]:
         """
         Extracts the current gradient scaling factor from the AMP GradScaler.
 
@@ -1757,7 +1850,8 @@ class TorchTrainerBase:
             logs (Optional[Dict[str, Any]]): Additional logs to store in checkpoint.
 
         Returns:
-            Dict[str, Any]: The full checkpoint dictionary.
+            The full checkpoint dictionary. Nonzero FSDP2 ranks return an empty
+            dictionary after participating in checkpoint collection.
         """
         model.train()
         if self._is_fsdp_module(model):
@@ -1772,6 +1866,8 @@ class TorchTrainerBase:
             optimizer_state_dict = get_optimizer_state_dict(
                 model=model, optimizers=optimizer, options=dict_options
             )
+            if self.rank != 0:
+                return {}
         else:
             model_state_dict = model.state_dict()
             optimizer_state_dict = optimizer.state_dict()
@@ -1794,6 +1890,9 @@ class TorchTrainerBase:
         if logs is not None:
             checkpoint["logs"] = logs
 
+        if self._is_fsdp_module(model) and self.grad_scaler.is_enabled():
+            checkpoint["grad_scaler_state_dict"] = self.grad_scaler.state_dict()
+
         if self.in_swa:
             checkpoint["swa_model_state_dict"] = swa_model.state_dict()
             checkpoint["swa_scheduler_state_dict"] = swa_scheduler.state_dict()
@@ -1801,20 +1900,14 @@ class TorchTrainerBase:
         return checkpoint
 
     def save_now(self) -> bool:
-        """
-        Determines whether a model checkpoint should be saved based on elapsed time
-        or training step count.
+        """Decide whether to save after an optimizer step.
+
+        Every rank must enter an FSDP2 checkpoint. For timed FSDP2 saves,
+        share rank 0's decision every 1000 optimizer steps.
 
         Returns:
-            bool: True if saving conditions are met, False otherwise.
+            Whether a checkpoint is due.
         """
-        if self.save_hours is not None:
-            t = time.monotonic()
-            if t - self.last_save_time >= self.save_hours * 3600:
-                self.last_save_time = t
-                self.last_save_step = self.cur_step
-                return True
-
         if self.save_steps is not None:
             dstep = self.cur_step - self.last_save_step
             if self.cur_step > 0 and dstep >= self.save_steps:
@@ -1822,7 +1915,31 @@ class TorchTrainerBase:
                 self.last_save_step = self.cur_step
                 return True
 
-        return False
+        collective = self.ddp and self.ddp_type == DDPType.FSDP and self.world_size > 1
+        if self.save_hours is None or (
+            collective and self.cur_step % _SAVE_HOURS_CHECK_STEPS != 0
+        ):
+            return False
+
+        now = time.monotonic() if not collective or self.rank == 0 else None
+        should_save = (
+            now is not None and now - self.last_save_time >= self.save_hours * 3600
+        )
+        if collective:
+            should_save = self._broadcast_rank_zero_decision(should_save)
+        if should_save:
+            self.last_save_step = self.cur_step
+            if now is not None:
+                self.last_save_time = now
+        return should_save
+
+    @staticmethod
+    def _broadcast_rank_zero_decision(decision: bool) -> bool:
+        """Share one boolean condition with the default process group."""
+        device = "cuda" if dist.get_backend() == "nccl" else "cpu"
+        value = torch.tensor(decision, dtype=torch.bool, device=device)
+        dist.broadcast(value, src=0)
+        return bool(value.item())
 
     def validate_now(self) -> bool:
         """Decide whether to validate after an optimizer step.
@@ -1853,10 +1970,7 @@ class TorchTrainerBase:
             and time.monotonic() - self.last_val_time >= self.val_hours * 3600
         )
         if distributed:
-            device = "cuda" if dist.get_backend() == "nccl" else "cpu"
-            decision = torch.tensor(should_validate, dtype=torch.bool, device=device)
-            dist.broadcast(decision, src=0)
-            should_validate = bool(decision.item())
+            should_validate = self._broadcast_rank_zero_decision(should_validate)
 
         if should_validate:
             self.last_val_step = self.cur_step
@@ -1886,6 +2000,8 @@ class TorchTrainerBase:
             model_name (str): Identifier for the model (used in filename).
             checkpoint (Dict[str, Any]): Checkpoint dictionary to save.
         """
+        if self.rank != 0:
+            return
         file_path = self._model_checkpoint_path(
             model_name, self.cur_epoch, self.cur_step
         )
@@ -1938,6 +2054,8 @@ class TorchTrainerBase:
         self.cur_epoch = checkpoint["epoch"]
         self.next_batch = checkpoint["next_batch"]
         self.cur_step = checkpoint["step"]
+        if "grad_scaler_state_dict" in checkpoint:
+            self.grad_scaler.load_state_dict(checkpoint["grad_scaler_state_dict"])
 
         logs = None
         if "logs" in checkpoint:
@@ -1970,7 +2088,10 @@ class TorchTrainerBase:
             swa_scheduler (Optional[SWALR]): SWA scheduler instance, if applicable.
         """
         fsdp_options = None
-        if self.ddp and self.ddp_type == DDPType.FSDP:
+        fsdp = self.ddp and self.ddp_type == DDPType.FSDP
+        if fsdp and self.fsdp_cpu_offload:
+            load_cpu_offloaded_state(model, optimizer, checkpoint)
+        elif fsdp:
             fsdp_options = StateDictOptions(
                 full_state_dict=True,
                 broadcast_from_rank0=True,
@@ -1995,16 +2116,18 @@ class TorchTrainerBase:
             except (RuntimeError, AttributeError):
                 model.module.load_state_dict(checkpoint["model_state_dict"])
 
-        if optimizer is not None:
+        if optimizer is not None and not (fsdp and self.fsdp_cpu_offload):
+            optimizer_state = checkpoint["optimizer_state_dict"]
             if fsdp_options is not None:
                 set_optimizer_state_dict(
                     model=model,
                     optimizers=optimizer,
-                    optim_state_dict=checkpoint["optimizer_state_dict"],
-                    options=fsdp_options,
+                    optim_state_dict=optimizer_state,
+                    # Stateless optimizers have no tensor to broadcast.
+                    options=fsdp_options if optimizer_state["state"] else None,
                 )
             else:
-                optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+                optimizer.load_state_dict(optimizer_state)
 
         if lr_scheduler is not None:
             lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])

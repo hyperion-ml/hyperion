@@ -4,7 +4,6 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -19,6 +18,7 @@ from ...layer_blocks import TDNNBlock
 from ...layers import GlobalPool1dFactory as PF
 from ...narchs import ClassifHead, DINOHead, ProjHead, TorchNALoader
 from ...utils import eval_nnet_by_chunks, scale_seq_lengths
+from ...utils._pytree import pytree_dataclass
 
 
 class XVectorHeadType(str, Enum):
@@ -35,7 +35,7 @@ class XVectorHeadType(str, Enum):
         return [o.value for o in XVectorHeadType]
 
 
-@dataclass
+@pytree_dataclass
 class XVectorOutput(HyperDataClass):
     loss: Optional[torch.Tensor]
     logits: Optional[torch.Tensor]
@@ -441,6 +441,12 @@ class XVector(HyperTorchModel):
             out_lengths = None
 
         return x, out_lengths
+
+    def fsdp_shard_blocks(self) -> tuple[nn.Module, ...]:
+        """Use the encoder's FSDP2 groups within the x-vector model."""
+        if isinstance(self.encoder_net, HyperTorchModel):
+            return self.encoder_net.fsdp_shard_blocks()
+        return ()
 
     def forward(
         self,
