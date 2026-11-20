@@ -523,95 +523,108 @@ class DACTrainer(TorchTrainerBase):
         # el1 = self.dac_model.max_out_length(il1)
         # el2 = self.dac_model.max_out_length(il2)
         batch_device_type = input_audios.device.type
-        with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type=batch_device_type
-        ):
-            dac_output = self.dac_model(
-                x=input_audios,
-                x_lengths=input_lengths,
-            )
-            # print(
-            #     "lengths",
-            #     il1,
-            #     il2,
-            #     el1,
-            #     el2,
-            #     tl1,
-            #     tl2,
-            #     dac_output.x_recons.size(-1),
-            #     self.dac_model.delay,
-            #     self.dac_model.out_lengths(torch.tensor([32000])).item(),
-            #     dac_output.vq.z_q.size(),
-            #     self.dac_model.encoder.max_out_length(32000),
-            #     self.dac_model.encoder.out_lengths(torch.tensor([32000])).item(),
-            #     flush=True,
-            # )
-            # print("dac_output lengths:", dac_output.x_recons.size(-1), flush=True)
-            x_recons, _ = self.trim_audios(
-                dac_output.x_recons[..., :max_recons_length],
-            )
-            # print("x_recons lengths after trimming:", x_recons.size(-1), flush=True)
-            y_real, _ = self.discrim_model(
-                target_audios,
-            )
-            y_gen, _ = self.discrim_model(x_recons.detach())
+        will_step = self._should_update_models(batch_idx)
+        with self._ddp_sync_context(self.dac_model, will_step):
+            with self._ddp_sync_context(self.discrim_model, will_step):
+                with amp.autocast(
+                    enabled=self.use_amp,
+                    dtype=self.amp_dtype,
+                    device_type=batch_device_type,
+                ):
+                    dac_output = self.dac_model(
+                        x=input_audios,
+                        x_lengths=input_lengths,
+                    )
+                    # print(
+                    #     "lengths",
+                    #     il1,
+                    #     il2,
+                    #     el1,
+                    #     el2,
+                    #     tl1,
+                    #     tl2,
+                    #     dac_output.x_recons.size(-1),
+                    #     self.dac_model.delay,
+                    #     self.dac_model.out_lengths(torch.tensor([32000])).item(),
+                    #     dac_output.vq.z_q.size(),
+                    #     self.dac_model.encoder.max_out_length(32000),
+                    #     self.dac_model.encoder.out_lengths(torch.tensor([32000])).item(),
+                    #     flush=True,
+                    # )
+                    # print("dac_output lengths:", dac_output.x_recons.size(-1), flush=True)
+                    x_recons, _ = self.trim_audios(
+                        dac_output.x_recons[..., :max_recons_length],
+                    )
+                    # print("x_recons lengths after trimming:", x_recons.size(-1), flush=True)
+                    y_real, _ = self.discrim_model(
+                        target_audios,
+                    )
+                    y_gen, _ = self.discrim_model(x_recons.detach())
 
-        loss_discrim, losses_discrim_adv_gen, losses_discrim_adv_real = (
-            self.discrim_adv_loss(y_gen, y_real)
-        )
-        loss_discrim = loss_discrim / self.grad_acc_steps
-        self.grad_scaler.scale(loss_discrim).backward()
+                loss_discrim, losses_discrim_adv_gen, losses_discrim_adv_real = (
+                    self.discrim_adv_loss(y_gen, y_real)
+                )
+                loss_discrim = loss_discrim / self.grad_acc_steps
+                self.grad_scaler.scale(loss_discrim).backward()
 
-        ########################
-        # 2. Generator Forward #
-        ########################
-        self.discrim_model.set_train_mode(AudioDiscriminatorTrainMode.FROZEN)
-        with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type=batch_device_type
-        ):
-            y_real, fmaps_real = self.discrim_model(target_audios)
-            y_gen, fmaps_gen = self.discrim_model(x_recons)
+            ########################
+            # 2. Generator Forward #
+            ########################
+            self.discrim_model.set_train_mode(AudioDiscriminatorTrainMode.FROZEN)
+            with self._ddp_sync_context(self.discrim_model, False):
+                with amp.autocast(
+                    enabled=self.use_amp,
+                    dtype=self.amp_dtype,
+                    device_type=batch_device_type,
+                ):
+                    y_real, fmaps_real = self.discrim_model(target_audios)
+                    y_gen, fmaps_gen = self.discrim_model(x_recons)
 
-        loss_gen_adv, losses_gen_adv = self.gen_adv_loss(y_gen)
-        loss_fm = self.feat_matching_loss(fmaps_gen, fmaps_real)
-        loss_mrfb_log_mag, loss_mrfb_conv = self.mrfb_loss(
-            x_recons.squeeze(1), target_audios
-        )
-        loss_codebook = dac_output.vq.codebook_loss
-        loss_commitment = dac_output.vq.commitment_loss
-        loss_orthogonality = dac_output.vq.orthogonality_loss
-        loss_diversity = dac_output.vq.diversity_loss
-        ppl = dac_output.vq.perplexity.mean().detach().item()
-        if self.cur_step < self.gen_adv_losses_start_steps:
-            loss_gen_adv_weight = 0.0
-        elif self.gen_adv_losses_warmup_steps > 0:
-            loss_gen_adv_weight = min(
-                (self.cur_step - self.gen_adv_losses_start_steps)
-                / self.gen_adv_losses_warmup_steps,
-                1.0,
-            )
-        else:
-            loss_gen_adv_weight = 1.0
-        loss_gen = (
-            loss_gen_adv_weight * self.loss_gen_adv_weight * loss_gen_adv
-            + loss_gen_adv_weight * self.loss_fm_weight * loss_fm
-            + self.loss_mrfb_log_mag_weight * loss_mrfb_log_mag
-            + self.loss_mrfb_conv_weight * loss_mrfb_conv
-            + self.loss_codebook_weight * loss_codebook
-            + self.loss_commitment_weight * loss_commitment
-        ) / self.grad_acc_steps
-        if self.loss_orthogonality_weight > 0 and loss_orthogonality is not None:
-            loss_gen = loss_gen + (
-                self.loss_orthogonality_weight
-                * loss_orthogonality
-                / self.grad_acc_steps
-            )
-        if self.loss_diversity_weight > 0 and loss_diversity is not None:
-            loss_gen = loss_gen + (
-                self.loss_diversity_weight * loss_diversity / self.grad_acc_steps
-            )
+                loss_gen_adv, losses_gen_adv = self.gen_adv_loss(y_gen)
+                loss_fm = self.feat_matching_loss(fmaps_gen, fmaps_real)
+                loss_mrfb_log_mag, loss_mrfb_conv = self.mrfb_loss(
+                    x_recons.squeeze(1), target_audios
+                )
+                loss_codebook = dac_output.vq.codebook_loss
+                loss_commitment = dac_output.vq.commitment_loss
+                loss_orthogonality = dac_output.vq.orthogonality_loss
+                loss_diversity = dac_output.vq.diversity_loss
+                ppl = dac_output.vq.perplexity.mean().detach().item()
+                if self.cur_step < self.gen_adv_losses_start_steps:
+                    loss_gen_adv_weight = 0.0
+                elif self.gen_adv_losses_warmup_steps > 0:
+                    loss_gen_adv_weight = min(
+                        (self.cur_step - self.gen_adv_losses_start_steps)
+                        / self.gen_adv_losses_warmup_steps,
+                        1.0,
+                    )
+                else:
+                    loss_gen_adv_weight = 1.0
+                loss_gen = (
+                    loss_gen_adv_weight * self.loss_gen_adv_weight * loss_gen_adv
+                    + loss_gen_adv_weight * self.loss_fm_weight * loss_fm
+                    + self.loss_mrfb_log_mag_weight * loss_mrfb_log_mag
+                    + self.loss_mrfb_conv_weight * loss_mrfb_conv
+                    + self.loss_codebook_weight * loss_codebook
+                    + self.loss_commitment_weight * loss_commitment
+                ) / self.grad_acc_steps
+                if (
+                    self.loss_orthogonality_weight > 0
+                    and loss_orthogonality is not None
+                ):
+                    loss_gen = loss_gen + (
+                        self.loss_orthogonality_weight
+                        * loss_orthogonality
+                        / self.grad_acc_steps
+                    )
+                if self.loss_diversity_weight > 0 and loss_diversity is not None:
+                    loss_gen = loss_gen + (
+                        self.loss_diversity_weight
+                        * loss_diversity
+                        / self.grad_acc_steps
+                    )
 
-        self.grad_scaler.scale(loss_gen).backward()
+                self.grad_scaler.scale(loss_gen).backward()
 
         batch_metrics = ODict()
         batch_metrics["loss_discrim/total"] = loss_discrim.item() * self.grad_acc_steps

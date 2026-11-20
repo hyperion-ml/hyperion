@@ -9,6 +9,7 @@ import math
 import re
 import time
 from collections import OrderedDict as ODict
+from contextlib import AbstractContextManager, nullcontext
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -1210,6 +1211,33 @@ class TorchTrainerBase:
     #     batch_metrics["loss"] = loss.item() * self.grad_acc_steps
     #     return batch_metrics
 
+    def _should_update_models(self, batch_idx: int) -> bool:
+        """Return whether this zero-based batch ends the accumulation window."""
+        return (batch_idx + 1) % self.grad_acc_steps == 0
+
+    @staticmethod
+    def _ddp_sync_context(
+        model: Optional[nn.Module], sync_gradients: bool
+    ) -> AbstractContextManager:
+        """Select a context for a model's forward and backward passes.
+
+        Args:
+            model: Model participating in the pass, if any.
+            sync_gradients: Whether this pass should reduce DDP gradients.
+
+        Returns:
+            A no-sync context for standard DDP when reduction can be skipped.
+        """
+        if not sync_gradients and isinstance(
+            model, nn.parallel.DistributedDataParallel
+        ):
+            return model.no_sync()
+        return nullcontext()
+
+    def _training_step_model(self) -> Optional[nn.Module]:
+        """Return the model managed by the default training step, if provided."""
+        return None
+
     def training_step(
         self, batch_idx: int, batch_data: Dict[str, Any]
     ) -> Tuple[int, Dict[str, Any]]:
@@ -1230,29 +1258,23 @@ class TorchTrainerBase:
         batch_size, batch_data = self.preprocess_train_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
         device_type = self._get_batch_device_type(batch_data)
-        with amp.autocast(
-            enabled=self.use_amp,
-            dtype=self.amp_dtype,
-            device_type=device_type,
+        with self._ddp_sync_context(
+            self._training_step_model(), self._should_update_models(batch_idx)
         ):
-            loss, batch_output = self.compute_train_forward(batch_data)
+            with amp.autocast(
+                enabled=self.use_amp,
+                dtype=self.amp_dtype,
+                device_type=device_type,
+            ):
+                loss, batch_output = self.compute_train_forward(batch_data)
 
-        loss = loss.float() / self.grad_acc_steps
+            loss = loss.float() / self.grad_acc_steps
+            self.compute_backward(loss)
 
-        self.compute_backward(loss)
         batch_metrics = ODict()
         batch_metrics = self.compute_train_metrics(batch_output, batch_data)
         batch_metrics["loss"] = loss.item() * self.grad_acc_steps
         batch_metrics.move_to_end("loss", last=False)
-
-        # if (batch_idx + 1) % self.grad_acc_steps == 0:
-        #     self.cur_batch = batch_idx
-        #     self.cur_step += 1
-        #     grad_norms = self.update_models()
-        #     self.grad_tracker.update(grad_norms)
-        #     grad_logs = self.grad_tracker.grad_spikes
-        #     self.zero_grad_optimizers()
-        #     self.loggers.on_model_update(self.cur_step, log=grad_logs)
 
         return batch_size, batch_metrics
 
@@ -1266,7 +1288,7 @@ class TorchTrainerBase:
         Returns:
             None
         """
-        if (batch_idx + 1) % self.grad_acc_steps == 0:
+        if self._should_update_models(batch_idx):
             self.cur_batch = batch_idx
             self.cur_step += 1
             grad_norms = self.update_models()

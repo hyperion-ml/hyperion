@@ -392,6 +392,10 @@ class SingleModelTrainer(TorchTrainerBase):
         loss = self.loss(output, batch_data["target"])
         return loss, output
 
+    def _training_step_model(self) -> nn.Module:
+        """Return the model managed by the shared training step."""
+        return self.model
+
     def compute_backward(self, loss: torch.Tensor) -> None:
         """
         Performs the backward pass with gradient scaling when AMP is enabled.

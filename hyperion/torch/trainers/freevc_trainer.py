@@ -502,65 +502,70 @@ class FreeVCTrainer(TorchTrainerBase):
             )
             speaker_feats = xvector_output.xvector
 
-        with amp.autocast(
-            enabled=self.use_amp,
-            dtype=self.amp_dtype,
-            device_type=target_audios.device.type,
-        ):
-            vc_output = self.vc_model(
-                source_audios=input_audios,
-                source_audio_lengths=input_lengths,
-                speaker_feats=speaker_feats,
-                mode=FreeVCFwdMode.RECONS,
-                slice_start_idxs=slice_start_idxs,
-                slice_segment_length=int(
-                    self.gen_segment_duration * self.vc_model.output_sample_frequency
-                ),
-            )
+        will_step = self._should_update_models(batch_idx)
+        with self._ddp_sync_context(self.vc_model, will_step):
+            with self._ddp_sync_context(self.discrim_model, will_step):
+                with amp.autocast(
+                    enabled=self.use_amp,
+                    dtype=self.amp_dtype,
+                    device_type=target_audios.device.type,
+                ):
+                    vc_output = self.vc_model(
+                        source_audios=input_audios,
+                        source_audio_lengths=input_lengths,
+                        speaker_feats=speaker_feats,
+                        mode=FreeVCFwdMode.RECONS,
+                        slice_start_idxs=slice_start_idxs,
+                        slice_segment_length=int(
+                            self.gen_segment_duration
+                            * self.vc_model.output_sample_frequency
+                        ),
+                    )
 
-            y_real, _ = self.discrim_model(
-                target_audios,
-            )
-            y_gen, _ = self.discrim_model(vc_output.gen_audio.detach())
+                    y_real, _ = self.discrim_model(
+                        target_audios,
+                    )
+                    y_gen, _ = self.discrim_model(vc_output.gen_audio.detach())
 
-        loss_discrim, losses_discrim_adv_gen, losses_discrim_adv_real = (
-            self.discrim_adv_loss(y_gen, y_real)
-        )
-        loss_discrim = loss_discrim / self.grad_acc_steps
-        self.grad_scaler.scale(loss_discrim).backward()
-
-        ########################
-        # 2. Generator Forward #
-        ########################
-        self.discrim_model.set_train_mode(AudioDiscriminatorTrainMode.FROZEN)
-        with amp.autocast(
-            enabled=self.use_amp,
-            dtype=self.amp_dtype,
-            device_type=target_audios.device.type,
-        ):
-            y_real, fmaps_real = self.discrim_model(target_audios)
-            y_gen, fmaps_gen = self.discrim_model(vc_output.gen_audio)
-            with torch.no_grad():
-                mel_feats_real, mels_feats_real_lengths = self.audio_feats(
-                    target_audios
+                loss_discrim, losses_discrim_adv_gen, losses_discrim_adv_real = (
+                    self.discrim_adv_loss(y_gen, y_real)
                 )
+                loss_discrim = loss_discrim / self.grad_acc_steps
+                self.grad_scaler.scale(loss_discrim).backward()
 
-            mel_feats_gen, mel_feats_gen_lengths = self.audio_feats(
-                vc_output.gen_audio.squeeze(1)
-            )
+            ########################
+            # 2. Generator Forward #
+            ########################
+            self.discrim_model.set_train_mode(AudioDiscriminatorTrainMode.FROZEN)
+            with self._ddp_sync_context(self.discrim_model, False):
+                with amp.autocast(
+                    enabled=self.use_amp,
+                    dtype=self.amp_dtype,
+                    device_type=target_audios.device.type,
+                ):
+                    y_real, fmaps_real = self.discrim_model(target_audios)
+                    y_gen, fmaps_gen = self.discrim_model(vc_output.gen_audio)
+                    with torch.no_grad():
+                        mel_feats_real, mels_feats_real_lengths = self.audio_feats(
+                            target_audios
+                        )
 
-        loss_gen_adv, losses_gen_adv = self.gen_adv_loss(y_gen)
-        loss_fm = self.feat_matching_loss(fmaps_gen, fmaps_real)
-        loss_mel = self.l1_loss(mel_feats_gen, mel_feats_real)
-        loss_kldiv = vc_output.kldiv_loss
-        loss_gen = (
-            self.loss_gen_adv_weight * loss_gen_adv
-            + self.loss_fm_weight * loss_fm
-            + self.loss_mel_weight * loss_mel
-            + self.loss_kl_weight * loss_kldiv
-        ) / self.grad_acc_steps
+                    mel_feats_gen, mel_feats_gen_lengths = self.audio_feats(
+                        vc_output.gen_audio.squeeze(1)
+                    )
 
-        self.grad_scaler.scale(loss_gen).backward()
+                loss_gen_adv, losses_gen_adv = self.gen_adv_loss(y_gen)
+                loss_fm = self.feat_matching_loss(fmaps_gen, fmaps_real)
+                loss_mel = self.l1_loss(mel_feats_gen, mel_feats_real)
+                loss_kldiv = vc_output.kldiv_loss
+                loss_gen = (
+                    self.loss_gen_adv_weight * loss_gen_adv
+                    + self.loss_fm_weight * loss_fm
+                    + self.loss_mel_weight * loss_mel
+                    + self.loss_kl_weight * loss_kldiv
+                ) / self.grad_acc_steps
+
+                self.grad_scaler.scale(loss_gen).backward()
 
         batch_metrics = ODict()
         batch_metrics["loss_discrim/total"] = loss_discrim.item() * self.grad_acc_steps

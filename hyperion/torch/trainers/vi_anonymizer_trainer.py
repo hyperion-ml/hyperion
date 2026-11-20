@@ -698,6 +698,24 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         batch_data = self.send_data_to_device(batch_data)
         self.speaker_contrastive_loss.update(self.cur_step)
 
+        if self.cur_step < self.vc_losses_warmup_start_step:
+            vc_weight = 0.0
+        elif (
+            self.cur_step
+            < self.vc_losses_warmup_steps + self.vc_losses_warmup_start_step
+        ):
+            # vc_weight = (
+            #     1 - math.cos(math.pi * self.cur_step / self.vc_losses_warmup_steps)
+            # ) / 2
+            vc_weight = (
+                self.cur_step - self.vc_losses_warmup_start_step
+            ) / self.vc_losses_warmup_steps
+        else:
+            vc_weight = 1.0
+
+        discrim_vc_weight = self.loss_discrim_vc_weight * vc_weight
+        train_discrim_vc = discrim_vc_weight > 0.0
+
         input_audios, input_lengths = (
             batch_data[f"source_audios"],
             batch_data[f"source_audio_lengths"],
@@ -747,182 +765,177 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             )
             speaker_feats = xvector_output.xvector
 
-        with amp.autocast(
-            enabled=self.use_amp,
-            dtype=self.amp_dtype,
-            device_type=input_audios.device.type,
-        ):
-            feats, feat_lengths = self.vc_model(
-                source_audios=input_audios,
-                source_audio_lengths=input_lengths,
-                speaker_feats=None,
-                mode=FreeVCFwdMode.FEATS_ONLY,
-            )
-            vc_output = self.vc_model(
-                source_audios=input_audios,
-                source_audio_lengths=input_lengths,
-                speaker_feats=speaker_feats,
-                mode=FreeVCFwdMode.RECONS,
-                slice_start_idxs=slice_start_idxs,
-                slice_segment_length=int(
-                    self.gen_segment_duration * self.vc_model.output_sample_frequency
-                ),
-                feats=feats,
-                feat_lengths=feat_lengths,
-            )
+        will_step = self._should_update_models(batch_idx)
+        with self._ddp_sync_context(self.vc_model, will_step):
+            with self._ddp_sync_context(
+                self.discrim_model, will_step and not train_discrim_vc
+            ):
+                with amp.autocast(
+                    enabled=self.use_amp,
+                    dtype=self.amp_dtype,
+                    device_type=input_audios.device.type,
+                ):
+                    feats, feat_lengths = self.vc_model(
+                        source_audios=input_audios,
+                        source_audio_lengths=input_lengths,
+                        speaker_feats=None,
+                        mode=FreeVCFwdMode.FEATS_ONLY,
+                    )
+                    vc_output = self.vc_model(
+                        source_audios=input_audios,
+                        source_audio_lengths=input_lengths,
+                        speaker_feats=speaker_feats,
+                        mode=FreeVCFwdMode.RECONS,
+                        slice_start_idxs=slice_start_idxs,
+                        slice_segment_length=int(
+                            self.gen_segment_duration
+                            * self.vc_model.output_sample_frequency
+                        ),
+                        feats=feats,
+                        feat_lengths=feat_lengths,
+                    )
 
-            y_real, _ = self.discrim_model(
-                target_audios,
-            )
-            y_gen, _ = self.discrim_model(vc_output.gen_audio.detach())
+                    y_real, _ = self.discrim_model(
+                        target_audios,
+                    )
+                    y_gen, _ = self.discrim_model(vc_output.gen_audio.detach())
 
-        (
-            loss_discrim_recons,
-            losses_discrim_recons_adv_gen,
-            losses_discrim_recons_adv_real,
-        ) = self.discrim_adv_loss(y_gen, y_real)
-        loss_discrim_recons = loss_discrim_recons / self.grad_acc_steps
-        # print("[dgb] loss_discrim", loss_discrim_recons.item(), flush=True)
-        self.grad_scaler.scale(loss_discrim_recons).backward()
+                (
+                    loss_discrim_recons,
+                    losses_discrim_recons_adv_gen,
+                    losses_discrim_recons_adv_real,
+                ) = self.discrim_adv_loss(y_gen, y_real)
+                loss_discrim_recons = loss_discrim_recons / self.grad_acc_steps
+                # print("[dgb] loss_discrim", loss_discrim_recons.item(), flush=True)
+                self.grad_scaler.scale(loss_discrim_recons).backward()
 
-        #######################################
-        # 2. Generator Forward Reconstruction #
-        #######################################
-        self.discrim_model.set_train_mode(AudioDiscriminatorTrainMode.FROZEN)
-        with amp.autocast(
-            enabled=self.use_amp,
-            dtype=self.amp_dtype,
-            device_type=input_audios.device.type,
-        ):
-            y_real, fmaps_real = self.discrim_model(target_audios)
-            y_gen, fmaps_gen = self.discrim_model(vc_output.gen_audio)
-            with torch.no_grad():
-                mel_feats_real, mels_feats_real_lengths = self.audio_feats(
-                    target_audios
+            #######################################
+            # 2. Generator Forward Reconstruction #
+            #######################################
+            self.discrim_model.set_train_mode(AudioDiscriminatorTrainMode.FROZEN)
+            with self._ddp_sync_context(self.discrim_model, False):
+                with amp.autocast(
+                    enabled=self.use_amp,
+                    dtype=self.amp_dtype,
+                    device_type=input_audios.device.type,
+                ):
+                    y_real, fmaps_real = self.discrim_model(target_audios)
+                    y_gen, fmaps_gen = self.discrim_model(vc_output.gen_audio)
+                    with torch.no_grad():
+                        mel_feats_real, mels_feats_real_lengths = self.audio_feats(
+                            target_audios
+                        )
+
+                    mel_feats_gen, mel_feats_gen_lengths = self.audio_feats(
+                        vc_output.gen_audio.squeeze(1)
+                    )
+
+                loss_mrfb_log_mag, loss_mrfb_conv = self.mrfb_loss(
+                    vc_output.gen_audio.squeeze(1).float(), target_audios.float()
                 )
+                loss_gen_adv, losses_gen_adv = self.gen_adv_loss(y_gen)
+                loss_fm = self.feat_matching_loss(fmaps_gen, fmaps_real)
+                loss_mel = self.l1_loss(mel_feats_gen.float(), mel_feats_real.float())
+                loss_kldiv = vc_output.kldiv_loss
+                loss_gen_recons = (
+                    self.loss_gen_adv_weight * loss_gen_adv
+                    + self.loss_fm_weight * loss_fm
+                    + self.loss_mel_weight * loss_mel
+                    + self.loss_mrfb_log_mag_weight * loss_mrfb_log_mag
+                    + self.loss_mrfb_conv_weight * loss_mrfb_conv
+                    + self.loss_kl_weight * loss_kldiv
+                ) / self.grad_acc_steps
 
-            mel_feats_gen, mel_feats_gen_lengths = self.audio_feats(
-                vc_output.gen_audio.squeeze(1)
-            )
+                ###########################
+                # 3. Generator Forward VC #
+                ###########################
+                with torch.no_grad():
+                    rand_perm = torch.randperm(
+                        len(speaker_feats), device=speaker_feats.device
+                    )
+                    speaker_feats = speaker_feats[rand_perm]
 
-        loss_mrfb_log_mag, loss_mrfb_conv = self.mrfb_loss(
-            vc_output.gen_audio.squeeze(1).float(), target_audios.float()
-        )
-        loss_gen_adv, losses_gen_adv = self.gen_adv_loss(y_gen)
-        loss_fm = self.feat_matching_loss(fmaps_gen, fmaps_real)
-        loss_mel = self.l1_loss(mel_feats_gen.float(), mel_feats_real.float())
-        loss_kldiv = vc_output.kldiv_loss
-        loss_gen_recons = (
-            self.loss_gen_adv_weight * loss_gen_adv
-            + self.loss_fm_weight * loss_fm
-            + self.loss_mel_weight * loss_mel
-            + self.loss_mrfb_log_mag_weight * loss_mrfb_log_mag
-            + self.loss_mrfb_conv_weight * loss_mrfb_conv
-            + self.loss_kl_weight * loss_kldiv
-        ) / self.grad_acc_steps
+                with amp.autocast(
+                    enabled=self.use_amp,
+                    dtype=self.amp_dtype,
+                    device_type=target_audios.device.type,
+                ):
+                    vc_output = self.vc_model(
+                        source_audios=None,
+                        source_audio_lengths=None,
+                        speaker_feats=speaker_feats,
+                        mode=FreeVCFwdMode.VC,
+                        feats=feats,
+                        feat_lengths=feat_lengths,
+                    )
+                    vc_audios_sliced = slice_segments(
+                        vc_output.gen_audio.squeeze(1),
+                        slice_start_idxs,
+                        int(
+                            self.gen_segment_duration
+                            * self.vc_model.output_sample_frequency
+                        ),
+                    ).unsqueeze(1)
+                    y_gen, fmaps_gen = self.discrim_model(vc_audios_sliced)
+                    # print(
+                    #     "[dgb] before xvec output",
+                    #     torch.any(~torch.isfinite(vc_output.gen_audio)),
+                    #     torch.any(torch.isnan(vc_output.gen_audio)),
+                    #     flush=True,
+                    # )
+                    xvector_output = self.xvector_model(
+                        vc_output.gen_audio.squeeze(1),
+                        input_lengths,
+                        return_classif_layers=[0],
+                        return_logits=False,
+                    )
+                    gen_speaker_feats = xvector_output.xvector
 
-        ###########################
-        # 3. Generator Forward VC #
-        ###########################
-        with torch.no_grad():
-            rand_perm = torch.randperm(len(speaker_feats), device=speaker_feats.device)
-            speaker_feats = speaker_feats[rand_perm]
+                loss_gen_adv_vc, losses_gen_adv_vc = self.gen_adv_loss(y_gen)
+                loss_speaker_contrastive = self.speaker_contrastive_loss(
+                    gen_speaker_feats.float(), speaker_feats.float()
+                )
+                loss_gen_vc = (
+                    self.loss_vc_adv_weight * loss_gen_adv_vc
+                    + self.loss_speaker_contrastive_weight * loss_speaker_contrastive
+                ) / self.grad_acc_steps
 
-        with amp.autocast(
-            enabled=self.use_amp,
-            dtype=self.amp_dtype,
-            device_type=target_audios.device.type,
-        ):
-            vc_output = self.vc_model(
-                source_audios=None,
-                source_audio_lengths=None,
-                speaker_feats=speaker_feats,
-                mode=FreeVCFwdMode.VC,
-                feats=feats,
-                feat_lengths=feat_lengths,
-            )
-            vc_audios_sliced = slice_segments(
-                vc_output.gen_audio.squeeze(1),
-                slice_start_idxs,
-                int(self.gen_segment_duration * self.vc_model.output_sample_frequency),
-            ).unsqueeze(1)
-            y_gen, fmaps_gen = self.discrim_model(vc_audios_sliced)
-            # print(
-            #     "[dgb] before xvec output",
-            #     torch.any(~torch.isfinite(vc_output.gen_audio)),
-            #     torch.any(torch.isnan(vc_output.gen_audio)),
-            #     flush=True,
-            # )
-            xvector_output = self.xvector_model(
-                vc_output.gen_audio.squeeze(1),
-                input_lengths,
-                return_classif_layers=[0],
-                return_logits=False,
-            )
-            gen_speaker_feats = xvector_output.xvector
-
-        loss_gen_adv_vc, losses_gen_adv_vc = self.gen_adv_loss(y_gen)
-        loss_speaker_contrastive = self.speaker_contrastive_loss(
-            gen_speaker_feats.float(), speaker_feats.float()
-        )
-        loss_gen_vc = (
-            self.loss_vc_adv_weight * loss_gen_adv_vc
-            + self.loss_speaker_contrastive_weight * loss_speaker_contrastive
-        ) / self.grad_acc_steps
-
-        if self.cur_step < self.vc_losses_warmup_start_step:
-            vc_weight = 0.0
-        elif (
-            self.cur_step
-            < self.vc_losses_warmup_steps + self.vc_losses_warmup_start_step
-        ):
-            # vc_weight = (
-            #     1 - math.cos(math.pi * self.cur_step / self.vc_losses_warmup_steps)
-            # ) / 2
-            vc_weight = (
-                self.cur_step - self.vc_losses_warmup_start_step
-            ) / self.vc_losses_warmup_steps
-        else:
-            vc_weight = 1.0
-
-        loss_gen_total = loss_gen_recons + vc_weight * loss_gen_vc
-        # assert not self.grad_scaler.is_enabled()
-        # print(
-        #     "[dgb] loss_gen",
-        #     loss_gen_recons.item(),
-        #     vc_weight,
-        #     loss_gen_vc.item(),
-        #     loss_mel.item(),
-        #     loss_mrfb_log_mag.item(),
-        #     loss_mrfb_conv.item(),
-        #     loss_kldiv.item(),
-        #     flush=True,
-        # )
-        self.grad_scaler.scale(loss_gen_total).backward()
+                loss_gen_total = loss_gen_recons + vc_weight * loss_gen_vc
+                # assert not self.grad_scaler.is_enabled()
+                # print(
+                #     "[dgb] loss_gen",
+                #     loss_gen_recons.item(),
+                #     vc_weight,
+                #     loss_gen_vc.item(),
+                #     loss_mel.item(),
+                #     loss_mrfb_log_mag.item(),
+                #     loss_mrfb_conv.item(),
+                #     loss_kldiv.item(),
+                #     flush=True,
+                # )
+                self.grad_scaler.scale(loss_gen_total).backward()
 
         ###########################################
         # 4. Discriminator Forward VC             #
         ###########################################
         self.discrim_model.set_train_mode(self.discrim_train_mode)
-        with amp.autocast(
-            enabled=self.use_amp,
-            dtype=self.amp_dtype,
-            device_type=target_audios.device.type,
-        ):
-            y_real, _ = self.discrim_model(
-                target_audios,
-            )
-            y_gen, _ = self.discrim_model(vc_audios_sliced.detach())
+        with self._ddp_sync_context(self.discrim_model, will_step and train_discrim_vc):
+            with amp.autocast(
+                enabled=self.use_amp,
+                dtype=self.amp_dtype,
+                device_type=target_audios.device.type,
+            ):
+                y_real, _ = self.discrim_model(
+                    target_audios,
+                )
+                y_gen, _ = self.discrim_model(vc_audios_sliced.detach())
 
-        loss_discrim_vc, losses_discrim_vc_adv_gen, losses_discrim_vc_adv_real = (
-            self.discrim_adv_loss(y_gen, y_real)
-        )
-        loss_discrim_vc = loss_discrim_vc / self.grad_acc_steps
-        loss_discrim_vc_total = (
-            self.loss_discrim_vc_weight * vc_weight * loss_discrim_vc
-        )
-        if vc_weight * self.loss_discrim_vc_weight > 0.0:
-            self.grad_scaler.scale(loss_discrim_vc_total).backward()
+            loss_discrim_vc, losses_discrim_vc_adv_gen, losses_discrim_vc_adv_real = (
+                self.discrim_adv_loss(y_gen, y_real)
+            )
+            loss_discrim_vc = loss_discrim_vc / self.grad_acc_steps
+            if train_discrim_vc:
+                self.grad_scaler.scale(discrim_vc_weight * loss_discrim_vc).backward()
 
         batch_metrics = ODict()
         batch_metrics["loss_discrim/total_recons"] = (
