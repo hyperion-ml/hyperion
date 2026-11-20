@@ -53,6 +53,42 @@ torch29 = [
   "torchvision==0.24.1",
 ]
 
+torch210 = [
+  "torch==2.10.0",
+  "torchvision==0.25.0",
+  "torchaudio==2.10.0",
+]
+
+torch211 = [
+  "torch==2.11.0",
+  "torchvision==0.26.0",
+  "torchaudio==2.11.0",
+]
+
+torch212 = [
+  "torch==2.12.1",
+  "torchvision==0.27.1",
+  "torchaudio==2.11.0",
+]
+
+torch213 = [
+  "torch==2.13.0",
+  "torchvision==0.28.0",
+  "torchaudio==2.11.0",
+]
+
+torch214 = [
+  "torch==2.14.1",
+  "torchvision==0.29.1",
+  "torchaudio==2.11.0",
+]
+
+torch215 = [
+  "torch==2.15.0",
+  "torchvision==0.29.2",
+  "torchaudio==2.11.0",
+]
+
 gcc217 = [
   "h5py==3.11.0",              # manylinux_2_17 wheels
   "onnxruntime==1.16.3",       # last manylinux_2_17 wheel
