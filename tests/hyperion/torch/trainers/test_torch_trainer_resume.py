@@ -1,0 +1,178 @@
+"""
+Copyright 2026 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+"""
+
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+import torch
+from torch import nn
+from torch.utils.data import DataLoader, Dataset
+
+from hyperion.torch.data import BucketingSegSampler
+from hyperion.torch.hyper_torch_model import HyperTorchModel
+from hyperion.torch.trainers import torch_trainer_base
+from hyperion.torch.trainers.single_model_trainer import SingleModelTrainer
+from hyperion.utils import SegmentSet
+
+
+class _RegressionModel(HyperTorchModel):
+    def __init__(self) -> None:
+        super().__init__()
+        self.weight = nn.Parameter(torch.tensor(0.2))
+        self.seen: list[str] = []
+
+    def forward(
+        self, audio: torch.Tensor, id: list[str], target: torch.Tensor
+    ) -> torch.Tensor:
+        self.seen.extend(id)
+        return audio * self.weight
+
+
+class _NumberedDataset(Dataset):
+    def __len__(self) -> int:
+        return 9
+
+    def __getitem__(self, index: str | int) -> dict[str, str | torch.Tensor]:
+        audio = torch.tensor((int(index) + 1) / len(self))
+        return {"id": str(index), "audio": audio, "target": 2 * audio}
+
+
+def _make_loader() -> DataLoader:
+    dataset = _NumberedDataset()
+    segments = SegmentSet.from_dict(
+        {
+            "id": [str(i) for i in range(len(dataset))],
+            "duration": [float(i + 1) for i in range(len(dataset))],
+        }
+    )
+    sampler = BucketingSegSampler(
+        segments,
+        num_buckets=2,
+        min_batch_size=1,
+        max_batch_size=1,
+        sample_all_segments=True,
+    )
+    return DataLoader(dataset, batch_sampler=sampler)
+
+
+def _make_trainer(
+    exp_path: Path,
+    grad_acc_steps: int,
+    *,
+    max_steps: int | None = None,
+    save_steps: int | None = None,
+    save_hours: float | None = None,
+) -> SingleModelTrainer:
+    model = _RegressionModel()
+    return SingleModelTrainer(
+        model=model,
+        optim=torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9),
+        loss=nn.MSELoss(),
+        input_key="audio",
+        target_key="target",
+        exp_path=exp_path,
+        num_epochs=1,
+        max_steps=max_steps,
+        save_steps=save_steps,
+        save_hours=save_hours,
+        grad_acc_steps=grad_acc_steps,
+        device=torch.device("cpu"),
+        loggers=[],
+    )
+
+
+@pytest.mark.parametrize("grad_acc_steps", [1, 2])
+def test_two_resumes_match_an_uninterrupted_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, grad_acc_steps: int
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    expected = _make_trainer(Path("reference"), grad_acc_steps)
+    expected.fit(_make_loader())
+
+    exp_path = Path("resumable")
+    initial = _make_trainer(exp_path, grad_acc_steps, max_steps=2, save_steps=1)
+    initial.fit(_make_loader())
+    periodic = initial.load_model_checkpoint_from_file(epoch=0, step=1)
+    assert periodic["next_batch"] == grad_acc_steps
+    assert "batch" not in periodic
+    assert (initial.cur_epoch, initial.next_batch) == (0, 2 * grad_acc_steps)
+
+    resumed = _make_trainer(exp_path, grad_acc_steps, max_steps=3)
+    resumed.load_last_checkpoint()
+    resumed.fit(_make_loader())
+    assert (resumed.cur_epoch, resumed.next_batch) == (0, 3 * grad_acc_steps)
+
+    finished = _make_trainer(exp_path, grad_acc_steps)
+    finished.load_last_checkpoint()
+    finished.fit(_make_loader())
+
+    seen = initial.model.seen + resumed.model.seen + finished.model.seen
+    assert seen == expected.model.seen
+    assert len(seen) == len(set(seen)) == len(_NumberedDataset())
+    assert finished.cur_step == expected.cur_step == len(seen) // grad_acc_steps
+    torch.testing.assert_close(finished.model.state_dict(), expected.model.state_dict())
+
+    finished.load_checkpoint(epoch=1, step=finished.cur_step)
+    assert (finished.cur_epoch, finished.next_batch) == (1, 0)
+
+
+def test_limit_on_the_last_batch_resumes_at_loader_exhaustion(tmp_path: Path) -> None:
+    num_batches = len(_NumberedDataset())
+    trainer = _make_trainer(tmp_path, 1, max_steps=num_batches)
+    trainer.fit(_make_loader())
+
+    resumed = _make_trainer(tmp_path, 1, max_steps=num_batches)
+    resumed.load_checkpoint(epoch=0, step=num_batches)
+    resumed.fit(_make_loader())
+    assert (resumed.cur_epoch, resumed.next_batch) == (0, num_batches)
+    assert resumed.model.seen == []
+
+    resumed.max_steps += 1
+    resumed.fit(_make_loader())
+    assert resumed.model.seen == []
+    assert resumed.cur_step == num_batches
+    assert (resumed.cur_epoch, resumed.next_batch) == (1, 0)
+
+
+def test_timed_checkpoint_waits_for_an_optimizer_update(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    elapsed = 0.0
+    monkeypatch.setattr(
+        torch_trainer_base,
+        "time",
+        SimpleNamespace(monotonic=lambda: elapsed, time=lambda: 0.0),
+    )
+    trainer = _make_trainer(tmp_path, 2, save_hours=1.0)
+    training_step = trainer.training_step
+
+    def run_batch(
+        batch_idx: int, batch_data: dict[str, Any]
+    ) -> tuple[int, dict[str, Any]]:
+        nonlocal elapsed
+        elapsed = 3600.0
+        return training_step(batch_idx, batch_data)
+
+    monkeypatch.setattr(trainer, "training_step", run_batch)
+    trainer.fit(_make_loader())
+
+    assert sorted(path.name for path in tmp_path.glob("model_ep0000*.pth")) == [
+        "model_ep0000_step0000000001.pth"
+    ]
+    assert trainer.load_model_checkpoint_from_file(epoch=0, step=1)["next_batch"] == 2
+
+
+def test_mid_epoch_resume_requires_an_offset_aware_batch_sampler(
+    tmp_path: Path,
+) -> None:
+    trainer = _make_trainer(tmp_path, 1, max_steps=1)
+    trainer.fit(_make_loader())
+
+    resumed = _make_trainer(tmp_path, 1)
+    resumed.load_checkpoint(epoch=0, step=1)
+    with pytest.raises(ValueError, match="Mid-epoch resume requires a batch sampler"):
+        resumed.fit(DataLoader(_NumberedDataset(), batch_size=1))

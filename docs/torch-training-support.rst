@@ -85,6 +85,15 @@ time axis of a schedule; warmup is measured in optimizer steps. Store scheduler
 state in the same checkpoint as the optimizer and trainer, otherwise resuming
 can silently change the effective schedule.
 
+Trainers based on ``TorchTrainerBase`` save ``next_batch`` as the number of
+batches to skip from the start of the recorded epoch. Mid-epoch saves happen
+at optimizer-step boundaries and require a batch sampler that can resume at
+a given offset. A stop at ``max_steps`` keeps the epoch and batch position
+for a later run with a higher limit. Epoch-end validation and scheduler hooks
+run when training reaches the end of the loader. The epoch-end checkpoint
+records the next epoch with ``next_batch=0``. Trainer resume requires a
+checkpoint with the ``next_batch`` field.
+
 Available learning-rate families include exponential, inverse-power, Noam,
 cosine, triangular, Adam cosine, and reduce-on-plateau. Weight-decay scheduling
 currently provides cosine scheduling. Select them via the factories in

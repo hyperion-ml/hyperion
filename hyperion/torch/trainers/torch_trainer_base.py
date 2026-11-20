@@ -192,6 +192,7 @@ class TorchTrainerBase:
         exp_path (Path): Path to save training logs, checkpoints, and logs.
         num_epochs (int): Total number of training epochs.
         cur_epoch (int): Current training epoch.
+        next_batch (int): Number of batches to skip from the start of the current epoch on resume.
         max_steps (int, optional): Maximum number of training steps (overrides num_epochs if set).
         cur_step (int): Current training step (incremented each optimizer update).
         grad_acc_steps (int): Number of batches to accumulate gradients over before optimizer step.
@@ -313,7 +314,7 @@ class TorchTrainerBase:
         self.cur_epoch = cur_epoch
         self.max_steps = max_steps
         self.cur_step = cur_step
-        self.cur_batch = 0
+        self.next_batch = 0
         self.grad_acc_steps = grad_acc_steps
         self.eff_batch_size = eff_batch_size
         self.save_steps = save_steps
@@ -646,7 +647,7 @@ class TorchTrainerBase:
         Args:
             data_loader (DataLoader): The data loader to modify.
             cur_epoch (int): The current epoch index.
-            cur_batch (int): Current batch index (for samplers that support batch-wise resumption).
+            cur_batch (int): Number of batches to skip from the start of the epoch.
         """
         try:
             data_loader.dataset.set_epoch(cur_epoch)
@@ -654,9 +655,15 @@ class TorchTrainerBase:
             logging.warning("dataset doesn't have set_epoch member function")
 
         try:
-            data_loader.batch_sampler.set_epoch(cur_epoch, cur_batch)
-        except AttributeError:
+            set_sampler_epoch = data_loader.batch_sampler.set_epoch
+        except AttributeError as error:
+            if cur_batch:
+                raise ValueError(
+                    "Mid-epoch resume requires a batch sampler with set_epoch(epoch, batch)."
+                ) from error
             logging.warning("sampler doesn't have set_epoch member function")
+        else:
+            set_sampler_epoch(cur_epoch, cur_batch)
 
     def on_train_begin(self) -> None:
         """
@@ -915,7 +922,7 @@ class TorchTrainerBase:
     #     model.train()
     #     checkpoint = {
     #         "epoch": self.cur_epoch,
-    #         "batch": self.cur_batch,
+    #         "next_batch": self.next_batch,
     #         "global_step": self.global_step,
     #         "rng_state": torch.get_rng_state(),
     #         "model_cfg": model.get_config(),
@@ -1111,31 +1118,34 @@ class TorchTrainerBase:
         """
         self.train_data = train_data
         self.val_data = val_data
-        self.last_save_time = time.time()
+        self.last_save_time = time.monotonic()
         self.last_val_time = time.time()
         self.last_save_step = self.cur_step
         self.last_val_step = self.cur_step
         self.on_train_begin()
         final_logs: Dict[str, Any] = {}
         val_logs = {}
-        for epoch in range(self.cur_epoch, self.num_epochs):
-            self.set_data_epoch(train_data, self.cur_epoch, self.cur_batch)
+        while self.cur_epoch < self.num_epochs and not self.finish_now():
+            self.set_data_epoch(train_data, self.cur_epoch, self.next_batch)
             self.on_epoch_begin()
             logs = self.training_loop()
-            self.cur_batch = 0
+            final_logs = logs
+            if self.finish_now():
+                # A step limit can stop the loop before the sampler is exhausted.
+                self.save_checkpoint(logs)
+                break
+
             if val_data is not None:
                 self.set_data_epoch(val_data, self.cur_epoch)
                 val_logs = self.validation_loop()
                 logs.update(val_logs)
 
             self.cur_epoch += 1
+            self.next_batch = 0
             self.on_epoch_end(logs)
             self.save_checkpoint(logs)
-            final_logs = logs
-            if self.finish_now():
-                break
 
-        if self.in_swa:
+        if self.in_swa and not self.finish_now():
             self.on_swa_epoch_begin()
             if self.models_have_bn():
                 logs = self.bn_update_loop()
@@ -1168,7 +1178,7 @@ class TorchTrainerBase:
             self.loggers.on_batch_begin(batch_idx)
 
             batch_size, batch_metrics = self.training_step(batch_idx, batch_data)
-            self.model_update_step(batch_idx)
+            updated = self.model_update_step(batch_idx)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
@@ -1180,7 +1190,7 @@ class TorchTrainerBase:
             if self.finish_now():
                 break
 
-            if self.save_now():
+            if updated and self.save_now():
                 self.save_checkpoint()
 
             if self.validate_now():
@@ -1297,25 +1307,28 @@ class TorchTrainerBase:
 
         return batch_size, batch_metrics
 
-    def model_update_step(self, batch_idx: int) -> None:
+    def model_update_step(self, batch_idx: int) -> bool:
         """
         Applies optimizer/scheduler updates when gradient accumulation is satisfied.
 
         Args:
-            batch_idx: Zero-based index of the current batch inside the epoch.
+            batch_idx: Zero-based index of the current batch in this training loop.
 
         Returns:
-            None
+            Whether the batch completed an optimizer update window.
         """
-        if self._should_update_models(batch_idx):
-            self.cur_batch = batch_idx
-            self.cur_step += 1
-            grad_norms = self.update_models()
-            self.update_swa_model()
-            self.grad_tracker.update(grad_norms)
-            grad_logs = self.grad_tracker.grad_spikes
-            self.zero_grad_optimizers()
-            self.loggers.on_model_update(self.cur_step, logs=grad_logs)
+        if not self._should_update_models(batch_idx):
+            return False
+
+        self.cur_step += 1
+        grad_norms = self.update_models()
+        self.next_batch += self.grad_acc_steps
+        self.update_swa_model()
+        self.grad_tracker.update(grad_norms)
+        grad_logs = self.grad_tracker.grad_spikes
+        self.zero_grad_optimizers()
+        self.loggers.on_model_update(self.cur_step, logs=grad_logs)
+        return True
 
     @torch.no_grad()
     def validation_loop(self) -> Dict[str, Any]:
@@ -1761,7 +1774,7 @@ class TorchTrainerBase:
 
         checkpoint = {
             "epoch": self.cur_epoch,
-            "batch": self.cur_batch,
+            "next_batch": self.next_batch,
             "step": self.cur_step,
             "rng_state": torch.get_rng_state(),
             "model_cfg": model.get_config(),
@@ -1792,9 +1805,8 @@ class TorchTrainerBase:
             bool: True if saving conditions are met, False otherwise.
         """
         if self.save_hours is not None:
-            t = time.time() / 3600
-            dt = t - self.last_save_time
-            if dt > self.save_hours:
+            t = time.monotonic()
+            if t - self.last_save_time >= self.save_hours * 3600:
                 self.last_save_time = t
                 self.last_save_step = self.cur_step
                 return True
@@ -1802,7 +1814,7 @@ class TorchTrainerBase:
         if self.save_steps is not None:
             dstep = self.cur_step - self.last_save_step
             if self.cur_step > 0 and dstep >= self.save_steps:
-                self.last_save_time = time.time() / 3600
+                self.last_save_time = time.monotonic()
                 self.last_save_step = self.cur_step
                 return True
 
@@ -1893,7 +1905,7 @@ class TorchTrainerBase:
         self, checkpoint: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """
-        Loads trainer state variables (epoch, step, RNG) from a checkpoint.
+        Loads trainer state variables (epoch, batch position, step, RNG) from a checkpoint.
 
         Args:
             checkpoint (Dict[str, Any]): Loaded checkpoint dictionary.
@@ -1910,11 +1922,7 @@ class TorchTrainerBase:
             del dummy
 
         self.cur_epoch = checkpoint["epoch"]
-        if "batch" in checkpoint:
-            self.cur_batch = checkpoint["batch"]
-        else:
-            self.cur_batch = 0
-
+        self.next_batch = checkpoint["next_batch"]
         self.cur_step = checkpoint["step"]
 
         logs = None
