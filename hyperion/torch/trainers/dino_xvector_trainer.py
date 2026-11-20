@@ -277,81 +277,83 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
 
             teacher_keys = self.get_augs_keys(data, self.input_key, "teacher")
             student_keys = self.get_augs_keys(data, self.input_key, "student")
-            with amp.autocast(
-                enabled=self.use_amp,
-                dtype=self.amp_dtype,
-                device_type=self.device.type,
-            ):
-                with torch.no_grad():
-                    teacher_data = tensors_subset(data, teacher_keys, self.device)
-                    batch_size = teacher_data[0].size(0)
-                    num_teacher_crops = len(teacher_data)
-                    teacher_data = torch.cat(teacher_data, dim=0)
-                    teacher_out = self.teacher_model(teacher_data)
-                    if torch.any(torch.isnan(teacher_out.logits)):
-                        logging.warning(f"teacher logits are nan")
-                    # assert not torch.any(
-                    #     torch.isnan(teacher_out.logits)
-                    # ), "teacher is nan"
-                    # assert not torch.any(
-                    #     torch.isinf(teacher_out.logits)
-                    # ), "teacher is inf"
+            will_step = (batch + 1) % self.grad_acc_steps == 0
+            with self._ddp_sync_context(will_step):
+                with amp.autocast(
+                    enabled=self.use_amp,
+                    dtype=self.amp_dtype,
+                    device_type=self.device.type,
+                ):
+                    with torch.no_grad():
+                        teacher_data = tensors_subset(data, teacher_keys, self.device)
+                        batch_size = teacher_data[0].size(0)
+                        num_teacher_crops = len(teacher_data)
+                        teacher_data = torch.cat(teacher_data, dim=0)
+                        teacher_out = self.teacher_model(teacher_data)
+                        if torch.any(torch.isnan(teacher_out.logits)):
+                            logging.warning(f"teacher logits are nan")
+                        # assert not torch.any(
+                        #     torch.isnan(teacher_out.logits)
+                        # ), "teacher is nan"
+                        # assert not torch.any(
+                        #     torch.isinf(teacher_out.logits)
+                        # ), "teacher is inf"
 
-                if num_teacher_crops > 1:
-                    student_out1 = self.model(teacher_data)
-                    if torch.any(torch.isnan(student_out1.logits)):
-                        logging.warning(f"student-1 logits are nan")
-                    # assert not torch.any(torch.isnan(student_out1.logits)), "s1 is nan"
-                    # assert not torch.any(torch.isinf(student_out1.logits)), "s1 is inf"
+                    if num_teacher_crops > 1:
+                        student_out1 = self.model(teacher_data)
+                        if torch.any(torch.isnan(student_out1.logits)):
+                            logging.warning(f"student-1 logits are nan")
+                        # assert not torch.any(torch.isnan(student_out1.logits)), "s1 is nan"
+                        # assert not torch.any(torch.isinf(student_out1.logits)), "s1 is inf"
 
-                student_data = tensors_subset(data, student_keys, self.device)
-                num_student_crops = len(student_data)
-                student_data = torch.cat(student_data, dim=0)
-                student_out2 = self.model(student_data)
-                if torch.any(torch.isnan(student_out2.logits)):
-                    logging.warning(f"student-2 logits are nan")
-                # assert not torch.any(torch.isnan(student_out2.logits)), "s2 is nan"
-                # assert not torch.any(torch.isinf(student_out2.logits)), "s2 is inf"
-                if num_teacher_crops > 1:
-                    student_out_logits = torch.cat(
-                        (student_out1.logits, student_out2.logits), dim=0
-                    )
-                    if self.cosine_loss is not None:
-                        student_out_embeds = torch.cat(
-                            (student_out1.xvector, student_out2.xvector), dim=0
+                    student_data = tensors_subset(data, student_keys, self.device)
+                    num_student_crops = len(student_data)
+                    student_data = torch.cat(student_data, dim=0)
+                    student_out2 = self.model(student_data)
+                    if torch.any(torch.isnan(student_out2.logits)):
+                        logging.warning(f"student-2 logits are nan")
+                    # assert not torch.any(torch.isnan(student_out2.logits)), "s2 is nan"
+                    # assert not torch.any(torch.isinf(student_out2.logits)), "s2 is inf"
+                    if num_teacher_crops > 1:
+                        student_out_logits = torch.cat(
+                            (student_out1.logits, student_out2.logits), dim=0
                         )
-                    num_student_crops += num_teacher_crops
-                else:
-                    student_out_logits = student_out2.logits
-                    student_out_embeds = student_out2.xvector
+                        if self.cosine_loss is not None:
+                            student_out_embeds = torch.cat(
+                                (student_out1.xvector, student_out2.xvector), dim=0
+                            )
+                        num_student_crops += num_teacher_crops
+                    else:
+                        student_out_logits = student_out2.logits
+                        student_out_embeds = student_out2.xvector
 
-                loss_dino = self.loss(
-                    student_out_logits,
-                    teacher_out.logits.detach(),
-                    num_student_crops,
-                    num_teacher_crops,
-                )
-                loss = loss_dino
-                if self.cosine_loss is not None:
-                    scaled_loss_cosine, loss_cosine = self.cosine_loss(
-                        student_out_embeds,
-                        teacher_out.xvector.detach(),
+                    loss_dino = self.loss(
+                        student_out_logits,
+                        teacher_out.logits.detach(),
                         num_student_crops,
                         num_teacher_crops,
                     )
-                    loss = loss_dino + scaled_loss_cosine
+                    loss = loss_dino
+                    if self.cosine_loss is not None:
+                        scaled_loss_cosine, loss_cosine = self.cosine_loss(
+                            student_out_embeds,
+                            teacher_out.xvector.detach(),
+                            num_student_crops,
+                            num_teacher_crops,
+                        )
+                        loss = loss_dino + scaled_loss_cosine
 
-                loss = loss / self.grad_acc_steps
-                # assert not torch.isnan(
-                #     loss
-                # ), f"loss is nan {batch} {torch.mean(teacher_out)} {torch.mean(student_out1)} {torch.mean(student_out2)}"
+                    loss = loss / self.grad_acc_steps
+                    # assert not torch.isnan(
+                    #     loss
+                    # ), f"loss is nan {batch} {torch.mean(teacher_out)} {torch.mean(student_out1)} {torch.mean(student_out2)}"
 
-            if self.use_amp:
-                self.grad_scaler.scale(loss).backward()
-            else:
-                loss.backward()
+                if self.use_amp:
+                    self.grad_scaler.scale(loss).backward()
+                else:
+                    loss.backward()
 
-            if (batch + 1) % self.grad_acc_steps == 0:
+            if will_step:
                 self.cur_batch = batch + 1
                 if self.freeze_output_layer_steps > self.global_step:
                     self.model.cancel_output_layer_grads()

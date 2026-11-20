@@ -145,19 +145,21 @@ class VQDVAETrainer(DVAETrainer):
 
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
-            with amp.autocast(
-                enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
-            ):
-                output = self.model(input_data, x_target=target, return_x_mean=True)
-                loss = output["loss"] / self.grad_acc_steps
-                x_hat = output["x_mean"]
+            will_step = (batch + 1) % self.grad_acc_steps == 0
+            with self._ddp_sync_context(will_step):
+                with amp.autocast(
+                    enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+                ):
+                    output = self.model(input_data, x_target=target, return_x_mean=True)
+                    loss = output["loss"] / self.grad_acc_steps
+                    x_hat = output["x_mean"]
 
-            if self.use_amp:
-                self.grad_scaler.scale(loss).backward()
-            else:
-                loss.backward()
+                if self.use_amp:
+                    self.grad_scaler.scale(loss).backward()
+                else:
+                    loss.backward()
 
-            if (batch + 1) % self.grad_acc_steps == 0:
+            if will_step:
                 self.cur_batch = batch + 1
                 self.update_model()
                 self.save_checkpoint(partial=True)

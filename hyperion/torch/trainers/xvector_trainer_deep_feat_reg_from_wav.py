@@ -174,75 +174,82 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
             with torch.no_grad():
-                feats = self.feat_extractor(input_data)
-
-            with amp.autocast(
-                enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
-            ):
-                outputs = self.model(
-                    feats,
-                    y=target,
-                    return_enc_layers=self.reg_layers_enc,
-                    return_classif_layers=self.reg_layers_classif,
-                    return_output=True,
-                )
-                h_enc, h_classif, output = (
-                    outputs["h_enc"],
-                    outputs["h_classif"],
-                    outputs["logits"],
+                features = self.feat_extractor(input_data)
+                feats, feats_lengths = (
+                    features if isinstance(features, tuple) else (features, None)
                 )
 
-                loss = self.loss(
-                    output, target
-                )  # you need to take the mean here because of the multi-gpu training
-                batch_metrics["loss-classif"] = loss.item()
+            will_step = (batch + 1) % self.grad_acc_steps == 0
+            with self._ddp_sync_context(will_step):
+                with amp.autocast(
+                    enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+                ):
+                    outputs = self.model(
+                        feats,
+                        x_lengths=feats_lengths,
+                        y=target,
+                        return_enc_layers=self.reg_layers_enc or [],
+                        return_classif_layers=self.reg_layers_classif,
+                        return_logits=True,
+                    )
+                    h_enc, h_classif, output = (
+                        outputs["h_enc"],
+                        outputs["h_classif"],
+                        outputs["logits"],
+                    )
 
-                prior_outputs = self.prior_model(
-                    feats,
-                    return_enc_layers=self.reg_layers_enc,
-                    return_classif_layers=self.reg_layers_classif,
-                    return_output=False,
-                )
-                prior_h_enc, prior_h_classif = (
-                    prior_outputs["h_enc"],
-                    prior_outputs["h_classif"],
-                )
+                    loss = self.loss(
+                        output, target
+                    )  # you need to take the mean here because of the multi-gpu training
+                    batch_metrics["loss-classif"] = loss.item()
 
-                n_enc = len(h_enc)
-                if n_enc > 0:
-                    loss_scale = self.reg_weight_enc / n_enc
-                for i in range(n_enc):
-                    l = self.reg_layers_enc[i]
-                    loss_i = self.reg_loss(h_enc[i], prior_h_enc[i]).mean()
-                    loss_name = "reg-h-enc-%d" % l
-                    batch_metrics[loss_name] = loss_i.item()
-                    loss += loss_scale * loss_i
+                    prior_outputs = self.prior_model(
+                        feats,
+                        x_lengths=feats_lengths,
+                        return_enc_layers=self.reg_layers_enc or [],
+                        return_classif_layers=self.reg_layers_classif,
+                        return_logits=False,
+                    )
+                    prior_h_enc, prior_h_classif = (
+                        prior_outputs["h_enc"],
+                        prior_outputs["h_classif"],
+                    )
 
-                n_classif = len(h_classif)
-                if n_classif > 0:
-                    loss_scale = self.reg_weight_classif / n_classif
-                for i in range(n_classif):
-                    l = self.reg_layers_classif[i]
-                    loss_i = self.reg_loss(h_classif[i], prior_h_classif[i]).mean()
-                    loss_name = "reg-h-classif-%d" % l
-                    batch_metrics[loss_name] = loss_i.item()
-                    loss += loss_scale * loss_i
+                    n_enc = len(h_enc)
+                    if n_enc > 0:
+                        loss_scale = self.reg_weight_enc / n_enc
+                    for i in range(n_enc):
+                        l = self.reg_layers_enc[i]
+                        loss_i = self.reg_loss(h_enc[i], prior_h_enc[i]).mean()
+                        loss_name = "reg-h-enc-%d" % l
+                        batch_metrics[loss_name] = loss_i.item()
+                        loss += loss_scale * loss_i
 
-                batch_metrics["loss"] = loss.item()
-                loss = loss / self.grad_acc_steps
+                    n_classif = len(h_classif) if h_classif is not None else 0
+                    if n_classif > 0:
+                        loss_scale = self.reg_weight_classif / n_classif
+                    for i in range(n_classif):
+                        l = self.reg_layers_classif[i]
+                        loss_i = self.reg_loss(h_classif[i], prior_h_classif[i]).mean()
+                        loss_name = "reg-h-classif-%d" % l
+                        batch_metrics[loss_name] = loss_i.item()
+                        loss += loss_scale * loss_i
 
-            if self.use_amp:
-                self.grad_scaler.scale(loss).backward()
-            else:
-                loss.backward()
+                    batch_metrics["loss"] = loss.item()
+                    loss = loss / self.grad_acc_steps
 
-            if (batch + 1) % self.grad_acc_steps == 0:
+                if self.use_amp:
+                    self.grad_scaler.scale(loss).backward()
+                else:
+                    loss.backward()
+
+            if will_step:
                 self.cur_batch = batch + 1
                 self.update_model()
                 self.save_checkpoint(partial=True)
 
             for k, metric in self.metrics.items():
-                batch_metrics[k] = metric(output.logits, target)
+                batch_metrics[k] = metric(output, target)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
@@ -282,11 +289,14 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
                 input_data, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = input_data.size(0)
 
-                feats = self.feat_extractor(input_data)
+                features = self.feat_extractor(input_data)
+                feats, feats_lengths = (
+                    features if isinstance(features, tuple) else (features, None)
+                )
                 with amp.autocast(
                     enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
                 ):
-                    output = self.model(feats)
+                    output = self.model(feats, x_lengths=feats_lengths)
                     loss = self.loss(output.logits, target)
 
                 batch_metrics["loss"] = loss.item()

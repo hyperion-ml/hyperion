@@ -463,6 +463,21 @@ class LegacyTorchTrainer:
             self.model.parameter_summary(verbose=True)
             self.model.print_parameter_list()
 
+    def _ddp_sync_context(
+        self, sync_gradients: bool
+    ) -> contextlib.AbstractContextManager:
+        """Select a context covering the model forward and backward passes.
+
+        Args:
+          sync_gradients: Whether this backward should reduce accumulated gradients.
+
+        Returns:
+          A context that postpones DDP gradient reduction on intermediate passes.
+        """
+        if self.ddp and not sync_gradients:
+            return self.model.no_sync()
+        return contextlib.nullcontext()
+
     def train_epoch(self, data_loader: Any) -> Dict[str, Any]:
         """Training epoch loop
 
@@ -484,16 +499,18 @@ class LegacyTorchTrainer:
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
 
-            with amp.autocast(enabled=self.use_amp, device_type="cuda"):
-                output = self.model(input_data)
-                loss = self.loss(output, target) / self.grad_acc_steps
+            will_step = (batch + 1) % self.grad_acc_steps == 0
+            with self._ddp_sync_context(will_step):
+                with amp.autocast(enabled=self.use_amp, device_type="cuda"):
+                    output = self.model(input_data)
+                    loss = self.loss(output, target) / self.grad_acc_steps
 
-            if self.use_amp:
-                self.grad_scaler.scale(loss).backward()
-            else:
-                loss.backward()
+                if self.use_amp:
+                    self.grad_scaler.scale(loss).backward()
+                else:
+                    loss.backward()
 
-            if (batch + 1) % self.grad_acc_steps == 0:
+            if will_step:
                 self.cur_batch = batch + 1
                 self.update_model()
                 self.loggers.on_model_update(self.global_step)

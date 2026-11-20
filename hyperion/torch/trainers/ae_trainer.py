@@ -150,16 +150,18 @@ class AETrainer(LegacyTorchTrainer):
 
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
-            with amp.autocast(enabled=self.use_amp, device_type=self.device.type):
-                output = self.model(input_data)
-                loss = self.loss(output, target).mean() / self.grad_acc_steps
+            will_step = (batch + 1) % self.grad_acc_steps == 0
+            with self._ddp_sync_context(will_step):
+                with amp.autocast(enabled=self.use_amp, device_type=self.device.type):
+                    output = self.model(input_data)
+                    loss = self.loss(output, target).mean() / self.grad_acc_steps
 
-            if self.use_amp:
-                self.grad_scaler.scale(loss).backward()
-            else:
-                loss.backward()
+                if self.use_amp:
+                    self.grad_scaler.scale(loss).backward()
+                else:
+                    loss.backward()
 
-            if (batch + 1) % self.grad_acc_steps == 0:
+            if will_step:
                 self.cur_batch = batch + 1
                 self.update_model()
                 self.save_checkpoint(partial=True)

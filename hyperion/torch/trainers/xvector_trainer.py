@@ -6,7 +6,6 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 import os
 from collections import OrderedDict as ODict
-from contextlib import nullcontext
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -155,6 +154,7 @@ class XVectorTrainer(LegacyTorchTrainer):
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
+            will_step = (batch + 1) % self.grad_acc_steps == 0
             input_keys = self.get_augs_keys(data, self.input_key)
             loss_scale = self.grad_acc_steps * len(input_keys)
             loss_acc = None
@@ -162,15 +162,8 @@ class XVectorTrainer(LegacyTorchTrainer):
                 batch_keys = [aug_key, f"{aug_key}_lengths", self.target_key]
                 x, x_lengths, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = x.size(0)
-                sync_now = (batch + 1) % self.grad_acc_steps == 0 and aug_idx == len(
-                    input_keys
-                ) - 1
-                sync_context = (
-                    self.model.no_sync()
-                    if self.ddp and not sync_now
-                    else nullcontext()
-                )
-                with sync_context:
+                sync_now = will_step and aug_idx == len(input_keys) - 1
+                with self._ddp_sync_context(sync_now):
                     with amp.autocast(
                         enabled=self.use_amp,
                         dtype=self.amp_dtype,
@@ -191,7 +184,7 @@ class XVectorTrainer(LegacyTorchTrainer):
                     else:
                         loss.backward()
 
-            if (batch + 1) % self.grad_acc_steps == 0:
+            if will_step:
                 self.cur_batch = batch + 1
                 self.update_model()
                 self.save_checkpoint(partial=True)
