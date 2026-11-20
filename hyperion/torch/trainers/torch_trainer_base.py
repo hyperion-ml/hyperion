@@ -3,7 +3,6 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import glob
 import logging
 import math
 import re
@@ -1872,6 +1871,9 @@ class TorchTrainerBase:
         """
         return self.max_steps is not None and self.cur_step >= self.max_steps
 
+    def _model_checkpoint_path(self, model_name: str, epoch: int, step: int) -> Path:
+        return self.exp_path / f"{model_name}_ep{epoch:04d}_step{step:010d}.pth"
+
     def save_model_checkpoint_to_file(
         self,
         model_name: str,
@@ -1884,11 +1886,8 @@ class TorchTrainerBase:
             model_name (str): Identifier for the model (used in filename).
             checkpoint (Dict[str, Any]): Checkpoint dictionary to save.
         """
-        file_path = "%s/%s_ep%04d_step%010d.pth" % (
-            self.exp_path,
-            model_name,
-            self.cur_epoch,
-            self.cur_step,
+        file_path = self._model_checkpoint_path(
+            model_name, self.cur_epoch, self.cur_step
         )
 
         logging.info("saving %s to %s", model_name, file_path)
@@ -2038,19 +2037,29 @@ class TorchTrainerBase:
             model_name (str): Name prefix used in checkpoint filenames.
 
         Returns:
-            Tuple[str, int, int]: Path to the checkpoint file, last epoch, and last step.
+            Path to the checkpoint file, epoch, and step. Returns (None, 0, 0)
+            if no matching checkpoint exists.
         """
-        file_path = None
-        last_epoch = 0
-        last_step = 0
-        file_pattern = "%s/%s_ep[0-9]*_step[0-9]*.pth" % (self.exp_path, model_name)
-        file_paths = sorted(glob.glob(file_pattern))
-        if len(file_paths) > 0:
-            file_path = file_paths[-1]
-            last_epoch = int(re.search(r"ep[0-9]*", file_path).group()[2:])
-            last_step = int(re.search(r"step[0-9]*", file_paths[-1]).group()[4:])
+        try:
+            entries = list(self.exp_path.iterdir())
+        except (FileNotFoundError, NotADirectoryError):
+            return None, 0, 0
 
-        return file_path, last_epoch, last_step
+        pattern = re.compile(rf"{re.escape(model_name)}_ep([0-9]+)_step([0-9]+)\.pth")
+        latest_path = None
+        latest_position = (0, 0)
+        for path in entries:
+            match = pattern.fullmatch(path.name)
+            if match is None or not path.is_file():
+                continue
+            epoch, step = int(match[1]), int(match[2])
+            if path != self._model_checkpoint_path(model_name, epoch, step):
+                continue
+            if latest_path is None or (epoch, step) > latest_position:
+                latest_path = str(path)
+                latest_position = (epoch, step)
+
+        return latest_path, *latest_position
 
     def load_last_checkpoint(self) -> Optional[Dict[str, Any]]:
         """
@@ -2059,8 +2068,8 @@ class TorchTrainerBase:
         Returns:
             Optional[Dict[str, Any]]: Logs from the last checkpoint if found, otherwise None.
         """
-        _, last_epoch, last_step = self.find_last_checkpoint(self.ckpt_search_name)
-        if last_epoch > 0 or last_step > 0:
+        path, last_epoch, last_step = self.find_last_checkpoint(self.ckpt_search_name)
+        if path is not None:
             return self.load_checkpoint(last_epoch, last_step)
 
         return None
@@ -2079,12 +2088,7 @@ class TorchTrainerBase:
         Returns:
             Dict[str, Any]: Loaded checkpoint.
         """
-        file_path = "%s/%s_ep%04d_step%010d.pth" % (
-            self.exp_path,
-            model_name,
-            epoch,
-            step,
-        )
+        file_path = self._model_checkpoint_path(model_name, epoch, step)
         logging.info("loading %s from %s", model_name, file_path)
         return torch.load(
             file_path, mmap=True, map_location=torch.device("cpu"), weights_only=False

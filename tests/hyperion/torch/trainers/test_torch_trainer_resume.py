@@ -92,13 +92,12 @@ def _make_trainer(
 
 @pytest.mark.parametrize("grad_acc_steps", [1, 2])
 def test_two_resumes_match_an_uninterrupted_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, grad_acc_steps: int
+    tmp_path: Path, grad_acc_steps: int
 ) -> None:
-    monkeypatch.chdir(tmp_path)
-    expected = _make_trainer(Path("reference"), grad_acc_steps)
+    expected = _make_trainer(tmp_path / "reference", grad_acc_steps)
     expected.fit(_make_loader())
 
-    exp_path = Path("resumable")
+    exp_path = tmp_path / "sweep" / "step900" / "[trial]"
     initial = _make_trainer(exp_path, grad_acc_steps, max_steps=2, save_steps=1)
     initial.fit(_make_loader())
     periodic = initial.load_model_checkpoint_from_file(epoch=0, step=1)
@@ -123,6 +122,63 @@ def test_two_resumes_match_an_uninterrupted_run(
 
     finished.load_checkpoint(epoch=1, step=finished.cur_step)
     assert (finished.cur_epoch, finished.next_batch) == (1, 0)
+
+
+@pytest.mark.parametrize(
+    "positions",
+    [((9999, 2500), (10000, 3)), ((7, 9_999_999_999), (7, 10_000_000_000))],
+)
+def test_checkpoint_discovery_compares_epoch_and_step_numerically(
+    tmp_path: Path, positions: tuple[tuple[int, int], tuple[int, int]]
+) -> None:
+    exp_path = tmp_path / "ep500" / "step900"
+    exp_path.mkdir(parents=True)
+    trainer = _make_trainer(exp_path, 1)
+    for epoch, step in positions:
+        (exp_path / f"model_ep{epoch:04d}_step{step:010d}.pth").touch()
+
+    epoch, step = positions[-1]
+    expected = exp_path / f"model_ep{epoch:04d}_step{step:010d}.pth"
+    assert trainer.find_last_checkpoint() == (str(expected), epoch, step)
+
+
+@pytest.mark.parametrize("model_name", ["dac_model", "vc_model", "codec+.[1]"])
+def test_checkpoint_discovery_matches_only_the_requested_prefix(
+    tmp_path: Path, model_name: str
+) -> None:
+    trainer = _make_trainer(tmp_path, 1)
+    checkpoint = tmp_path / f"{model_name}_ep0003_step0000000042.pth"
+    checkpoint.touch()
+    (tmp_path / "model_ep9999_step9999999999.pth").touch()
+    (tmp_path / "discrim_model_ep9999_step9999999999.pth").touch()
+    (tmp_path / f"swa_{model_name}_ep9999_step9999999999.pth").touch()
+    (tmp_path / f"{model_name}_ep9999_step0000000bad.pth").touch()
+    (tmp_path / f"{model_name}_ep09999_step9999999999.pth").touch()
+    (tmp_path / f"{model_name}_ep9999_step9999999999.pth").mkdir()
+
+    assert trainer.find_last_checkpoint(model_name) == (str(checkpoint), 3, 42)
+
+
+def test_checkpoint_discovery_handles_missing_directory_and_no_match(
+    tmp_path: Path,
+) -> None:
+    trainer = _make_trainer(tmp_path / "new-run", 1)
+    assert trainer.find_last_checkpoint() == (None, 0, 0)
+    assert trainer.load_last_checkpoint() is None
+
+    trainer.exp_path.mkdir()
+    (trainer.exp_path / "model_ep1_step2.pth").touch()
+    assert trainer.find_last_checkpoint() == (None, 0, 0)
+    assert trainer.load_last_checkpoint() is None
+
+
+def test_load_last_checkpoint_can_load_epoch_and_step_zero(tmp_path: Path) -> None:
+    trainer = _make_trainer(tmp_path, 1)
+    logs = {"train_loss": 1.0}
+    trainer.save_checkpoint(logs)
+
+    resumed = _make_trainer(tmp_path, 1)
+    assert resumed.load_last_checkpoint() == logs
 
 
 def test_limit_on_the_last_batch_resumes_at_loader_exhaustion(tmp_path: Path) -> None:
