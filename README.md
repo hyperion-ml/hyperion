@@ -56,6 +56,12 @@ git clone https://github.com/hyperion-ml/hyperion.git
 - Then install hyperion in the environment, these are some valid commands depending pytorch and cuda versions:
 ```bash
 cd hyperion
+pip install --extra-index-url https://download.pytorch.org/whl/cu134 -e .[torch215]
+pip install --extra-index-url https://download.pytorch.org/whl/cu132 -e .[torch214]
+pip install --extra-index-url https://download.pytorch.org/whl/cu132 -e .[torch213]
+pip install --extra-index-url https://download.pytorch.org/whl/cu132 -e .[torch212]
+pip install --extra-index-url https://download.pytorch.org/whl/cu130 -e .[torch211]
+pip install --extra-index-url https://download.pytorch.org/whl/cu130 -e .[torch210]
 pip install --extra-index-url https://download.pytorch.org/whl/cu130 -e .[torch29]
 pip install --extra-index-url https://download.pytorch.org/whl/cu128 -e .[torch29]
 pip install --extra-index-url https://download.pytorch.org/whl/cu126 -e .[torch29]
