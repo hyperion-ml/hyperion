@@ -51,6 +51,23 @@ Use ``LoggerList`` to fan the events out to CSV, progress, TensorBoard, or
 Weights & Biases loggers. In distributed training, ensure a logger's output
 location and rank behavior are intentional before enabling it.
 
+Gradient accumulation
+---------------------
+
+Trainers based on ``TorchTrainerBase`` intentionally take optimizer steps only
+after a full ``grad_acc_steps`` window. A partial window at the end of an epoch
+can still contribute to training metrics. Its gradients are discarded before
+the next epoch. For example, five microbatches with ``grad_acc_steps=2`` yield
+two optimizer steps. An epoch with fewer microbatches than ``grad_acc_steps``
+yields zero optimizer steps.
+
+cuDNN convolution benchmarking
+------------------------------
+
+Trainers based on ``TorchTrainerBase`` accept ``cudnn_benchmark=True`` or the
+CLI flag ``--trainer.cudnn-benchmark``. The option defaults to false. Enable
+it to have cuDNN benchmark convolution algorithms during training.
+
 Schedulers and checkpoints
 --------------------------
 

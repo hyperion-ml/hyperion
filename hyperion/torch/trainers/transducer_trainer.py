@@ -83,6 +83,7 @@ class TransducerTrainer(SingleModelTrainer):
         compile_dynamic: bool = False,
         input_key: str = "x",
         target_key: str = "text",
+        cudnn_benchmark: bool = False,
     ) -> None:
         """Initializes the transducer trainer.
 
@@ -135,6 +136,7 @@ class TransducerTrainer(SingleModelTrainer):
 
         Returns:
             None.
+            cudnn_benchmark: Enable cuDNN convolution algorithm benchmarking.
         """
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)

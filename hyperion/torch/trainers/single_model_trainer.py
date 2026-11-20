@@ -117,6 +117,7 @@ class SingleModelTrainer(TorchTrainerBase):
         compile_dynamic: bool = False,
         input_key: str = "x",
         target_key: str = "class_id",
+        cudnn_benchmark: bool = False,
     ) -> None:
         """
         Initializes the single-model trainer and prepares the model for training.
@@ -171,6 +172,7 @@ class SingleModelTrainer(TorchTrainerBase):
 
         Returns:
             None
+            cudnn_benchmark: Enable cuDNN convolution algorithm benchmarking.
         """
 
         super_args = filter_func_args(super().__init__, locals())

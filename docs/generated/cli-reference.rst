@@ -12075,6 +12075,7 @@ hyperion-finetune-dac dac
                                         [--trainer.use-amp]
                                         [--trainer.amp-dtype {float16,bfloat16}]
                                         [--trainer.bf16-grad-scaler]
+                                        [--trainer.cudnn-benchmark]
                                         [--trainer.grad-clip GRAD_CLIP]
                                         [--trainer.grad-clip-norm {inf,1,2}]
                                         [--trainer.swa-start SWA_START]
@@ -12803,6 +12804,9 @@ hyperion-finetune-dac dac
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -13402,6 +13406,7 @@ hyperion-finetune-dac streaming_dac
                                                   [--trainer.use-amp]
                                                   [--trainer.amp-dtype {float16,bfloat16}]
                                                   [--trainer.bf16-grad-scaler]
+                                                  [--trainer.cudnn-benchmark]
                                                   [--trainer.grad-clip GRAD_CLIP]
                                                   [--trainer.grad-clip-norm {inf,1,2}]
                                                   [--trainer.swa-start SWA_START]
@@ -14130,6 +14135,9 @@ hyperion-finetune-dac streaming_dac
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -14760,6 +14768,7 @@ hyperion-finetune-qvector resnet
                                                [--trainer.use-amp]
                                                [--trainer.amp-dtype {float16,bfloat16}]
                                                [--trainer.bf16-grad-scaler]
+                                               [--trainer.cudnn-benchmark]
                                                [--trainer.grad-clip GRAD_CLIP]
                                                [--trainer.grad-clip-norm {inf,1,2}]
                                                [--trainer.swa-start SWA_START]
@@ -15398,6 +15407,9 @@ hyperion-finetune-qvector resnet
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -15785,6 +15797,7 @@ hyperion-finetune-qvector wav2vec2
                                                  [--trainer.use-amp]
                                                  [--trainer.amp-dtype {float16,bfloat16}]
                                                  [--trainer.bf16-grad-scaler]
+                                                 [--trainer.cudnn-benchmark]
                                                  [--trainer.grad-clip GRAD_CLIP]
                                                  [--trainer.grad-clip-norm {inf,1,2}]
                                                  [--trainer.swa-start SWA_START]
@@ -16497,6 +16510,9 @@ hyperion-finetune-qvector wav2vec2
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -17060,6 +17076,7 @@ hyperion-finetune-vi-anonymizer hf_wavlm_freevc
                                                               [--trainer.use-amp]
                                                               [--trainer.amp-dtype {float16,bfloat16}]
                                                               [--trainer.bf16-grad-scaler]
+                                                              [--trainer.cudnn-benchmark]
                                                               [--trainer.grad-clip GRAD_CLIP]
                                                               [--trainer.grad-clip-norm {inf,1,2}]
                                                               [--trainer.swa-start SWA_START]
@@ -18372,6 +18389,9 @@ hyperion-finetune-vi-anonymizer hf_wavlm_freevc
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -40431,6 +40451,7 @@ hyperion-train-dac dac
                                      [--trainer.use-amp]
                                      [--trainer.amp-dtype {float16,bfloat16}]
                                      [--trainer.bf16-grad-scaler]
+                                     [--trainer.cudnn-benchmark]
                                      [--trainer.grad-clip GRAD_CLIP]
                                      [--trainer.grad-clip-norm {inf,1,2}]
                                      [--trainer.swa-start SWA_START]
@@ -41251,6 +41272,9 @@ hyperion-train-dac dac
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -41883,6 +41907,7 @@ hyperion-train-dac streaming_dac
                                                [--trainer.use-amp]
                                                [--trainer.amp-dtype {float16,bfloat16}]
                                                [--trainer.bf16-grad-scaler]
+                                               [--trainer.cudnn-benchmark]
                                                [--trainer.grad-clip GRAD_CLIP]
                                                [--trainer.grad-clip-norm {inf,1,2}]
                                                [--trainer.swa-start SWA_START]
@@ -42706,6 +42731,9 @@ hyperion-train-dac streaming_dac
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -47555,6 +47583,7 @@ hyperion-train-freevc hf_wavlm_freevc
                                                     [--trainer.use-amp]
                                                     [--trainer.amp-dtype {float16,bfloat16}]
                                                     [--trainer.bf16-grad-scaler]
+                                                    [--trainer.cudnn-benchmark]
                                                     [--trainer.grad-clip GRAD_CLIP]
                                                     [--trainer.grad-clip-norm {inf,1,2}]
                                                     [--trainer.swa-start SWA_START]
@@ -48834,6 +48863,9 @@ hyperion-train-freevc hf_wavlm_freevc
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -50031,6 +50063,7 @@ hyperion-train-qvector resnet
                                             [--trainer.use-amp]
                                             [--trainer.amp-dtype {float16,bfloat16}]
                                             [--trainer.bf16-grad-scaler]
+                                            [--trainer.cudnn-benchmark]
                                             [--trainer.grad-clip GRAD_CLIP]
                                             [--trainer.grad-clip-norm {inf,1,2}]
                                             [--trainer.swa-start SWA_START]
@@ -51177,6 +51210,9 @@ hyperion-train-qvector resnet
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -51727,6 +51763,7 @@ hyperion-train-qvector wav2vec2
                                               [--trainer.use-amp]
                                               [--trainer.amp-dtype {float16,bfloat16}]
                                               [--trainer.bf16-grad-scaler]
+                                              [--trainer.cudnn-benchmark]
                                               [--trainer.grad-clip GRAD_CLIP]
                                               [--trainer.grad-clip-norm {inf,1,2}]
                                               [--trainer.swa-start SWA_START]
@@ -52958,6 +52995,9 @@ hyperion-train-qvector wav2vec2
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -53732,6 +53772,7 @@ hyperion-train-vi-anonymizer hf_wavlm_freevc
                                                            [--trainer.use-amp]
                                                            [--trainer.amp-dtype {float16,bfloat16}]
                                                            [--trainer.bf16-grad-scaler]
+                                                           [--trainer.cudnn-benchmark]
                                                            [--trainer.grad-clip GRAD_CLIP]
                                                            [--trainer.grad-clip-norm {inf,1,2}]
                                                            [--trainer.swa-start SWA_START]
@@ -55044,6 +55085,9 @@ hyperion-train-vi-anonymizer hf_wavlm_freevc
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -55994,9 +56038,10 @@ hyperion-train-vi-emo-normalizer hf_wavlm_freevc
           [--trainer.fsdp-mp-reduce-dtype {float16,bfloat16,float32,none}]
           [--trainer.fsdp-mp-output-dtype {float16,bfloat16,float32,none}]
           [--trainer.use-amp] [--trainer.amp-dtype {float16,bfloat16}]
-          [--trainer.bf16-grad-scaler] [--trainer.grad-clip GRAD_CLIP]
-          [--trainer.grad-clip-norm {inf,1,2}] [--trainer.swa-start SWA_START]
-          [--trainer.swa-lr SWA_LR] [--trainer.swa-anneal-steps SWA_ANNEAL_STEPS]
+          [--trainer.bf16-grad-scaler] [--trainer.cudnn-benchmark]
+          [--trainer.grad-clip GRAD_CLIP] [--trainer.grad-clip-norm {inf,1,2}]
+          [--trainer.swa-start SWA_START] [--trainer.swa-lr SWA_LR]
+          [--trainer.swa-anneal-steps SWA_ANNEAL_STEPS]
           [--trainer.swa-update-steps SWA_UPDATE_STEPS]
           [--trainer.bn-update-steps BN_UPDATE_STEPS]
           [--trainer.audio_feats CONFIG]
@@ -57285,6 +57330,9 @@ hyperion-train-vi-emo-normalizer hf_wavlm_freevc
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -86975,6 +87023,7 @@ hyperion-train-xvectorp resnet
                                              [--trainer.use-amp]
                                              [--trainer.amp-dtype {float16,bfloat16}]
                                              [--trainer.bf16-grad-scaler]
+                                             [--trainer.cudnn-benchmark]
                                              [--trainer.grad-clip GRAD_CLIP]
                                              [--trainer.grad-clip-norm {inf,1,2}]
                                              [--trainer.swa-start SWA_START]
@@ -87877,6 +87926,9 @@ hyperion-train-xvectorp resnet
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)
@@ -88349,6 +88401,7 @@ hyperion-train-xvectorp wav2vec2
                                                [--trainer.use-amp]
                                                [--trainer.amp-dtype {float16,bfloat16}]
                                                [--trainer.bf16-grad-scaler]
+                                               [--trainer.cudnn-benchmark]
                                                [--trainer.grad-clip GRAD_CLIP]
                                                [--trainer.grad-clip-norm {inf,1,2}]
                                                [--trainer.swa-start SWA_START]
@@ -89332,6 +89385,9 @@ hyperion-train-xvectorp wav2vec2
      --trainer.bf16-grad-scaler, --no_trainer.bf16-grad-scaler
                            Enable gradient scaling for bfloat16 (BF16) training.
                            (type: bool, default: False)
+     --trainer.cudnn-benchmark, --no_trainer.cudnn-benchmark
+                           Benchmark cuDNN convolution algorithms. (type: bool,
+                           default: False)
      --trainer.grad-clip GRAD_CLIP
                            Maximum norm for gradient clipping. Set to 0 to
                            disable clipping. (type: float, default: 0)

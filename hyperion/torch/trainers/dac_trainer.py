@@ -163,6 +163,7 @@ class DACTrainer(TorchTrainerBase):
         context_trim_fraction: float = 0.0,
         # gen_segment_duration: float = 0.64,
         num_val_log_samples: int = 10,
+        cudnn_benchmark: bool = False,
     ):
         """Initializes the DAC trainer.
 
@@ -224,6 +225,7 @@ class DACTrainer(TorchTrainerBase):
             gen_adv_losses_start_steps: Delay before adversarial losses turn on.
             context_trim_fraction: Fraction of context to trim from both ends.
             num_val_log_samples: Maximum number of validation samples to log.
+            cudnn_benchmark: Enable cuDNN convolution algorithm benchmarking.
         """
 
         super_args = filter_func_args(super().__init__, locals())

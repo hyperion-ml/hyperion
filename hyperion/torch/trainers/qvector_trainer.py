@@ -135,6 +135,7 @@ class QVectorTrainer(SingleModelTrainer):
         qmatrix_code_rate_weight: float = 0.0,
         prototype_code_rate_weight: float = 0.0,
         prototype_sig_reg_weight: float = 0.0,
+        cudnn_benchmark: bool = False,
     ) -> None:
         """
         Initializes the Q-vector trainer, forwarding most configuration to
@@ -195,6 +196,7 @@ class QVectorTrainer(SingleModelTrainer):
             prototype_code_rate_weight (float): Weight applied to the prototype
                 code-rate regularizer.
 
+            cudnn_benchmark: Enable cuDNN convolution algorithm benchmarking.
         """
 
         super_args = filter_func_args(super().__init__, locals())

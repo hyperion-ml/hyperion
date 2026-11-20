@@ -27,6 +27,8 @@ class WDScheduler:
         on epoch boundaries.
     """
 
+    _start_epoch: int = 0
+
     def __init__(
         self,
         optimizer: optim.Optimizer,
@@ -113,7 +115,22 @@ class WDScheduler:
         Args:
             state_dict: Serialized scheduler state.
         """
+        self.__dict__.pop("_start_epoch", None)
         self.__dict__.update(state_dict)
+
+    def restart_at_epoch(self, epoch: int) -> None:
+        """Start the configured schedule after loading an unscheduled optimizer.
+
+        Args:
+            epoch: Training epoch at which the new schedule starts.
+        """
+        self._start_epoch = self.epoch = epoch
+        self.step = 0
+        for group, wd, final_wd in zip(
+            self.optimizer.param_groups, self.get_wd(0), self.final_wds
+        ):
+            group["weight_decay"] = wd
+            group["final_wd"] = final_wd
 
     def get_wd(self, step: int) -> List[float]:
         """Compute per-group weight decays for a given step/epoch index.
@@ -132,7 +149,7 @@ class WDScheduler:
             return
 
         for param_group, wd in zip(
-            self.optimizer.param_groups, self.get_wd(self.epoch)
+            self.optimizer.param_groups, self.get_wd(self.epoch - self._start_epoch)
         ):
             param_group["weight_decay"] = wd
 

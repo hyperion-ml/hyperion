@@ -92,6 +92,7 @@ class PLDATrainer(SingleModelTrainer):
         compile_dynamic: bool = False,
         input_key: str = "x",
         target_key: str = "class_id",
+        cudnn_benchmark: bool = False,
     ) -> None:
         """Initializes the PLDA trainer.
 
@@ -147,6 +148,7 @@ class PLDATrainer(SingleModelTrainer):
 
         Returns:
             None.
+            cudnn_benchmark: Enable cuDNN convolution algorithm benchmarking.
         """
         if loss is None:
             loss = nn.CrossEntropyLoss()

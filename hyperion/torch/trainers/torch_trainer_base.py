@@ -212,6 +212,7 @@ class TorchTrainerBase:
         use_amp (bool): Enables mixed-precision training using AMP (Automatic Mixed Precision).
         amp_dtype (AMPDType): Data type for AMP (float16 or bfloat16).
         bf16_grad_scaler (bool): Enable GradScaler when using bfloat16.
+        cudnn_benchmark (bool): Enable cuDNN convolution algorithm benchmarking.
         log_interval (int): Number of steps between log output (for loggers).
         log_gpu_usage (bool): Whether to log GPU usage (memory, utilization) during training.
         use_tensorboard (bool): Enables TensorBoard logger.
@@ -263,6 +264,7 @@ class TorchTrainerBase:
         swa_update_steps: int = 5000,
         swa_anneal_steps: int = 50000,
         bn_update_steps: int = 5000,
+        cudnn_benchmark: bool = False,
     ) -> None:
         """
         Initializes trainer-wide state, logging, distributed context, and optional
@@ -304,6 +306,7 @@ class TorchTrainerBase:
             swa_anneal_steps: Steps used to anneal LR before SWA updates.
             swa_update_steps: Steps between SWA weight averaging operations.
             bn_update_steps: Max number of batches for BatchNorm stats refresh post-SWA.
+            cudnn_benchmark: Enable cuDNN convolution algorithm benchmarking.
         """
         self.exp_path = Path(exp_path)
         self.num_epochs = num_epochs
@@ -353,6 +356,7 @@ class TorchTrainerBase:
         self.use_amp = use_amp
         self.amp_dtype = AMPDType.to_dtype(amp_dtype)
         self.bf16_grad_scaler = bf16_grad_scaler
+        self.cudnn_benchmark = cudnn_benchmark
 
         self.grad_clip = grad_clip
         self.grad_clip_norm = grad_clip_norm
@@ -376,6 +380,10 @@ class TorchTrainerBase:
         if ddp:
             self.rank = dist.get_rank()
             self.world_size = dist.get_world_size()
+
+        torch.backends.cudnn.benchmark = self.cudnn_benchmark
+        if self.cudnn_benchmark and self.rank == 0:
+            logging.info("cuDNN convolution benchmarking enabled")
 
         self.grad_tracker: Optional[GradNormTracker] = None
 
@@ -1212,7 +1220,18 @@ class TorchTrainerBase:
     #     return batch_metrics
 
     def _should_update_models(self, batch_idx: int) -> bool:
-        """Return whether this zero-based batch ends the accumulation window."""
+        """Return whether this zero-based batch completes a full accumulation window.
+
+        Only full windows produce optimizer updates by design. The training
+        loop clears any gradients left by a partial window at the start of
+        the next epoch.
+
+        Args:
+            batch_idx: Zero-based index within the current training loop.
+
+        Returns:
+            Whether the configured number of microbatches has accumulated.
+        """
         return (batch_idx + 1) % self.grad_acc_steps == 0
 
     @staticmethod
@@ -1917,6 +1936,8 @@ class TorchTrainerBase:
         """
         Loads the model, optimizer, and scheduler states from a checkpoint dictionary.
 
+        All ranks must participate in an FSDP2 restore.
+
         Args:
             checkpoint (Dict[str, Any]): The checkpoint dictionary.
             model (HyperTorchModel): The model instance to load state into.
@@ -1926,7 +1947,18 @@ class TorchTrainerBase:
             swa_model (Optional[HyperTorchModel]): SWA model instance, if applicable.
             swa_scheduler (Optional[SWALR]): SWA scheduler instance, if applicable.
         """
-        if not self.ddp:
+        fsdp_options = None
+        if self.ddp and self.ddp_type == DDPType.FSDP:
+            fsdp_options = StateDictOptions(
+                full_state_dict=True,
+                broadcast_from_rank0=True,
+            )
+            set_model_state_dict(
+                model,
+                model_state_dict=checkpoint["model_state_dict"],
+                options=fsdp_options,
+            )
+        elif not self.ddp:
             try:
                 model.load_state_dict(checkpoint["model_state_dict"])
             except (RuntimeError, AttributeError):
@@ -1935,38 +1967,38 @@ class TorchTrainerBase:
                     for k, v in checkpoint["model_state_dict"].items()
                 }
                 model.load_state_dict(state_dict)
-        elif self.ddp_type == DDPType.DDP:
+        else:
             try:
                 model.load_state_dict(checkpoint["model_state_dict"])
             except (RuntimeError, AttributeError):
                 model.module.load_state_dict(checkpoint["model_state_dict"])
-        else:
-            set_model_state_dict(
-                model,
-                options=StateDictOptions(
-                    full_state_dict=True,
-                    broadcast_from_rank0=True,
-                ),
-            )
 
         if optimizer is not None:
-            if self.ddp and self.ddp_type == DDPType.FSDP:
+            if fsdp_options is not None:
                 set_optimizer_state_dict(
                     model=model,
                     optimizers=optimizer,
                     optim_state_dict=checkpoint["optimizer_state_dict"],
-                    options=StateDictOptions(
-                        full_state_dict=True,
-                        broadcast_from_rank0=True,
-                    ),
+                    options=fsdp_options,
                 )
-            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            else:
+                optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         if lr_scheduler is not None:
             lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
 
         if wd_scheduler is not None:
-            wd_scheduler.load_state_dict(checkpoint["wd_scheduler_state_dict"])
+            wd_state = checkpoint.get("wd_scheduler_state_dict")
+            if wd_state is None:
+                wd_scheduler.restart_at_epoch(checkpoint["epoch"])
+                if self.rank == 0:
+                    logging.info(
+                        "Checkpoint has no weight decay scheduler state. "
+                        "Starting the configured schedule at epoch %d.",
+                        checkpoint["epoch"],
+                    )
+            else:
+                wd_scheduler.load_state_dict(wd_state)
 
         if self.do_swa:
             if "swa_model_state_dict" in checkpoint:
@@ -2313,6 +2345,12 @@ class TorchTrainerBase:
             action=ActionYesNo,
             default=False,
             help="Enable gradient scaling for bfloat16 (BF16) training.",
+        )
+        add_argument(
+            "--cudnn-benchmark",
+            action=ActionYesNo,
+            default=False,
+            help="Benchmark cuDNN convolution algorithms.",
         )
         add_argument(
             "--grad-clip",

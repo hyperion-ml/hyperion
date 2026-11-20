@@ -175,6 +175,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         vc_losses_warmup_start_step: int = 50000,
         gen_segment_duration: float = 0.64,
         num_val_log_samples: int = 10,
+        cudnn_benchmark: bool = False,
     ) -> None:
         """Initializes the VIAnonymizer trainer.
 
@@ -243,6 +244,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
 
         Returns:
             None.
+            cudnn_benchmark: Enable cuDNN convolution algorithm benchmarking.
         """
 
         super_args = filter_func_args(super().__init__, locals())

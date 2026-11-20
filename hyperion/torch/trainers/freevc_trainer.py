@@ -161,6 +161,7 @@ class FreeVCTrainer(TorchTrainerBase):
         loss_fm_weight: float = 1.0,
         gen_segment_duration: float = 0.64,
         num_val_log_samples: int = 10,
+        cudnn_benchmark: bool = False,
     ) -> None:
         """Initializes the FreeVC trainer.
 
@@ -222,6 +223,7 @@ class FreeVCTrainer(TorchTrainerBase):
 
         Returns:
             None.
+            cudnn_benchmark: Enable cuDNN convolution algorithm benchmarking.
         """
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
