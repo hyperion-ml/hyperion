@@ -61,6 +61,15 @@ the next epoch. For example, five microbatches with ``grad_acc_steps=2`` yield
 two optimizer steps. An epoch with fewer microbatches than ``grad_acc_steps``
 yields zero optimizer steps.
 
+Gradient clipping and logging
+-----------------------------
+
+Trainers based on ``TorchTrainerBase`` use a gradient-norm safety cap of
+``30000`` when ``grad_clip`` is zero or negative. A positive value sets the
+cap directly. The same rule applies to ``discrim_grad_clip``. The gradient
+tracker records the norm before clipping. With standard DDP, every rank
+clips its gradients and rank 0 reads the norm for logging.
+
 cuDNN convolution benchmarking
 ------------------------------
 

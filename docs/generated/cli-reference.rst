@@ -12808,8 +12808,8 @@ hyperion-finetune-dac dac
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -12843,8 +12843,8 @@ hyperion-finetune-dac dac
      --trainer.discrim_wdsched CONFIG
                            Path to a configuration file.
      --trainer.discrim-grad-clip DISCRIM_GRAD_CLIP
-                           Max norm for clipping discriminator gradients (0 for
-                           no clipping). (type: float, default: 0)
+                           Maximum discriminator gradient norm. Non-positive
+                           values use a cap of 30000. (type: float, default: 0)
      --trainer.input-audio-key INPUT_AUDIO_KEY
                            Key used to access source audio in the batch
                            dictionary. (default: audio)
@@ -14139,8 +14139,8 @@ hyperion-finetune-dac streaming_dac
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -14174,8 +14174,8 @@ hyperion-finetune-dac streaming_dac
      --trainer.discrim_wdsched CONFIG
                            Path to a configuration file.
      --trainer.discrim-grad-clip DISCRIM_GRAD_CLIP
-                           Max norm for clipping discriminator gradients (0 for
-                           no clipping). (type: float, default: 0)
+                           Maximum discriminator gradient norm. Non-positive
+                           values use a cap of 30000. (type: float, default: 0)
      --trainer.input-audio-key INPUT_AUDIO_KEY
                            Key used to access source audio in the batch
                            dictionary. (default: audio)
@@ -15411,8 +15411,8 @@ hyperion-finetune-qvector resnet
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -16514,8 +16514,8 @@ hyperion-finetune-qvector wav2vec2
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -18393,8 +18393,8 @@ hyperion-finetune-vi-anonymizer hf_wavlm_freevc
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -18430,8 +18430,8 @@ hyperion-finetune-vi-anonymizer hf_wavlm_freevc
      --trainer.discrim_wdsched CONFIG
                            Path to a configuration file.
      --trainer.discrim-grad-clip DISCRIM_GRAD_CLIP
-                           Gradient clipping value for the discriminator. (type:
-                           float, default: 0.0)
+                           Maximum discriminator gradient norm. Non-positive
+                           values use a cap of 30000. (type: float, default: 0.0)
      --trainer.input-audio-key INPUT_AUDIO_KEY
                            Key used to access source audio in the batch
                            dictionary. (default: audio)
@@ -41276,8 +41276,8 @@ hyperion-train-dac dac
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -41311,8 +41311,8 @@ hyperion-train-dac dac
      --trainer.discrim_wdsched CONFIG
                            Path to a configuration file.
      --trainer.discrim-grad-clip DISCRIM_GRAD_CLIP
-                           Max norm for clipping discriminator gradients (0 for
-                           no clipping). (type: float, default: 0)
+                           Maximum discriminator gradient norm. Non-positive
+                           values use a cap of 30000. (type: float, default: 0)
      --trainer.input-audio-key INPUT_AUDIO_KEY
                            Key used to access source audio in the batch
                            dictionary. (default: audio)
@@ -42735,8 +42735,8 @@ hyperion-train-dac streaming_dac
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -42770,8 +42770,8 @@ hyperion-train-dac streaming_dac
      --trainer.discrim_wdsched CONFIG
                            Path to a configuration file.
      --trainer.discrim-grad-clip DISCRIM_GRAD_CLIP
-                           Max norm for clipping discriminator gradients (0 for
-                           no clipping). (type: float, default: 0)
+                           Maximum discriminator gradient norm. Non-positive
+                           values use a cap of 30000. (type: float, default: 0)
      --trainer.input-audio-key INPUT_AUDIO_KEY
                            Key used to access source audio in the batch
                            dictionary. (default: audio)
@@ -48867,8 +48867,8 @@ hyperion-train-freevc hf_wavlm_freevc
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -48902,8 +48902,8 @@ hyperion-train-freevc hf_wavlm_freevc
      --trainer.discrim_wdsched CONFIG
                            Path to a configuration file.
      --trainer.discrim-grad-clip DISCRIM_GRAD_CLIP
-                           Gradient clipping value for the discriminator. (type:
-                           float, default: 0.0)
+                           Maximum discriminator gradient norm. Non-positive
+                           values use a cap of 30000. (type: float, default: 0.0)
      --trainer.input-audio-key INPUT_AUDIO_KEY
                            Key used to access source audio in the batch
                            dictionary. (default: audio)
@@ -51214,8 +51214,8 @@ hyperion-train-qvector resnet
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -52999,8 +52999,8 @@ hyperion-train-qvector wav2vec2
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -55089,8 +55089,8 @@ hyperion-train-vi-anonymizer hf_wavlm_freevc
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -55126,8 +55126,8 @@ hyperion-train-vi-anonymizer hf_wavlm_freevc
      --trainer.discrim_wdsched CONFIG
                            Path to a configuration file.
      --trainer.discrim-grad-clip DISCRIM_GRAD_CLIP
-                           Gradient clipping value for the discriminator. (type:
-                           float, default: 0.0)
+                           Maximum discriminator gradient norm. Non-positive
+                           values use a cap of 30000. (type: float, default: 0.0)
      --trainer.input-audio-key INPUT_AUDIO_KEY
                            Key used to access source audio in the batch
                            dictionary. (default: audio)
@@ -57334,8 +57334,8 @@ hyperion-train-vi-emo-normalizer hf_wavlm_freevc
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -57371,8 +57371,8 @@ hyperion-train-vi-emo-normalizer hf_wavlm_freevc
      --trainer.discrim_wdsched CONFIG
                            Path to a configuration file.
      --trainer.discrim-grad-clip DISCRIM_GRAD_CLIP
-                           Gradient clipping value for the discriminator. (type:
-                           float, default: 0.0)
+                           Maximum discriminator gradient norm. Non-positive
+                           values use a cap of 30000. (type: float, default: 0.0)
      --trainer.input-audio-key INPUT_AUDIO_KEY
                            Key used to access source audio in the batch
                            dictionary. (default: audio)
@@ -87930,8 +87930,8 @@ hyperion-train-xvectorp resnet
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)
@@ -89389,8 +89389,8 @@ hyperion-train-xvectorp wav2vec2
                            Benchmark cuDNN convolution algorithms. (type: bool,
                            default: False)
      --trainer.grad-clip GRAD_CLIP
-                           Maximum norm for gradient clipping. Set to 0 to
-                           disable clipping. (type: float, default: 0)
+                           Maximum gradient norm. Non-positive values use a cap
+                           of 30000. (type: float, default: 0)
      --trainer.grad-clip-norm {inf,1,2}
                            Norm type used for gradient clipping (L1, L2, or L∞).
                            (default: 2)

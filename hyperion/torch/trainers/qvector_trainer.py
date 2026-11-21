@@ -179,7 +179,7 @@ class QVectorTrainer(SingleModelTrainer):
             use_tensorboard (bool): Enables TensorBoard logging.
             use_wandb (bool): Enables W&B logging.
             wandb (Dict[str, str]): Extra W&B init parameters.
-            grad_clip (float): Gradient clipping threshold (<=0 disables).
+            grad_clip (float): Gradient clipping threshold. Non-positive values use a cap of 30000.
             grad_clip_norm (Union[str, int]): Norm used for clipping.
             swa_start (int): Step at which to start SWA averaging.
             swa_lr (float): SWA learning rate.

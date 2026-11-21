@@ -93,7 +93,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         use_tensorboard (bool): Enables TensorBoard logger.
         use_wandb (bool): Enables Weights & Biases logger.
         wandb (dict): Configuration for W&B logging (project, name, etc.).
-        grad_clip (float): Maximum gradient norm to clip (0 disables clipping).
+        grad_clip (float): Maximum gradient norm. Non-positive values use a cap of 30000.
         grad_clip_norm (str or int): Norm type for gradient clipping (e.g., 1, 2, or 'inf').
         swa_start (int): Step at which to begin Stochastic Weight Averaging (SWA).
         swa_lr (float): Learning rate to use during SWA phase.

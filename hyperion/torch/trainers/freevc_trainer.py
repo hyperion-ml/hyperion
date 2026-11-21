@@ -90,7 +90,7 @@ class FreeVCTrainer(TorchTrainerBase):
         use_tensorboard (bool): Enables TensorBoard logger.
         use_wandb (bool): Enables Weights & Biases logger.
         wandb (dict): Configuration for W&B logging (project, name, etc.).
-        grad_clip (float): Maximum gradient norm to clip (0 disables clipping).
+        grad_clip (float): Maximum gradient norm. Non-positive values use a cap of 30000.
         grad_clip_norm (str or int): Norm type for gradient clipping (e.g., 1, 2, or 'inf').
         swa_start (int): Step at which to begin Stochastic Weight Averaging (SWA).
         swa_lr (float): Learning rate to use during SWA phase.
@@ -206,8 +206,8 @@ class FreeVCTrainer(TorchTrainerBase):
             use_tensorboard (bool): Whether to enable TensorBoard logging.
             use_wandb (bool): Whether to enable W&B logging.
             wandb (Dict[str, str]): W&B configuration dictionary.
-            grad_clip (float): Generator gradient clipping threshold.
-            discrim_grad_clip (float): Discriminator gradient clipping threshold.
+            grad_clip (float): Generator gradient clipping threshold. Non-positive values use a cap of 30000.
+            discrim_grad_clip (float): Discriminator gradient clipping threshold. Non-positive values use a cap of 30000.
             grad_clip_norm (Union[str, int]): Gradient norm type.
             swa_start (int): Step at which SWA starts.
             swa_lr (float): SWA learning rate.
@@ -806,7 +806,7 @@ class FreeVCTrainer(TorchTrainerBase):
         self.grad_scaler.update()
 
         logs = {"grad_norm/vc": vc_grad_norm, "grad_norm/discrim": discrim_grad_norm}
-        return logs
+        return {key: norm for key, norm in logs.items() if norm is not None}
 
     def save_checkpoint(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """Saves current training state to disk, including both models and optionally SWA.
@@ -952,7 +952,7 @@ class FreeVCTrainer(TorchTrainerBase):
                 "--discrim-grad-clip",
                 default=0.0,
                 type=float,
-                help="Gradient clipping value for the discriminator.",
+                help="Maximum discriminator gradient norm. Non-positive values use a cap of 30000.",
             )
 
         if prefix is not None:

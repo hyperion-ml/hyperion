@@ -63,6 +63,7 @@ from ..utils.grad_tracker import GradNormTracker
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
 
+_DEFAULT_GRAD_CLIP = 30000
 _VAL_HOURS_CHECK_STEPS = 1000
 _SAVE_HOURS_CHECK_STEPS = 1000
 
@@ -222,7 +223,7 @@ class TorchTrainerBase:
         use_tensorboard (bool): Enables TensorBoard logger.
         use_wandb (bool): Enables Weights & Biases logger.
         wandb (dict): Configuration for W&B logging (project, name, etc.).
-        grad_clip (float): Maximum gradient norm to clip (0 disables clipping).
+        grad_clip (float): Maximum gradient norm. Non-positive values use a cap of 30000.
         grad_clip_norm (str or int): Norm type for gradient clipping (e.g., 1, 2, or 'inf').
         swa_start (int): Step at which to begin Stochastic Weight Averaging (SWA).
         swa_lr (float): Learning rate to use during SWA phase.
@@ -303,7 +304,7 @@ class TorchTrainerBase:
             use_tensorboard: Enable TensorBoard logging backend.
             use_wandb: Enable Weights & Biases logging backend.
             wandb: Extra configuration dict for W&B when enabled.
-            grad_clip: Max gradient norm (<=0 disables clipping).
+            grad_clip: Maximum gradient norm. Non-positive values use a cap of 30000.
             grad_clip_norm: Norm type used when clipping gradients.
             swa_start: Global step at which to begin SWA (0 disables).
             swa_lr: Learning rate to use during SWA averaging.
@@ -1509,17 +1510,17 @@ class TorchTrainerBase:
         model: nn.Module,
         grad_clip: float,
         grad_clip_norm: Union[int, float, str],
-    ) -> float:
+    ) -> Optional[float]:
         """
         Clips the gradients of the model parameters to prevent exploding gradients.
 
         Args:
             model (nn.Module): The model whose gradients will be clipped.
-            grad_clip (float): Maximum gradient norm. If <= 0, clipping is skipped.
+            grad_clip (float): Maximum gradient norm to apply.
             grad_clip_norm (float or str): Type of norm (e.g., 1, 2, 'inf').
 
         Returns:
-            float: The total norm of the parameters (before clipping).
+            The total gradient norm before clipping, or None on nonzero standard DDP ranks.
         """
         if self._is_fsdp_module(model):
             if self.fsdp_cpu_offload:
@@ -1542,6 +1543,8 @@ class TorchTrainerBase:
             grad_norm = nn.utils.clip_grad_norm_(
                 model.parameters(), grad_clip, norm_type=grad_clip_norm
             )
+        if self.rank != 0 and isinstance(model, nn.parallel.DistributedDataParallel):
+            return None
         return grad_norm.item()
 
     def _update_model_by_optim(
@@ -1552,10 +1555,9 @@ class TorchTrainerBase:
         grad_clip_norm: Union[int, float, str],
         use_amp: bool,
         grad_scaler: amp.GradScaler,
-    ) -> float:
+    ) -> Optional[float]:
         """
-        Updates the model parameters by stepping the optimizer, with optional
-        gradient clipping and AMP unscaling.
+        Updates the model parameters with gradient clipping and AMP unscaling.
 
         This method:
             - Unscales gradients (if AMP is used)
@@ -1566,16 +1568,16 @@ class TorchTrainerBase:
         Args:
             model (nn.Module): The model being trained.
             optimizer (torch.optim.Optimizer): The optimizer.
-            grad_clip (float): Maximum norm for gradient clipping.
+            grad_clip (float): Maximum gradient norm. Non-positive values use a cap of 30000.
             grad_clip_norm (float or str): Norm type for gradient clipping.
             use_amp (bool): Whether AMP (Automatic Mixed Precision) is enabled.
             grad_scaler (torch.amp.GradScaler): AMP gradient scaler.
 
         Returns:
-            float: The norm of the gradients after clipping.
+            The total gradient norm before clipping, or None on nonzero standard DDP ranks.
         """
         grad_scaler.unscale_(optimizer)
-        grad_clip = 30000 if grad_clip <= 0 else grad_clip
+        grad_clip = _DEFAULT_GRAD_CLIP if grad_clip <= 0 else grad_clip
         grad_norm = self._clip_grad_norm(model, grad_clip, grad_clip_norm)
         grad_scaler.step(optimizer)
         optimizer.zero_grad()
@@ -2506,7 +2508,7 @@ class TorchTrainerBase:
             "--grad-clip",
             type=float,
             default=0,
-            help="Maximum norm for gradient clipping. Set to 0 to disable clipping.",
+            help=f"Maximum gradient norm. Non-positive values use a cap of {_DEFAULT_GRAD_CLIP}.",
         )
         add_argument(
             "--grad-clip-norm",

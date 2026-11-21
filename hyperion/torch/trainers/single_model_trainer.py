@@ -60,7 +60,7 @@ class SingleModelTrainer(TorchTrainerBase):
         use_tensorboard (bool): Whether to enable a TensorBoard logger.
         use_wandb (bool): Whether to enable a Weights&Biases logger.
         wandb (Dict[str, Any]): Additional W&B configuration parameters.
-        grad_clip (float): Gradient-norm clipping threshold (<=0 disables).
+        grad_clip (float): Gradient-norm clipping threshold. Non-positive values use a cap of 30000.
         grad_clip_norm (Union[str, int]): Norm type used when clipping gradients.
         swa_start (int): Step at which to start SWA averaging (0 means disabled).
         swa_lr (float): Learning rate used during the SWA phase.
@@ -158,7 +158,7 @@ class SingleModelTrainer(TorchTrainerBase):
             use_tensorboard (bool): Enables TensorBoard logging.
             use_wandb (bool): Enables Weights & Biases logging.
             wandb (Dict[str, str]): Additional arguments for W&B initialization.
-            grad_clip (float): Gradient norm threshold (<=0 disables clipping).
+            grad_clip (float): Gradient norm threshold. Non-positive values use a cap of 30000.
             grad_clip_norm (Union[str, int]): Norm type for gradient clipping.
             swa_start (int): Step at which to start SWA averaging (0 disables).
             swa_lr (float): Learning rate to use during SWA.
@@ -469,7 +469,7 @@ class SingleModelTrainer(TorchTrainerBase):
             None.
 
         Returns:
-            Dict[str, float]: Diagnostics such as the clipped gradient norm.
+            Dict[str, float]: Pre-clipping gradient norm when available.
         """
         if self.lr_scheduler is not None and not self.in_swa:
             self.lr_scheduler.on_opt_step()
@@ -486,8 +486,7 @@ class SingleModelTrainer(TorchTrainerBase):
             self.grad_scaler,
         )
         self.grad_scaler.update()
-        logs = {"grad_norm": grad_norm}
-        return logs
+        return {"grad_norm": grad_norm} if grad_norm is not None else {}
 
     def update_swa_model(self) -> None:
         """

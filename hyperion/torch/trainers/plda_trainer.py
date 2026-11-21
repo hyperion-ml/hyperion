@@ -134,7 +134,7 @@ class PLDATrainer(SingleModelTrainer):
             use_tensorboard: Enables TensorBoard logging.
             use_wandb: Enables Weights & Biases logging.
             wandb: Additional W&B configuration.
-            grad_clip: Gradient clipping threshold; non-positive disables clipping.
+            grad_clip: Gradient clipping threshold. Non-positive values use a cap of 30000.
             grad_clip_norm: Norm type used for gradient clipping.
             swa_start: Step at which SWA averaging starts; 0 disables SWA.
             swa_lr: Learning rate used during SWA.

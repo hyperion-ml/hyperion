@@ -82,7 +82,7 @@ class DACTrainer(TorchTrainerBase):
         use_tensorboard (bool): Enables TensorBoard logger.
         use_wandb (bool): Enables Weights & Biases logger.
         wandb (dict): Configuration for W&B logging (project, name, etc.).
-        grad_clip (float): Maximum gradient norm to clip (0 disables clipping).
+        grad_clip (float): Maximum gradient norm. Non-positive values use a cap of 30000.
         grad_clip_norm (str or int): Norm type for gradient clipping (e.g., 1, 2, or 'inf').
         swa_start (int): Step at which to begin Stochastic Weight Averaging (SWA).
         swa_lr (float): Learning rate to use during SWA phase.
@@ -205,8 +205,8 @@ class DACTrainer(TorchTrainerBase):
             use_tensorboard: Whether to enable TensorBoard logging.
             use_wandb: Whether to enable Weights & Biases logging.
             wandb: Weights & Biases configuration.
-            grad_clip: Generator gradient clipping norm.
-            discrim_grad_clip: Discriminator gradient clipping norm.
+            grad_clip: Generator gradient clipping threshold. Non-positive values use a cap of 30000.
+            discrim_grad_clip: Discriminator gradient clipping threshold. Non-positive values use a cap of 30000.
             grad_clip_norm: Gradient norm type.
             swa_start: Step to start SWA.
             swa_lr: SWA learning rate.
@@ -891,7 +891,7 @@ class DACTrainer(TorchTrainerBase):
         self.grad_scaler.update()
 
         logs = {"grad_norm/dac": dac_grad_norm, "grad_norm/discrim": discrim_grad_norm}
-        return logs
+        return {key: norm for key, norm in logs.items() if norm is not None}
 
     def save_checkpoint(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """Saves current training state to disk, including both models and optionally SWA.
@@ -1034,7 +1034,7 @@ class DACTrainer(TorchTrainerBase):
                 "--discrim-grad-clip",
                 default=0,
                 type=float,
-                help="Max norm for clipping discriminator gradients (0 for no clipping).",
+                help="Maximum discriminator gradient norm. Non-positive values use a cap of 30000.",
             )
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
